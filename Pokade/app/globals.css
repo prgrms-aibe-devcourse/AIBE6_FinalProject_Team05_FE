@@ -1,0 +1,69 @@
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    @apply m-0 p-0;
+  }
+  body {
+    @apply bg-white font-sans text-ink antialiased;
+  }
+  /* Link defaults from the design palette */
+  a {
+    @apply text-secondary no-underline;
+  }
+  a:hover {
+    @apply text-secondary-dark;
+  }
+}
+
+/* Sticky footer scaffold (footer flush at true viewport bottom) */
+.page-container {
+  @apply flex min-h-screen flex-col;
+}
+.main-content {
+  @apply flex-1;
+}
+.footer {
+  @apply flex-shrink-0;
+}
+
+/* Thin scrollbar for chat panes */
+.chat-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.chat-scroll::-webkit-scrollbar-thumb {
+  background: #dadae0;
+  border-radius: 4px;
+}
+
+/* Dual-handle price range slider (Search filter) */
+.dual-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ee1515;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.dual-range::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ee1515;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.dual-range:focus {
+  outline: none;
+}
