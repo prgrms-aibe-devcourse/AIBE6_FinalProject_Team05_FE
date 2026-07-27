@@ -1,21 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import GradeBadge, { Grade } from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
-
-const CARDS: { id: string; name: string; set: string; grade: Grade; price: string }[] = [
-  { id: "sd-1", name: "리자몽 ex", set: "흑염의 지배자 · SAR", grade: "S", price: "₩142,000" },
-  { id: "sd-2", name: "뮤츠 ex", set: "레이징 서프 · SAR", grade: "A", price: "₩211,000" },
-  { id: "sd-3", name: "피카츄 VMAX", set: "프로모 · HR", grade: "S", price: "₩55,000" },
-  { id: "sd-4", name: "뮤 UR", set: "151 · UR", grade: "A", price: "₩89,500" },
-  { id: "sd-5", name: "가디안 ex", set: "클레이 버스트 · SAR", grade: "B", price: "₩38,700" },
-  { id: "sd-6", name: "이상해꽃 ex", set: "클레이 버스트 · SAR", grade: "S", price: "₩64,200" },
-  { id: "sd-7", name: "루기아 V", set: "실버 템페스트 · SAR", grade: "A", price: "₩76,000" },
-  { id: "sd-8", name: "개굴닌자 ex", set: "샤이니 트레저 · SAR", grade: "S", price: "₩102,000" },
-  { id: "sd-9", name: "파이리", set: "151 · AR", grade: "A", price: "₩29,000" },
-  { id: "sd-10", name: "칠색조 ex", set: "파라다임 트리거 · SAR", grade: "S", price: "₩118,000" },
-];
+import { CardSearchItem, toCardSearchItem } from "@/types/card";
+import { fetchCards } from "@/lib/cardApi";
+import { ApiError } from "@/lib/apiClient";
 
 const GRADE_CHIP: Record<Grade, string> = {
   S: "text-[#5A4300] bg-[#FFF3CE] border-[#F0E0A0]",
@@ -25,10 +15,37 @@ const GRADE_CHIP: Record<Grade, string> = {
 
 const PRICE_MAX = 3000000;
 
+type LoadState = "loading" | "error" | "ready";
+
 export default function SearchDashboardPage() {
   const [view, setView] = useState<"search" | "dash">("search");
   const [priceMin, setPriceMin] = useState(0);
   const [priceMax, setPriceMax] = useState(1500000);
+  const [cards, setCards] = useState<CardSearchItem[]>([]);
+  const [loadState, setLoadState] = useState<LoadState>("loading");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchCards()
+      .then((responses) => {
+        if (cancelled) return;
+        setCards(responses.map(toCardSearchItem));
+        setLoadState("ready");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setErrorMessage(err instanceof ApiError ? err.message : "카드 목록을 불러오지 못했습니다.");
+        setLoadState("error");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
+
   const resetPrice = () => {
     setPriceMin(0);
     setPriceMax(1500000);
@@ -136,7 +153,7 @@ export default function SearchDashboardPage() {
             <div>
               <div className="mb-4 flex items-center justify-between">
                 <span className="text-[13.5px] text-[#8A8A92]">
-                  <b className="text-ink">1,284</b>개의 카드
+                  <b className="text-ink">{loadState === "ready" ? cards.length : "-"}</b>개의 카드
                 </span>
                 <select className="cursor-pointer rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-2 text-[13px] outline-none">
                   <option>인기순</option>
@@ -145,26 +162,63 @@ export default function SearchDashboardPage() {
                   <option>최신순</option>
                 </select>
               </div>
-              <div className="grid grid-cols-5 gap-4">
-                {CARDS.map((c) => (
-                  <div
-                    key={c.id}
-                    className="flex cursor-pointer flex-col overflow-hidden rounded-[13px] border border-[#EDEDF0] transition hover:-translate-y-[3px] hover:shadow-lift"
+
+              {loadState === "loading" && (
+                <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[#EDEDF0] bg-white py-24">
+                  <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-[#E7E7EB] border-t-primary" />
+                  <span className="text-[13.5px] font-semibold text-[#8A8A92]">
+                    카드 목록을 불러오는 중입니다...
+                  </span>
+                </div>
+              )}
+
+              {loadState === "error" && (
+                <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[#EDEDF0] bg-white py-24">
+                  <span className="text-[13.5px] font-bold text-[#D14343]">{errorMessage}</span>
+                  <button
+                    onClick={() => {
+                      setLoadState("loading");
+                      setReloadKey((k) => k + 1);
+                    }}
+                    className="mt-1 rounded-[9px] border-[1.5px] border-[#DDDDE3] bg-white px-4 py-2 text-[13px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary"
                   >
-                    <div className="relative h-[180px] bg-[#F2F2F5]">
-                      <CardImage label="카드" />
-                      <GradeBadge grade={c.grade} className="absolute left-[9px] top-[9px]" />
-                    </div>
-                    <div className="flex flex-1 flex-col p-3">
-                      <div className="text-[13.5px] font-bold">{c.name}</div>
-                      <div className="mt-0.5 text-[11.5px] text-[#9A9AA2]">{c.set}</div>
-                      <div className="mt-auto pt-2.5 text-[15px] font-extrabold text-ink">
-                        {c.price}
+                    다시 시도
+                  </button>
+                </div>
+              )}
+
+              {loadState === "ready" && cards.length === 0 && (
+                <div className="flex items-center justify-center rounded-2xl border border-[#EDEDF0] bg-white py-24 text-[13.5px] text-[#8A8A92]">
+                  조건에 맞는 카드가 없습니다.
+                </div>
+              )}
+
+              {loadState === "ready" && cards.length > 0 && (
+                <div className="grid grid-cols-5 gap-4">
+                  {cards.map((c) => (
+                    <div
+                      key={c.id}
+                      className="flex cursor-pointer flex-col overflow-hidden rounded-[13px] border border-[#EDEDF0] transition hover:-translate-y-[3px] hover:shadow-lift"
+                    >
+                      <div className="relative h-[180px] bg-[#F2F2F5]">
+                        <CardImage src={c.imageUrl} alt={c.name} label="카드" />
+                        <GradeBadge grade={c.grade} className="absolute left-[9px] top-[9px]" />
+                      </div>
+                      <div className="flex flex-1 flex-col p-3">
+                        <div className="text-[13.5px] font-bold">{c.name}</div>
+                        <div className="mt-0.5 text-[11.5px] text-[#9A9AA2]">{c.set}</div>
+                        <div className="mt-auto pt-2.5 text-[15px] font-extrabold text-ink">
+                          {c.price ?? (
+                            <span className="text-[13px] font-semibold text-[#9A9AA2]">
+                              가격 정보 준비중
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

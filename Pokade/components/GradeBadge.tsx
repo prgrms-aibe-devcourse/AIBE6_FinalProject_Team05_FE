@@ -19,10 +19,20 @@ export default function GradeBadge({
   size = "md",
   className = "",
 }: {
-  grade: Grade;
+  grade?: Grade;
   size?: keyof typeof SIZES;
   className?: string;
 }) {
+  if (!grade) {
+    return (
+      <span
+        className={`inline-block rounded-full bg-[#EEF0F2] font-bold leading-none tracking-[0.5px] text-[#9A9AA2] ${SIZES[size]} ${className}`}
+      >
+        등급 미정
+      </span>
+    );
+  }
+
   return (
     <span
       className={`inline-block rounded-full font-extrabold leading-none tracking-[0.5px] ${STYLES[grade]} ${SIZES[size]} ${className}`}
