@@ -144,11 +144,15 @@ function SearchDashboard() {
                         type="radio"
                         name="expansion-filter"
                         checked={selectedExpansionId === opt.expansionId}
+                        onClick={() => {
+                          if (selectedExpansionId === opt.expansionId) {
+                            setLoadState("loading");
+                            setSelectedExpansionId(null);
+                          }
+                        }}
                         onChange={() => {
                           setLoadState("loading");
-                          setSelectedExpansionId((prev) =>
-                            prev === opt.expansionId ? null : opt.expansionId,
-                          );
+                          setSelectedExpansionId(opt.expansionId);
                         }}
                       />
                       {opt.label}
