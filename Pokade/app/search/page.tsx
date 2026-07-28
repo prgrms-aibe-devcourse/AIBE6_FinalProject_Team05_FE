@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import GradeBadge, { Grade } from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
 import { CardSearchItem, toCardSearchItem } from "@/types/card";
@@ -196,8 +197,9 @@ export default function SearchDashboardPage() {
               {loadState === "ready" && cards.length > 0 && (
                 <div className="grid grid-cols-5 gap-4">
                   {cards.map((c) => (
-                    <div
+                    <Link
                       key={c.id}
+                      href={`/cards/${c.id}`}
                       className="flex cursor-pointer flex-col overflow-hidden rounded-[13px] border border-[#EDEDF0] transition hover:-translate-y-[3px] hover:shadow-lift"
                     >
                       <div className="relative h-[180px] bg-[#F2F2F5]">
@@ -215,7 +217,7 @@ export default function SearchDashboardPage() {
                           )}
                         </div>
                       </div>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               )}

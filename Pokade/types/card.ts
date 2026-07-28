@@ -35,3 +35,40 @@ export function toCardSearchItem(card: CardResponse): CardSearchItem {
     price: undefined,
   };
 }
+
+// 카드 상세 API(BE) 응답 형태 — com.pokade.domain.card.dto.CardDetailResponse 미러링.
+export interface ExpansionSummary {
+  id: string;
+  name: string;
+  series: string;
+  code: string;
+  total: number;
+  releaseDate: string | null;
+  logo: string;
+  symbol: string;
+}
+
+export interface VariantSummary {
+  id: number;
+  variantName: string;
+  primary: boolean;
+  imageSmall: string;
+  imageLarge: string;
+}
+
+export interface CardDetailResponse {
+  id: number;
+  externalId: string;
+  name: string;
+  setName: string;
+  rarity: string;
+  supertype: string;
+  types: string[];
+  artist: string;
+  printedNumber: string;
+  imageSmall: string;
+  imageMedium: string;
+  imageLarge: string;
+  expansion: ExpansionSummary | null;
+  variants: VariantSummary[];
+}
