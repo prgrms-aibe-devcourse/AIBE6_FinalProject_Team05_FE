@@ -14,6 +14,13 @@ export async function fetchCards(filters: CardSearchFilters = {}): Promise<CardR
   return page.content;
 }
 
+// GET /api/cards/search?q= — 이름 키워드 검색. q가 blank면 BE가 400(INVALID_INPUT) 반환.
+export async function fetchCardsByKeyword(q: string): Promise<CardResponse[]> {
+  const query = new URLSearchParams({ q });
+  const page = await apiGet<PageResponse<CardResponse>>(`/api/cards/search?${query.toString()}`);
+  return page.content;
+}
+
 // GET /api/cards/{id} — 카드 상세 조회. 카드가 없으면 ApiError(status=404).
 export async function fetchCardDetail(id: number): Promise<CardDetailResponse> {
   return apiGet<CardDetailResponse>(`/api/cards/${id}`);

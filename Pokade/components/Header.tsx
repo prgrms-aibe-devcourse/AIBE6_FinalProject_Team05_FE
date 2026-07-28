@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 const NAV: { label: string; href: string }[] = [
   { label: "마켓", href: "/search" },
@@ -20,19 +20,43 @@ function variantFor(path: string): "in" | "out" | "admin" {
 }
 
 function SearchBar({ width = "w-60" }: { width?: string }) {
+  const router = useRouter();
+  const [query, setQuery] = useState("");
+
+  const submit = () => {
+    const trimmed = query.trim();
+    if (!trimmed) return; // 빈 검색어는 BE가 400을 반환하므로 요청 자체를 막는다.
+    router.push(`/search?q=${encodeURIComponent(trimmed)}`);
+  };
+
   return (
-    <div
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
+      }}
       className={`flex items-center gap-2 rounded-[9px] border border-[#ECECEF] bg-neutral px-3 py-2 ${width}`}
     >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9A9AA2" strokeWidth="2">
-        <circle cx="11" cy="11" r="7" />
-        <path d="M21 21l-4-4" />
-      </svg>
+      <button type="submit" aria-label="검색" className="flex flex-shrink-0 items-center">
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#9A9AA2"
+          strokeWidth="2"
+        >
+          <circle cx="11" cy="11" r="7" />
+          <path d="M21 21l-4-4" />
+        </svg>
+      </button>
       <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
         placeholder="카드 이름으로 검색"
         className="w-full border-none bg-transparent text-[13.5px] text-ink outline-none"
       />
-    </div>
+    </form>
   );
 }
 
