@@ -16,12 +16,21 @@ const GRADE_CHIP: Record<Grade, string> = {
 
 const PRICE_MAX = 3000000;
 
+// 세트 체크박스 → BE expansionId 매핑. data.sql에 실제 시드된 세트 중 4개만 노출.
+const SET_OPTIONS: { label: string; expansionId: string }[] = [
+  { label: "베이스", expansionId: "base1" },
+  { label: "151", expansionId: "sv3pt5" },
+  { label: "블랙 볼트", expansionId: "zsv10pt5" },
+  { label: "메가 에볼루션", expansionId: "me1" },
+];
+
 type LoadState = "loading" | "error" | "ready";
 
 export default function SearchDashboardPage() {
   const [view, setView] = useState<"search" | "dash">("search");
   const [priceMin, setPriceMin] = useState(0);
   const [priceMax, setPriceMax] = useState(1500000);
+  const [selectedExpansionId, setSelectedExpansionId] = useState<string | null>(null);
   const [cards, setCards] = useState<CardSearchItem[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
@@ -30,7 +39,7 @@ export default function SearchDashboardPage() {
   useEffect(() => {
     let cancelled = false;
 
-    fetchCards()
+    fetchCards({ expansionId: selectedExpansionId ?? undefined })
       .then((responses) => {
         if (cancelled) return;
         setCards(responses.map(toCardSearchItem));
@@ -45,11 +54,13 @@ export default function SearchDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey]);
+  }, [reloadKey, selectedExpansionId]);
 
-  const resetPrice = () => {
+  const resetFilters = () => {
     setPriceMin(0);
     setPriceMax(1500000);
+    setLoadState("loading");
+    setSelectedExpansionId(null);
   };
   const seg = (a: boolean) =>
     `rounded-lg px-[18px] py-[9px] text-[13.5px] cursor-pointer ${a ? "bg-white font-bold text-ink shadow-[0_1px_3px_rgba(0,0,0,0.08)]" : "bg-transparent font-semibold text-[#8A8A92]"}`;
@@ -76,18 +87,23 @@ export default function SearchDashboardPage() {
               <div className="mb-4 text-[15px] font-extrabold">필터</div>
               <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">세트</div>
               <div className="mb-5 flex flex-col gap-[9px]">
-                {[
-                  ["흑염의 지배자", true],
-                  ["레이징 서프", false],
-                  ["클레이 버스트", false],
-                  ["151", false],
-                ].map(([l, c]) => (
+                {SET_OPTIONS.map((opt) => (
                   <label
-                    key={l as string}
+                    key={opt.expansionId}
                     className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
                   >
-                    <input type="checkbox" defaultChecked={c as boolean} />
-                    {l}
+                    <input
+                      type="radio"
+                      name="expansion-filter"
+                      checked={selectedExpansionId === opt.expansionId}
+                      onChange={() => {
+                        setLoadState("loading");
+                        setSelectedExpansionId((prev) =>
+                          prev === opt.expansionId ? null : opt.expansionId,
+                        );
+                      }}
+                    />
+                    {opt.label}
                   </label>
                 ))}
               </div>
@@ -143,7 +159,7 @@ export default function SearchDashboardPage() {
                 <span>3,000,000원</span>
               </div>
               <button
-                onClick={resetPrice}
+                onClick={resetFilters}
                 className="mt-[22px] w-full rounded-[10px] border-[1.5px] border-[#DDDDE3] bg-white py-2.5 text-[13.5px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary"
               >
                 필터 초기화

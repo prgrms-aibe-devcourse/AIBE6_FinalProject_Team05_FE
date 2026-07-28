@@ -1,9 +1,16 @@
 import { apiGet, PageResponse } from "@/lib/apiClient";
 import { CardDetailResponse, CardResponse } from "@/types/card";
 
-// GET /api/cards — 필터 없는 전체 목록 조회 (기본 페이지 size=20).
-export async function fetchCards(): Promise<CardResponse[]> {
-  const page = await apiGet<PageResponse<CardResponse>>("/api/cards");
+// GET /api/cards — types/rarity/expansionId 정확 일치 필터 (기본 페이지 size=20).
+export interface CardSearchFilters {
+  expansionId?: string;
+}
+
+export async function fetchCards(filters: CardSearchFilters = {}): Promise<CardResponse[]> {
+  const query = new URLSearchParams();
+  if (filters.expansionId) query.set("expansionId", filters.expansionId);
+  const qs = query.toString();
+  const page = await apiGet<PageResponse<CardResponse>>(`/api/cards${qs ? `?${qs}` : ""}`);
   return page.content;
 }
 
