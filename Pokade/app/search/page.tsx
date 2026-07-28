@@ -25,6 +25,17 @@ const SET_OPTIONS: { label: string; expansionId: string }[] = [
   { label: "메가 에볼루션", expansionId: "me1" },
 ];
 
+// 타입/레어도 체크박스 값 — data.sql에 실제 시드된 영문 카드 기준 값.
+const TYPE_OPTIONS = ["Fire", "Water", "Lightning", "Psychic", "Fighting", "Fairy"];
+const RARITY_OPTIONS = [
+  "Common",
+  "Double Rare",
+  "Illustration Rare",
+  "Rare Holo",
+  "Rare Holo EX",
+  "Rare Holo GX",
+];
+
 type LoadState = "loading" | "error" | "ready";
 
 export default function SearchDashboardPage() {
@@ -42,6 +53,8 @@ function SearchDashboard() {
   const [priceMin, setPriceMin] = useState(0);
   const [priceMax, setPriceMax] = useState(1500000);
   const [selectedExpansionId, setSelectedExpansionId] = useState<string | null>(null);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [selectedRarities, setSelectedRarities] = useState<string[]>([]);
   const [cards, setCards] = useState<CardSearchItem[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
@@ -58,7 +71,11 @@ function SearchDashboard() {
 
     const request = q
       ? fetchCardsByKeyword(q)
-      : fetchCards({ expansionId: selectedExpansionId ?? undefined });
+      : fetchCards({
+          expansionId: selectedExpansionId ?? undefined,
+          types: selectedTypes,
+          rarity: selectedRarities,
+        });
 
     request
       .then((responses) => {
@@ -75,14 +92,18 @@ function SearchDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey, selectedExpansionId, q]);
+  }, [reloadKey, selectedExpansionId, selectedTypes, selectedRarities, q]);
 
   const resetFilters = () => {
     setPriceMin(0);
     setPriceMax(1500000);
     setLoadState("loading");
     setSelectedExpansionId(null);
+    setSelectedTypes([]);
+    setSelectedRarities([]);
   };
+  const toggleValue = (list: string[], value: string) =>
+    list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
   const seg = (a: boolean) =>
     `rounded-lg px-[18px] py-[9px] text-[13.5px] cursor-pointer ${a ? "bg-white font-bold text-ink shadow-[0_1px_3px_rgba(0,0,0,0.08)]" : "bg-transparent font-semibold text-[#8A8A92]"}`;
 
@@ -130,6 +151,46 @@ function SearchDashboard() {
                         }}
                       />
                       {opt.label}
+                    </label>
+                  ))}
+                </div>
+                <div className="mb-[18px] h-px bg-[#F0F0F0]" />
+                <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">타입</div>
+                <div className="mb-5 flex flex-col gap-[9px]">
+                  {TYPE_OPTIONS.map((t) => (
+                    <label
+                      key={t}
+                      className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedTypes.includes(t)}
+                        onChange={() => {
+                          setLoadState("loading");
+                          setSelectedTypes((prev) => toggleValue(prev, t));
+                        }}
+                      />
+                      {t}
+                    </label>
+                  ))}
+                </div>
+                <div className="mb-[18px] h-px bg-[#F0F0F0]" />
+                <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">레어도</div>
+                <div className="mb-5 flex flex-col gap-[9px]">
+                  {RARITY_OPTIONS.map((r) => (
+                    <label
+                      key={r}
+                      className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedRarities.includes(r)}
+                        onChange={() => {
+                          setLoadState("loading");
+                          setSelectedRarities((prev) => toggleValue(prev, r));
+                        }}
+                      />
+                      {r}
                     </label>
                   ))}
                 </div>

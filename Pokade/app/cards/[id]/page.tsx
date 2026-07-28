@@ -130,6 +130,18 @@ export default function CardDetailPage() {
                 <div className="mt-2 text-[14px] text-[#8A8A92]">
                   {card.setName} · {card.rarity}
                 </div>
+                {card.types.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {card.types.map((t) => (
+                      <span
+                        key={t}
+                        className="rounded-full border border-[#D4D9F5] bg-lavender px-2.5 py-1 text-[11.5px] font-bold text-secondary"
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 <div className="mt-6 flex flex-col gap-3 text-[13.5px]">
                   <div className="flex justify-between border-b border-[#F5F5F7] pb-3">
                     <span className="text-[#8A8A92]">아티스트</span>
