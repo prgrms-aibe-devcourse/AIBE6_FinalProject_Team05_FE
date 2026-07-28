@@ -39,6 +39,21 @@ const RARITY_OPTIONS = [
 
 type LoadState = "loading" | "error" | "ready";
 
+function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span className="flex items-center gap-1.5 rounded-full border border-[#DDDDE3] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#4B4B52]">
+      {label}
+      <button
+        onClick={onRemove}
+        aria-label={`${label} 필터 해제`}
+        className="flex h-4 w-4 items-center justify-center rounded-full text-[#9A9AA2] hover:bg-[#F2F2F5] hover:text-ink"
+      >
+        ×
+      </button>
+    </span>
+  );
+}
+
 export default function SearchDashboardPage() {
   return (
     <Suspense fallback={null}>
@@ -275,6 +290,46 @@ function SearchDashboard() {
                   <option>최신순</option>
                 </select>
               </div>
+
+              {!q &&
+                (selectedExpansionId ||
+                  selectedTypes.length > 0 ||
+                  selectedRarities.length > 0) && (
+                  <div className="mb-4 flex flex-wrap gap-2">
+                    {selectedExpansionId && (
+                      <FilterChip
+                        label={
+                          SET_OPTIONS.find((o) => o.expansionId === selectedExpansionId)?.label ??
+                          selectedExpansionId
+                        }
+                        onRemove={() => {
+                          setLoadState("loading");
+                          setSelectedExpansionId(null);
+                        }}
+                      />
+                    )}
+                    {selectedTypes.map((t) => (
+                      <FilterChip
+                        key={`type-${t}`}
+                        label={t}
+                        onRemove={() => {
+                          setLoadState("loading");
+                          setSelectedTypes((prev) => prev.filter((v) => v !== t));
+                        }}
+                      />
+                    ))}
+                    {selectedRarities.map((r) => (
+                      <FilterChip
+                        key={`rarity-${r}`}
+                        label={r}
+                        onRemove={() => {
+                          setLoadState("loading");
+                          setSelectedRarities((prev) => prev.filter((v) => v !== r));
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
 
               {loadState === "loading" && cards.length === 0 && (
                 <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[#EDEDF0] bg-white py-24">
