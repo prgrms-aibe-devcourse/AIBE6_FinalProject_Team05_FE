@@ -259,7 +259,10 @@ function SearchDashboard() {
             <div>
               <div className="mb-4 flex items-center justify-between">
                 <span className="text-[13.5px] text-[#8A8A92]">
-                  <b className="text-ink">{loadState === "ready" ? cards.length : "-"}</b>개의 카드
+                  <b className="text-ink">
+                    {cards.length > 0 ? cards.length : loadState === "ready" ? 0 : "-"}
+                  </b>
+                  개의 카드
                 </span>
                 <select className="cursor-pointer rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-2 text-[13px] outline-none">
                   <option>인기순</option>
@@ -269,7 +272,7 @@ function SearchDashboard() {
                 </select>
               </div>
 
-              {loadState === "loading" && (
+              {loadState === "loading" && cards.length === 0 && (
                 <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[#EDEDF0] bg-white py-24">
                   <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-[#E7E7EB] border-t-primary" />
                   <span className="text-[13.5px] font-semibold text-[#8A8A92]">
@@ -299,8 +302,12 @@ function SearchDashboard() {
                 </div>
               )}
 
-              {loadState === "ready" && cards.length > 0 && (
-                <div className="grid grid-cols-5 gap-4">
+              {cards.length > 0 && loadState !== "error" && (
+                <div
+                  className={`grid grid-cols-5 gap-4 transition-opacity duration-200 ${
+                    loadState === "loading" ? "pointer-events-none opacity-50" : "opacity-100"
+                  }`}
+                >
                   {cards.map((c) => (
                     <Link
                       key={c.id}
