@@ -313,6 +313,18 @@ function SearchDashboard() {
                       <div className="flex flex-1 flex-col p-3">
                         <div className="text-[13.5px] font-bold">{c.name}</div>
                         <div className="mt-0.5 text-[11.5px] text-[#9A9AA2]">{c.set}</div>
+                        {c.types.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {c.types.map((t) => (
+                              <span
+                                key={t}
+                                className="rounded-full border border-[#D4D9F5] bg-lavender px-2 py-0.5 text-[10px] font-bold text-secondary"
+                              >
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                         <div className="mt-auto pt-2.5 text-[15px] font-extrabold text-ink">
                           {c.price ?? (
                             <span className="text-[13px] font-semibold text-[#9A9AA2]">

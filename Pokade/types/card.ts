@@ -21,6 +21,7 @@ export interface CardSearchItem {
   name: string;
   set: string;
   imageUrl: string;
+  types: string[];
   grade?: Grade;
   price?: string;
 }
@@ -31,6 +32,7 @@ export function toCardSearchItem(card: CardResponse): CardSearchItem {
     name: card.name,
     set: `${card.setName} · ${card.rarity}`,
     imageUrl: card.imageMedium || card.imageSmall,
+    types: card.types,
     grade: undefined,
     price: undefined,
   };
