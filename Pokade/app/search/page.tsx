@@ -25,15 +25,16 @@ const SET_OPTIONS: { label: string; expansionId: string }[] = [
   { label: "메가 에볼루션", expansionId: "me1" },
 ];
 
-// 타입/레어도 체크박스 값 — data.sql에 실제 시드된 영문 카드 기준 값.
-const TYPE_OPTIONS = ["Fire", "Water", "Lightning", "Psychic", "Fighting", "Fairy"];
+// 타입/레어도 체크박스 값 — 실행 중인 BE(/api/cards)에서 집계한 실제 값·빈도 기준.
+// 등장 빈도 내림차순, 동률은 알파벳순. JA 카드 1건의 값(草/通常)은 영문 카드 기준이라 제외.
+const TYPE_OPTIONS = ["Fire", "Water", "Lightning", "Fairy", "Fighting", "Psychic"];
 const RARITY_OPTIONS = [
-  "Common",
   "Double Rare",
-  "Illustration Rare",
+  "Common",
   "Rare Holo",
-  "Rare Holo EX",
   "Rare Holo GX",
+  "Illustration Rare",
+  "Rare Holo EX",
 ];
 
 type LoadState = "loading" | "error" | "ready";
