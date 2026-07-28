@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 const NAV: { label: string; href: string }[] = [
   { label: "마켓", href: "/search" },
@@ -20,6 +20,16 @@ function variantFor(path: string): "in" | "out" | "admin" {
 }
 
 function SearchBar({ width = "w-60" }: { width?: string }) {
+  // useSearchParams는 Suspense 경계가 필요 — Header는 모든 페이지에 걸쳐있으므로
+  // 이 부분만 분리해 나머지 정적 페이지의 prerender를 막지 않는다.
+  return (
+    <Suspense fallback={<SearchBarShell width={width} />}>
+      <SearchBarInner width={width} />
+    </Suspense>
+  );
+}
+
+function SearchBarShell({ width = "w-60" }: { width?: string }) {
   return (
     <div
       className={`flex items-center gap-2 rounded-[9px] border border-[#ECECEF] bg-neutral px-3 py-2 ${width}`}
@@ -30,9 +40,62 @@ function SearchBar({ width = "w-60" }: { width?: string }) {
       </svg>
       <input
         placeholder="카드 이름으로 검색"
+        disabled
         className="w-full border-none bg-transparent text-[13.5px] text-ink outline-none"
       />
     </div>
+  );
+}
+
+function SearchBarInner({ width = "w-60" }: { width?: string }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  // /search?q=… 상태일 때만 그 검색어를 표시용 초기값으로 사용, 그 외 경로는 빈 값.
+  const displayQuery = pathname === "/search" ? (searchParams.get("q") ?? "") : "";
+
+  const [query, setQuery] = useState(displayQuery);
+  // 페이지 진입(경로/쿼리 변경) 시점에만 동기화 — 타이핑 중엔 건드리지 않는다.
+  const [syncedQuery, setSyncedQuery] = useState(displayQuery);
+  if (displayQuery !== syncedQuery) {
+    setSyncedQuery(displayQuery);
+    setQuery(displayQuery);
+  }
+
+  const submit = () => {
+    const trimmed = query.trim();
+    if (!trimmed) return; // 빈 검색어는 BE가 400을 반환하므로 요청 자체를 막는다.
+    router.push(`/search?q=${encodeURIComponent(trimmed)}`);
+  };
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
+      }}
+      className={`flex items-center gap-2 rounded-[9px] border border-[#ECECEF] bg-neutral px-3 py-2 ${width}`}
+    >
+      <button type="submit" aria-label="검색" className="flex flex-shrink-0 items-center">
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#9A9AA2"
+          strokeWidth="2"
+        >
+          <circle cx="11" cy="11" r="7" />
+          <path d="M21 21l-4-4" />
+        </svg>
+      </button>
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="카드 이름으로 검색"
+        className="w-full border-none bg-transparent text-[13.5px] text-ink outline-none"
+      />
+    </form>
   );
 }
 

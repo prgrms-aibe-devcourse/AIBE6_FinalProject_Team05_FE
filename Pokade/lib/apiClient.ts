@@ -1,0 +1,58 @@
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+
+// BE ApiResponse<T> 래퍼 (com.pokade.global.response.ApiResponse) 미러링.
+export interface ApiEnvelope<T> {
+  status: number;
+  code: string;
+  msg: string;
+  data: T;
+}
+
+// Spring Data Page<T> JSON 직렬화 형태.
+export interface PageResponse<T> {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+}
+
+export class ApiError extends Error {
+  status: number;
+  code: string;
+
+  constructor(status: number, code: string, message: string) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+}
+
+export async function apiGet<T>(path: string): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`);
+  } catch {
+    throw new ApiError(
+      0,
+      "NETWORK_ERROR",
+      "서버에 연결할 수 없습니다. BE 서버 실행 여부를 확인해 주세요.",
+    );
+  }
+
+  if (!res.ok) {
+    let code = String(res.status);
+    let msg = `요청이 실패했습니다. (${res.status})`;
+    try {
+      const body = (await res.json()) as ApiEnvelope<unknown>;
+      if (body?.code) code = body.code;
+      if (body?.msg) msg = body.msg;
+    } catch {
+      // 에러 응답 본문이 JSON이 아닐 수 있음 — 기본 메시지 사용.
+    }
+    throw new ApiError(res.status, code, msg);
+  }
+
+  const body = (await res.json()) as ApiEnvelope<T>;
+  return body.data;
+}

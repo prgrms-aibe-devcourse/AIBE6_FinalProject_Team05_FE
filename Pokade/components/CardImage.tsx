@@ -1,13 +1,35 @@
-// Neutral image placeholder (stands in for real card art in the mockup).
+"use client";
+
+import { useState } from "react";
+
+// Renders real card art when `src` is given; falls back to a neutral
+// placeholder when there's no src yet, or if the src fails to load.
 export default function CardImage({
+  src,
+  alt = "",
   label,
   className = "",
   rounded = "",
 }: {
+  src?: string;
+  alt?: string;
   label?: string;
   className?: string;
   rounded?: string;
 }) {
+  const [failed, setFailed] = useState(false);
+
+  if (src && !failed) {
+    return (
+      <img
+        src={src}
+        alt={alt}
+        onError={() => setFailed(true)}
+        className={`h-full w-full object-cover ${rounded} ${className}`}
+      />
+    );
+  }
+
   return (
     <div
       className={`flex h-full w-full items-center justify-center bg-[#F2F2F5] ${rounded} ${className}`}

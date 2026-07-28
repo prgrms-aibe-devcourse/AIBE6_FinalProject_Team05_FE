@@ -1,21 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import GradeBadge, { Grade } from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
-
-const CARDS: { id: string; name: string; set: string; grade: Grade; price: string }[] = [
-  { id: "sd-1", name: "리자몽 ex", set: "흑염의 지배자 · SAR", grade: "S", price: "₩142,000" },
-  { id: "sd-2", name: "뮤츠 ex", set: "레이징 서프 · SAR", grade: "A", price: "₩211,000" },
-  { id: "sd-3", name: "피카츄 VMAX", set: "프로모 · HR", grade: "S", price: "₩55,000" },
-  { id: "sd-4", name: "뮤 UR", set: "151 · UR", grade: "A", price: "₩89,500" },
-  { id: "sd-5", name: "가디안 ex", set: "클레이 버스트 · SAR", grade: "B", price: "₩38,700" },
-  { id: "sd-6", name: "이상해꽃 ex", set: "클레이 버스트 · SAR", grade: "S", price: "₩64,200" },
-  { id: "sd-7", name: "루기아 V", set: "실버 템페스트 · SAR", grade: "A", price: "₩76,000" },
-  { id: "sd-8", name: "개굴닌자 ex", set: "샤이니 트레저 · SAR", grade: "S", price: "₩102,000" },
-  { id: "sd-9", name: "파이리", set: "151 · AR", grade: "A", price: "₩29,000" },
-  { id: "sd-10", name: "칠색조 ex", set: "파라다임 트리거 · SAR", grade: "S", price: "₩118,000" },
-];
+import { CardSearchItem, toCardSearchItem } from "@/types/card";
+import { fetchCards, fetchCardsByKeyword } from "@/lib/cardApi";
+import { ApiError } from "@/lib/apiClient";
 
 const GRADE_CHIP: Record<Grade, string> = {
   S: "text-[#5A4300] bg-[#FFF3CE] border-[#F0E0A0]",
@@ -25,13 +17,71 @@ const GRADE_CHIP: Record<Grade, string> = {
 
 const PRICE_MAX = 3000000;
 
+// 세트 체크박스 → BE expansionId 매핑. data.sql에 실제 시드된 세트 중 4개만 노출.
+const SET_OPTIONS: { label: string; expansionId: string }[] = [
+  { label: "베이스", expansionId: "base1" },
+  { label: "151", expansionId: "sv3pt5" },
+  { label: "블랙 볼트", expansionId: "zsv10pt5" },
+  { label: "메가 에볼루션", expansionId: "me1" },
+];
+
+type LoadState = "loading" | "error" | "ready";
+
 export default function SearchDashboardPage() {
+  return (
+    <Suspense fallback={null}>
+      <SearchDashboard />
+    </Suspense>
+  );
+}
+
+function SearchDashboard() {
+  const searchParams = useSearchParams();
+  const q = searchParams.get("q")?.trim() || "";
   const [view, setView] = useState<"search" | "dash">("search");
   const [priceMin, setPriceMin] = useState(0);
   const [priceMax, setPriceMax] = useState(1500000);
-  const resetPrice = () => {
+  const [selectedExpansionId, setSelectedExpansionId] = useState<string | null>(null);
+  const [cards, setCards] = useState<CardSearchItem[]>([]);
+  const [loadState, setLoadState] = useState<LoadState>("loading");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const [prevQ, setPrevQ] = useState(q);
+  if (q !== prevQ) {
+    setPrevQ(q);
+    setLoadState("loading");
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const request = q
+      ? fetchCardsByKeyword(q)
+      : fetchCards({ expansionId: selectedExpansionId ?? undefined });
+
+    request
+      .then((responses) => {
+        if (cancelled) return;
+        setCards(responses.map(toCardSearchItem));
+        setLoadState("ready");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setErrorMessage(err instanceof ApiError ? err.message : "카드 목록을 불러오지 못했습니다.");
+        setLoadState("error");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey, selectedExpansionId, q]);
+
+  const resetFilters = () => {
     setPriceMin(0);
     setPriceMax(1500000);
+    setLoadState("loading");
+    setSelectedExpansionId(null);
   };
   const seg = (a: boolean) =>
     `rounded-lg px-[18px] py-[9px] text-[13.5px] cursor-pointer ${a ? "bg-white font-bold text-ink shadow-[0_1px_3px_rgba(0,0,0,0.08)]" : "bg-transparent font-semibold text-[#8A8A92]"}`;
@@ -40,103 +90,114 @@ export default function SearchDashboardPage() {
     <main className="main-content bg-neutral px-10 pb-14 pt-8">
       <div className="mx-auto max-w-[1280px]">
         <div className="mb-[22px] flex items-center justify-between">
-          <h1 className="m-0 text-[26px] font-extrabold tracking-[-0.6px]">카드 검색 &amp; 시세</h1>
-          <div className="flex rounded-[10px] bg-[#EDEDF0] p-1">
-            <button className={seg(view === "search")} onClick={() => setView("search")}>
-              카드 검색
-            </button>
-            <button className={seg(view === "dash")} onClick={() => setView("dash")}>
-              시세 대시보드
-            </button>
-          </div>
-        </div>
-
-        {view === "search" && (
-          <div className="grid grid-cols-[250px_1fr] items-start gap-6">
-            {/* filter sidebar */}
-            <div className="sticky top-[88px] rounded-2xl border border-[#EDEDF0] bg-white p-[22px]">
-              <div className="mb-4 text-[15px] font-extrabold">필터</div>
-              <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">세트</div>
-              <div className="mb-5 flex flex-col gap-[9px]">
-                {[
-                  ["흑염의 지배자", true],
-                  ["레이징 서프", false],
-                  ["클레이 버스트", false],
-                  ["151", false],
-                ].map(([l, c]) => (
-                  <label
-                    key={l as string}
-                    className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
-                  >
-                    <input type="checkbox" defaultChecked={c as boolean} />
-                    {l}
-                  </label>
-                ))}
-              </div>
-              <div className="mb-[18px] h-px bg-[#F0F0F0]" />
-              <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">등급</div>
-              <div className="mb-5 flex flex-wrap gap-[7px]">
-                {(["S", "A", "B"] as Grade[]).map((g) => (
-                  <span
-                    key={g}
-                    className={`cursor-pointer rounded-full border px-2.5 py-1 text-[11.5px] font-bold ${GRADE_CHIP[g]}`}
-                  >
-                    {g}
-                  </span>
-                ))}
-              </div>
-              <div className="mb-[18px] h-px bg-[#F0F0F0]" />
-              <div className="mb-3 text-[12.5px] font-bold text-[#4B4B52]">가격대</div>
-              <div className="mb-3 flex justify-between text-[12.5px] font-bold text-ink">
-                <span>{priceMin.toLocaleString("ko-KR")}원</span>
-                <span>~</span>
-                <span>{priceMax.toLocaleString("ko-KR")}원</span>
-              </div>
-              <div className="relative h-6">
-                <div className="absolute left-0 right-0 top-[11px] h-1 rounded-sm bg-[#E7E7EB]" />
-                <div
-                  className="absolute top-[11px] h-1 rounded-sm bg-primary"
-                  style={{
-                    left: `${(priceMin / PRICE_MAX) * 100}%`,
-                    right: `${100 - (priceMax / PRICE_MAX) * 100}%`,
-                  }}
-                />
-                <input
-                  type="range"
-                  min={0}
-                  max={PRICE_MAX}
-                  step={50000}
-                  value={priceMin}
-                  onChange={(e) => setPriceMin(Math.min(+e.target.value, priceMax))}
-                  className="dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent"
-                />
-                <input
-                  type="range"
-                  min={0}
-                  max={PRICE_MAX}
-                  step={50000}
-                  value={priceMax}
-                  onChange={(e) => setPriceMax(Math.max(+e.target.value, priceMin))}
-                  className="dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent"
-                />
-              </div>
-              <div className="mt-1.5 flex justify-between text-xs text-[#9A9AA2]">
-                <span>0원</span>
-                <span>3,000,000원</span>
-              </div>
-              <button
-                onClick={resetPrice}
-                className="mt-[22px] w-full rounded-[10px] border-[1.5px] border-[#DDDDE3] bg-white py-2.5 text-[13.5px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary"
-              >
-                필터 초기화
+          <h1 className="m-0 text-[26px] font-extrabold tracking-[-0.6px]">
+            {q ? `"${q}" 검색 결과` : "카드 검색 & 시세"}
+          </h1>
+          {!q && (
+            <div className="flex rounded-[10px] bg-[#EDEDF0] p-1">
+              <button className={seg(view === "search")} onClick={() => setView("search")}>
+                카드 검색
+              </button>
+              <button className={seg(view === "dash")} onClick={() => setView("dash")}>
+                시세 대시보드
               </button>
             </div>
+          )}
+        </div>
+
+        {(q || view === "search") && (
+          <div className={`grid items-start gap-6 ${q ? "grid-cols-1" : "grid-cols-[250px_1fr]"}`}>
+            {/* filter sidebar — 키워드 검색 중에는 세트 필터와 동시 적용하지 않으므로 숨김 */}
+            {!q && (
+              <div className="sticky top-[88px] rounded-2xl border border-[#EDEDF0] bg-white p-[22px]">
+                <div className="mb-4 text-[15px] font-extrabold">필터</div>
+                <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">세트</div>
+                <div className="mb-5 flex flex-col gap-[9px]">
+                  {SET_OPTIONS.map((opt) => (
+                    <label
+                      key={opt.expansionId}
+                      className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
+                    >
+                      <input
+                        type="radio"
+                        name="expansion-filter"
+                        checked={selectedExpansionId === opt.expansionId}
+                        onChange={() => {
+                          setLoadState("loading");
+                          setSelectedExpansionId((prev) =>
+                            prev === opt.expansionId ? null : opt.expansionId,
+                          );
+                        }}
+                      />
+                      {opt.label}
+                    </label>
+                  ))}
+                </div>
+                <div className="mb-[18px] h-px bg-[#F0F0F0]" />
+                <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">등급</div>
+                <div className="mb-5 flex flex-wrap gap-[7px]">
+                  {(["S", "A", "B"] as Grade[]).map((g) => (
+                    <span
+                      key={g}
+                      className={`cursor-pointer rounded-full border px-2.5 py-1 text-[11.5px] font-bold ${GRADE_CHIP[g]}`}
+                    >
+                      {g}
+                    </span>
+                  ))}
+                </div>
+                <div className="mb-[18px] h-px bg-[#F0F0F0]" />
+                <div className="mb-3 text-[12.5px] font-bold text-[#4B4B52]">가격대</div>
+                <div className="mb-3 flex justify-between text-[12.5px] font-bold text-ink">
+                  <span>{priceMin.toLocaleString("ko-KR")}원</span>
+                  <span>~</span>
+                  <span>{priceMax.toLocaleString("ko-KR")}원</span>
+                </div>
+                <div className="relative h-6">
+                  <div className="absolute left-0 right-0 top-[11px] h-1 rounded-sm bg-[#E7E7EB]" />
+                  <div
+                    className="absolute top-[11px] h-1 rounded-sm bg-primary"
+                    style={{
+                      left: `${(priceMin / PRICE_MAX) * 100}%`,
+                      right: `${100 - (priceMax / PRICE_MAX) * 100}%`,
+                    }}
+                  />
+                  <input
+                    type="range"
+                    min={0}
+                    max={PRICE_MAX}
+                    step={50000}
+                    value={priceMin}
+                    onChange={(e) => setPriceMin(Math.min(+e.target.value, priceMax))}
+                    className="dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent"
+                  />
+                  <input
+                    type="range"
+                    min={0}
+                    max={PRICE_MAX}
+                    step={50000}
+                    value={priceMax}
+                    onChange={(e) => setPriceMax(Math.max(+e.target.value, priceMin))}
+                    className="dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent"
+                  />
+                </div>
+                <div className="mt-1.5 flex justify-between text-xs text-[#9A9AA2]">
+                  <span>0원</span>
+                  <span>3,000,000원</span>
+                </div>
+                <button
+                  onClick={resetFilters}
+                  className="mt-[22px] w-full rounded-[10px] border-[1.5px] border-[#DDDDE3] bg-white py-2.5 text-[13.5px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary"
+                >
+                  필터 초기화
+                </button>
+              </div>
+            )}
 
             {/* results grid */}
             <div>
               <div className="mb-4 flex items-center justify-between">
                 <span className="text-[13.5px] text-[#8A8A92]">
-                  <b className="text-ink">1,284</b>개의 카드
+                  <b className="text-ink">{loadState === "ready" ? cards.length : "-"}</b>개의 카드
                 </span>
                 <select className="cursor-pointer rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-2 text-[13px] outline-none">
                   <option>인기순</option>
@@ -145,31 +206,69 @@ export default function SearchDashboardPage() {
                   <option>최신순</option>
                 </select>
               </div>
-              <div className="grid grid-cols-5 gap-4">
-                {CARDS.map((c) => (
-                  <div
-                    key={c.id}
-                    className="flex cursor-pointer flex-col overflow-hidden rounded-[13px] border border-[#EDEDF0] transition hover:-translate-y-[3px] hover:shadow-lift"
+
+              {loadState === "loading" && (
+                <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[#EDEDF0] bg-white py-24">
+                  <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-[#E7E7EB] border-t-primary" />
+                  <span className="text-[13.5px] font-semibold text-[#8A8A92]">
+                    카드 목록을 불러오는 중입니다...
+                  </span>
+                </div>
+              )}
+
+              {loadState === "error" && (
+                <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[#EDEDF0] bg-white py-24">
+                  <span className="text-[13.5px] font-bold text-[#D14343]">{errorMessage}</span>
+                  <button
+                    onClick={() => {
+                      setLoadState("loading");
+                      setReloadKey((k) => k + 1);
+                    }}
+                    className="mt-1 rounded-[9px] border-[1.5px] border-[#DDDDE3] bg-white px-4 py-2 text-[13px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary"
                   >
-                    <div className="relative h-[180px] bg-[#F2F2F5]">
-                      <CardImage label="카드" />
-                      <GradeBadge grade={c.grade} className="absolute left-[9px] top-[9px]" />
-                    </div>
-                    <div className="flex flex-1 flex-col p-3">
-                      <div className="text-[13.5px] font-bold">{c.name}</div>
-                      <div className="mt-0.5 text-[11.5px] text-[#9A9AA2]">{c.set}</div>
-                      <div className="mt-auto pt-2.5 text-[15px] font-extrabold text-ink">
-                        {c.price}
+                    다시 시도
+                  </button>
+                </div>
+              )}
+
+              {loadState === "ready" && cards.length === 0 && (
+                <div className="flex items-center justify-center rounded-2xl border border-[#EDEDF0] bg-white py-24 text-[13.5px] text-[#8A8A92]">
+                  조건에 맞는 카드가 없습니다.
+                </div>
+              )}
+
+              {loadState === "ready" && cards.length > 0 && (
+                <div className="grid grid-cols-5 gap-4">
+                  {cards.map((c) => (
+                    <Link
+                      key={c.id}
+                      href={`/cards/${c.id}`}
+                      className="flex cursor-pointer flex-col overflow-hidden rounded-[13px] border border-[#EDEDF0] transition hover:-translate-y-[3px] hover:shadow-lift"
+                    >
+                      <div className="relative h-[180px] bg-[#F2F2F5]">
+                        <CardImage src={c.imageUrl} alt={c.name} label="카드" />
+                        <GradeBadge grade={c.grade} className="absolute left-[9px] top-[9px]" />
                       </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                      <div className="flex flex-1 flex-col p-3">
+                        <div className="text-[13.5px] font-bold">{c.name}</div>
+                        <div className="mt-0.5 text-[11.5px] text-[#9A9AA2]">{c.set}</div>
+                        <div className="mt-auto pt-2.5 text-[15px] font-extrabold text-ink">
+                          {c.price ?? (
+                            <span className="text-[13px] font-semibold text-[#9A9AA2]">
+                              가격 정보 준비중
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        {view === "dash" && (
+        {!q && view === "dash" && (
           <div className="grid grid-cols-[60fr_40fr] items-start gap-[22px]">
             <div className="flex flex-col gap-5">
               <div className="rounded-2xl border border-t-[3px] border-[#EDEDF0] border-t-primary bg-white px-7 py-[26px]">
