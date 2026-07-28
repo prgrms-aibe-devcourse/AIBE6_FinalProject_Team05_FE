@@ -25,7 +25,34 @@ const SET_OPTIONS: { label: string; expansionId: string }[] = [
   { label: "메가 에볼루션", expansionId: "me1" },
 ];
 
+// 타입/레어도 체크박스 값 — 실행 중인 BE(/api/cards)에서 집계한 실제 값·빈도 기준.
+// 등장 빈도 내림차순, 동률은 알파벳순. JA 카드 1건의 값(草/通常)은 영문 카드 기준이라 제외.
+const TYPE_OPTIONS = ["Fire", "Water", "Lightning", "Fairy", "Fighting", "Psychic"];
+const RARITY_OPTIONS = [
+  "Double Rare",
+  "Common",
+  "Rare Holo",
+  "Rare Holo GX",
+  "Illustration Rare",
+  "Rare Holo EX",
+];
+
 type LoadState = "loading" | "error" | "ready";
+
+function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span className="flex items-center gap-1.5 rounded-full border border-[#DDDDE3] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#4B4B52]">
+      {label}
+      <button
+        onClick={onRemove}
+        aria-label={`${label} 필터 해제`}
+        className="flex h-4 w-4 items-center justify-center rounded-full text-[#9A9AA2] hover:bg-[#F2F2F5] hover:text-ink"
+      >
+        ×
+      </button>
+    </span>
+  );
+}
 
 export default function SearchDashboardPage() {
   return (
@@ -42,6 +69,8 @@ function SearchDashboard() {
   const [priceMin, setPriceMin] = useState(0);
   const [priceMax, setPriceMax] = useState(1500000);
   const [selectedExpansionId, setSelectedExpansionId] = useState<string | null>(null);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [selectedRarities, setSelectedRarities] = useState<string[]>([]);
   const [cards, setCards] = useState<CardSearchItem[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
@@ -58,7 +87,11 @@ function SearchDashboard() {
 
     const request = q
       ? fetchCardsByKeyword(q)
-      : fetchCards({ expansionId: selectedExpansionId ?? undefined });
+      : fetchCards({
+          expansionId: selectedExpansionId ?? undefined,
+          types: selectedTypes,
+          rarity: selectedRarities,
+        });
 
     request
       .then((responses) => {
@@ -75,14 +108,18 @@ function SearchDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey, selectedExpansionId, q]);
+  }, [reloadKey, selectedExpansionId, selectedTypes, selectedRarities, q]);
 
   const resetFilters = () => {
     setPriceMin(0);
     setPriceMax(1500000);
     setLoadState("loading");
     setSelectedExpansionId(null);
+    setSelectedTypes([]);
+    setSelectedRarities([]);
   };
+  const toggleValue = (list: string[], value: string) =>
+    list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
   const seg = (a: boolean) =>
     `rounded-lg px-[18px] py-[9px] text-[13.5px] cursor-pointer ${a ? "bg-white font-bold text-ink shadow-[0_1px_3px_rgba(0,0,0,0.08)]" : "bg-transparent font-semibold text-[#8A8A92]"}`;
 
@@ -122,14 +159,58 @@ function SearchDashboard() {
                         type="radio"
                         name="expansion-filter"
                         checked={selectedExpansionId === opt.expansionId}
+                        onClick={() => {
+                          if (selectedExpansionId === opt.expansionId) {
+                            setLoadState("loading");
+                            setSelectedExpansionId(null);
+                          }
+                        }}
                         onChange={() => {
                           setLoadState("loading");
-                          setSelectedExpansionId((prev) =>
-                            prev === opt.expansionId ? null : opt.expansionId,
-                          );
+                          setSelectedExpansionId(opt.expansionId);
                         }}
                       />
                       {opt.label}
+                    </label>
+                  ))}
+                </div>
+                <div className="mb-[18px] h-px bg-[#F0F0F0]" />
+                <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">타입</div>
+                <div className="mb-5 flex flex-col gap-[9px]">
+                  {TYPE_OPTIONS.map((t) => (
+                    <label
+                      key={t}
+                      className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedTypes.includes(t)}
+                        onChange={() => {
+                          setLoadState("loading");
+                          setSelectedTypes((prev) => toggleValue(prev, t));
+                        }}
+                      />
+                      {t}
+                    </label>
+                  ))}
+                </div>
+                <div className="mb-[18px] h-px bg-[#F0F0F0]" />
+                <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">레어도</div>
+                <div className="mb-5 flex flex-col gap-[9px]">
+                  {RARITY_OPTIONS.map((r) => (
+                    <label
+                      key={r}
+                      className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedRarities.includes(r)}
+                        onChange={() => {
+                          setLoadState("loading");
+                          setSelectedRarities((prev) => toggleValue(prev, r));
+                        }}
+                      />
+                      {r}
                     </label>
                   ))}
                 </div>
@@ -197,7 +278,10 @@ function SearchDashboard() {
             <div>
               <div className="mb-4 flex items-center justify-between">
                 <span className="text-[13.5px] text-[#8A8A92]">
-                  <b className="text-ink">{loadState === "ready" ? cards.length : "-"}</b>개의 카드
+                  <b className="text-ink">
+                    {cards.length > 0 ? cards.length : loadState === "ready" ? 0 : "-"}
+                  </b>
+                  개의 카드
                 </span>
                 <select className="cursor-pointer rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-2 text-[13px] outline-none">
                   <option>인기순</option>
@@ -207,7 +291,47 @@ function SearchDashboard() {
                 </select>
               </div>
 
-              {loadState === "loading" && (
+              {!q &&
+                (selectedExpansionId ||
+                  selectedTypes.length > 0 ||
+                  selectedRarities.length > 0) && (
+                  <div className="mb-4 flex flex-wrap gap-2">
+                    {selectedExpansionId && (
+                      <FilterChip
+                        label={
+                          SET_OPTIONS.find((o) => o.expansionId === selectedExpansionId)?.label ??
+                          selectedExpansionId
+                        }
+                        onRemove={() => {
+                          setLoadState("loading");
+                          setSelectedExpansionId(null);
+                        }}
+                      />
+                    )}
+                    {selectedTypes.map((t) => (
+                      <FilterChip
+                        key={`type-${t}`}
+                        label={t}
+                        onRemove={() => {
+                          setLoadState("loading");
+                          setSelectedTypes((prev) => prev.filter((v) => v !== t));
+                        }}
+                      />
+                    ))}
+                    {selectedRarities.map((r) => (
+                      <FilterChip
+                        key={`rarity-${r}`}
+                        label={r}
+                        onRemove={() => {
+                          setLoadState("loading");
+                          setSelectedRarities((prev) => prev.filter((v) => v !== r));
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+
+              {loadState === "loading" && cards.length === 0 && (
                 <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[#EDEDF0] bg-white py-24">
                   <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-[#E7E7EB] border-t-primary" />
                   <span className="text-[13.5px] font-semibold text-[#8A8A92]">
@@ -232,13 +356,20 @@ function SearchDashboard() {
               )}
 
               {loadState === "ready" && cards.length === 0 && (
-                <div className="flex items-center justify-center rounded-2xl border border-[#EDEDF0] bg-white py-24 text-[13.5px] text-[#8A8A92]">
-                  조건에 맞는 카드가 없습니다.
+                <div className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-[#EDEDF0] bg-white py-24">
+                  <span className="text-[13.5px] font-semibold text-[#8A8A92]">
+                    조건에 맞는 카드가 없습니다.
+                  </span>
+                  <span className="text-[12.5px] text-[#9A9AA2]">필터를 조정해보세요.</span>
                 </div>
               )}
 
-              {loadState === "ready" && cards.length > 0 && (
-                <div className="grid grid-cols-5 gap-4">
+              {cards.length > 0 && loadState !== "error" && (
+                <div
+                  className={`grid grid-cols-5 gap-4 transition-opacity duration-200 ${
+                    loadState === "loading" ? "pointer-events-none opacity-50" : "opacity-100"
+                  }`}
+                >
                   {cards.map((c) => (
                     <Link
                       key={c.id}
@@ -252,6 +383,18 @@ function SearchDashboard() {
                       <div className="flex flex-1 flex-col p-3">
                         <div className="text-[13.5px] font-bold">{c.name}</div>
                         <div className="mt-0.5 text-[11.5px] text-[#9A9AA2]">{c.set}</div>
+                        {c.types.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {c.types.map((t) => (
+                              <span
+                                key={t}
+                                className="rounded-full border border-[#D4D9F5] bg-lavender px-2 py-0.5 text-[10px] font-bold text-secondary"
+                              >
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                         <div className="mt-auto pt-2.5 text-[15px] font-extrabold text-ink">
                           {c.price ?? (
                             <span className="text-[13px] font-semibold text-[#9A9AA2]">

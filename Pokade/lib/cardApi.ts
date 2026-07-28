@@ -4,11 +4,15 @@ import { CardDetailResponse, CardResponse } from "@/types/card";
 // GET /api/cards — types/rarity/expansionId 정확 일치 필터 (기본 페이지 size=20).
 export interface CardSearchFilters {
   expansionId?: string;
+  types?: string[];
+  rarity?: string[];
 }
 
 export async function fetchCards(filters: CardSearchFilters = {}): Promise<CardResponse[]> {
   const query = new URLSearchParams();
   if (filters.expansionId) query.set("expansionId", filters.expansionId);
+  if (filters.types?.length) query.set("types", filters.types.join(","));
+  if (filters.rarity?.length) query.set("rarity", filters.rarity.join(","));
   const qs = query.toString();
   const page = await apiGet<PageResponse<CardResponse>>(`/api/cards${qs ? `?${qs}` : ""}`);
   return page.content;
