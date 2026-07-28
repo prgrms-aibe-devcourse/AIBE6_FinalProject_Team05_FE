@@ -11,3 +11,8 @@ export async function fetchCards(): Promise<CardResponse[]> {
 export async function fetchCardDetail(id: number): Promise<CardDetailResponse> {
   return apiGet<CardDetailResponse>(`/api/cards/${id}`);
 }
+
+// GET /api/cards/{id}/related — 비슷한 카드 목록 조회.
+export async function fetchRelatedCards(id: number): Promise<CardResponse[]> {
+  return apiGet<CardResponse[]>(`/api/cards/${id}/related`);
+}

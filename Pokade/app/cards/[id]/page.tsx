@@ -5,11 +5,12 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import GradeBadge from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
-import { CardDetailResponse } from "@/types/card";
-import { fetchCardDetail } from "@/lib/cardApi";
+import { CardDetailResponse, CardSearchItem, toCardSearchItem } from "@/types/card";
+import { fetchCardDetail, fetchRelatedCards } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
 
 type LoadState = "loading" | "error" | "notfound" | "ready";
+type RelatedLoadState = "loading" | "ready";
 
 export default function CardDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +20,9 @@ export default function CardDetailPage() {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
+
+  const [relatedCards, setRelatedCards] = useState<CardSearchItem[]>([]);
+  const [relatedLoadState, setRelatedLoadState] = useState<RelatedLoadState>("loading");
 
   useEffect(() => {
     let cancelled = false;
@@ -43,6 +47,27 @@ export default function CardDetailPage() {
       cancelled = true;
     };
   }, [cardId, reloadKey]);
+
+  useEffect(() => {
+    if (loadState !== "ready") return;
+    let cancelled = false;
+
+    fetchRelatedCards(cardId)
+      .then((res) => {
+        if (cancelled) return;
+        setRelatedCards(res.map(toCardSearchItem));
+        setRelatedLoadState("ready");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setRelatedCards([]);
+        setRelatedLoadState("ready");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cardId, loadState]);
 
   return (
     <main className="main-content bg-neutral px-10 pb-14 pt-8">
@@ -94,31 +119,79 @@ export default function CardDetailPage() {
         )}
 
         {loadState === "ready" && card && (
-          <div className="grid grid-cols-[280px_1fr] gap-8 rounded-2xl border border-[#EDEDF0] bg-white p-8">
-            <div className="relative aspect-[5/7] w-full overflow-hidden rounded-2xl bg-[#F2F2F5]">
-              <CardImage src={card.imageLarge || card.imageMedium} alt={card.name} label="카드" />
-              <GradeBadge className="absolute left-3 top-3" />
-            </div>
-            <div className="flex flex-col">
-              <h1 className="m-0 text-[26px] font-extrabold tracking-[-0.6px]">{card.name}</h1>
-              <div className="mt-2 text-[14px] text-[#8A8A92]">
-                {card.setName} · {card.rarity}
+          <>
+            <div className="grid grid-cols-[280px_1fr] gap-8 rounded-2xl border border-[#EDEDF0] bg-white p-8">
+              <div className="relative aspect-[5/7] w-full overflow-hidden rounded-2xl bg-[#F2F2F5]">
+                <CardImage src={card.imageLarge || card.imageMedium} alt={card.name} label="카드" />
+                <GradeBadge className="absolute left-3 top-3" />
               </div>
-              <div className="mt-6 flex flex-col gap-3 text-[13.5px]">
-                <div className="flex justify-between border-b border-[#F5F5F7] pb-3">
-                  <span className="text-[#8A8A92]">아티스트</span>
-                  <span className="font-bold">{card.artist || "-"}</span>
+              <div className="flex flex-col">
+                <h1 className="m-0 text-[26px] font-extrabold tracking-[-0.6px]">{card.name}</h1>
+                <div className="mt-2 text-[14px] text-[#8A8A92]">
+                  {card.setName} · {card.rarity}
                 </div>
-                <div className="flex justify-between border-b border-[#F5F5F7] pb-3">
-                  <span className="text-[#8A8A92]">인쇄번호</span>
-                  <span className="font-bold">{card.printedNumber || "-"}</span>
+                <div className="mt-6 flex flex-col gap-3 text-[13.5px]">
+                  <div className="flex justify-between border-b border-[#F5F5F7] pb-3">
+                    <span className="text-[#8A8A92]">아티스트</span>
+                    <span className="font-bold">{card.artist || "-"}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-[#F5F5F7] pb-3">
+                    <span className="text-[#8A8A92]">인쇄번호</span>
+                    <span className="font-bold">{card.printedNumber || "-"}</span>
+                  </div>
+                </div>
+                <div className="mt-auto pt-6 text-[15px]">
+                  <span className="text-[13px] font-semibold text-[#9A9AA2]">가격 정보 준비중</span>
                 </div>
               </div>
-              <div className="mt-auto pt-6 text-[15px]">
-                <span className="text-[13px] font-semibold text-[#9A9AA2]">가격 정보 준비중</span>
-              </div>
             </div>
-          </div>
+
+            <div className="mt-8">
+              <h2 className="mb-4 text-[17px] font-extrabold">비슷한 카드</h2>
+
+              {relatedLoadState === "loading" && (
+                <div className="grid grid-cols-5 gap-4">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="h-[190px] animate-pulse rounded-[13px] border border-[#EDEDF0] bg-[#F2F2F5]"
+                    />
+                  ))}
+                </div>
+              )}
+
+              {relatedLoadState === "ready" && relatedCards.length === 0 && (
+                <div className="rounded-2xl border border-[#EDEDF0] bg-white py-12 text-center text-[13.5px] text-[#9A9AA2]">
+                  비슷한 카드가 없습니다.
+                </div>
+              )}
+
+              {relatedLoadState === "ready" && relatedCards.length > 0 && (
+                <div className="grid grid-cols-5 gap-4">
+                  {relatedCards.map((rc) => (
+                    <Link
+                      key={rc.id}
+                      href={`/cards/${rc.id}`}
+                      className="flex cursor-pointer flex-col overflow-hidden rounded-[13px] border border-[#EDEDF0] transition hover:-translate-y-[3px] hover:shadow-lift"
+                    >
+                      <div className="relative h-[140px] bg-[#F2F2F5]">
+                        <CardImage src={rc.imageUrl} alt={rc.name} label="카드" />
+                        <GradeBadge
+                          grade={rc.grade}
+                          size="sm"
+                          className="absolute left-[9px] top-[9px]"
+                        />
+                      </div>
+                      <div className="flex flex-1 flex-col p-3">
+                        <div className="text-[13px] font-bold">{rc.name}</div>
+                        <div className="mt-0.5 text-[11px] text-[#9A9AA2]">{rc.set}</div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
     </main>
