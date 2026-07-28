@@ -301,8 +301,11 @@ function SearchDashboard() {
               )}
 
               {loadState === "ready" && cards.length === 0 && (
-                <div className="flex items-center justify-center rounded-2xl border border-[#EDEDF0] bg-white py-24 text-[13.5px] text-[#8A8A92]">
-                  조건에 맞는 카드가 없습니다.
+                <div className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-[#EDEDF0] bg-white py-24">
+                  <span className="text-[13.5px] font-semibold text-[#8A8A92]">
+                    조건에 맞는 카드가 없습니다.
+                  </span>
+                  <span className="text-[12.5px] text-[#9A9AA2]">필터를 조정해보세요.</span>
                 </div>
               )}
 
