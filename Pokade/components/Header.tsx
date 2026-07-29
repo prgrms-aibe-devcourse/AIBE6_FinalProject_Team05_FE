@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CardImage from "@/components/CardImage";
@@ -20,6 +20,23 @@ function variantFor(path: string): "in" | "out" | "admin" {
   if (path.startsWith("/admin")) return "admin";
   if (IN_PATHS.some((p) => path === p || path.startsWith(p + "/"))) return "in";
   return "out"; // 홈/검색/로그인/회원가입 → 로그인·회원가입 버튼 노출
+}
+
+// 검색어와 일치하는 부분만 굵게 + primary 색으로 강조 (대소문자 무시).
+function highlightMatch(text: string, query: string): React.ReactNode {
+  const trimmed = query.trim();
+  if (!trimmed) return text;
+  const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const parts = text.split(new RegExp(`(${escaped})`, "gi"));
+  return parts.map((part, i) =>
+    i % 2 === 1 ? (
+      <mark key={i} className="bg-transparent font-semibold text-primary">
+        {part}
+      </mark>
+    ) : (
+      <span key={i}>{part}</span>
+    ),
+  );
 }
 
 function SearchBar({ width = "w-60" }: { width?: string }) {
@@ -68,6 +85,17 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
   // 자동완성 미리보기 — 입력 300ms 후 GET /api/cards/search?q= 호출, 최대 8건 표시.
   const [suggestions, setSuggestions] = useState<CardResponse[]>([]);
   const [focused, setFocused] = useState(false);
+  // ESC로 닫은 상태 — focused는 유지하되 드롭다운만 숨긴다. 타이핑하면 다시 열릴 수 있게 초기화.
+  const [dismissed, setDismissed] = useState(false);
+  // 키보드로 하이라이트된 항목 인덱스. -1이면 하이라이트 없음(Enter 시 기존 submit 유지).
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  // 하이라이트가 방향키로 이동할 때 드롭다운 밖으로 벗어나면 보이는 위치까지 스크롤.
+  useEffect(() => {
+    if (highlightedIndex < 0) return;
+    itemRefs.current[highlightedIndex]?.scrollIntoView({ block: "nearest" });
+  }, [highlightedIndex]);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -88,6 +116,17 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
     };
   }, [query]);
 
+  // 새 검색어 입력이나 새 결과 도착 시 이전 하이라이트/닫힘 상태를 초기화한다.
+  // (위 syncedQuery와 동일하게 렌더 중 비교 패턴 사용 — effect 내 setState 지양)
+  const [prevQuery, setPrevQuery] = useState(query);
+  const [prevSuggestions, setPrevSuggestions] = useState(suggestions);
+  if (query !== prevQuery || suggestions !== prevSuggestions) {
+    setPrevQuery(query);
+    setPrevSuggestions(suggestions);
+    setHighlightedIndex(-1);
+    setDismissed(false);
+  }
+
   const submit = () => {
     const trimmed = query.trim();
     if (!trimmed) return; // 빈 검색어는 BE가 400을 반환하므로 요청 자체를 막는다.
@@ -102,7 +141,24 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
     router.push(`/cards/${card.id}`);
   };
 
-  const showDropdown = focused && query.trim().length > 0 && suggestions.length > 0;
+  const showDropdown = focused && !dismissed && query.trim().length > 0 && suggestions.length > 0;
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showDropdown) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightedIndex((i) => Math.min(i + 1, suggestions.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightedIndex((i) => Math.max(i - 1, -1));
+    } else if (e.key === "Enter" && highlightedIndex >= 0) {
+      // 하이라이트된 항목이 있을 때만 가로챈다 — 없으면 기존 form onSubmit(→ /search?q=)이 그대로 처리한다.
+      e.preventDefault();
+      selectSuggestion(suggestions[highlightedIndex]);
+    } else if (e.key === "Escape") {
+      setDismissed(true);
+    }
+  };
 
   return (
     <div className={`relative ${width}`}>
@@ -131,6 +187,7 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
+          onKeyDown={handleKeyDown}
           placeholder="카드 이름으로 검색"
           className="w-full border-none bg-transparent text-[13.5px] text-ink outline-none"
         />
@@ -138,26 +195,41 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
 
       {showDropdown && (
         <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-[95] overflow-hidden rounded-[12px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]">
-          {suggestions.map((card) => (
-            <button
-              key={card.id}
-              type="button"
-              // mousedown에서 preventDefault로 input의 blur 자체를 막아 클릭이 확실히 반영되게 한다.
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => selectSuggestion(card)}
-              className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-[#FAFAFB]"
-            >
-              <div className="h-9 w-9 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
-                <CardImage src={card.imageSmall} alt={card.name} label="카드" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[13px] font-bold text-ink">{card.name}</div>
-                <div className="truncate text-[11.5px] text-[#9A9AA2]">
-                  {card.setName} · {card.rarity}
+          <div className="max-h-[280px] overflow-y-auto">
+            {suggestions.map((card, i) => (
+              <button
+                key={card.id}
+                ref={(el) => {
+                  itemRefs.current[i] = el;
+                }}
+                type="button"
+                // mousedown에서 preventDefault로 input의 blur 자체를 막아 클릭이 확실히 반영되게 한다.
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => selectSuggestion(card)}
+                className={`flex w-full items-center gap-2.5 border-l-[3px] py-2 pl-[9px] pr-3 text-left ${
+                  i === highlightedIndex
+                    ? "border-secondary bg-lavender"
+                    : "border-transparent hover:bg-[#FAFAFB]"
+                }`}
+              >
+                <div className="h-9 w-9 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
+                  <CardImage src={card.imageSmall} alt={card.name} label="카드" />
                 </div>
-              </div>
-            </button>
-          ))}
+                <div className="min-w-0 flex-1">
+                  <div
+                    className={`truncate text-[13px] font-bold ${
+                      i === highlightedIndex ? "text-secondary" : "text-ink"
+                    }`}
+                  >
+                    {highlightMatch(card.name, query)}
+                  </div>
+                  <div className="truncate text-[11.5px] text-[#9A9AA2]">
+                    {card.setName} · {card.rarity}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>
