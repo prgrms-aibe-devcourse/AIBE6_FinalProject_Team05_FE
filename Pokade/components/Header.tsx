@@ -90,6 +90,8 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
 
   // 자동완성 미리보기 — 입력 300ms 후 GET /api/cards/search?q= 호출, 최대 8건 표시.
   const [suggestions, setSuggestions] = useState<CardResponse[]>([]);
+  // 현재 query에 대한 응답 도착 여부 — "로딩 중"과 "응답 완료(0건)"을 구분하기 위함.
+  const [searchStatus, setSearchStatus] = useState<"idle" | "loading" | "done">("idle");
   const [focused, setFocused] = useState(false);
   // ESC로 닫은 상태 — focused는 유지하되 드롭다운만 숨긴다. 타이핑하면 다시 열릴 수 있게 초기화.
   const [dismissed, setDismissed] = useState(false);
@@ -114,10 +116,16 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
     const timer = setTimeout(() => {
       fetchCardsByKeyword(trimmed)
         .then((results) => {
-          if (!cancelled) setSuggestions(results.slice(0, 8));
+          if (!cancelled) {
+            setSuggestions(results.slice(0, 8));
+            setSearchStatus("done");
+          }
         })
         .catch(() => {
-          if (!cancelled) setSuggestions([]);
+          if (!cancelled) {
+            setSuggestions([]);
+            setSearchStatus("done");
+          }
         });
     }, 300);
     return () => {
@@ -130,6 +138,10 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
   // (위 syncedQuery와 동일하게 렌더 중 비교 패턴 사용 — effect 내 setState 지양)
   const [prevQuery, setPrevQuery] = useState(query);
   const [prevSuggestions, setPrevSuggestions] = useState(suggestions);
+  if (query !== prevQuery) {
+    // 검색어가 바뀌면 이전 응답 상태를 즉시 무효화 — 새 응답이 올 때까지 loading/idle로 되돌린다.
+    setSearchStatus(query.trim() ? "loading" : "idle");
+  }
   if (query !== prevQuery || suggestions !== prevSuggestions) {
     setPrevQuery(query);
     setPrevSuggestions(suggestions);
@@ -176,7 +188,12 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
     inputRef.current?.focus();
   };
 
-  const showDropdown = focused && !dismissed && query.trim().length > 0 && suggestions.length > 0;
+  const hasQuery = query.trim().length > 0;
+  const showDropdown =
+    focused &&
+    !dismissed &&
+    hasQuery &&
+    (suggestions.length > 0 || searchStatus === "done");
   const showRecentDropdown =
     focused && !dismissed && query.trim().length === 0 && recentSearches.length > 0;
 
@@ -251,7 +268,13 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
         )}
       </form>
 
-      {showDropdown && (
+      {showDropdown && suggestions.length === 0 && (
+        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-[95] overflow-hidden rounded-[12px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]">
+          <div className="px-3 py-4 text-center text-[13px] text-[#9A9AA2]">검색 결과가 없습니다</div>
+        </div>
+      )}
+
+      {showDropdown && suggestions.length > 0 && (
         <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-[95] overflow-hidden rounded-[12px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]">
           <div className="max-h-[280px] overflow-y-auto">
             {suggestions.map((card, i) => (
