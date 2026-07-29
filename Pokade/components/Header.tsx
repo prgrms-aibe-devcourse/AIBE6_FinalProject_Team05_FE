@@ -153,7 +153,7 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
   const runSearch = (term: string) => {
     const trimmed = term.trim();
     if (!trimmed) return; // 빈 검색어는 BE가 400을 반환하므로 요청 자체를 막는다.
-    setFocused(false);
+    inputRef.current?.blur();
     setRecentSearches(addRecentSearch(trimmed));
     router.push(`/search?q=${encodeURIComponent(trimmed)}`);
   };
@@ -161,7 +161,7 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
   const submit = () => runSearch(query);
 
   const selectSuggestion = (card: CardResponse) => {
-    setFocused(false);
+    inputRef.current?.blur();
     setQuery("");
     setSuggestions([]);
     setRecentSearches(addRecentSearch(card.name));
