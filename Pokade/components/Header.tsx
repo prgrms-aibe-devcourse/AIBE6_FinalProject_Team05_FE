@@ -1,8 +1,11 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import CardImage from "@/components/CardImage";
+import { fetchCardsByKeyword } from "@/lib/cardApi";
+import { CardResponse } from "@/types/card";
 
 const NAV: { label: string; href: string }[] = [
   { label: "마켓", href: "/search" },
@@ -62,40 +65,102 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
     setQuery(displayQuery);
   }
 
+  // 자동완성 미리보기 — 입력 300ms 후 GET /api/cards/search?q= 호출, 최대 8건 표시.
+  const [suggestions, setSuggestions] = useState<CardResponse[]>([]);
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      fetchCardsByKeyword(trimmed)
+        .then((results) => {
+          if (!cancelled) setSuggestions(results.slice(0, 8));
+        })
+        .catch(() => {
+          if (!cancelled) setSuggestions([]);
+        });
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query]);
+
   const submit = () => {
     const trimmed = query.trim();
     if (!trimmed) return; // 빈 검색어는 BE가 400을 반환하므로 요청 자체를 막는다.
+    setFocused(false);
     router.push(`/search?q=${encodeURIComponent(trimmed)}`);
   };
 
+  const selectSuggestion = (card: CardResponse) => {
+    setFocused(false);
+    setQuery("");
+    setSuggestions([]);
+    router.push(`/cards/${card.id}`);
+  };
+
+  const showDropdown = focused && query.trim().length > 0 && suggestions.length > 0;
+
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        submit();
-      }}
-      className={`flex items-center gap-2 rounded-[9px] border border-[#ECECEF] bg-neutral px-3 py-2 ${width}`}
-    >
-      <button type="submit" aria-label="검색" className="flex flex-shrink-0 items-center">
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#9A9AA2"
-          strokeWidth="2"
-        >
-          <circle cx="11" cy="11" r="7" />
-          <path d="M21 21l-4-4" />
-        </svg>
-      </button>
-      <input
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="카드 이름으로 검색"
-        className="w-full border-none bg-transparent text-[13.5px] text-ink outline-none"
-      />
-    </form>
+    <div className={`relative ${width}`}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          submit();
+        }}
+        className="flex items-center gap-2 rounded-[9px] border border-[#ECECEF] bg-neutral px-3 py-2"
+      >
+        <button type="submit" aria-label="검색" className="flex flex-shrink-0 items-center">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#9A9AA2"
+            strokeWidth="2"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <path d="M21 21l-4-4" />
+          </svg>
+        </button>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          placeholder="카드 이름으로 검색"
+          className="w-full border-none bg-transparent text-[13.5px] text-ink outline-none"
+        />
+      </form>
+
+      {showDropdown && (
+        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-[95] overflow-hidden rounded-[12px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]">
+          {suggestions.map((card) => (
+            <button
+              key={card.id}
+              type="button"
+              // mousedown에서 preventDefault로 input의 blur 자체를 막아 클릭이 확실히 반영되게 한다.
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => selectSuggestion(card)}
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-[#FAFAFB]"
+            >
+              <div className="h-9 w-9 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
+                <CardImage src={card.imageSmall} alt={card.name} label="카드" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[13px] font-bold text-ink">{card.name}</div>
+                <div className="truncate text-[11.5px] text-[#9A9AA2]">
+                  {card.setName} · {card.rarity}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
