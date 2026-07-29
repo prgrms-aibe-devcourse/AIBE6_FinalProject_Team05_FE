@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CardImage from "@/components/CardImage";
-import { fetchCardsByKeyword } from "@/lib/cardApi";
+import { fetchCardsByKeywordPage } from "@/lib/cardApi";
 import {
   addRecentSearch,
   clearRecentSearches,
@@ -12,6 +12,9 @@ import {
   removeRecentSearch,
 } from "@/lib/recentSearches";
 import { CardResponse } from "@/types/card";
+
+// 자동완성 API 호출 최소 글자 수 — 1글자는 노이즈가 많아 2글자부터 호출한다.
+const MIN_QUERY_LENGTH = 2;
 
 const NAV: { label: string; href: string }[] = [
   { label: "마켓", href: "/search" },
@@ -90,6 +93,8 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
 
   // 자동완성 미리보기 — 입력 300ms 후 GET /api/cards/search?q= 호출, 최대 8건 표시.
   const [suggestions, setSuggestions] = useState<CardResponse[]>([]);
+  // 전체 검색 결과 건수 — 8건보다 많으면 드롭다운 하단에 "전체 결과 보기" 링크를 노출한다.
+  const [totalElements, setTotalElements] = useState(0);
   // 현재 query에 대한 응답 도착 여부 — "로딩 중"과 "응답 완료(0건)"을 구분하기 위함.
   const [searchStatus, setSearchStatus] = useState<"idle" | "loading" | "done">("idle");
   const [focused, setFocused] = useState(false);
@@ -111,19 +116,21 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
 
   useEffect(() => {
     const trimmed = query.trim();
-    if (!trimmed) return;
+    if (trimmed.length < MIN_QUERY_LENGTH) return;
     let cancelled = false;
     const timer = setTimeout(() => {
-      fetchCardsByKeyword(trimmed)
-        .then((results) => {
+      fetchCardsByKeywordPage(trimmed)
+        .then((page) => {
           if (!cancelled) {
-            setSuggestions(results.slice(0, 8));
+            setSuggestions(page.content.slice(0, 8));
+            setTotalElements(page.totalElements);
             setSearchStatus("done");
           }
         })
         .catch(() => {
           if (!cancelled) {
             setSuggestions([]);
+            setTotalElements(0);
             setSearchStatus("done");
           }
         });
@@ -139,8 +146,16 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
   const [prevQuery, setPrevQuery] = useState(query);
   const [prevSuggestions, setPrevSuggestions] = useState(suggestions);
   if (query !== prevQuery) {
+    const trimmed = query.trim();
     // 검색어가 바뀌면 이전 응답 상태를 즉시 무효화 — 새 응답이 올 때까지 loading/idle로 되돌린다.
-    setSearchStatus(query.trim() ? "loading" : "idle");
+    // 최소 글자 수 미만이면 API를 호출하지 않으므로 이전 결과를 즉시 비운다.
+    if (trimmed.length < MIN_QUERY_LENGTH) {
+      setSearchStatus("idle");
+      setSuggestions([]);
+      setTotalElements(0);
+    } else {
+      setSearchStatus("loading");
+    }
   }
   if (query !== prevQuery || suggestions !== prevSuggestions) {
     setPrevQuery(query);
@@ -307,6 +322,16 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
                 </button>
               ))}
             </div>
+          )}
+          {suggestions.length > 0 && totalElements > 8 && (
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => runSearch(query)}
+              className="block w-full border-t border-[#F0F0F0] px-3 py-2.5 text-center text-[13px] font-bold text-secondary hover:bg-[#FAFAFB]"
+            >
+              전체 결과 보기
+            </button>
           )}
         </div>
       )}
