@@ -5,7 +5,12 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CardImage from "@/components/CardImage";
 import { fetchCardsByKeyword } from "@/lib/cardApi";
-import { addRecentSearch, clearRecentSearches, getRecentSearches } from "@/lib/recentSearches";
+import {
+  addRecentSearch,
+  clearRecentSearches,
+  getRecentSearches,
+  removeRecentSearch,
+} from "@/lib/recentSearches";
 import { CardResponse } from "@/types/card";
 
 const NAV: { label: string; href: string }[] = [
@@ -91,6 +96,7 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
   // 키보드로 하이라이트된 항목 인덱스. -1이면 하이라이트 없음(Enter 시 기존 submit 유지).
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // 최근 검색어 — 포커스 전에는 렌더되지 않으므로 lazy init으로 즉시 로드해도 하이드레이션에 영향 없음.
   const [recentSearches, setRecentSearches] = useState<string[]>(() => getRecentSearches());
@@ -155,6 +161,21 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
     setRecentSearches([]);
   };
 
+  const handleRemoveRecent = (term: string) => {
+    setRecentSearches(removeRecentSearch(term));
+  };
+
+  // 입력값 지우기 — "다시 시작할래" 의미이므로 ESC로 닫힌 상태였더라도 드롭다운을 다시 열 수 있게 강제로 리셋한다.
+  // DOM 포커스가 이미 input에 있던 경우(예: 직전 검색 실행 후) inputRef.focus()는 focus 이벤트를 재발생시키지
+  // 않아 focused 상태가 갱신되지 않으므로, setFocused(true)로 명시적으로 맞춰준다.
+  const handleClearQuery = () => {
+    setQuery("");
+    setSuggestions([]);
+    setDismissed(false);
+    setFocused(true);
+    inputRef.current?.focus();
+  };
+
   const showDropdown = focused && !dismissed && query.trim().length > 0 && suggestions.length > 0;
   const showRecentDropdown =
     focused && !dismissed && query.trim().length === 0 && recentSearches.length > 0;
@@ -199,6 +220,7 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
           </svg>
         </button>
         <input
+          ref={inputRef}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => setFocused(true)}
@@ -207,6 +229,26 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
           placeholder="카드 이름으로 검색"
           className="w-full border-none bg-transparent text-[13.5px] text-ink outline-none"
         />
+        {query.length > 0 && (
+          <button
+            type="button"
+            aria-label="검색어 지우기"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={handleClearQuery}
+            className="flex flex-shrink-0 items-center text-[#9A9AA2] hover:text-ink"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        )}
       </form>
 
       {showDropdown && (
@@ -264,27 +306,49 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
           </div>
           <div className="max-h-[280px] overflow-y-auto">
             {recentSearches.map((term) => (
-              <button
+              <div
                 key={term}
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => runSearch(term)}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-ink hover:bg-[#FAFAFB]"
+                className="group flex w-full items-center gap-1 pr-2 hover:bg-[#FAFAFB]"
               >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="#9A9AA2"
-                  strokeWidth="2"
-                  className="flex-shrink-0"
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => runSearch(term)}
+                  className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left text-[13px] text-ink"
                 >
-                  <circle cx="12" cy="12" r="9" />
-                  <path d="M12 7v5l3 3" />
-                </svg>
-                <span className="truncate">{term}</span>
-              </button>
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#9A9AA2"
+                    strokeWidth="2"
+                    className="flex-shrink-0"
+                  >
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 7v5l3 3" />
+                  </svg>
+                  <span className="truncate">{term}</span>
+                </button>
+                <button
+                  type="button"
+                  aria-label={`${term} 삭제`}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => handleRemoveRecent(term)}
+                  className="flex flex-shrink-0 items-center p-1 text-[#C5C5CC] hover:text-primary"
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             ))}
           </div>
         </div>

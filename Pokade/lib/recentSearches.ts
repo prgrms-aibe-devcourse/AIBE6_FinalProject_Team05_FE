@@ -26,3 +26,10 @@ export function clearRecentSearches(): void {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(STORAGE_KEY);
 }
+
+export function removeRecentSearch(term: string): string[] {
+  if (typeof window === "undefined") return getRecentSearches();
+  const next = getRecentSearches().filter((t) => t !== term);
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  return next;
+}
