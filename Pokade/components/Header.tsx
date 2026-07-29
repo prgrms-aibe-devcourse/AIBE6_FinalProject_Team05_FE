@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CardImage from "@/components/CardImage";
 import { fetchCardsByKeyword } from "@/lib/cardApi";
+import { addRecentSearch, clearRecentSearches, getRecentSearches } from "@/lib/recentSearches";
 import { CardResponse } from "@/types/card";
 
 const NAV: { label: string; href: string }[] = [
@@ -91,6 +92,9 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
+  // 최근 검색어 — 포커스 전에는 렌더되지 않으므로 lazy init으로 즉시 로드해도 하이드레이션에 영향 없음.
+  const [recentSearches, setRecentSearches] = useState<string[]>(() => getRecentSearches());
+
   // 하이라이트가 방향키로 이동할 때 드롭다운 밖으로 벗어나면 보이는 위치까지 스크롤.
   useEffect(() => {
     if (highlightedIndex < 0) return;
@@ -127,21 +131,33 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
     setDismissed(false);
   }
 
-  const submit = () => {
-    const trimmed = query.trim();
+  // 검색 실행(직접 입력 Enter, 최근 검색어 클릭) 공통 경로 — 검색어를 최근 검색어에 저장한 뒤 이동.
+  const runSearch = (term: string) => {
+    const trimmed = term.trim();
     if (!trimmed) return; // 빈 검색어는 BE가 400을 반환하므로 요청 자체를 막는다.
     setFocused(false);
+    setRecentSearches(addRecentSearch(trimmed));
     router.push(`/search?q=${encodeURIComponent(trimmed)}`);
   };
+
+  const submit = () => runSearch(query);
 
   const selectSuggestion = (card: CardResponse) => {
     setFocused(false);
     setQuery("");
     setSuggestions([]);
+    setRecentSearches(addRecentSearch(card.name));
     router.push(`/cards/${card.id}`);
   };
 
+  const handleClearRecent = () => {
+    clearRecentSearches();
+    setRecentSearches([]);
+  };
+
   const showDropdown = focused && !dismissed && query.trim().length > 0 && suggestions.length > 0;
+  const showRecentDropdown =
+    focused && !dismissed && query.trim().length === 0 && recentSearches.length > 0;
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!showDropdown) return;
@@ -227,6 +243,47 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
                     {card.setName} · {card.rarity}
                   </div>
                 </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {showRecentDropdown && (
+        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-[95] overflow-hidden rounded-[12px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]">
+          <div className="flex items-center justify-between px-3 py-2">
+            <span className="text-[11.5px] font-semibold text-[#9A9AA2]">최근 검색어</span>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleClearRecent}
+              className="text-[11.5px] font-semibold text-[#9A9AA2] hover:text-primary"
+            >
+              최근 검색어 지우기
+            </button>
+          </div>
+          <div className="max-h-[280px] overflow-y-auto">
+            {recentSearches.map((term) => (
+              <button
+                key={term}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => runSearch(term)}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-ink hover:bg-[#FAFAFB]"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#9A9AA2"
+                  strokeWidth="2"
+                  className="flex-shrink-0"
+                >
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 7v5l3 3" />
+                </svg>
+                <span className="truncate">{term}</span>
               </button>
             ))}
           </div>
