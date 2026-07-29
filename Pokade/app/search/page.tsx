@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import GradeBadge, { Grade } from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
 import { CardSearchItem, toCardSearchItem } from "@/types/card";
@@ -63,14 +63,22 @@ export default function SearchDashboardPage() {
 }
 
 function SearchDashboard() {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const q = searchParams.get("q")?.trim() || "";
   const [view, setView] = useState<"search" | "dash">("search");
   const [priceMin, setPriceMin] = useState(0);
   const [priceMax, setPriceMax] = useState(1500000);
-  const [selectedExpansionId, setSelectedExpansionId] = useState<string | null>(null);
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
-  const [selectedRarities, setSelectedRarities] = useState<string[]>([]);
+  const [selectedExpansionId, setSelectedExpansionId] = useState<string | null>(() =>
+    searchParams.get("expansionId"),
+  );
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(
+    () => searchParams.get("types")?.split(",").filter(Boolean) ?? [],
+  );
+  const [selectedRarities, setSelectedRarities] = useState<string[]>(
+    () => searchParams.get("rarity")?.split(",").filter(Boolean) ?? [],
+  );
   const [cards, setCards] = useState<CardSearchItem[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
@@ -110,6 +118,23 @@ function SearchDashboard() {
     };
   }, [reloadKey, selectedExpansionId, selectedTypes, selectedRarities, q]);
 
+  // 필터를 URL 쿼리 파라미터에 반영 — 상세 페이지 진입 후 뒤로가기 시 필터가 유지되도록 함.
+  const syncFilterParams = (
+    nextExpansionId: string | null,
+    nextTypes: string[],
+    nextRarities: string[],
+  ) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (nextExpansionId) params.set("expansionId", nextExpansionId);
+    else params.delete("expansionId");
+    if (nextTypes.length) params.set("types", nextTypes.join(","));
+    else params.delete("types");
+    if (nextRarities.length) params.set("rarity", nextRarities.join(","));
+    else params.delete("rarity");
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
+
   const resetFilters = () => {
     setPriceMin(0);
     setPriceMax(1500000);
@@ -117,6 +142,7 @@ function SearchDashboard() {
     setSelectedExpansionId(null);
     setSelectedTypes([]);
     setSelectedRarities([]);
+    syncFilterParams(null, [], []);
   };
   const toggleValue = (list: string[], value: string) =>
     list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
@@ -163,11 +189,13 @@ function SearchDashboard() {
                           if (selectedExpansionId === opt.expansionId) {
                             setLoadState("loading");
                             setSelectedExpansionId(null);
+                            syncFilterParams(null, selectedTypes, selectedRarities);
                           }
                         }}
                         onChange={() => {
                           setLoadState("loading");
                           setSelectedExpansionId(opt.expansionId);
+                          syncFilterParams(opt.expansionId, selectedTypes, selectedRarities);
                         }}
                       />
                       {opt.label}
@@ -187,7 +215,9 @@ function SearchDashboard() {
                         checked={selectedTypes.includes(t)}
                         onChange={() => {
                           setLoadState("loading");
-                          setSelectedTypes((prev) => toggleValue(prev, t));
+                          const next = toggleValue(selectedTypes, t);
+                          setSelectedTypes(next);
+                          syncFilterParams(selectedExpansionId, next, selectedRarities);
                         }}
                       />
                       {t}
@@ -207,7 +237,9 @@ function SearchDashboard() {
                         checked={selectedRarities.includes(r)}
                         onChange={() => {
                           setLoadState("loading");
-                          setSelectedRarities((prev) => toggleValue(prev, r));
+                          const next = toggleValue(selectedRarities, r);
+                          setSelectedRarities(next);
+                          syncFilterParams(selectedExpansionId, selectedTypes, next);
                         }}
                       />
                       {r}
@@ -305,6 +337,7 @@ function SearchDashboard() {
                         onRemove={() => {
                           setLoadState("loading");
                           setSelectedExpansionId(null);
+                          syncFilterParams(null, selectedTypes, selectedRarities);
                         }}
                       />
                     )}
@@ -314,7 +347,9 @@ function SearchDashboard() {
                         label={t}
                         onRemove={() => {
                           setLoadState("loading");
-                          setSelectedTypes((prev) => prev.filter((v) => v !== t));
+                          const next = selectedTypes.filter((v) => v !== t);
+                          setSelectedTypes(next);
+                          syncFilterParams(selectedExpansionId, next, selectedRarities);
                         }}
                       />
                     ))}
@@ -324,7 +359,9 @@ function SearchDashboard() {
                         label={r}
                         onRemove={() => {
                           setLoadState("loading");
-                          setSelectedRarities((prev) => prev.filter((v) => v !== r));
+                          const next = selectedRarities.filter((v) => v !== r);
+                          setSelectedRarities(next);
+                          syncFilterParams(selectedExpansionId, selectedTypes, next);
                         }}
                       />
                     ))}
