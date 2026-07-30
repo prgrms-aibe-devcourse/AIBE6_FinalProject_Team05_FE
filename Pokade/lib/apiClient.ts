@@ -31,6 +31,19 @@ export class ApiError extends Error {
   }
 }
 
+// BE가 의도적으로 내려주는 사용자 친화적 400 메시지(필터 값 검증 실패 등)와 달리,
+// 컨트롤러 이전 단계에서 터진 Java 예외(예: @PathVariable Long 파싱 실패 시
+// "For input string: \"abc\"")는 메시지가 그대로 노출된다 — 이런 형태만 골라서
+// 일반화된 문구로 대체한다.
+const JAVA_EXCEPTION_MESSAGE_PATTERNS = [
+  /for input string/i,
+  /^(java\.[\w.]+|[\w.]*[A-Z]\w*Exception)\b/,
+];
+
+function isJavaExceptionMessage(message: string): boolean {
+  return JAVA_EXCEPTION_MESSAGE_PATTERNS.some((p) => p.test(message));
+}
+
 async function fetchOk(path: string): Promise<Response> {
   let res: Response;
   try {
@@ -50,7 +63,12 @@ async function fetchOk(path: string): Promise<Response> {
       const body = (await res.json()) as ApiEnvelope<unknown>;
       if (body?.code) code = body.code;
       const parsedMsg = body?.message ?? body?.msg;
-      if (parsedMsg) msg = parsedMsg;
+      if (parsedMsg) {
+        msg =
+          res.status === 400 && isJavaExceptionMessage(parsedMsg)
+            ? "잘못된 요청입니다."
+            : parsedMsg;
+      }
     } catch {
       // 에러 응답 본문이 JSON이 아닐 수 있음 — 기본 메시지 사용.
     }
