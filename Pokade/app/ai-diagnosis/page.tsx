@@ -1,56 +1,149 @@
 "use client";
 
-import { useState } from "react";
-import GradeBadge from "@/components/GradeBadge";
+import { useEffect, useRef, useState } from "react";
+import GradeBadge, { type Grade } from "@/components/GradeBadge";
 import ConditionBar from "@/components/ConditionBar";
-import CardImage from "@/components/CardImage";
 
-type View = "upload" | "fail" | "exhausted" | "result";
-const VIEWS: [View, string][] = [
-  ["upload", "업로드"],
-  ["fail", "인식 실패"],
-  ["exhausted", "무료 소진"],
-  ["result", "진단 결과"],
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+
+// 슬롯 순서는 백엔드 @RequestPart 이름과 그대로 매칭되어야 함 (front/back/corner_tl/tr/bl/br)
+const SLOTS: { field: string; label: string }[] = [
+  { field: "front", label: "앞면" },
+  { field: "back", label: "뒷면" },
+  { field: "corner_tl", label: "좌상단 모서리" },
+  { field: "corner_tr", label: "우상단 모서리" },
+  { field: "corner_bl", label: "좌하단 모서리" },
+  { field: "corner_br", label: "우하단 모서리" },
 ];
 
-// 6칸: 앞면 + 뒷면 + 모서리 4곳(전부 "추가"로 통일)
-const SLOT_LABELS = ["앞면", "뒷면", "추가", "추가", "추가", "추가"];
+type GradeStatus = "SUCCESS" | "QUALITY_FAIL";
 
-function UploadView() {
-  const [photos, setPhotos] = useState<(string | null)[]>(Array(6).fill(null));
+interface GradeResponse {
+  gradeResultId: number;
+  status: GradeStatus;
+  grade: Grade | null;
+  centeringScore: number | null;
+  edgeScore: number | null;
+  surfaceScore: number | null;
+  cornerScore: number | null;
+  confidence: number | null;
+  isFree: boolean;
+  pointUsed: number;
+  retryAllowed: boolean;
+  notice: string;
+  createdAt: string;
+}
+
+// 진단 흐름의 상태를 하나의 판별 유니언으로 관리 — 서로 동시에 있을 수 없는 값들을 분리된 state로 두면
+// 항상 함께 세팅해야 하는 규칙이 컴파일러가 아닌 개발자 주의에만 의존하게 됨
+type DiagnosisStatus =
+  | { kind: "idle" }
+  | { kind: "error"; message: string }
+  | { kind: "qualityFail"; retryOfId: number | null }
+  | { kind: "success"; data: GradeResponse };
+
+async function requestGrade(photos: File[], retryOfId: number | null): Promise<GradeResponse> {
+  const formData = new FormData();
+  SLOTS.forEach(({ field }, i) => formData.append(field, photos[i]));
+  if (retryOfId != null) formData.append("retryOfId", String(retryOfId));
+
+  const res = await fetch(`${API_BASE_URL}/api/ai/grade`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    console.error(`AI 진단 요청 실패 (HTTP ${res.status}):`, body);
+    if (res.status === 503) {
+      throw new Error("AI 진단 서비스에 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+    }
+    if (res.status === 413) {
+      throw new Error("사진 용량이 너무 큽니다. 전체 합계 기준으로도 용량을 줄여 다시 올려주세요.");
+    }
+    throw new Error("진단 요청에 실패했습니다.");
+  }
+  return res.json();
+}
+
+function UploadView({
+  onSubmit,
+  loading,
+  error,
+  isRetry,
+}: {
+  onSubmit: (photos: File[]) => void;
+  loading: boolean;
+  error: string | null;
+  isRetry: boolean;
+}) {
+  const [photos, setPhotos] = useState<(File | null)[]>(Array(6).fill(null));
+  const [previews, setPreviews] = useState<(string | null)[]>(Array(6).fill(null));
   const count = photos.filter(Boolean).length;
-  const canStart = Boolean(photos[0] && photos[1]); // 앞면+뒷면 최소 2장
+  const canStart = photos.every(Boolean) && !loading;
 
-  const setAt = (i: number, url: string | null) => {
+  // 언마운트 시(진단 성공 → ResultView 전환 등) 남아있는 blob URL을 전부 해제하기 위한 최신값 참조
+  const previewsRef = useRef(previews);
+  useEffect(() => {
+    previewsRef.current = previews;
+  }, [previews]);
+  useEffect(() => {
+    return () => {
+      previewsRef.current.forEach((url) => {
+        if (url) URL.revokeObjectURL(url);
+      });
+    };
+  }, []);
+
+  const setAt = (i: number, file: File | null) => {
     setPhotos((prev) => {
       const next = [...prev];
+      next[i] = file;
+      return next;
+    });
+    setPreviews((prev) => {
+      const next = [...prev];
       if (prev[i]) URL.revokeObjectURL(prev[i] as string);
-      next[i] = url;
+      next[i] = file ? URL.createObjectURL(file) : null;
       return next;
     });
   };
 
   const onPick = (i: number) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setAt(i, URL.createObjectURL(file));
-    e.target.value = ""; // 같은 파일 재선택 허용
+    if (file) setAt(i, file);
+    e.target.value = "";
   };
 
   return (
     <div className="rounded-2xl border border-[#EDEDF0] bg-white p-[30px]">
       <h2 className="mb-1 mt-0 text-base font-extrabold">카드 사진 업로드</h2>
       <p className="mb-5 text-[13px] text-[#8A8A92]">
-        앞면·뒷면·모서리 4곳을 촬영해 올려주세요 (최대 6장)
+        앞면·뒷면·모서리 4곳을 촬영해 올려주세요 (6장 모두 필요)
       </p>
+      {error && (
+        <div className="mb-5 rounded-xl border border-[#F6C6C6] bg-[#FFF1F1] px-4 py-3.5 text-[13.5px] font-bold text-[#C21414]">
+          {error}
+        </div>
+      )}
+      {isRetry && !error && (
+        <div className="mb-5 rounded-xl border border-[#F6C6C6] bg-[#FFF1F1] px-4 py-3.5 text-[13.5px] font-bold text-[#C21414]">
+          카드를 인식하지 못했어요. 빛 반사가 적은 곳에서 다시 촬영해 주세요.
+        </div>
+      )}
       <div className="grid grid-cols-3 gap-3.5">
-        {photos.map((url, i) =>
-          url ? (
+        {SLOTS.map(({ label }, i) =>
+          previews[i] ? (
             <div
               key={i}
               className="relative aspect-[3/4] overflow-hidden rounded-[11px] bg-[#F2F2F5]"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={url} alt={`업로드 ${i + 1}`} className="h-full w-full object-cover" />
+              <img
+                src={previews[i] as string}
+                alt={`업로드 ${label}`}
+                className="h-full w-full object-cover"
+              />
               <button
                 onClick={() => setAt(i, null)}
                 aria-label="사진 삭제"
@@ -84,7 +177,7 @@ function UploadView() {
               >
                 <path d="M12 5v14M5 12h14" />
               </svg>
-              <span className="text-xs font-semibold">{SLOT_LABELS[i]}</span>
+              <span className="text-xs font-semibold">{label}</span>
             </label>
           ),
         )}
@@ -92,17 +185,78 @@ function UploadView() {
       <div className="mt-[22px] flex items-center justify-between border-t border-[#F0F0F0] pt-5">
         <div className="text-[13.5px] text-[#4B4B52]">
           업로드 <b className="text-primary">{count}</b> / 6장
-          <span className="ml-2 text-xs text-[#9A9AA2]">· 오늘 무료 진단 2/3회 남음</span>
         </div>
         <button
           disabled={!canStart}
+          onClick={() => onSubmit(photos as File[])}
           className={`rounded-[11px] border-2 px-7 py-3 text-[15px] font-bold ${
             canStart
               ? "border-primary-dark bg-primary text-white shadow-tactile active:translate-y-0.5 active:shadow-tactile-active"
               : "cursor-not-allowed border-[#D6D6DC] bg-[#E4E4E8] text-[#A0A0A8]"
           }`}
         >
-          진단 시작
+          {loading ? "진단 중..." : "진단 시작"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ResultView({ result, onReset }: { result: GradeResponse; onReset: () => void }) {
+  const scores: [string, number | null][] = [
+    ["센터링", result.centeringScore],
+    ["엣지", result.edgeScore],
+    ["표면", result.surfaceScore],
+    ["모서리", result.cornerScore],
+  ];
+
+  return (
+    <div className="rounded-2xl border border-[#EDEDF0] bg-white p-[30px]">
+      <div className="flex items-center gap-3">
+        <span className="text-sm font-semibold text-[#8A8A92]">종합 예상 등급</span>
+        {result.grade && <GradeBadge grade={result.grade} size="lg" />}
+      </div>
+      <div className="mt-6 flex flex-col gap-[18px]">
+        {scores.map(([label, score]) => (
+          <div key={label}>
+            <div className="mb-1.5 flex justify-between text-[13px]">
+              <span className="font-bold text-[#4B4B52]">{label}</span>
+              <span className="font-extrabold">{score != null ? score.toFixed(1) : "-"}</span>
+            </div>
+            <ConditionBar
+              filled={score != null ? Math.round(score) : 0}
+              size="lg"
+              color="bg-secondary"
+            />
+          </div>
+        ))}
+      </div>
+      {result.confidence != null && (
+        <div className="mt-2 text-[12.5px] text-[#9A9AA2]">
+          AI 신뢰도 {result.confidence.toFixed(1)}%
+        </div>
+      )}
+      <div className="mt-[22px] rounded-[10px] bg-neutral px-[15px] py-3 text-[12.5px] leading-normal text-[#8A8A92]">
+        {result.notice}
+      </div>
+      <div className="mt-2 text-[12px] text-[#B0B0B8]">
+        {result.pointUsed > 0
+          ? `포인트 ${result.pointUsed}점이 사용되었습니다.`
+          : "무료로 처리되었습니다."}
+      </div>
+      <div className="mt-[18px] flex gap-3">
+        <button
+          onClick={onReset}
+          className="flex-1 rounded-[11px] border-2 border-[#D6D6DC] bg-white py-3.5 text-[15.5px] font-bold text-[#4B4B52]"
+        >
+          다시 진단하기
+        </button>
+        <button
+          disabled
+          title="FR-AI-04에서 연동 예정"
+          className="flex-1 cursor-not-allowed rounded-[11px] border-2 border-[#D6D6DC] bg-[#E4E4E8] py-3.5 text-[15.5px] font-bold text-[#A0A0A8]"
+        >
+          도감에 등록하기
         </button>
       </div>
     </div>
@@ -110,9 +264,34 @@ function UploadView() {
 }
 
 export default function AIDiagnosisPage() {
-  const [view, setView] = useState<View>("upload");
-  const chip = (a: boolean) =>
-    `rounded-[9px] border-[1.5px] px-[15px] py-2 text-[13px] cursor-pointer ${a ? "border-primary bg-[#FFF5F5] font-bold text-primary" : "border-[#E4E4E9] bg-white font-semibold text-[#7A7A82]"}`;
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<DiagnosisStatus>({ kind: "idle" });
+
+  const handleSubmit = async (photos: File[]) => {
+    const retryOfId = status.kind === "qualityFail" ? status.retryOfId : null;
+    setLoading(true);
+    try {
+      const response = await requestGrade(photos, retryOfId);
+      if (response.status === "QUALITY_FAIL") {
+        setStatus({
+          kind: "qualityFail",
+          retryOfId: response.retryAllowed ? response.gradeResultId : null,
+        });
+      } else {
+        setStatus({ kind: "success", data: response });
+      }
+    } catch (e) {
+      console.error("AI 진단 요청 중 오류:", e);
+      setStatus({
+        kind: "error",
+        message: e instanceof Error ? e.message : "진단 요청에 실패했습니다.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReset = () => setStatus({ kind: "idle" });
 
   return (
     <main className="main-content bg-neutral px-10 pb-14 pt-9">
@@ -127,157 +306,15 @@ export default function AIDiagnosisPage() {
           </p>
         </div>
 
-        <div className="mb-6 flex justify-center gap-2">
-          {VIEWS.map(([k, l]) => (
-            <button key={k} className={chip(view === k)} onClick={() => setView(k)}>
-              {l}
-            </button>
-          ))}
-        </div>
-
-        {view === "upload" && <UploadView />}
-
-        {view === "fail" && (
-          <div className="rounded-2xl border border-[#EDEDF0] bg-white p-[30px]">
-            <div className="mb-[22px] flex items-center gap-[11px] rounded-xl border border-[#F6C6C6] bg-[#FFF1F1] px-4 py-3.5">
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#EE1515"
-                strokeWidth="2"
-              >
-                <circle cx="12" cy="12" r="9" />
-                <path d="M12 8v4M12 16h.01" />
-              </svg>
-              <span className="text-[13.5px] font-bold text-[#C21414]">
-                카드를 인식하지 못했어요. 빛 반사가 적은 곳에서 다시 촬영해 주세요.
-              </span>
-            </div>
-            <div className="grid grid-cols-3 gap-3.5">
-              <div className="flex aspect-[3/4] flex-col items-center justify-center gap-2 rounded-[11px] border-2 border-primary bg-[#FFF6F6] text-primary">
-                <svg
-                  width="26"
-                  height="26"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <circle cx="12" cy="12" r="9" />
-                  <path d="M12 8v4M12 16h.01" />
-                </svg>
-                <span className="text-xs font-bold">인식 실패</span>
-              </div>
-              <div className="aspect-[3/4] overflow-hidden rounded-[11px] bg-[#F2F2F5]">
-                <CardImage label="뒷면" />
-              </div>
-              <div className="flex aspect-[3/4] items-center justify-center rounded-[11px] border-2 border-dashed border-[#D7D7DE] text-[#A8A8B0]">
-                <svg
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-              </div>
-            </div>
-            <div className="mt-[22px] flex justify-center">
-              <button
-                onClick={() => setView("upload")}
-                className="rounded-[11px] border-2 border-primary-dark bg-primary px-[30px] py-3 text-[15px] font-bold text-white shadow-tactile active:translate-y-0.5 active:shadow-tactile-active"
-              >
-                다시 업로드
-              </button>
-            </div>
-          </div>
-        )}
-
-        {view === "exhausted" && (
-          <div className="rounded-2xl border border-[#EDEDF0] bg-white p-[30px]">
-            <div className="mb-6 flex items-start gap-3 rounded-xl border border-[#F5E4A8] bg-[#FFF9E6] px-5 py-[18px]">
-              <svg
-                className="mt-px flex-shrink-0"
-                width="22"
-                height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#B8860B"
-                strokeWidth="2"
-              >
-                <path d="M12 2l2.5 6.5L21 9l-5 4 1.5 7L12 16l-5.5 4L8 13 3 9l6.5-.5z" />
-              </svg>
-              <div>
-                <div className="text-[15px] font-extrabold text-[#8A6A00]">
-                  오늘의 무료 진단을 모두 사용했어요
-                </div>
-                <p className="mt-[5px] text-[13.5px] leading-[1.55] text-[#9A7A20]">
-                  포인트로 추가 진단을 이용하거나, 내일 다시 무료 진단을 받을 수 있어요.
-                </p>
-              </div>
-            </div>
-            <label className="mb-2 block text-[13px] font-bold text-[#4B4B52]">
-              진단 포인트 충전
-            </label>
-            <div className="flex items-center gap-3">
-              <select className="flex-1 cursor-pointer rounded-[11px] border border-[#DDDDE3] bg-white px-3.5 py-3 text-[14.5px] outline-none">
-                <option>진단권 3회 — ₩2,900</option>
-                <option>진단권 10회 — ₩8,900</option>
-                <option>진단권 30회 — ₩19,900</option>
-              </select>
-              <button className="whitespace-nowrap rounded-[11px] border-2 border-primary-dark bg-primary px-[26px] py-3 text-[15px] font-bold text-white shadow-tactile active:translate-y-0.5 active:shadow-tactile-active">
-                충전하기
-              </button>
-            </div>
-          </div>
-        )}
-
-        {view === "result" && (
-          <div className="grid grid-cols-[300px_1fr] gap-8 rounded-2xl border border-[#EDEDF0] bg-white p-[30px]">
-            <div>
-              <div className="relative aspect-[3/4] overflow-hidden rounded-[13px] bg-[#F2F2F5]">
-                <CardImage label="진단 카드" />
-                <GradeBadge grade="S" size="lg" className="absolute left-2.5 top-2.5" />
-              </div>
-              <div className="mt-4 text-center">
-                <div className="text-base font-extrabold">리자몽 ex</div>
-                <div className="mt-0.5 text-[12.5px] text-[#9A9AA2]">흑염의 지배자 · SAR</div>
-              </div>
-            </div>
-            <div>
-              <span className="text-sm font-semibold text-[#8A8A92]">종합 예상 등급</span>
-              <div className="mt-1 flex items-baseline gap-2">
-                <span className="text-[40px] font-extrabold tracking-[-1px]">9.2</span>
-                <span className="text-lg font-bold text-[#9A9AA2]">/ 10</span>
-              </div>
-              <div className="mt-6 flex flex-col gap-[18px]">
-                {[
-                  ["모서리", "9.4", 9],
-                  ["중앙정렬", "9.0", 8],
-                  ["표면 스크래치", "9.1", 9],
-                ].map(([l, v, f]) => (
-                  <div key={l as string}>
-                    <div className="mb-1.5 flex justify-between text-[13px]">
-                      <span className="font-bold text-[#4B4B52]">{l}</span>
-                      <span className="font-extrabold">{v}</span>
-                    </div>
-                    <ConditionBar filled={f as number} size="lg" color="bg-secondary" />
-                  </div>
-                ))}
-              </div>
-              <div className="mt-[22px] rounded-[10px] bg-neutral px-[15px] py-3 text-[12.5px] leading-normal text-[#8A8A92]">
-                본 AI 진단은 참고용 예상 등급이며,{" "}
-                <b className="text-[#4B4B52]">PSA 정식 감정을 대체하지 않습니다.</b>
-              </div>
-              <button className="mt-[18px] w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3.5 text-[15.5px] font-bold text-white shadow-tactile active:translate-y-0.5 active:shadow-tactile-active">
-                도감에 등록하기
-              </button>
-            </div>
-          </div>
+        {status.kind === "success" ? (
+          <ResultView result={status.data} onReset={handleReset} />
+        ) : (
+          <UploadView
+            onSubmit={handleSubmit}
+            loading={loading}
+            error={status.kind === "error" ? status.message : null}
+            isRetry={status.kind === "qualityFail"}
+          />
         )}
       </div>
     </main>
