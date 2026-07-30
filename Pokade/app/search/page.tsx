@@ -2,11 +2,11 @@
 
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import GradeBadge, { Grade } from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
 import { CardSearchItem, toCardSearchItem } from "@/types/card";
-import { fetchCards, fetchCardsByKeyword } from "@/lib/cardApi";
+import { CardSort, fetchCardsByKeywordPage, fetchCardsPage } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
 
 const GRADE_CHIP: Record<Grade, string> = {
@@ -63,15 +63,35 @@ export default function SearchDashboardPage() {
 }
 
 function SearchDashboard() {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const q = searchParams.get("q")?.trim() || "";
   const [view, setView] = useState<"search" | "dash">("search");
   const [priceMin, setPriceMin] = useState(0);
   const [priceMax, setPriceMax] = useState(1500000);
-  const [selectedExpansionId, setSelectedExpansionId] = useState<string | null>(null);
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
-  const [selectedRarities, setSelectedRarities] = useState<string[]>([]);
+  const [selectedExpansionId, setSelectedExpansionId] = useState<string | null>(() =>
+    searchParams.get("expansionId"),
+  );
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(
+    () => searchParams.get("types")?.split(",").filter(Boolean) ?? [],
+  );
+  const [selectedRarities, setSelectedRarities] = useState<string[]>(
+    () => searchParams.get("rarity")?.split(",").filter(Boolean) ?? [],
+  );
+  // BE 화이트리스트에 없는 값은 latest로 취급 — /api/cards/search(키워드 검색)는
+  // sort를 지원하지 않으므로 q가 있을 때는 드롭다운 자체를 숨긴다.
+  const [sort, setSort] = useState<CardSort>(() =>
+    searchParams.get("sort") === "name" ? "name" : "latest",
+  );
+  // 1-indexed(화면 표시용). BE 호출 시에만 0-indexed로 변환한다.
+  const [page, setPage] = useState<number>(() => {
+    const p = Number(searchParams.get("page"));
+    return Number.isInteger(p) && p > 1 ? p : 1;
+  });
   const [cards, setCards] = useState<CardSearchItem[]>([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalElements, setTotalElements] = useState(0);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
@@ -80,23 +100,36 @@ function SearchDashboard() {
   if (q !== prevQ) {
     setPrevQ(q);
     setLoadState("loading");
+    setPage(1);
+  }
+
+  // 정렬/필터가 바뀌면 이전 페이지 번호가 새 결과 집합에 더는 유효하지 않으므로 1페이지로 되돌린다.
+  const filterKey = `${selectedExpansionId}|${selectedTypes.join(",")}|${selectedRarities.join(",")}|${sort}`;
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
+    setPage(1);
   }
 
   useEffect(() => {
     let cancelled = false;
 
     const request = q
-      ? fetchCardsByKeyword(q)
-      : fetchCards({
+      ? fetchCardsByKeywordPage(q, page - 1)
+      : fetchCardsPage({
           expansionId: selectedExpansionId ?? undefined,
           types: selectedTypes,
           rarity: selectedRarities,
+          sort,
+          page: page - 1,
         });
 
     request
-      .then((responses) => {
+      .then((response) => {
         if (cancelled) return;
-        setCards(responses.map(toCardSearchItem));
+        setCards(response.content.map(toCardSearchItem));
+        setTotalPages(response.totalPages);
+        setTotalElements(response.totalElements);
         setLoadState("ready");
       })
       .catch((err) => {
@@ -108,7 +141,43 @@ function SearchDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey, selectedExpansionId, selectedTypes, selectedRarities, q]);
+  }, [reloadKey, selectedExpansionId, selectedTypes, selectedRarities, sort, page, q]);
+
+  // 필터가 좁아져 현재 페이지가 범위를 벗어나면(예: URL을 page=999로 직접 수정) 마지막 페이지로 보정.
+  const [prevTotalPages, setPrevTotalPages] = useState(totalPages);
+  if (totalPages !== prevTotalPages) {
+    setPrevTotalPages(totalPages);
+    if (totalPages > 0 && page > totalPages) {
+      setPage(totalPages);
+    }
+  }
+
+  // 카드 상세 페이지의 "검색으로 돌아가기" 링크가 참조할 현재 검색 URL을 저장.
+  // Link 클릭(클라이언트 사이드 라우팅)은 document.referrer를 갱신하지 않으므로 sessionStorage를 사용.
+  useEffect(() => {
+    const qs = searchParams.toString();
+    sessionStorage.setItem("searchBackUrl", qs ? `${pathname}?${qs}` : pathname);
+  }, [pathname, searchParams]);
+
+  // 필터 상태를 URL 쿼리 파라미터에 반영 — 상세 페이지 진입 후 뒤로가기 시 필터가 유지되도록 함.
+  // 세터 호출 지점마다 흩어져 있던 동기화 호출을 걷어내고, 필터 상태 변화를 감시하는
+  // 단일 effect로 모아서 처리한다.
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (selectedExpansionId) params.set("expansionId", selectedExpansionId);
+    else params.delete("expansionId");
+    if (selectedTypes.length) params.set("types", selectedTypes.join(","));
+    else params.delete("types");
+    if (selectedRarities.length) params.set("rarity", selectedRarities.join(","));
+    else params.delete("rarity");
+    if (sort !== "latest") params.set("sort", sort);
+    else params.delete("sort");
+    if (page > 1) params.set("page", String(page));
+    else params.delete("page");
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedExpansionId, selectedTypes, selectedRarities, sort, page]);
 
   const resetFilters = () => {
     setPriceMin(0);
@@ -117,6 +186,11 @@ function SearchDashboard() {
     setSelectedExpansionId(null);
     setSelectedTypes([]);
     setSelectedRarities([]);
+    setSort("latest");
+    setPage(1);
+    // 필터가 이미 초기값이면 위 세터들이 상태를 바꾸지 않아 카드 목록 effect가
+    // 재실행되지 않는다 — reloadKey를 강제로 올려 항상 재요청되게 한다.
+    setReloadKey((k) => k + 1);
   };
   const toggleValue = (list: string[], value: string) =>
     list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
@@ -187,7 +261,7 @@ function SearchDashboard() {
                         checked={selectedTypes.includes(t)}
                         onChange={() => {
                           setLoadState("loading");
-                          setSelectedTypes((prev) => toggleValue(prev, t));
+                          setSelectedTypes(toggleValue(selectedTypes, t));
                         }}
                       />
                       {t}
@@ -207,7 +281,7 @@ function SearchDashboard() {
                         checked={selectedRarities.includes(r)}
                         onChange={() => {
                           setLoadState("loading");
-                          setSelectedRarities((prev) => toggleValue(prev, r));
+                          setSelectedRarities(toggleValue(selectedRarities, r));
                         }}
                       />
                       {r}
@@ -279,16 +353,28 @@ function SearchDashboard() {
               <div className="mb-4 flex items-center justify-between">
                 <span className="text-[13.5px] text-[#8A8A92]">
                   <b className="text-ink">
-                    {cards.length > 0 ? cards.length : loadState === "ready" ? 0 : "-"}
+                    {loadState === "ready"
+                      ? totalElements.toLocaleString("ko-KR")
+                      : cards.length > 0
+                        ? cards.length
+                        : "-"}
                   </b>
                   개의 카드
                 </span>
-                <select className="cursor-pointer rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-2 text-[13px] outline-none">
-                  <option>인기순</option>
-                  <option>가격 낮은순</option>
-                  <option>가격 높은순</option>
-                  <option>최신순</option>
-                </select>
+                {/* 키워드 검색(q)은 BE에 sort 파라미터가 없어 정렬 옵션을 숨긴다 */}
+                {!q && (
+                  <select
+                    value={sort}
+                    onChange={(e) => {
+                      setLoadState("loading");
+                      setSort(e.target.value as CardSort);
+                    }}
+                    className="cursor-pointer rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-2 text-[13px] outline-none"
+                  >
+                    <option value="latest">최신순</option>
+                    <option value="name">이름순</option>
+                  </select>
+                )}
               </div>
 
               {!q &&
@@ -314,7 +400,7 @@ function SearchDashboard() {
                         label={t}
                         onRemove={() => {
                           setLoadState("loading");
-                          setSelectedTypes((prev) => prev.filter((v) => v !== t));
+                          setSelectedTypes(selectedTypes.filter((v) => v !== t));
                         }}
                       />
                     ))}
@@ -324,7 +410,7 @@ function SearchDashboard() {
                         label={r}
                         onRemove={() => {
                           setLoadState("loading");
-                          setSelectedRarities((prev) => prev.filter((v) => v !== r));
+                          setSelectedRarities(selectedRarities.filter((v) => v !== r));
                         }}
                       />
                     ))}
@@ -376,9 +462,11 @@ function SearchDashboard() {
                       href={`/cards/${c.id}`}
                       className="flex cursor-pointer flex-col overflow-hidden rounded-[13px] border border-[#EDEDF0] transition hover:-translate-y-[3px] hover:shadow-lift"
                     >
-                      <div className="relative h-[180px] bg-[#F2F2F5]">
+                      <div className="relative aspect-[5/7] w-full bg-[#F2F2F5]">
                         <CardImage src={c.imageUrl} alt={c.name} label="카드" />
-                        <GradeBadge grade={c.grade} className="absolute left-[9px] top-[9px]" />
+                        {c.grade && (
+                          <GradeBadge grade={c.grade} className="absolute left-[9px] top-[9px]" />
+                        )}
                       </div>
                       <div className="flex flex-1 flex-col p-3">
                         <div className="text-[13.5px] font-bold">{c.name}</div>
@@ -405,6 +493,41 @@ function SearchDashboard() {
                       </div>
                     </Link>
                   ))}
+                </div>
+              )}
+
+              {loadState !== "error" && totalPages > 1 && (
+                <div className="mt-6 flex items-center justify-center gap-1.5">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                    aria-label="이전 페이지"
+                    className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#DDDDE3] bg-white text-[13px] font-bold text-[#4B4B52] enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    &lt;
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setPage(p)}
+                      aria-current={p === page ? "page" : undefined}
+                      className={`h-9 w-9 rounded-[9px] text-[13px] font-bold ${
+                        p === page
+                          ? "bg-primary text-white"
+                          : "border border-[#DDDDE3] bg-white text-[#4B4B52] hover:border-primary hover:text-primary"
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages}
+                    aria-label="다음 페이지"
+                    className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#DDDDE3] bg-white text-[13px] font-bold text-[#4B4B52] enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    &gt;
+                  </button>
                 </div>
               )}
             </div>

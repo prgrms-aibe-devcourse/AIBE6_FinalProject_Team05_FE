@@ -18,8 +18,8 @@ const TICKER = [
   { name: "이상해꽃 ex", price: "₩64,200", chg: "▲ 2.5%", up: true },
 ];
 
-// BE(GET /api/cards)에 인기순 정렬 파라미터가 없어 앞 5개로 임시 대체 — 팀 확인 필요.
-const POPULAR_CARD_COUNT = 5;
+// 인기 카드 그리드 칸 수 — 이 수만큼만 최신 카드를 요청한다.
+const POPULAR_CARDS_SIZE = 5;
 
 const STEPS = [
   {
@@ -52,16 +52,17 @@ export default function HomePage() {
   const [liked, setLiked] = useState<Record<number, boolean>>({});
   const toggle = (id: number) => setLiked((s) => ({ ...s, [id]: !s[id] }));
 
-  const [cards, setCards] = useState<CardSearchItem[]>([]);
+  const [popularCards, setPopularCards] = useState<CardSearchItem[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     let cancelled = false;
-    fetchCards()
+
+    fetchCards({ sort: "latest", size: POPULAR_CARDS_SIZE })
       .then((responses) => {
         if (cancelled) return;
-        setCards(responses.slice(0, POPULAR_CARD_COUNT).map(toCardSearchItem));
+        setPopularCards(responses.map(toCardSearchItem));
         setLoadState("ready");
       })
       .catch((err) => {
@@ -69,6 +70,7 @@ export default function HomePage() {
         setErrorMessage(err instanceof ApiError ? err.message : "인기 카드를 불러오지 못했습니다.");
         setLoadState("error");
       });
+
     return () => {
       cancelled = true;
     };
@@ -153,7 +155,7 @@ export default function HomePage() {
             </Link>
           </div>
           {loadState === "loading" && (
-            <div className="flex items-center justify-center gap-3 rounded-2xl border border-[#EDEDF0] py-24">
+            <div className="flex items-center justify-center gap-3 rounded-2xl border border-[#EDEDF0] bg-white py-24">
               <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-[#E7E7EB] border-t-primary" />
               <span className="text-[13.5px] font-semibold text-[#8A8A92]">
                 인기 카드를 불러오는 중입니다...
@@ -162,14 +164,14 @@ export default function HomePage() {
           )}
 
           {loadState === "error" && (
-            <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-[#EDEDF0] py-24">
+            <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-[#EDEDF0] bg-white py-24">
               <span className="text-[13.5px] font-bold text-[#D14343]">{errorMessage}</span>
             </div>
           )}
 
           {loadState === "ready" && (
             <div className="grid grid-cols-5 gap-[18px]">
-              {cards.map((c) => (
+              {popularCards.map((c) => (
                 <Link
                   key={c.id}
                   href={`/cards/${c.id}`}
@@ -177,7 +179,9 @@ export default function HomePage() {
                 >
                   <div className="relative h-[196px] bg-[#F2F2F5]">
                     <CardImage src={c.imageUrl} alt={c.name} label="카드" className="object-top" />
-                    <GradeBadge grade={c.grade} className="absolute left-2.5 top-2.5" />
+                    {c.grade && (
+                      <GradeBadge grade={c.grade} className="absolute left-2.5 top-2.5" />
+                    )}
                   </div>
                   <div className="flex flex-1 flex-col p-3.5">
                     <div className="text-[14.5px] font-bold leading-[1.35]">{c.name}</div>
@@ -196,6 +200,7 @@ export default function HomePage() {
                       <button
                         onClick={(e) => {
                           e.preventDefault();
+                          e.stopPropagation();
                           toggle(c.id);
                         }}
                         aria-label="관심 등록"
