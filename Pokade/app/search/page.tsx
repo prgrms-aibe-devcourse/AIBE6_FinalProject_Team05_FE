@@ -165,12 +165,8 @@ function SearchDashboard() {
   }, [reloadKey, selectedExpansionId, selectedTypes, selectedRarities, sort, page, q]);
 
   // 필터가 좁아져 현재 페이지가 범위를 벗어나면(예: URL을 page=999로 직접 수정) 마지막 페이지로 보정.
-  const [prevTotalPages, setPrevTotalPages] = useState(totalPages);
-  if (totalPages !== prevTotalPages) {
-    setPrevTotalPages(totalPages);
-    if (totalPages > 0 && page > totalPages) {
-      setPage(totalPages);
-    }
+  if (loadState === "ready" && totalPages > 0 && page > totalPages) {
+    setPage(totalPages);
   }
 
   // 카드 상세 페이지의 "검색으로 돌아가기" 링크가 참조할 현재 검색 URL을 저장.
