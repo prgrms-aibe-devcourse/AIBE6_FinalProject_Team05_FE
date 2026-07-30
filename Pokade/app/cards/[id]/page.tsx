@@ -32,11 +32,22 @@ function formatTradedAt(iso: string) {
   return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-// 매물/체결 등급(S/A/B/PSA10/PSA9/PSA8)은 AI 등급진단의 Grade(S/A/B)와 다른 값 범위라
-// GradeBadge를 그대로 못 쓴다 — 이 페이지 전용의 중립 톤 배지.
+// 매물/체결 등급(S/A/B/PSA10/PSA9/PSA8)은 AI 등급진단의 Grade(S/A/B)보다 값 범위가 넓어
+// GradeBadge를 그대로 못 쓴다 — 대신 겹치는 S/A/B는 GradeBadge와 동일한 grade-* 톤을 재사용해
+// "같은 등급 개념은 같은 색"을 유지하고, 대응값이 없는 PSA10/9/8은 중립 톤으로 남겨둔다
+// (PSA 등급과 S/A/B 등급 간 우열 매핑은 거래 도메인이 정할 몫이라 임의로 만들지 않음).
+const LISTING_GRADE_STYLES: Partial<Record<ListingGrade, string>> = {
+  S: "bg-grade-s text-grade-s-ink",
+  A: "bg-grade-a text-white",
+  B: "bg-grade-b text-white",
+};
+
 function ListingGradeBadge({ grade }: { grade: ListingGrade | null }) {
+  const style = grade
+    ? (LISTING_GRADE_STYLES[grade] ?? "bg-[#EEF0F2] text-[#4B4B52]")
+    : "bg-[#EEF0F2] text-[#9A9AA2]";
   return (
-    <span className="inline-block rounded-full bg-[#EEF0F2] px-2 py-0.5 text-[10.5px] font-bold text-[#4B4B52]">
+    <span className={`inline-block rounded-full px-2 py-0.5 text-[10.5px] font-bold ${style}`}>
       {grade ?? "등급 미정"}
     </span>
   );
@@ -321,13 +332,23 @@ export default function CardDetailPage() {
                     </div>
                   )}
 
-                  {priceLoadState === "ready" && listingsError && (
-                    <div className="rounded-2xl border border-[#EDEDF0] bg-white py-12 text-center text-[13.5px] text-[#9A9AA2]">
-                      {listingsError.status === 401 || listingsError.status === 403
-                        ? "매물 목록은 로그인 후 확인할 수 있습니다."
-                        : "매물 정보를 불러오지 못했습니다."}
-                    </div>
-                  )}
+                  {priceLoadState === "ready" &&
+                    listingsError &&
+                    (listingsError.status === 401 || listingsError.status === 403 ? (
+                      <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-[#EDEDF0] bg-white py-12 text-center text-[13.5px] text-[#9A9AA2]">
+                        <span>매물 목록은 로그인 후 확인할 수 있습니다.</span>
+                        <Link
+                          href="/login"
+                          className="text-[13px] font-bold text-primary hover:text-primary-dark"
+                        >
+                          로그인하기
+                        </Link>
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl border border-[#EDEDF0] bg-white py-12 text-center text-[13.5px] text-[#9A9AA2]">
+                        매물 정보를 불러오지 못했습니다.
+                      </div>
+                    ))}
 
                   {priceLoadState === "ready" && !listingsError && activeListings.length === 0 && (
                     <div className="rounded-2xl border border-[#EDEDF0] bg-white py-12 text-center text-[13.5px] text-[#9A9AA2]">
