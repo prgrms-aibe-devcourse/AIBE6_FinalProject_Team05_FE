@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname, useParams, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
 import GradeBadge from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
 import {
@@ -63,12 +63,16 @@ function ListingGradeBadge({ grade }: { grade: ListingGrade | null }) {
 // 새 카드 응답을 받기 전까지 화면에 잔존하는 것을 방지한다.
 function CardDetailView({ cardId }: { cardId: number | null }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const [card, setCard] = useState<CardDetailResponse | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
+  const [copied, setCopied] = useState(false);
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [relatedCards, setRelatedCards] = useState<CardSearchItem[]>([]);
   const [relatedLoadState, setRelatedLoadState] = useState<RelatedLoadState>("loading");
@@ -93,6 +97,23 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     router.push(sessionStorage.getItem("searchBackUrl") || "/search");
   };
 
+  const handleShare = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // 클립보드 접근이 차단된 환경(권한 거부 등)에서는 조용히 무시.
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+    };
+  }, []);
+
   useEffect(() => {
     if (cardId == null) return;
     let cancelled = false;
@@ -102,7 +123,14 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
         if (cancelled) return;
         setCard(res);
         const primary = res.variants.find((v) => v.primary);
-        setSelectedVariantId(primary?.id ?? res.variants[0]?.id ?? null);
+        const defaultVariantId = primary?.id ?? res.variants[0]?.id ?? null;
+        const variantParam = searchParams.get("variant");
+        const parsedVariantId = variantParam !== null ? Number(variantParam) : null;
+        const requestedVariantId =
+          parsedVariantId != null && res.variants.some((v) => v.id === parsedVariantId)
+            ? parsedVariantId
+            : defaultVariantId;
+        setSelectedVariantId(requestedVariantId);
         setLoadState("ready");
       })
       .catch((err) => {
@@ -118,7 +146,26 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     return () => {
       cancelled = true;
     };
+    // searchParams는 최초 진입 시 판본 초기화에만 쓰고, 이후 판본 클릭으로 URL이
+    // 바뀔 때마다 카드 상세를 다시 불러오지 않도록 deps에서 제외한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardId, reloadKey]);
+
+  // 판본이 2개 이상인 카드에서만 선택 상태를 ?variant= 쿼리로 반영해 공유 가능하게 한다.
+  // 대표 판본으로 돌아오면 파라미터를 지워 기본 상태의 URL을 깔끔하게 유지한다.
+  useEffect(() => {
+    if (!card || card.variants.length <= 1) return;
+    const defaultVariantId = card.variants.find((v) => v.primary)?.id ?? card.variants[0]?.id;
+    const params = new URLSearchParams(searchParams.toString());
+    if (selectedVariantId != null && selectedVariantId !== defaultVariantId) {
+      params.set("variant", String(selectedVariantId));
+    } else {
+      params.delete("variant");
+    }
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedVariantId, card]);
 
   useEffect(() => {
     if (loadState !== "ready" || cardId == null) return;
@@ -199,13 +246,25 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   return (
     <main className="main-content bg-neutral px-4 pb-14 pt-8 sm:px-10">
       <div className="mx-auto max-w-[1000px]">
-        <Link
-          href="/search"
-          onClick={goBackToSearch}
-          className="mb-5 inline-block text-[13.5px] font-semibold text-[#8A8A92] hover:text-primary"
-        >
-          ← 카드 검색으로 돌아가기
-        </Link>
+        <div className="mb-5 flex items-center justify-between">
+          <Link
+            href="/search"
+            onClick={goBackToSearch}
+            className="inline-block text-[13.5px] font-semibold text-[#8A8A92] hover:text-primary"
+          >
+            ← 카드 검색으로 돌아가기
+          </Link>
+          <div className="flex items-center gap-2">
+            {copied && <span className="text-[12.5px] font-bold text-primary">복사됨</span>}
+            <button
+              type="button"
+              onClick={handleShare}
+              className="rounded-[9px] border-[1.5px] border-[#DDDDE3] bg-white px-3 py-1.5 text-[12.5px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary"
+            >
+              공유하기
+            </button>
+          </div>
+        </div>
 
         {loadState === "loading" && cardId != null && (
           <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[#EDEDF0] bg-white py-24">
@@ -380,9 +439,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                     ) : (
                       <div className="mt-auto flex items-end justify-between gap-4 rounded-xl bg-neutral px-4 py-3.5 pt-3.5">
                         <div>
-                          <div className="text-[12px] font-semibold text-[#8A8A92]">
-                            즉시구매가
-                          </div>
+                          <div className="text-[12px] font-semibold text-[#8A8A92]">즉시구매가</div>
                           <div className="mt-1 text-[22px] font-extrabold text-primary">
                             {priceLoadState === "loading" ? (
                               <span className="text-[14px] font-semibold text-[#9A9AA2]">
@@ -581,5 +638,9 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
 
 export default function CardDetailPage() {
   const { id } = useParams<{ id: string }>();
-  return <CardDetailView key={id} cardId={parseCardId(id)} />;
+  return (
+    <Suspense fallback={null}>
+      <CardDetailView key={id} cardId={parseCardId(id)} />
+    </Suspense>
+  );
 }
