@@ -58,6 +58,25 @@ export interface VariantSummary {
   imageLarge: string;
 }
 
+// BE(Scrydex 동기화)가 원본 그대로 내려주는 variantName을 사람이 읽기 좋은 라벨로 변환.
+// 매핑에 없는 값(신규 카드 동기화로 늘어날 수 있음)은 원본 문자열을 그대로 보여준다.
+const VARIANT_NAME_LABELS: Record<string, string> = {
+  normal: "일반",
+  holofoil: "홀로",
+  unlimited: "무제한",
+  unlimitedHolofoil: "무제한 홀로",
+};
+
+export function variantLabel(variantName: string): string {
+  return VARIANT_NAME_LABELS[variantName] ?? variantName;
+}
+
+// 라우트 파라미터(문자열)를 카드 id로 파싱 — 양의 정수가 아니면 null.
+export function parseCardId(id: string): number | null {
+  const n = Number(id);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
 export interface CardDetailResponse {
   id: number;
   externalId: string;
@@ -73,4 +92,6 @@ export interface CardDetailResponse {
   imageLarge: string;
   expansion: ExpansionSummary | null;
   variants: VariantSummary[];
+  // 등급진단 API 연동 전까지 응답에 없는 필드 — undefined.
+  grade?: Grade;
 }
