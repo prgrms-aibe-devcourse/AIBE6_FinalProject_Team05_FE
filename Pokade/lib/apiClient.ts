@@ -1,10 +1,13 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
 // BE ApiResponse<T> 래퍼 (com.pokade.global.response.ApiResponse) 미러링.
+// 성공 응답은 msg, 에러 응답(ErrorResponse)은 message 필드를 쓰는 등 필드명이
+// 아직 팀 내 통일이 안 돼 있어 둘 다 대응한다.
 export interface ApiEnvelope<T> {
   status: number;
   code: string;
-  msg: string;
+  msg?: string;
+  message?: string;
   data: T;
 }
 
@@ -46,7 +49,8 @@ export async function apiGet<T>(path: string): Promise<T> {
     try {
       const body = (await res.json()) as ApiEnvelope<unknown>;
       if (body?.code) code = body.code;
-      if (body?.msg) msg = body.msg;
+      const parsedMsg = body?.message ?? body?.msg;
+      if (parsedMsg) msg = parsedMsg;
     } catch {
       // 에러 응답 본문이 JSON이 아닐 수 있음 — 기본 메시지 사용.
     }
