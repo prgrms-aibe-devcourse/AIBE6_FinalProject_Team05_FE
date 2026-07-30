@@ -1,0 +1,51 @@
+language: "ko-KR"
+
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - "main"
+      - "develop"
+  path_filters:
+    - "!**/.next/**"
+    - "!**/node_modules/**"
+    - "!**/*.lock"
+    - "!package-lock.json"
+    - "!**/*.config.js"
+    - "!**/*.config.ts"
+  path_instructions:
+    - path: "Pokade/app/**/page.tsx"
+      instructions: >
+        Next.js App Router 페이지 리뷰 기준: 서버 컴포넌트로 둬도 되는 페이지에
+        불필요하게 "use client"가 붙어있지 않은지, 데이터 페칭이 서버 컴포넌트에서
+        이루어지는지, 로딩/에러 상태(loading.tsx, error.tsx) 처리가 빠지지 않았는지
+        확인해줘.
+    - path: "Pokade/components/**/*.tsx"
+      instructions: >
+        공용 컴포넌트 리뷰 기준: props 타입이 명확히 정의되어 있는지, 재사용 가능한
+        로직이 컴포넌트 내부에 중복되어 있지 않은지, 접근성(a11y - alt, aria-label 등)이
+        누락되지 않았는지 확인해줘.
+    - path: "Pokade/lib/**/*.ts"
+      instructions: >
+        API 클라이언트/유틸 리뷰 기준: fetch 에러 핸들링이 일관되게 처리되는지,
+        중복된 API 호출 로직이 여러 곳에 흩어져 있지 않은지, 타입이 응답 스키마와
+        일치하는지 확인해줘.
+    - path: "Pokade/store/**/*.ts"
+      instructions: >
+        Zustand 스토어 리뷰 기준: 상태와 액션의 책임이 분리되어 있는지, 불필요하게
+        전역 상태로 관리되는 지역 상태는 없는지, selector 사용으로 리렌더링 최적화가
+        고려됐는지 확인해줘.
+    - path: "**/*.tsx"
+      instructions: >
+        TypeScript/React 공통 리뷰 기준: any 타입 남용, 불필요한 useEffect 의존성,
+        key 없이 렌더링되는 리스트가 없는지 확인해줘.
+
+chat:
+  auto_reply: true
