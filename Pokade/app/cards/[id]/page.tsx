@@ -59,10 +59,10 @@ function ListingGradeBadge({ grade }: { grade: ListingGrade | null }) {
   );
 }
 
-export default function CardDetailPage() {
-  const { id } = useParams<{ id: string }>();
+// cardId가 바뀔 때마다 key={id}로 리마운트시켜, 이전 카드의 상태(이미지/시세/매물/체결 등)가
+// 새 카드 응답을 받기 전까지 화면에 잔존하는 것을 방지한다.
+function CardDetailView({ cardId }: { cardId: number | null }) {
   const router = useRouter();
-  const cardId = parseCardId(id);
 
   const [card, setCard] = useState<CardDetailResponse | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -487,4 +487,9 @@ export default function CardDetailPage() {
       </div>
     </main>
   );
+}
+
+export default function CardDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  return <CardDetailView key={id} cardId={parseCardId(id)} />;
 }
