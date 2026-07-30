@@ -224,12 +224,19 @@ export default function CardDetailPage() {
                           className="flex cursor-pointer flex-col overflow-hidden rounded-[13px] border border-[#EDEDF0] transition hover:-translate-y-[3px] hover:shadow-lift"
                         >
                           <div className="relative h-[140px] bg-[#F2F2F5]">
-                            <CardImage src={rc.imageUrl} alt={rc.name} label="카드" />
-                            <GradeBadge
-                              grade={rc.grade}
-                              size="sm"
-                              className="absolute left-[9px] top-[9px]"
+                            <CardImage
+                              src={rc.imageUrl}
+                              alt={rc.name}
+                              label="카드"
+                              className="object-top"
                             />
+                            {rc.grade && (
+                              <GradeBadge
+                                grade={rc.grade}
+                                size="sm"
+                                className="absolute left-[9px] top-[9px]"
+                              />
+                            )}
                           </div>
                           <div className="flex flex-1 flex-col p-3">
                             <div className="text-[13px] font-bold">{rc.name}</div>
