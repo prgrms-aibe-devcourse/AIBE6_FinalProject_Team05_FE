@@ -69,8 +69,13 @@ export async function fetchRelatedCards(id: number): Promise<CardResponse[]> {
 }
 
 // GET /api/prices/{cardId}/summary — 현재가(즉시구매가/판매호가) 조회. 매물/구매호가가 없으면 각 필드 null.
-export async function fetchPriceSummary(cardId: number): Promise<PriceSummaryResponse> {
-  return apiGet<PriceSummaryResponse>(`/api/prices/${cardId}/summary`);
+// variantId 생략 시 BE가 대표 판본(primary) 기준으로 응답한다.
+export async function fetchPriceSummary(
+  cardId: number,
+  variantId?: number,
+): Promise<PriceSummaryResponse> {
+  const query = variantId != null ? `?variantId=${variantId}` : "";
+  return apiGet<PriceSummaryResponse>(`/api/prices/${cardId}/summary${query}`);
 }
 
 // GET /api/prices/{cardId}/trades — 최근 체결 내역 (최대 20건, 서버 고정, 최신순).
