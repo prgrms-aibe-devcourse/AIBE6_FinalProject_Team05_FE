@@ -74,14 +74,26 @@ function SearchDashboard() {
   const [view, setView] = useState<"search" | "dash">("search");
   const [priceMin, setPriceMin] = useState(0);
   const [priceMax, setPriceMax] = useState(1500000);
-  const [selectedExpansionId, setSelectedExpansionId] = useState<string | null>(() =>
-    searchParams.get("expansionId"),
-  );
+  // URL을 직접 조작해 화이트리스트에 없는 값(예: types=INVALID)을 넣어도
+  // 체크박스로 선택 가능한 값만 채택한다 — 배열은 유효한 값만 걸러내고
+  // 나머지는 유지(전체를 버리지 않음).
+  const [selectedExpansionId, setSelectedExpansionId] = useState<string | null>(() => {
+    const id = searchParams.get("expansionId");
+    return id && SET_OPTIONS.some((o) => o.expansionId === id) ? id : null;
+  });
   const [selectedTypes, setSelectedTypes] = useState<string[]>(
-    () => searchParams.get("types")?.split(",").filter(Boolean) ?? [],
+    () =>
+      searchParams
+        .get("types")
+        ?.split(",")
+        .filter((t) => TYPE_OPTIONS.includes(t)) ?? [],
   );
   const [selectedRarities, setSelectedRarities] = useState<string[]>(
-    () => searchParams.get("rarity")?.split(",").filter(Boolean) ?? [],
+    () =>
+      searchParams
+        .get("rarity")
+        ?.split(",")
+        .filter((r) => RARITY_OPTIONS.includes(r)) ?? [],
   );
   // BE 화이트리스트에 없는 값은 latest로 취급 — /api/cards/search(키워드 검색)는
   // sort를 지원하지 않으므로 q가 있을 때는 드롭다운 자체를 숨긴다.
