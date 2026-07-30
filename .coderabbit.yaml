@@ -1,18 +1,45 @@
-language: "ko-KR"
+# ---------------------------------------------------------------- #
+# AI 기본 설정 (언어 및 페르소나)
+# ---------------------------------------------------------------- #
 
+# AI가 응답할 때 사용할 기본 언어를 설정합니다.
+language: ko-KR
+
+# AI의 페르소나와 응답 톤앤매너를 지시합니다. (tone_instructions는 최대 250자 제한)
+tone_instructions: >
+  Pokade 프론트엔드 리뷰어: 모든 리뷰는 한글로만 작성하세요(코드 식별자·기술 용어는 원문
+  유지). 문제 원인과 개선 방법을 제시하고, 비판보다 개선 제안을 우선하세요.
+
+# ---------------------------------------------------------------- #
+# 코드 리뷰 기능 세부 설정
+# ---------------------------------------------------------------- #
 reviews:
-  profile: "chill"
+  # 리뷰의 전반적인 스타일. 'chill'은 비교적 덜 엄격하고 부드러운 톤을 의미합니다.
+  profile: chill
+  # PR은 2명 이상 리뷰어의 Approve가 필요하다는 팀 컨벤션이 있어 false로 설정합니다.
   request_changes_workflow: false
+  # PR의 전체적인 변경 사항에 대한 고수준 요약(summary)을 생성합니다.
   high_level_summary: true
+  # 변경된 각 파일별 요약. PR이 너무 길어지는 것을 방지하기 위해 비활성화합니다.
+  changed_files_summary: false
+  # 코드 실행 흐름을 보여주는 시퀀스 다이어그램. PR이 길어지는 것을 방지하기 위해 비활성화합니다.
+  sequence_diagrams: false
+  # PR에 연결된 이슈를 분석하여 리뷰 컨텍스트에 활용합니다.
+  assess_linked_issues: true
+  # 연관된 다른 이슈/PR을 찾아 링크하는 기능은 사용하지 않습니다.
+  related_issues: false
+  related_prs: false
+  # 레이블/리뷰어 자동 제안 및 자동 할당은 사용하지 않습니다.
+  suggested_labels: false
+  auto_apply_labels: false
+  suggested_reviewers: false
+  auto_assign_reviewers: false
+  # 리뷰 요약에 위트 있는 시(poem)를 붙이는 기능은 끕니다.
   poem: false
   review_status: true
   collapse_walkthrough: false
-  auto_review:
-    enabled: true
-    drafts: false
-    base_branches:
-      - "main"
-      - "develop"
+
+  # 빌드 산출물, lock 파일, config 파일 등은 리뷰 대상에서 제외합니다.
   path_filters:
     - "!**/.next/**"
     - "!**/node_modules/**"
@@ -20,32 +47,91 @@ reviews:
     - "!package-lock.json"
     - "!**/*.config.js"
     - "!**/*.config.ts"
-  path_instructions:
-    - path: "Pokade/app/**/page.tsx"
-      instructions: >
-        Next.js App Router 페이지 리뷰 기준: 서버 컴포넌트로 둬도 되는 페이지에
-        불필요하게 "use client"가 붙어있지 않은지, 데이터 페칭이 서버 컴포넌트에서
-        이루어지는지, 로딩/에러 상태(loading.tsx, error.tsx) 처리가 빠지지 않았는지
-        확인해줘.
-    - path: "Pokade/components/**/*.tsx"
-      instructions: >
-        공용 컴포넌트 리뷰 기준: props 타입이 명확히 정의되어 있는지, 재사용 가능한
-        로직이 컴포넌트 내부에 중복되어 있지 않은지, 접근성(a11y - alt, aria-label 등)이
-        누락되지 않았는지 확인해줘.
-    - path: "Pokade/lib/**/*.ts"
-      instructions: >
-        API 클라이언트/유틸 리뷰 기준: fetch 에러 핸들링이 일관되게 처리되는지,
-        중복된 API 호출 로직이 여러 곳에 흩어져 있지 않은지, 타입이 응답 스키마와
-        일치하는지 확인해줘.
-    - path: "Pokade/store/**/*.ts"
-      instructions: >
-        Zustand 스토어 리뷰 기준: 상태와 액션의 책임이 분리되어 있는지, 불필요하게
-        전역 상태로 관리되는 지역 상태는 없는지, selector 사용으로 리렌더링 최적화가
-        고려됐는지 확인해줘.
-    - path: "**/*.tsx"
-      instructions: >
-        TypeScript/React 공통 리뷰 기준: any 타입 남용, 불필요한 useEffect 의존성,
-        key 없이 렌더링되는 리스트가 없는지 확인해줘.
 
+  # 특정 파일 경로에 따라 다른 리뷰 지침을 적용합니다.
+  path_instructions:
+    - path: "**/*.{ts,tsx}"
+      instructions: |
+        팀 컨벤션 기준 공통 체크리스트:
+        1. Prettier/ESLint 기준(세미콜론 사용, 싱글 쿼트, 들여쓰기 4칸)을 따르는지,
+           console.log 등 디버그용 로그나 사용하지 않는 변수/import가 남아있지 않은지
+           확인해주세요.
+        2. 네이밍은 변수/함수는 camelCase, 컴포넌트/클래스는 PascalCase, 상수는
+           UPPER_SNAKE_CASE, 파일명은 kebab-case 또는 역할 기반 네이밍을 따르는지
+           확인해주세요.
+        3. 커밋 메시지는 "type: 작업 내용" 형식이며 type은
+           feat/fix/docs/style/refactor/test/chore/design/comment/rename/remove/!HOTFIX
+           중 하나여야 하고, 실제 작업 내용과 타입이 일치하는지 확인해주세요.
+        4. 주석은 코드만으로 의도가 명확하지 않은 경우에만 작성되어야 하고, 임시 주석이
+           남아있거나 TODO에 담당자/목적이 없으면 지적해주세요.
+    - path: "Pokade/app/**/page.tsx"
+      instructions: |
+        1. Next.js App Router 공식 가이드를 기준으로 리뷰해주세요.
+        2. 서버 컴포넌트로 둬도 되는 페이지에 불필요하게 "use client"가 붙어있지 않은지,
+           데이터 페칭이 서버 컴포넌트에서 이루어지는지, 로딩/에러 상태(loading.tsx,
+           error.tsx) 처리가 빠지지 않았는지 확인해주세요.
+        3. 문제점과 대안을 논리적으로 제시하고, 필요하면 예시 코드를 추가해주세요.
+        4. 리뷰는 해당 라인 범위의 코멘트로 남겨주세요.
+    - path: "Pokade/components/**/*.tsx"
+      instructions: |
+        1. props 타입이 명확히 정의되어 있는지, 재사용 가능한 로직이 컴포넌트 내부에
+           중복되어 있지 않은지 확인해주세요.
+        2. 접근성(a11y - alt, aria-label 등)이 누락되지 않았는지 확인해주세요.
+    - path: "Pokade/lib/**/*.ts"
+      instructions: |
+        fetch 에러 핸들링이 일관되게 처리되는지, 중복된 API 호출 로직이 여러 곳에
+        흩어져 있지 않은지, 타입이 응답 스키마와 일치하는지 확인해주세요.
+    - path: "Pokade/store/**/*.ts"
+      instructions: |
+        상태와 액션의 책임이 분리되어 있는지, 불필요하게 전역 상태로 관리되는 지역
+        상태는 없는지, selector 사용으로 리렌더링 최적화가 고려됐는지 확인해주세요.
+    - path: "**/*.tsx"
+      instructions: |
+        any 타입 남용, 불필요한 useEffect 의존성, key 없이 렌더링되는 리스트가
+        없는지 확인해주세요.
+
+  # ---------------------------------------------------------------- #
+  # 정적 분석 도구 연동 설정
+  # ---------------------------------------------------------------- #
+  tools:
+    # 레포에 이미 있는 eslint.config.mjs를 그대로 활용해 실제 ESLint 분석 결과를
+    # LLM 리뷰와 함께 반영합니다.
+    eslint:
+      enabled: true
+
+  # ---------------------------------------------------------------- #
+  # 자동 리뷰 트리거 설정
+  # ---------------------------------------------------------------- #
+  auto_review:
+    enabled: true
+    drafts: false
+    # 이미 리뷰가 진행된 PR에 새 커밋이 추가되면 변경분만 자동으로 다시 리뷰합니다.
+    auto_incremental_review: true
+    base_branches:
+      - "main"
+      - "develop"
+
+# ---------------------------------------------------------------- #
+# 채팅 기능 설정
+# ---------------------------------------------------------------- #
 chat:
   auto_reply: true
+
+# ---------------------------------------------------------------- #
+# CodeRabbit의 지식 기반(Knowledge Base) 설정
+# ---------------------------------------------------------------- #
+knowledge_base:
+  # 웹 검색을 통해 최신 정보나 공식 문서를 참조할 수 있도록 허용합니다.
+  web_search:
+    enabled: true
+  # 프론트엔드는 아직 코딩 컨벤션 문서 파일이 없어 code_guidelines는 비활성화합니다.
+  # (docs/fe-code-convention.md 같은 문서가 생기면 여기서 활성화)
+  code_guidelines:
+    enabled: false
+  # CodeRabbit이 학습한 내용을 저장/참조하는 범위. 'local'은 이 레포지토리에 한정됩니다.
+  learnings:
+    scope: local
+  issues:
+    scope: local
+  pull_requests:
+    scope: local
