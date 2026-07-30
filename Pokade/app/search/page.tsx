@@ -8,6 +8,7 @@ import CardImage from "@/components/CardImage";
 import { CardSearchItem, toCardSearchItem } from "@/types/card";
 import { CardSort, fetchCardsByKeywordPage, fetchCardsPage } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
+import { highlightMatch } from "@/lib/highlightMatch";
 
 const GRADE_CHIP: Record<Grade, string> = {
   S: "text-[#5A4300] bg-[#FFF3CE] border-[#F0E0A0]",
@@ -526,7 +527,9 @@ function SearchDashboard() {
                         )}
                       </div>
                       <div className="flex flex-1 flex-col p-3">
-                        <div className="text-[13.5px] font-bold">{c.name}</div>
+                        <div className="text-[13.5px] font-bold">
+                          {q ? highlightMatch(c.name, q) : c.name}
+                        </div>
                         <div className="mt-0.5 text-[11.5px] text-[#9A9AA2]">{c.set}</div>
                         {c.types.length > 0 && (
                           <div className="mt-1.5 flex flex-wrap gap-1">

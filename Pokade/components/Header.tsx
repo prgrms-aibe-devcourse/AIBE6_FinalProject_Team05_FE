@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CardImage from "@/components/CardImage";
 import { fetchCardsByKeywordPage } from "@/lib/cardApi";
+import { highlightMatch } from "@/lib/highlightMatch";
 import {
   addRecentSearch,
   clearRecentSearches,
@@ -29,23 +30,6 @@ function variantFor(path: string): "in" | "out" | "admin" {
   if (path.startsWith("/admin")) return "admin";
   if (IN_PATHS.some((p) => path === p || path.startsWith(p + "/"))) return "in";
   return "out"; // 홈/검색/로그인/회원가입 → 로그인·회원가입 버튼 노출
-}
-
-// 검색어와 일치하는 부분만 굵게 + primary 색으로 강조 (대소문자 무시).
-function highlightMatch(text: string, query: string): React.ReactNode {
-  const trimmed = query.trim();
-  if (!trimmed) return text;
-  const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const parts = text.split(new RegExp(`(${escaped})`, "gi"));
-  return parts.map((part, i) =>
-    i % 2 === 1 ? (
-      <mark key={i} className="bg-transparent font-semibold text-primary">
-        {part}
-      </mark>
-    ) : (
-      <span key={i}>{part}</span>
-    ),
-  );
 }
 
 function SearchBar({ width = "w-60" }: { width?: string }) {
