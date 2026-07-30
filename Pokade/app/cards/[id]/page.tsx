@@ -168,14 +168,6 @@ export default function CardDetailPage() {
                         ))}
                       </div>
                     )}
-                    {card.variants.length === 1 && (
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        <span className="rounded-full border border-primary bg-primary px-2.5 py-1 text-[11.5px] font-bold text-white">
-                          {variantLabel(card.variants[0].variantName)}
-                        </span>
-                      </div>
-                    )}
-
                     {card.variants.length > 1 && (
                       <div className="mt-3 flex flex-wrap gap-1.5">
                         {card.variants.map((v) => (
@@ -195,6 +187,14 @@ export default function CardDetailPage() {
                       </div>
                     )}
                     <div className="mt-6 flex flex-col gap-3 text-[13.5px]">
+                      {card.variants.length === 1 && (
+                        <div className="flex justify-between border-b border-[#F5F5F7] pb-3">
+                          <span className="text-[#8A8A92]">판본</span>
+                          <span className="font-bold">
+                            {variantLabel(card.variants[0].variantName)}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex justify-between border-b border-[#F5F5F7] pb-3">
                         <span className="text-[#8A8A92]">아티스트</span>
                         <span className="font-bold">{card.artist || "-"}</span>
