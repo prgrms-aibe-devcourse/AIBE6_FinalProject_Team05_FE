@@ -118,6 +118,12 @@ function SearchDashboard() {
     };
   }, [reloadKey, selectedExpansionId, selectedTypes, selectedRarities, q]);
 
+  // 카드 상세 페이지의 "검색으로 돌아가기" 링크가 참조할 현재 검색 URL을 저장.
+  // Link 클릭(클라이언트 사이드 라우팅)은 document.referrer를 갱신하지 않으므로 sessionStorage를 사용.
+  useEffect(() => {
+    sessionStorage.setItem("searchBackUrl", `${pathname}?${searchParams.toString()}`);
+  }, [pathname, searchParams]);
+
   // 필터를 URL 쿼리 파라미터에 반영 — 상세 페이지 진입 후 뒤로가기 시 필터가 유지되도록 함.
   const syncFilterParams = (
     nextExpansionId: string | null,

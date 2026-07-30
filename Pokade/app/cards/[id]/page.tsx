@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import GradeBadge from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
@@ -14,6 +14,7 @@ type RelatedLoadState = "loading" | "ready";
 
 export default function CardDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const cardId = Number(id);
 
   const [card, setCard] = useState<CardDetailResponse | null>(null);
@@ -24,6 +25,13 @@ export default function CardDetailPage() {
 
   const [relatedCards, setRelatedCards] = useState<CardSearchItem[]>([]);
   const [relatedLoadState, setRelatedLoadState] = useState<RelatedLoadState>("loading");
+
+  // /search에서 저장해 둔 마지막 검색 URL(필터 쿼리 포함)로 돌아간다.
+  // Link의 클라이언트 사이드 라우팅은 document.referrer를 갱신하지 않으므로 sessionStorage를 사용.
+  const goBackToSearch = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    router.push(sessionStorage.getItem("searchBackUrl") || "/search");
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -77,6 +85,7 @@ export default function CardDetailPage() {
       <div className="mx-auto max-w-[1000px]">
         <Link
           href="/search"
+          onClick={goBackToSearch}
           className="mb-5 inline-block text-[13.5px] font-semibold text-[#8A8A92] hover:text-primary"
         >
           ← 카드 검색으로 돌아가기
@@ -159,7 +168,15 @@ export default function CardDetailPage() {
                         ))}
                       </div>
                     )}
-                    {card.variants.length > 0 && (
+                    {card.variants.length === 1 && (
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        <span className="rounded-full border border-primary bg-primary px-2.5 py-1 text-[11.5px] font-bold text-white">
+                          {variantLabel(card.variants[0].variantName)}
+                        </span>
+                      </div>
+                    )}
+
+                    {card.variants.length > 1 && (
                       <div className="mt-3 flex flex-wrap gap-1.5">
                         {card.variants.map((v) => (
                           <button
