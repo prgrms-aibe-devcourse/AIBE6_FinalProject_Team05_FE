@@ -209,6 +209,13 @@ function SearchDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedExpansionId, selectedTypes, selectedRarities, sort, page]);
 
+  // 페이지 번호/이전·다음 버튼 클릭 시에만 맨 위로 스크롤 — 필터/정렬 변경으로
+  // 인한 자동 setPage(1)은 이 핸들러를 거치지 않으므로 스크롤 동작이 없다.
+  const goToPage = (p: number) => {
+    setPage(p);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const resetFilters = () => {
     setPriceMin(0);
     setPriceMax(1500000);
@@ -591,7 +598,7 @@ function SearchDashboard() {
               {loadState !== "error" && totalPages > 1 && (
                 <div className="mt-6 flex items-center justify-center gap-1.5">
                   <button
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    onClick={() => goToPage(Math.max(1, page - 1))}
                     disabled={page <= 1}
                     aria-label="이전 페이지"
                     className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#DDDDE3] bg-white text-[13px] font-bold text-[#4B4B52] enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
@@ -601,7 +608,7 @@ function SearchDashboard() {
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
                     <button
                       key={p}
-                      onClick={() => setPage(p)}
+                      onClick={() => goToPage(p)}
                       aria-current={p === page ? "page" : undefined}
                       className={`h-9 w-9 rounded-[9px] text-[13px] font-bold ${
                         p === page
@@ -613,7 +620,7 @@ function SearchDashboard() {
                     </button>
                   ))}
                   <button
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    onClick={() => goToPage(Math.min(totalPages, page + 1))}
                     disabled={page >= totalPages}
                     aria-label="다음 페이지"
                     className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#DDDDE3] bg-white text-[13px] font-bold text-[#4B4B52] enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
