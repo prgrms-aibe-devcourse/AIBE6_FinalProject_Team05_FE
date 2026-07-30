@@ -141,7 +141,7 @@ export default function HomePage() {
       </section>
 
       {/* POPULAR CARDS */}
-      <section className="bg-white px-10 py-14">
+      <section className="bg-white px-4 py-14 sm:px-10">
         <div className="mx-auto max-w-container">
           <div className="mb-[26px] flex items-end justify-between">
             <div>
@@ -155,11 +155,13 @@ export default function HomePage() {
             </Link>
           </div>
           {loadState === "loading" && (
-            <div className="flex items-center justify-center gap-3 rounded-2xl border border-[#EDEDF0] bg-white py-24">
-              <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-[#E7E7EB] border-t-primary" />
-              <span className="text-[13.5px] font-semibold text-[#8A8A92]">
-                인기 카드를 불러오는 중입니다...
-              </span>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 lg:gap-[18px]">
+              {Array.from({ length: POPULAR_CARDS_SIZE }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-[280px] animate-pulse rounded-[14px] border border-[#EDEDF0] bg-[#F2F2F5]"
+                />
+              ))}
             </div>
           )}
 
@@ -170,7 +172,7 @@ export default function HomePage() {
           )}
 
           {loadState === "ready" && (
-            <div className="grid grid-cols-5 gap-[18px]">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 lg:gap-[18px]">
               {popularCards.map((c) => (
                 <Link
                   key={c.id}

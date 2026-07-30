@@ -18,6 +18,9 @@ const GRADE_CHIP: Record<Grade, string> = {
 
 const PRICE_MAX = 3000000;
 
+// size 파라미터를 넘기지 않을 때 BE 기본 페이지 size(cardApi.ts 주석 참고)와 맞춘 스켈레톤 칸 수.
+const SEARCH_SKELETON_COUNT = 20;
+
 // 세트 체크박스 → BE expansionId 매핑. data.sql에 실제 시드된 세트 중 4개만 노출.
 const SET_OPTIONS: { label: string; expansionId: string }[] = [
   { label: "베이스", expansionId: "base1" },
@@ -476,11 +479,13 @@ function SearchDashboard() {
                 )}
 
               {loadState === "loading" && cards.length === 0 && (
-                <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[#EDEDF0] bg-white py-24">
-                  <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-[#E7E7EB] border-t-primary" />
-                  <span className="text-[13.5px] font-semibold text-[#8A8A92]">
-                    카드 목록을 불러오는 중입니다...
-                  </span>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                  {Array.from({ length: SEARCH_SKELETON_COUNT }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="aspect-[5/7] w-full animate-pulse rounded-[13px] border border-[#EDEDF0] bg-[#F2F2F5]"
+                    />
+                  ))}
                 </div>
               )}
 
