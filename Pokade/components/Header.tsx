@@ -268,7 +268,7 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
         <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-[95] min-h-[52px] overflow-hidden rounded-[12px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]">
           {suggestions.length === 0 ? (
             <div className="px-3 py-4 text-center text-[13px] text-[#9A9AA2]">
-              검색 결과가 없습니다
+              검색 결과가 없습니다.
             </div>
           ) : (
             <div className="max-h-[280px] overflow-y-auto">

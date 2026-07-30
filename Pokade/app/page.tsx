@@ -171,7 +171,15 @@ export default function HomePage() {
             </div>
           )}
 
-          {loadState === "ready" && (
+          {loadState === "ready" && popularCards.length === 0 && (
+            <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-[#EDEDF0] bg-white py-24">
+              <span className="text-[13.5px] font-semibold text-[#8A8A92]">
+                인기 카드를 준비 중입니다.
+              </span>
+            </div>
+          )}
+
+          {loadState === "ready" && popularCards.length > 0 && (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 lg:gap-[18px]">
               {popularCards.map((c) => (
                 <Link

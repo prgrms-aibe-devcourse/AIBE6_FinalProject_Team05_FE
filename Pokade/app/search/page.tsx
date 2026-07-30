@@ -504,12 +504,27 @@ function SearchDashboard() {
                 </div>
               )}
 
-              {loadState === "ready" && cards.length === 0 && (
+              {loadState === "ready" && cards.length === 0 && q && (
+                <div className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-[#EDEDF0] bg-white py-24">
+                  <span className="text-[13.5px] font-semibold text-[#8A8A92]">
+                    {`"${q}"에 대한 검색 결과가 없습니다.`}
+                  </span>
+                  <span className="text-[12.5px] text-[#9A9AA2]">다른 검색어로 시도해보세요.</span>
+                </div>
+              )}
+
+              {loadState === "ready" && cards.length === 0 && !q && (
                 <div className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-[#EDEDF0] bg-white py-24">
                   <span className="text-[13.5px] font-semibold text-[#8A8A92]">
                     조건에 맞는 카드가 없습니다.
                   </span>
                   <span className="text-[12.5px] text-[#9A9AA2]">필터를 조정해보세요.</span>
+                  <button
+                    onClick={resetFilters}
+                    className="mt-1.5 rounded-[9px] border-[1.5px] border-[#DDDDE3] bg-white px-4 py-2 text-[13px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary"
+                  >
+                    필터 초기화
+                  </button>
                 </div>
               )}
 
