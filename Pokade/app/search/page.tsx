@@ -97,9 +97,10 @@ function SearchDashboard() {
   );
   // BE 화이트리스트에 없는 값은 latest로 취급 — /api/cards/search(키워드 검색)는
   // sort를 지원하지 않으므로 q가 있을 때는 드롭다운 자체를 숨긴다.
-  const [sort, setSort] = useState<CardSort>(() =>
-    searchParams.get("sort") === "name" ? "name" : "latest",
-  );
+  const [sort, setSort] = useState<CardSort>(() => {
+    const s = searchParams.get("sort");
+    return s === "name" || s === "popular" ? s : "latest";
+  });
   // 1-indexed(화면 표시용). BE 호출 시에만 0-indexed로 변환한다.
   const [page, setPage] = useState<number>(() => {
     const p = Number(searchParams.get("page"));
@@ -452,6 +453,7 @@ function SearchDashboard() {
                     className="cursor-pointer rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-2 text-[13px] outline-none"
                   >
                     <option value="latest">최신순</option>
+                    <option value="popular">인기순</option>
                     <option value="name">이름순</option>
                   </select>
                 )}

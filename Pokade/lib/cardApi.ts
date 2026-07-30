@@ -3,8 +3,8 @@ import { CardDetailResponse, CardResponse } from "@/types/card";
 import { ListingSummaryResponse, PriceSummaryResponse, TradeSummaryResponse } from "@/types/price";
 
 // BE 화이트리스트(SORT_COLUMN_WHITELIST)와 일치 — 그 외 값은 BE가 latest로 폴백.
-// "인기순"은 BE 미지원이라 옵션 자체를 두지 않는다.
-export type CardSort = "latest" | "name";
+// "popular"은 view_count 기준(feature/#62에서 BE 지원 확인).
+export type CardSort = "latest" | "name" | "popular";
 
 // GET /api/cards — types/rarity/expansionId 정확 일치 필터 (기본 페이지 size=20).
 export interface CardSearchFilters {

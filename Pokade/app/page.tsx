@@ -18,7 +18,7 @@ const TICKER = [
   { name: "이상해꽃 ex", price: "₩64,200", chg: "▲ 2.5%", up: true },
 ];
 
-// 인기 카드 그리드 칸 수 — 이 수만큼만 최신 카드를 요청한다.
+// 인기 카드 그리드 칸 수 — 이 수만큼만 인기순 카드를 요청한다.
 const POPULAR_CARDS_SIZE = 5;
 
 const STEPS = [
@@ -59,7 +59,7 @@ export default function HomePage() {
   useEffect(() => {
     let cancelled = false;
 
-    fetchCards({ sort: "latest", size: POPULAR_CARDS_SIZE })
+    fetchCards({ sort: "popular", size: POPULAR_CARDS_SIZE })
       .then((responses) => {
         if (cancelled) return;
         setPopularCards(responses.map(toCardSearchItem));
