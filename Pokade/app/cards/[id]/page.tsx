@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import GradeBadge from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
-import { CardDetailResponse, CardSearchItem, toCardSearchItem } from "@/types/card";
+import { CardDetailResponse, CardSearchItem, toCardSearchItem, variantLabel } from "@/types/card";
 import { fetchCardDetail, fetchRelatedCards } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
 
@@ -172,7 +172,7 @@ export default function CardDetailPage() {
                                 : "border-[#DDDDE3] bg-white text-[#4B4B52] hover:border-primary hover:text-primary"
                             }`}
                           >
-                            {v.variantName}
+                            {variantLabel(v.variantName)}
                           </button>
                         ))}
                       </div>

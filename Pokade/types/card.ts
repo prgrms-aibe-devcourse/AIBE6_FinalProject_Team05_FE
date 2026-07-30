@@ -58,6 +58,19 @@ export interface VariantSummary {
   imageLarge: string;
 }
 
+// BE(Scrydex 동기화)가 원본 그대로 내려주는 variantName을 사람이 읽기 좋은 라벨로 변환.
+// 매핑에 없는 값(신규 카드 동기화로 늘어날 수 있음)은 원본 문자열을 그대로 보여준다.
+const VARIANT_NAME_LABELS: Record<string, string> = {
+  normal: "일반",
+  holofoil: "홀로",
+  unlimited: "무제한",
+  unlimitedHolofoil: "홀로그래픽",
+};
+
+export function variantLabel(variantName: string): string {
+  return VARIANT_NAME_LABELS[variantName] ?? variantName;
+}
+
 export interface CardDetailResponse {
   id: number;
   externalId: string;
