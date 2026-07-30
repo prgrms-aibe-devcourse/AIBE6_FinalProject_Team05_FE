@@ -73,6 +73,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const [relatedCards, setRelatedCards] = useState<CardSearchItem[]>([]);
   const [relatedLoadState, setRelatedLoadState] = useState<RelatedLoadState>("loading");
@@ -113,6 +114,16 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
       if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
     };
   }, []);
+
+  // 라이트박스가 열려 있는 동안 배경 스크롤 방지 (/search 필터 드로어와 동일 패턴).
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [lightboxOpen]);
 
   useEffect(() => {
     if (cardId == null) return;
@@ -318,7 +329,10 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
             return (
               <>
                 <div className="grid grid-cols-1 gap-8 rounded-2xl border border-[#EDEDF0] bg-white p-8 md:grid-cols-[280px_1fr]">
-                  <div className="relative aspect-[5/7] w-full overflow-hidden rounded-2xl bg-[#F2F2F5]">
+                  <div
+                    className="relative aspect-[5/7] w-full cursor-pointer overflow-hidden rounded-2xl bg-[#F2F2F5]"
+                    onClick={() => setLightboxOpen(true)}
+                  >
                     <CardImage src={mainImageSrc} alt={card.name} label="카드" />
                     {card.grade && (
                       <GradeBadge grade={card.grade} className="absolute left-3 top-3" />
@@ -628,6 +642,30 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                     </div>
                   )}
                 </div>
+
+                {lightboxOpen && (
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+                    onClick={() => setLightboxOpen(false)}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setLightboxOpen(false)}
+                      aria-label="닫기"
+                      className="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-[18px] font-bold text-ink hover:bg-white"
+                    >
+                      ×
+                    </button>
+                    {mainImageSrc && (
+                      <img
+                        src={mainImageSrc}
+                        alt={card.name}
+                        onClick={(e) => e.stopPropagation()}
+                        className="max-h-[90vh] max-w-[90vw] rounded-2xl object-contain"
+                      />
+                    )}
+                  </div>
+                )}
               </>
             );
           })()}
