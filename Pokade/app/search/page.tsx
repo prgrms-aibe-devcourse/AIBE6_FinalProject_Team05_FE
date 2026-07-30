@@ -95,12 +95,16 @@ function SearchDashboard() {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
+  const [filterOpen, setFilterOpen] = useState(false);
 
   const [prevQ, setPrevQ] = useState(q);
   if (q !== prevQ) {
     setPrevQ(q);
     setLoadState("loading");
     setPage(1);
+    // 키워드 검색으로 전환되면 필터 패널 자체가 사라지므로, 열려 있던
+    // 바텀시트/드로어와 body 스크롤 잠금도 같이 정리한다.
+    if (q) setFilterOpen(false);
   }
 
   // 정렬/필터가 바뀌면 이전 페이지 번호가 새 결과 집합에 더는 유효하지 않으므로 1페이지로 되돌린다.
@@ -159,6 +163,16 @@ function SearchDashboard() {
     sessionStorage.setItem("searchBackUrl", qs ? `${pathname}?${qs}` : pathname);
   }, [pathname, searchParams]);
 
+  // 모바일 바텀시트로 필터가 열려 있는 동안 배경 스크롤 방지.
+  useEffect(() => {
+    if (!filterOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [filterOpen]);
+
   // 필터 상태를 URL 쿼리 파라미터에 반영 — 상세 페이지 진입 후 뒤로가기 시 필터가 유지되도록 함.
   // 세터 호출 지점마다 흩어져 있던 동기화 호출을 걷어내고, 필터 상태 변화를 감시하는
   // 단일 effect로 모아서 처리한다.
@@ -198,7 +212,7 @@ function SearchDashboard() {
     `rounded-lg px-[18px] py-[9px] text-[13.5px] cursor-pointer ${a ? "bg-white font-bold text-ink shadow-[0_1px_3px_rgba(0,0,0,0.08)]" : "bg-transparent font-semibold text-[#8A8A92]"}`;
 
   return (
-    <main className="main-content bg-neutral px-10 pb-14 pt-8">
+    <main className="main-content bg-neutral px-4 pb-14 pt-8 sm:px-10">
       <div className="mx-auto max-w-[1280px]">
         <div className="mb-[22px] flex items-center justify-between">
           <h1 className="m-0 text-[26px] font-extrabold tracking-[-0.6px]">
@@ -217,150 +231,193 @@ function SearchDashboard() {
         </div>
 
         {(q || view === "search") && (
-          <div className={`grid items-start gap-6 ${q ? "grid-cols-1" : "grid-cols-[250px_1fr]"}`}>
-            {/* filter sidebar — 키워드 검색 중에는 세트 필터와 동시 적용하지 않으므로 숨김 */}
+          <div
+            className={`grid items-start gap-6 ${q ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-[250px_1fr]"}`}
+          >
+            {/* filter sidebar — 키워드 검색 중에는 세트 필터와 동시 적용하지 않으므로 숨김.
+                lg 미만에서는 사이드바 대신 "필터" 버튼으로 여는 바텀시트/드로어로 표시. */}
             {!q && (
-              <div className="sticky top-[88px] rounded-2xl border border-[#EDEDF0] bg-white p-[22px]">
-                <div className="mb-4 text-[15px] font-extrabold">필터</div>
-                <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">세트</div>
-                <div className="mb-5 flex flex-col gap-[9px]">
-                  {SET_OPTIONS.map((opt) => (
-                    <label
-                      key={opt.expansionId}
-                      className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
-                    >
-                      <input
-                        type="radio"
-                        name="expansion-filter"
-                        checked={selectedExpansionId === opt.expansionId}
-                        onClick={() => {
-                          if (selectedExpansionId === opt.expansionId) {
-                            setLoadState("loading");
-                            setSelectedExpansionId(null);
-                          }
-                        }}
-                        onChange={() => {
-                          setLoadState("loading");
-                          setSelectedExpansionId(opt.expansionId);
-                        }}
-                      />
-                      {opt.label}
-                    </label>
-                  ))}
-                </div>
-                <div className="mb-[18px] h-px bg-[#F0F0F0]" />
-                <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">타입</div>
-                <div className="mb-5 flex flex-col gap-[9px]">
-                  {TYPE_OPTIONS.map((t) => (
-                    <label
-                      key={t}
-                      className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedTypes.includes(t)}
-                        onChange={() => {
-                          setLoadState("loading");
-                          setSelectedTypes(toggleValue(selectedTypes, t));
-                        }}
-                      />
-                      {t}
-                    </label>
-                  ))}
-                </div>
-                <div className="mb-[18px] h-px bg-[#F0F0F0]" />
-                <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">레어도</div>
-                <div className="mb-5 flex flex-col gap-[9px]">
-                  {RARITY_OPTIONS.map((r) => (
-                    <label
-                      key={r}
-                      className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedRarities.includes(r)}
-                        onChange={() => {
-                          setLoadState("loading");
-                          setSelectedRarities(toggleValue(selectedRarities, r));
-                        }}
-                      />
-                      {r}
-                    </label>
-                  ))}
-                </div>
-                <div className="mb-[18px] h-px bg-[#F0F0F0]" />
-                <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">등급</div>
-                <div className="mb-5 flex flex-wrap gap-[7px]">
-                  {(["S", "A", "B"] as Grade[]).map((g) => (
-                    <span
-                      key={g}
-                      className={`cursor-pointer rounded-full border px-2.5 py-1 text-[11.5px] font-bold ${GRADE_CHIP[g]}`}
-                    >
-                      {g}
-                    </span>
-                  ))}
-                </div>
-                <div className="mb-[18px] h-px bg-[#F0F0F0]" />
-                <div className="mb-3 text-[12.5px] font-bold text-[#4B4B52]">가격대</div>
-                <div className="mb-3 flex justify-between text-[12.5px] font-bold text-ink">
-                  <span>{priceMin.toLocaleString("ko-KR")}원</span>
-                  <span>~</span>
-                  <span>{priceMax.toLocaleString("ko-KR")}원</span>
-                </div>
-                <div className="relative h-6">
-                  <div className="absolute left-0 right-0 top-[11px] h-1 rounded-sm bg-[#E7E7EB]" />
-                  <div
-                    className="absolute top-[11px] h-1 rounded-sm bg-primary"
-                    style={{
-                      left: `${(priceMin / PRICE_MAX) * 100}%`,
-                      right: `${100 - (priceMax / PRICE_MAX) * 100}%`,
-                    }}
-                  />
-                  <input
-                    type="range"
-                    min={0}
-                    max={PRICE_MAX}
-                    step={50000}
-                    value={priceMin}
-                    onChange={(e) => setPriceMin(Math.min(+e.target.value, priceMax))}
-                    className="dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent"
-                  />
-                  <input
-                    type="range"
-                    min={0}
-                    max={PRICE_MAX}
-                    step={50000}
-                    value={priceMax}
-                    onChange={(e) => setPriceMax(Math.max(+e.target.value, priceMin))}
-                    className="dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent"
-                  />
-                </div>
-                <div className="mt-1.5 flex justify-between text-xs text-[#9A9AA2]">
-                  <span>0원</span>
-                  <span>3,000,000원</span>
-                </div>
-                <button
-                  onClick={resetFilters}
-                  className="mt-[22px] w-full rounded-[10px] border-[1.5px] border-[#DDDDE3] bg-white py-2.5 text-[13.5px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary"
+              <div
+                className={
+                  filterOpen
+                    ? "fixed inset-0 z-50 flex flex-col justify-end bg-black/40 lg:static lg:z-auto lg:block lg:bg-transparent"
+                    : "hidden lg:block"
+                }
+                onClick={filterOpen ? () => setFilterOpen(false) : undefined}
+              >
+                <div
+                  className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl border border-[#EDEDF0] bg-white p-[22px] lg:sticky lg:top-[88px] lg:max-h-none lg:w-auto lg:overflow-visible lg:rounded-2xl"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  필터 초기화
-                </button>
+                  <div className="mb-4 flex items-center justify-between">
+                    <span className="text-[15px] font-extrabold">필터</span>
+                    <button
+                      type="button"
+                      onClick={() => setFilterOpen(false)}
+                      aria-label="필터 닫기"
+                      className="flex h-6 w-6 items-center justify-center rounded-full text-[#9A9AA2] hover:bg-[#F2F2F5] hover:text-ink lg:hidden"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">세트</div>
+                  <div className="mb-5 flex flex-col gap-[9px]">
+                    {SET_OPTIONS.map((opt) => (
+                      <label
+                        key={opt.expansionId}
+                        className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
+                      >
+                        <input
+                          type="radio"
+                          name="expansion-filter"
+                          checked={selectedExpansionId === opt.expansionId}
+                          onClick={() => {
+                            if (selectedExpansionId === opt.expansionId) {
+                              setLoadState("loading");
+                              setSelectedExpansionId(null);
+                            }
+                          }}
+                          onChange={() => {
+                            setLoadState("loading");
+                            setSelectedExpansionId(opt.expansionId);
+                          }}
+                        />
+                        {opt.label}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="mb-[18px] h-px bg-[#F0F0F0]" />
+                  <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">타입</div>
+                  <div className="mb-5 flex flex-col gap-[9px]">
+                    {TYPE_OPTIONS.map((t) => (
+                      <label
+                        key={t}
+                        className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedTypes.includes(t)}
+                          onChange={() => {
+                            setLoadState("loading");
+                            setSelectedTypes(toggleValue(selectedTypes, t));
+                          }}
+                        />
+                        {t}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="mb-[18px] h-px bg-[#F0F0F0]" />
+                  <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">레어도</div>
+                  <div className="mb-5 flex flex-col gap-[9px]">
+                    {RARITY_OPTIONS.map((r) => (
+                      <label
+                        key={r}
+                        className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedRarities.includes(r)}
+                          onChange={() => {
+                            setLoadState("loading");
+                            setSelectedRarities(toggleValue(selectedRarities, r));
+                          }}
+                        />
+                        {r}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="mb-[18px] h-px bg-[#F0F0F0]" />
+                  <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">등급</div>
+                  <div className="mb-5 flex flex-wrap gap-[7px]">
+                    {(["S", "A", "B"] as Grade[]).map((g) => (
+                      <span
+                        key={g}
+                        className={`cursor-pointer rounded-full border px-2.5 py-1 text-[11.5px] font-bold ${GRADE_CHIP[g]}`}
+                      >
+                        {g}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mb-[18px] h-px bg-[#F0F0F0]" />
+                  <div className="mb-3 text-[12.5px] font-bold text-[#4B4B52]">가격대</div>
+                  <div className="mb-3 flex justify-between text-[12.5px] font-bold text-ink">
+                    <span>{priceMin.toLocaleString("ko-KR")}원</span>
+                    <span>~</span>
+                    <span>{priceMax.toLocaleString("ko-KR")}원</span>
+                  </div>
+                  <div className="relative h-6">
+                    <div className="absolute left-0 right-0 top-[11px] h-1 rounded-sm bg-[#E7E7EB]" />
+                    <div
+                      className="absolute top-[11px] h-1 rounded-sm bg-primary"
+                      style={{
+                        left: `${(priceMin / PRICE_MAX) * 100}%`,
+                        right: `${100 - (priceMax / PRICE_MAX) * 100}%`,
+                      }}
+                    />
+                    <input
+                      type="range"
+                      min={0}
+                      max={PRICE_MAX}
+                      step={50000}
+                      value={priceMin}
+                      onChange={(e) => setPriceMin(Math.min(+e.target.value, priceMax))}
+                      className="dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent"
+                    />
+                    <input
+                      type="range"
+                      min={0}
+                      max={PRICE_MAX}
+                      step={50000}
+                      value={priceMax}
+                      onChange={(e) => setPriceMax(Math.max(+e.target.value, priceMin))}
+                      className="dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent"
+                    />
+                  </div>
+                  <div className="mt-1.5 flex justify-between text-xs text-[#9A9AA2]">
+                    <span>0원</span>
+                    <span>3,000,000원</span>
+                  </div>
+                  <button
+                    onClick={resetFilters}
+                    className="mt-[22px] w-full rounded-[10px] border-[1.5px] border-[#DDDDE3] bg-white py-2.5 text-[13.5px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary"
+                  >
+                    필터 초기화
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFilterOpen(false)}
+                    className="mt-2.5 w-full rounded-[10px] bg-primary py-2.5 text-[13.5px] font-bold text-white lg:hidden"
+                  >
+                    필터 적용하기
+                  </button>
+                </div>
               </div>
             )}
 
             {/* results grid */}
             <div>
-              <div className="mb-4 flex items-center justify-between">
-                <span className="text-[13.5px] text-[#8A8A92]">
-                  <b className="text-ink">
-                    {loadState === "ready"
-                      ? totalElements.toLocaleString("ko-KR")
-                      : cards.length > 0
-                        ? cards.length
-                        : "-"}
-                  </b>
-                  개의 카드
-                </span>
+              <div className="mb-4 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  {!q && (
+                    <button
+                      type="button"
+                      onClick={() => setFilterOpen(true)}
+                      className="flex items-center gap-1 rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-2 text-[13px] font-bold text-[#4B4B52] lg:hidden"
+                    >
+                      필터
+                    </button>
+                  )}
+                  <span className="text-[13.5px] text-[#8A8A92]">
+                    <b className="text-ink">
+                      {loadState === "ready"
+                        ? totalElements.toLocaleString("ko-KR")
+                        : cards.length > 0
+                          ? cards.length
+                          : "-"}
+                    </b>
+                    개의 카드
+                  </span>
+                </div>
                 {/* 키워드 검색(q)은 BE에 sort 파라미터가 없어 정렬 옵션을 숨긴다 */}
                 {!q && (
                   <select
@@ -452,7 +509,7 @@ function SearchDashboard() {
 
               {cards.length > 0 && loadState !== "error" && (
                 <div
-                  className={`grid grid-cols-5 gap-4 transition-opacity duration-200 ${
+                  className={`grid grid-cols-2 gap-4 transition-opacity duration-200 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 ${
                     loadState === "loading" ? "pointer-events-none opacity-50" : "opacity-100"
                   }`}
                 >
@@ -535,7 +592,7 @@ function SearchDashboard() {
         )}
 
         {!q && view === "dash" && (
-          <div className="grid grid-cols-[60fr_40fr] items-start gap-[22px]">
+          <div className="grid grid-cols-1 items-start gap-[22px] lg:grid-cols-[60fr_40fr]">
             <div className="flex flex-col gap-5">
               <div className="rounded-2xl border border-t-[3px] border-[#EDEDF0] border-t-primary bg-white px-7 py-[26px]">
                 <div className="flex items-start justify-between">

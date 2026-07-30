@@ -168,7 +168,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   }, [cardId, loadState]);
 
   return (
-    <main className="main-content bg-neutral px-10 pb-14 pt-8">
+    <main className="main-content bg-neutral px-4 pb-14 pt-8 sm:px-10">
       <div className="mx-auto max-w-[1000px]">
         <Link
           href="/search"
@@ -229,7 +229,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
 
             return (
               <>
-                <div className="grid grid-cols-[280px_1fr] gap-8 rounded-2xl border border-[#EDEDF0] bg-white p-8">
+                <div className="grid grid-cols-1 gap-8 rounded-2xl border border-[#EDEDF0] bg-white p-8 md:grid-cols-[280px_1fr]">
                   <div className="relative aspect-[5/7] w-full overflow-hidden rounded-2xl bg-[#F2F2F5]">
                     <CardImage src={mainImageSrc} alt={card.name} label="카드" />
                     {card.grade && (
@@ -433,7 +433,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                   <h2 className="mb-4 text-[17px] font-extrabold">비슷한 카드</h2>
 
                   {relatedLoadState === "loading" && (
-                    <div className="grid grid-cols-5 gap-4">
+                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                       {Array.from({ length: 5 }).map((_, i) => (
                         <div
                           key={i}
@@ -450,7 +450,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                   )}
 
                   {relatedLoadState === "ready" && relatedCards.length > 0 && (
-                    <div className="grid grid-cols-5 gap-4">
+                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                       {relatedCards.map((rc) => (
                         <Link
                           key={rc.id}
