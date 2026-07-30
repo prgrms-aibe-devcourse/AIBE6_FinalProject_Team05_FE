@@ -1,5 +1,6 @@
-import { apiGet, PageResponse } from "@/lib/apiClient";
+import { apiGet, apiGetRaw, PageResponse } from "@/lib/apiClient";
 import { CardDetailResponse, CardResponse } from "@/types/card";
+import { ListingSummaryResponse, PriceSummaryResponse, TradeSummaryResponse } from "@/types/price";
 
 // GET /api/cards — types/rarity/expansionId 정확 일치 필터 (기본 페이지 size=20).
 export interface CardSearchFilters {
@@ -38,4 +39,20 @@ export async function fetchCardDetail(id: number): Promise<CardDetailResponse> {
 // GET /api/cards/{id}/related — 비슷한 카드 목록 조회.
 export async function fetchRelatedCards(id: number): Promise<CardResponse[]> {
   return apiGet<CardResponse[]>(`/api/cards/${id}/related`);
+}
+
+// GET /api/prices/{cardId}/summary — 현재가(즉시구매가/판매호가) 조회. 매물/구매호가가 없으면 각 필드 null.
+export async function fetchPriceSummary(cardId: number): Promise<PriceSummaryResponse> {
+  return apiGet<PriceSummaryResponse>(`/api/prices/${cardId}/summary`);
+}
+
+// GET /api/prices/{cardId}/trades — 최근 체결 내역 (최대 20건, 서버 고정, 최신순).
+export async function fetchRecentTrades(cardId: number): Promise<TradeSummaryResponse[]> {
+  return apiGet<TradeSummaryResponse[]>(`/api/prices/${cardId}/trades`);
+}
+
+// GET /api/listings?cardId= — 판매 중(ACTIVE) 매물 목록, 가격 오름차순.
+// 다른 API와 달리 ApiResponse 래퍼 없이 raw 배열을 그대로 반환하므로 apiGetRaw 사용.
+export async function fetchActiveListings(cardId: number): Promise<ListingSummaryResponse[]> {
+  return apiGetRaw<ListingSummaryResponse[]>(`/api/listings?cardId=${cardId}`);
 }

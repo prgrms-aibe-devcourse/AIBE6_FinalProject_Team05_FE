@@ -6,11 +6,41 @@ import { useEffect, useState } from "react";
 import GradeBadge from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
 import { CardDetailResponse, CardSearchItem, toCardSearchItem, variantLabel } from "@/types/card";
-import { fetchCardDetail, fetchRelatedCards } from "@/lib/cardApi";
+import {
+  ListingGrade,
+  ListingSummaryResponse,
+  PriceSummaryResponse,
+  TradeSummaryResponse,
+} from "@/types/price";
+import {
+  fetchActiveListings,
+  fetchCardDetail,
+  fetchPriceSummary,
+  fetchRecentTrades,
+  fetchRelatedCards,
+} from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
 
 type LoadState = "loading" | "error" | "notfound" | "ready";
 type RelatedLoadState = "loading" | "ready";
+
+// LocalDateTime("yyyy-MM-ddTHH:mm:ss") 문자열을 "YYYY.MM.DD HH:mm"로 표시.
+function formatTradedAt(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// 매물/체결 등급(S/A/B/PSA10/PSA9/PSA8)은 AI 등급진단의 Grade(S/A/B)와 다른 값 범위라
+// GradeBadge를 그대로 못 쓴다 — 이 페이지 전용의 중립 톤 배지.
+function ListingGradeBadge({ grade }: { grade: ListingGrade | null }) {
+  return (
+    <span className="inline-block rounded-full bg-[#EEF0F2] px-2 py-0.5 text-[10.5px] font-bold text-[#4B4B52]">
+      {grade ?? "등급 미정"}
+    </span>
+  );
+}
 
 export default function CardDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -25,6 +55,14 @@ export default function CardDetailPage() {
 
   const [relatedCards, setRelatedCards] = useState<CardSearchItem[]>([]);
   const [relatedLoadState, setRelatedLoadState] = useState<RelatedLoadState>("loading");
+
+  const [priceSummary, setPriceSummary] = useState<PriceSummaryResponse | null>(null);
+  const [recentTrades, setRecentTrades] = useState<TradeSummaryResponse[]>([]);
+  const [activeListings, setActiveListings] = useState<ListingSummaryResponse[]>([]);
+  // GET /api/listings는 (summary/trades와 달리) 아직 인증이 필요해 401이 날 수 있다 —
+  // "매물 없음"과 "조회 권한 없음"을 구분해서 보여주기 위한 별도 상태.
+  const [listingsError, setListingsError] = useState<ApiError | null>(null);
+  const [priceLoadState, setPriceLoadState] = useState<RelatedLoadState>("loading");
 
   // /search에서 저장해 둔 마지막 검색 URL(필터 쿼리 포함)로 돌아간다.
   // Link의 클라이언트 사이드 라우팅은 document.referrer를 갱신하지 않으므로 sessionStorage를 사용.
@@ -74,6 +112,37 @@ export default function CardDetailPage() {
         setRelatedCards([]);
         setRelatedLoadState("ready");
       });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cardId, loadState]);
+
+  useEffect(() => {
+    if (loadState !== "ready") return;
+    let cancelled = false;
+
+    Promise.allSettled([
+      fetchPriceSummary(cardId),
+      fetchRecentTrades(cardId),
+      fetchActiveListings(cardId),
+    ]).then(([summaryResult, tradesResult, listingsResult]) => {
+      if (cancelled) return;
+      setPriceSummary(summaryResult.status === "fulfilled" ? summaryResult.value : null);
+      setRecentTrades(tradesResult.status === "fulfilled" ? tradesResult.value : []);
+      if (listingsResult.status === "fulfilled") {
+        setActiveListings(listingsResult.value);
+        setListingsError(null);
+      } else {
+        setActiveListings([]);
+        setListingsError(
+          listingsResult.reason instanceof ApiError
+            ? listingsResult.reason
+            : new ApiError(0, "UNKNOWN", "매물 정보를 불러오지 못했습니다."),
+        );
+      }
+      setPriceLoadState("ready");
+    });
 
     return () => {
       cancelled = true;
@@ -204,12 +273,132 @@ export default function CardDetailPage() {
                         <span className="font-bold">{card.printedNumber || "-"}</span>
                       </div>
                     </div>
-                    <div className="mt-auto pt-6 text-[15px]">
-                      <span className="text-[13px] font-semibold text-[#9A9AA2]">
-                        가격 정보 준비중
-                      </span>
+                    <div className="mt-auto flex items-end justify-between gap-4 rounded-xl bg-neutral px-4 py-3.5 pt-3.5">
+                      <div>
+                        <div className="text-[12px] font-semibold text-[#8A8A92]">즉시구매가</div>
+                        <div className="mt-1 text-[22px] font-extrabold text-primary">
+                          {priceLoadState === "loading" ? (
+                            <span className="text-[14px] font-semibold text-[#9A9AA2]">
+                              불러오는 중...
+                            </span>
+                          ) : priceSummary?.buyPrice != null ? (
+                            `${priceSummary.buyPrice.toLocaleString("ko-KR")}원`
+                          ) : (
+                            <span className="text-[14px] font-semibold text-[#9A9AA2]">
+                              매물 없음
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[12px] font-semibold text-[#8A8A92]">판매가</div>
+                        <div className="mt-1 text-[16px] font-bold text-ink">
+                          {priceLoadState === "loading" ? (
+                            <span className="text-[13px] font-semibold text-[#9A9AA2]">
+                              불러오는 중...
+                            </span>
+                          ) : priceSummary?.sellPrice != null ? (
+                            `${priceSummary.sellPrice.toLocaleString("ko-KR")}원`
+                          ) : (
+                            <span className="text-[13px] font-semibold text-[#9A9AA2]">
+                              판매 요청 없음
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
+                </div>
+
+                <div className="mt-8">
+                  <h2 className="mb-4 text-[17px] font-extrabold">판매 중인 매물</h2>
+
+                  {priceLoadState === "loading" && (
+                    <div className="flex flex-col gap-2 rounded-2xl border border-[#EDEDF0] bg-white p-2">
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <div key={i} className="h-[60px] animate-pulse rounded-xl bg-[#F2F2F5]" />
+                      ))}
+                    </div>
+                  )}
+
+                  {priceLoadState === "ready" && listingsError && (
+                    <div className="rounded-2xl border border-[#EDEDF0] bg-white py-12 text-center text-[13.5px] text-[#9A9AA2]">
+                      {listingsError.status === 401 || listingsError.status === 403
+                        ? "매물 목록은 로그인 후 확인할 수 있습니다."
+                        : "매물 정보를 불러오지 못했습니다."}
+                    </div>
+                  )}
+
+                  {priceLoadState === "ready" && !listingsError && activeListings.length === 0 && (
+                    <div className="rounded-2xl border border-[#EDEDF0] bg-white py-12 text-center text-[13.5px] text-[#9A9AA2]">
+                      판매 중인 매물이 없습니다.
+                    </div>
+                  )}
+
+                  {priceLoadState === "ready" && !listingsError && activeListings.length > 0 && (
+                    <div className="flex flex-col gap-2 rounded-2xl border border-[#EDEDF0] bg-white p-2">
+                      {activeListings.map((l) => (
+                        <div key={l.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5">
+                          <div className="relative h-[52px] w-[38px] shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
+                            <CardImage src={l.thumbnailUrl ?? undefined} label="카드" />
+                          </div>
+                          <div className="flex flex-1 items-center justify-between">
+                            <ListingGradeBadge grade={l.grade} />
+                            <span className="text-[14px] font-extrabold text-ink">
+                              {l.price.toLocaleString("ko-KR")}원
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-8">
+                  <h2 className="mb-4 text-[17px] font-extrabold">최근 체결 내역</h2>
+
+                  {priceLoadState === "loading" && (
+                    <div className="flex flex-col gap-2 rounded-2xl border border-[#EDEDF0] bg-white p-2">
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <div key={i} className="h-[40px] animate-pulse rounded-xl bg-[#F2F2F5]" />
+                      ))}
+                    </div>
+                  )}
+
+                  {priceLoadState === "ready" && recentTrades.length === 0 && (
+                    <div className="rounded-2xl border border-[#EDEDF0] bg-white py-12 text-center text-[13.5px] text-[#9A9AA2]">
+                      최근 체결 내역이 없습니다.
+                    </div>
+                  )}
+
+                  {priceLoadState === "ready" && recentTrades.length > 0 && (
+                    <div className="overflow-hidden rounded-2xl border border-[#EDEDF0] bg-white">
+                      <table className="w-full text-[13px]">
+                        <thead>
+                          <tr className="border-b border-[#EDEDF0] text-left text-[#8A8A92]">
+                            <th className="px-4 py-2.5 font-semibold">체결일시</th>
+                            <th className="px-4 py-2.5 font-semibold">등급</th>
+                            <th className="px-4 py-2.5 text-right font-semibold">가격</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {recentTrades.map((t, i) => (
+                            <tr key={i} className="border-b border-[#F5F5F7] last:border-0">
+                              <td className="px-4 py-2.5 text-[#4B4B52]">
+                                {formatTradedAt(t.tradedAt)}
+                              </td>
+                              <td className="px-4 py-2.5">
+                                <ListingGradeBadge grade={t.grade} />
+                              </td>
+                              <td className="px-4 py-2.5 text-right font-bold text-ink">
+                                {t.price.toLocaleString("ko-KR")}원
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-8">

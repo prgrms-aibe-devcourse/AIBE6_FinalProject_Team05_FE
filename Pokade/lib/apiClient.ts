@@ -31,7 +31,7 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiGet<T>(path: string): Promise<T> {
+async function fetchOk(path: string): Promise<Response> {
   let res: Response;
   try {
     res = await fetch(`${API_BASE_URL}${path}`);
@@ -57,6 +57,17 @@ export async function apiGet<T>(path: string): Promise<T> {
     throw new ApiError(res.status, code, msg);
   }
 
+  return res;
+}
+
+export async function apiGet<T>(path: string): Promise<T> {
+  const res = await fetchOk(path);
   const body = (await res.json()) as ApiEnvelope<T>;
   return body.data;
+}
+
+// ApiResponse 래퍼 없이 raw body를 그대로 내려주는 엔드포인트용 (예: GET /api/listings).
+export async function apiGetRaw<T>(path: string): Promise<T> {
+  const res = await fetchOk(path);
+  return (await res.json()) as T;
 }
