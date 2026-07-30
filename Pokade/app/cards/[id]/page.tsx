@@ -5,7 +5,13 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import GradeBadge from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
-import { CardDetailResponse, CardSearchItem, toCardSearchItem, variantLabel } from "@/types/card";
+import {
+  CardDetailResponse,
+  CardSearchItem,
+  parseCardId,
+  toCardSearchItem,
+  variantLabel,
+} from "@/types/card";
 import {
   ListingGrade,
   ListingSummaryResponse,
@@ -56,7 +62,7 @@ function ListingGradeBadge({ grade }: { grade: ListingGrade | null }) {
 export default function CardDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const cardId = Number(id);
+  const cardId = parseCardId(id);
 
   const [card, setCard] = useState<CardDetailResponse | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -83,6 +89,7 @@ export default function CardDetailPage() {
   };
 
   useEffect(() => {
+    if (cardId == null) return;
     let cancelled = false;
 
     fetchCardDetail(cardId)
@@ -109,7 +116,7 @@ export default function CardDetailPage() {
   }, [cardId, reloadKey]);
 
   useEffect(() => {
-    if (loadState !== "ready") return;
+    if (loadState !== "ready" || cardId == null) return;
     let cancelled = false;
 
     fetchRelatedCards(cardId)
@@ -130,7 +137,7 @@ export default function CardDetailPage() {
   }, [cardId, loadState]);
 
   useEffect(() => {
-    if (loadState !== "ready") return;
+    if (loadState !== "ready" || cardId == null) return;
     let cancelled = false;
 
     Promise.allSettled([
@@ -171,7 +178,7 @@ export default function CardDetailPage() {
           ← 카드 검색으로 돌아가기
         </Link>
 
-        {loadState === "loading" && (
+        {loadState === "loading" && cardId != null && (
           <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[#EDEDF0] bg-white py-24">
             <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-[#E7E7EB] border-t-primary" />
             <span className="text-[13.5px] font-semibold text-[#8A8A92]">
@@ -195,7 +202,7 @@ export default function CardDetailPage() {
           </div>
         )}
 
-        {loadState === "notfound" && (
+        {(loadState === "notfound" || cardId == null) && (
           <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[#EDEDF0] bg-white py-24">
             <span className="text-[15px] font-bold text-ink">카드를 찾을 수 없습니다.</span>
             <span className="text-[13px] text-[#9A9AA2]">

@@ -64,10 +64,14 @@ async function fetchOk(path: string): Promise<Response> {
       if (body?.code) code = body.code;
       const parsedMsg = body?.message ?? body?.msg;
       if (parsedMsg) {
-        msg =
-          res.status === 400 && isJavaExceptionMessage(parsedMsg)
-            ? "잘못된 요청입니다."
-            : parsedMsg;
+        if (isJavaExceptionMessage(parsedMsg)) {
+          msg =
+            res.status >= 500
+              ? "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
+              : "잘못된 요청입니다.";
+        } else {
+          msg = parsedMsg;
+        }
       }
     } catch {
       // 에러 응답 본문이 JSON이 아닐 수 있음 — 기본 메시지 사용.

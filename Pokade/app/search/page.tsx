@@ -121,25 +121,25 @@ function SearchDashboard() {
   // 카드 상세 페이지의 "검색으로 돌아가기" 링크가 참조할 현재 검색 URL을 저장.
   // Link 클릭(클라이언트 사이드 라우팅)은 document.referrer를 갱신하지 않으므로 sessionStorage를 사용.
   useEffect(() => {
-    sessionStorage.setItem("searchBackUrl", `${pathname}?${searchParams.toString()}`);
+    const qs = searchParams.toString();
+    sessionStorage.setItem("searchBackUrl", qs ? `${pathname}?${qs}` : pathname);
   }, [pathname, searchParams]);
 
-  // 필터를 URL 쿼리 파라미터에 반영 — 상세 페이지 진입 후 뒤로가기 시 필터가 유지되도록 함.
-  const syncFilterParams = (
-    nextExpansionId: string | null,
-    nextTypes: string[],
-    nextRarities: string[],
-  ) => {
+  // 필터 상태를 URL 쿼리 파라미터에 반영 — 상세 페이지 진입 후 뒤로가기 시 필터가 유지되도록 함.
+  // 세터 호출 지점마다 흩어져 있던 동기화 호출을 걷어내고, 필터 상태 변화를 감시하는
+  // 단일 effect로 모아서 처리한다.
+  useEffect(() => {
     const params = new URLSearchParams(searchParams.toString());
-    if (nextExpansionId) params.set("expansionId", nextExpansionId);
+    if (selectedExpansionId) params.set("expansionId", selectedExpansionId);
     else params.delete("expansionId");
-    if (nextTypes.length) params.set("types", nextTypes.join(","));
+    if (selectedTypes.length) params.set("types", selectedTypes.join(","));
     else params.delete("types");
-    if (nextRarities.length) params.set("rarity", nextRarities.join(","));
+    if (selectedRarities.length) params.set("rarity", selectedRarities.join(","));
     else params.delete("rarity");
     const qs = params.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedExpansionId, selectedTypes, selectedRarities]);
 
   const resetFilters = () => {
     setPriceMin(0);
@@ -148,7 +148,9 @@ function SearchDashboard() {
     setSelectedExpansionId(null);
     setSelectedTypes([]);
     setSelectedRarities([]);
-    syncFilterParams(null, [], []);
+    // 필터가 이미 초기값이면 위 세터들이 상태를 바꾸지 않아 카드 목록 effect가
+    // 재실행되지 않는다 — reloadKey를 강제로 올려 항상 재요청되게 한다.
+    setReloadKey((k) => k + 1);
   };
   const toggleValue = (list: string[], value: string) =>
     list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
@@ -195,13 +197,11 @@ function SearchDashboard() {
                           if (selectedExpansionId === opt.expansionId) {
                             setLoadState("loading");
                             setSelectedExpansionId(null);
-                            syncFilterParams(null, selectedTypes, selectedRarities);
                           }
                         }}
                         onChange={() => {
                           setLoadState("loading");
                           setSelectedExpansionId(opt.expansionId);
-                          syncFilterParams(opt.expansionId, selectedTypes, selectedRarities);
                         }}
                       />
                       {opt.label}
@@ -221,9 +221,7 @@ function SearchDashboard() {
                         checked={selectedTypes.includes(t)}
                         onChange={() => {
                           setLoadState("loading");
-                          const next = toggleValue(selectedTypes, t);
-                          setSelectedTypes(next);
-                          syncFilterParams(selectedExpansionId, next, selectedRarities);
+                          setSelectedTypes(toggleValue(selectedTypes, t));
                         }}
                       />
                       {t}
@@ -243,9 +241,7 @@ function SearchDashboard() {
                         checked={selectedRarities.includes(r)}
                         onChange={() => {
                           setLoadState("loading");
-                          const next = toggleValue(selectedRarities, r);
-                          setSelectedRarities(next);
-                          syncFilterParams(selectedExpansionId, selectedTypes, next);
+                          setSelectedRarities(toggleValue(selectedRarities, r));
                         }}
                       />
                       {r}
@@ -343,7 +339,6 @@ function SearchDashboard() {
                         onRemove={() => {
                           setLoadState("loading");
                           setSelectedExpansionId(null);
-                          syncFilterParams(null, selectedTypes, selectedRarities);
                         }}
                       />
                     )}
@@ -353,9 +348,7 @@ function SearchDashboard() {
                         label={t}
                         onRemove={() => {
                           setLoadState("loading");
-                          const next = selectedTypes.filter((v) => v !== t);
-                          setSelectedTypes(next);
-                          syncFilterParams(selectedExpansionId, next, selectedRarities);
+                          setSelectedTypes(selectedTypes.filter((v) => v !== t));
                         }}
                       />
                     ))}
@@ -365,9 +358,7 @@ function SearchDashboard() {
                         label={r}
                         onRemove={() => {
                           setLoadState("loading");
-                          const next = selectedRarities.filter((v) => v !== r);
-                          setSelectedRarities(next);
-                          syncFilterParams(selectedExpansionId, selectedTypes, next);
+                          setSelectedRarities(selectedRarities.filter((v) => v !== r));
                         }}
                       />
                     ))}

@@ -64,11 +64,17 @@ const VARIANT_NAME_LABELS: Record<string, string> = {
   normal: "일반",
   holofoil: "홀로",
   unlimited: "무제한",
-  unlimitedHolofoil: "홀로그래픽",
+  unlimitedHolofoil: "무제한 홀로",
 };
 
 export function variantLabel(variantName: string): string {
   return VARIANT_NAME_LABELS[variantName] ?? variantName;
+}
+
+// 라우트 파라미터(문자열)를 카드 id로 파싱 — 양의 정수가 아니면 null.
+export function parseCardId(id: string): number | null {
+  const n = Number(id);
+  return Number.isInteger(n) && n > 0 ? n : null;
 }
 
 export interface CardDetailResponse {
