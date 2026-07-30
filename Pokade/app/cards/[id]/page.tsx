@@ -136,7 +136,9 @@ export default function CardDetailPage() {
                 <div className="grid grid-cols-[280px_1fr] gap-8 rounded-2xl border border-[#EDEDF0] bg-white p-8">
                   <div className="relative aspect-[5/7] w-full overflow-hidden rounded-2xl bg-[#F2F2F5]">
                     <CardImage src={mainImageSrc} alt={card.name} label="카드" />
-                    <GradeBadge className="absolute left-3 top-3" />
+                    {card.grade && (
+                      <GradeBadge grade={card.grade} className="absolute left-3 top-3" />
+                    )}
                   </div>
                   <div className="flex flex-col">
                     <h1 className="m-0 text-[26px] font-extrabold tracking-[-0.6px]">

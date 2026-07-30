@@ -73,4 +73,6 @@ export interface CardDetailResponse {
   imageLarge: string;
   expansion: ExpansionSummary | null;
   variants: VariantSummary[];
+  // 등급진단 API 연동 전까지 응답에 없는 필드 — undefined.
+  grade?: Grade;
 }

@@ -413,9 +413,11 @@ function SearchDashboard() {
                       href={`/cards/${c.id}`}
                       className="flex cursor-pointer flex-col overflow-hidden rounded-[13px] border border-[#EDEDF0] transition hover:-translate-y-[3px] hover:shadow-lift"
                     >
-                      <div className="relative h-[180px] bg-[#F2F2F5]">
+                      <div className="relative aspect-[5/7] w-full bg-[#F2F2F5]">
                         <CardImage src={c.imageUrl} alt={c.name} label="카드" />
-                        <GradeBadge grade={c.grade} className="absolute left-[9px] top-[9px]" />
+                        {c.grade && (
+                          <GradeBadge grade={c.grade} className="absolute left-[9px] top-[9px]" />
+                        )}
                       </div>
                       <div className="flex flex-1 flex-col p-3">
                         <div className="text-[13.5px] font-bold">{c.name}</div>
