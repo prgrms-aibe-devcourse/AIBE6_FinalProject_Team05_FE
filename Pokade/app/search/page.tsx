@@ -374,22 +374,22 @@ function SearchDashboard() {
                   className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl border border-[#EDEDF0] bg-white p-[22px] lg:sticky lg:top-[88px] lg:max-h-none lg:w-auto lg:overflow-visible lg:rounded-2xl"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="mb-4 flex items-center justify-between">
+                  <div className="mb-4 flex items-center justify-between lg:relative">
                     <span className="flex items-center gap-1.5 text-[15px] font-extrabold">
                       필터
                       <span
                         tabIndex={0}
-                        className="group relative inline-flex h-3.5 w-3.5 shrink-0 cursor-help items-center justify-center rounded-full bg-black/10 text-[8px] font-bold leading-none text-[#6B6B72] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#6B6B72]"
+                        className="group relative inline-flex h-3.5 w-3.5 shrink-0 cursor-help items-center justify-center rounded-full bg-black/10 text-[8px] font-bold leading-none text-[#6B6B72] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#6B6B72] lg:static"
                       >
                         ?
                         <span
                           role="tooltip"
-                          className="pointer-events-none absolute left-0 top-[calc(100%+6px)] z-20 w-max max-w-[220px] rounded-md bg-[#1A1A1E] px-2.5 py-1.5 text-[11px] font-medium leading-snug text-white opacity-0 shadow-lift transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100"
+                          className="pointer-events-none absolute left-0 top-[calc(100%+6px)] z-20 w-max max-w-[280px] break-keep rounded-md bg-[#1A1A1E] px-2.5 py-1.5 text-[11px] font-medium leading-relaxed text-white opacity-0 shadow-lift transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100 lg:left-1/2 lg:max-w-[190px] lg:-translate-x-1/2"
                         >
-                          <span className="block">
+                          <span className="mb-1 block">
                             <b>S</b>: {GRADE_DESCRIPTIONS.S}
                           </span>
-                          <span className="block">
+                          <span className="mb-1 block">
                             <b>A</b>: {GRADE_DESCRIPTIONS.A}
                           </span>
                           <span className="block">
