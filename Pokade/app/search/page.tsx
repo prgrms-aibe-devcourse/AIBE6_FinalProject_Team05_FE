@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import GradeBadge, { Grade } from "@/components/GradeBadge";
+import GradeBadge, { Grade, GRADE_DESCRIPTIONS } from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
 import { CardSearchItem, toCardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
@@ -310,7 +310,30 @@ function SearchDashboard() {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="mb-4 flex items-center justify-between">
-                    <span className="text-[15px] font-extrabold">필터</span>
+                    <span className="flex items-center gap-1.5 text-[15px] font-extrabold">
+                      필터
+                      <span
+                        tabIndex={0}
+                        title={`S: ${GRADE_DESCRIPTIONS.S}\nA: ${GRADE_DESCRIPTIONS.A}\nB: ${GRADE_DESCRIPTIONS.B}`}
+                        className="group relative inline-flex h-3.5 w-3.5 shrink-0 cursor-help items-center justify-center rounded-full bg-black/10 text-[8px] font-bold leading-none text-[#6B6B72] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#6B6B72]"
+                      >
+                        ?
+                        <span
+                          role="tooltip"
+                          className="pointer-events-none absolute left-0 top-[calc(100%+6px)] z-20 w-max max-w-[220px] rounded-md bg-[#1A1A1E] px-2.5 py-1.5 text-[11px] font-medium leading-snug text-white opacity-0 shadow-lift transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100"
+                        >
+                          <span className="block">
+                            <b>S</b>: {GRADE_DESCRIPTIONS.S}
+                          </span>
+                          <span className="block">
+                            <b>A</b>: {GRADE_DESCRIPTIONS.A}
+                          </span>
+                          <span className="block">
+                            <b>B</b>: {GRADE_DESCRIPTIONS.B}
+                          </span>
+                        </span>
+                      </span>
+                    </span>
                     <button
                       type="button"
                       onClick={() => setFilterOpen(false)}
