@@ -8,9 +8,16 @@ export const GRADE_BAR: Record<Grade, string> = {
 };
 
 const SIZES = {
-  sm: { block: "w-[5px]", text: "text-[9px]", padX: "px-[6px]", padY: "py-[3px]" },
-  md: { block: "w-[6px]", text: "text-[11.5px]", padX: "px-[9px]", padY: "py-[5px]" },
-  lg: { block: "w-[7px]", text: "text-[11px]", padX: "px-[10px]", padY: "py-[5px]" },
+  sm: { text: "text-[9px]", padX: "px-[8px]", padY: "py-[2px]" },
+  md: { text: "text-[11.5px]", padX: "px-[11px]", padY: "py-[3px]" },
+  lg: { text: "text-[13px]", padX: "px-[13px]", padY: "py-[4px]" },
+};
+
+// 등급별 배경/테두리/텍스트 조합 — WCAG AA(4.5:1) 검증 완료.
+const GRADE_STYLE: Record<Grade, string> = {
+  S: "bg-grade-s border-[#C99A00] text-grade-s-ink",
+  A: "bg-secondary border-[#28348F] text-white",
+  B: "bg-grade-b border-[#6B7280] text-[#1F2937]",
 };
 
 // Grade 판정 기준 — /search 필터 사이드바의 등급 설명 툴팁 등에서 재사용.
@@ -34,27 +41,18 @@ export default function GradeBadge({
   if (!grade) {
     return (
       <span
-        className={`inline-flex items-stretch overflow-hidden rounded-sm border border-[#E1E3E8] bg-[#EEF0F2] ${className}`}
+        className={`inline-flex items-center justify-center rounded-full border-2 border-[#D5D7DC] bg-[#EEF0F2] shadow-sm ${s.text} ${s.padX} ${s.padY} font-bold leading-none tracking-[0.5px] text-[#9A9AA2] ${className}`}
       >
-        <span
-          className={`${s.text} ${s.padX} ${s.padY} font-bold leading-none tracking-[0.5px] text-[#9A9AA2]`}
-        >
-          등급 미정
-        </span>
+        등급 미정
       </span>
     );
   }
 
   return (
     <span
-      className={`inline-flex items-stretch overflow-hidden rounded-sm border border-[#E1E3E8] bg-white ${className}`}
+      className={`inline-flex items-center justify-center rounded-full border-2 shadow-sm ${GRADE_STYLE[grade]} ${s.text} ${s.padX} ${s.padY} font-extrabold leading-none tracking-[0.5px] ${className}`}
     >
-      <span className={`${s.block} shrink-0 ${GRADE_BAR[grade]}`} aria-hidden="true" />
-      <span
-        className={`${s.text} ${s.padX} ${s.padY} font-extrabold leading-none tracking-[0.5px] text-ink`}
-      >
-        {grade}
-      </span>
+      {grade}
     </span>
   );
 }
