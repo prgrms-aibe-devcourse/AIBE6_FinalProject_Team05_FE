@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import GradeBadge from "@/components/GradeBadge";
@@ -657,11 +658,14 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                       ×
                     </button>
                     {mainImageSrc && (
-                      <img
+                      <Image
                         src={mainImageSrc}
                         alt={card.name}
+                        width={500}
+                        height={700}
+                        sizes="90vw"
                         onClick={(e) => e.stopPropagation()}
-                        className="max-h-[90vh] max-w-[90vw] rounded-2xl object-contain"
+                        className="h-auto w-auto max-h-[90vh] max-w-[90vw] rounded-2xl object-contain"
                       />
                     )}
                   </div>

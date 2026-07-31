@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 
 // Renders real card art when `src` is given; falls back to a neutral
 // placeholder when there's no src yet, or if the src fails to load.
@@ -21,11 +22,13 @@ export default function CardImage({
 
   if (src && !failed) {
     return (
-      <img
+      <Image
         src={src}
         alt={alt}
+        fill
+        sizes="(min-width: 768px) 25vw, 50vw"
         onError={() => setFailed(true)}
-        className={`h-full w-full object-cover ${rounded} ${className}`}
+        className={`object-cover ${rounded} ${className}`}
       />
     );
   }

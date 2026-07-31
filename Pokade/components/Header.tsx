@@ -302,7 +302,7 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
                       : "border-transparent hover:bg-[#FAFAFB]"
                   }`}
                 >
-                  <div className="h-9 w-9 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
+                  <div className="relative h-9 w-9 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
                     <CardImage src={card.imageSmall} alt={card.name} label="카드" />
                   </div>
                   <div className="min-w-0 flex-1">
