@@ -1,16 +1,16 @@
 export type Grade = "S" | "A" | "B";
 
-// Clean solid-fill rounded pills — one subtle game-flavored touch.
-// S = 가장 눈에 띄는 골드, A = 블루, B = 차분한 그레이.
+// PSA/BGS 그레이딩 슬랩 스타일 — 등급별로 진하고 완전 불투명한 배경.
+// 반투명 없이 어떤 카드 이미지 위에서도 동일한 톤으로 보이도록.
 const STYLES: Record<Grade, string> = {
-  S: "bg-grade-s text-grade-s-ink",
-  A: "bg-grade-a text-white",
-  B: "bg-grade-b text-[#374151]",
+  S: "bg-[#B8860B] text-white", // 진한 금색(dark goldenrod)
+  A: "bg-navy-700 text-white", // 진한 남색 — 기존 navy 토큰 재사용
+  B: "bg-[#4B5563] text-white", // 진한 회색
 };
 
 const SIZES = {
   sm: "text-[9px] px-[7px] py-[3px]",
-  md: "text-[10.5px] px-[9px] py-1",
+  md: "text-[11.5px] px-[10px] py-[5px]",
   lg: "text-[11px] px-[11px] py-[5px]",
 };
 
@@ -33,7 +33,7 @@ export default function GradeBadge({
   if (!grade) {
     return (
       <span
-        className={`inline-block rounded-full bg-[#EEF0F2] font-bold leading-none tracking-[0.5px] text-[#9A9AA2] ${SIZES[size]} ${className}`}
+        className={`inline-block rounded-sm bg-[#EEF0F2] font-bold leading-none tracking-[0.5px] text-[#9A9AA2] ${SIZES[size]} ${className}`}
       >
         등급 미정
       </span>
@@ -42,7 +42,7 @@ export default function GradeBadge({
 
   return (
     <span
-      className={`inline-block rounded-full font-extrabold leading-none tracking-[0.5px] shadow-sm ring-1 ring-black/5 ${STYLES[grade]} ${SIZES[size]} ${className}`}
+      className={`inline-block rounded-sm font-extrabold leading-none tracking-[0.5px] shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] ${STYLES[grade]} ${SIZES[size]} ${className}`}
     >
       {grade}
     </span>
