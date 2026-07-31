@@ -1,12 +1,5 @@
 export type Grade = "S" | "A" | "B";
 
-// Tailwind bg class per grade — 좌측 색상 블록과 ConditionBar 세그먼트가 공유.
-export const GRADE_BAR: Record<Grade, string> = {
-  S: "bg-grade-s",
-  A: "bg-grade-a",
-  B: "bg-grade-b",
-};
-
 const SIZES = {
   sm: { text: "text-[9px]", padX: "px-[8px]", padY: "py-[2px]" },
   md: { text: "text-[11.5px]", padX: "px-[11px]", padY: "py-[3px]" },
