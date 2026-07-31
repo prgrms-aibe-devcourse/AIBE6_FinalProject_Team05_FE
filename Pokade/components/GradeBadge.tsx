@@ -1,17 +1,16 @@
 export type Grade = "S" | "A" | "B";
 
-// PSA/BGS 그레이딩 슬랩 스타일 — 등급별로 진하고 완전 불투명한 배경.
-// 반투명 없이 어떤 카드 이미지 위에서도 동일한 톤으로 보이도록.
-const STYLES: Record<Grade, string> = {
-  S: "bg-[#B8860B] text-white", // 진한 금색(dark goldenrod)
-  A: "bg-navy-700 text-white", // 진한 남색 — 기존 navy 토큰 재사용
-  B: "bg-[#4B5563] text-white", // 진한 회색
+// Tailwind bg class per grade — 좌측 색상 블록과 ConditionBar 세그먼트가 공유.
+export const GRADE_BAR: Record<Grade, string> = {
+  S: "bg-grade-s",
+  A: "bg-grade-a",
+  B: "bg-grade-b",
 };
 
 const SIZES = {
-  sm: "text-[9px] px-[7px] py-[3px]",
-  md: "text-[11.5px] px-[10px] py-[5px]",
-  lg: "text-[11px] px-[11px] py-[5px]",
+  sm: { block: "w-[5px]", text: "text-[9px]", padX: "px-[6px]", padY: "py-[3px]" },
+  md: { block: "w-[6px]", text: "text-[11.5px]", padX: "px-[9px]", padY: "py-[5px]" },
+  lg: { block: "w-[7px]", text: "text-[11px]", padX: "px-[10px]", padY: "py-[5px]" },
 };
 
 // Grade 판정 기준 — /search 필터 사이드바의 등급 설명 툴팁 등에서 재사용.
@@ -30,28 +29,32 @@ export default function GradeBadge({
   size?: keyof typeof SIZES;
   className?: string;
 }) {
+  const s = SIZES[size];
+
   if (!grade) {
     return (
       <span
-        className={`inline-block rounded-sm bg-[#EEF0F2] font-bold leading-none tracking-[0.5px] text-[#9A9AA2] ${SIZES[size]} ${className}`}
+        className={`inline-flex items-stretch overflow-hidden rounded-sm border border-[#E1E3E8] bg-[#EEF0F2] ${className}`}
       >
-        등급 미정
+        <span
+          className={`${s.text} ${s.padX} ${s.padY} font-bold leading-none tracking-[0.5px] text-[#9A9AA2]`}
+        >
+          등급 미정
+        </span>
       </span>
     );
   }
 
   return (
     <span
-      className={`inline-block rounded-sm font-extrabold leading-none tracking-[0.5px] shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] ${STYLES[grade]} ${SIZES[size]} ${className}`}
+      className={`inline-flex items-stretch overflow-hidden rounded-sm border border-[#E1E3E8] bg-white ${className}`}
     >
-      {grade}
+      <span className={`${s.block} shrink-0 ${GRADE_BAR[grade]}`} aria-hidden="true" />
+      <span
+        className={`${s.text} ${s.padX} ${s.padY} font-extrabold leading-none tracking-[0.5px] text-ink`}
+      >
+        {grade}
+      </span>
     </span>
   );
 }
-
-// Tailwind bg class per grade — handy for ConditionBar segments.
-export const GRADE_BAR: Record<Grade, string> = {
-  S: "bg-grade-s",
-  A: "bg-grade-a",
-  B: "bg-grade-b",
-};
