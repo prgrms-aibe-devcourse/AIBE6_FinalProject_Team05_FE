@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CardImage from "@/components/CardImage";
@@ -88,6 +88,7 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listboxId = useId();
 
   // 최근 검색어 — 포커스 전에는 렌더되지 않으므로 lazy init으로 즉시 로드해도 하이드레이션에 영향 없음.
   const [recentSearches, setRecentSearches] = useState<string[]>(() => getRecentSearches());
@@ -240,6 +241,12 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
           onBlur={() => setFocused(false)}
           onKeyDown={handleKeyDown}
           placeholder="카드 이름으로 검색"
+          role="combobox"
+          aria-expanded={showDropdown}
+          aria-controls={listboxId}
+          aria-activedescendant={
+            highlightedIndex >= 0 ? `${listboxId}-option-${highlightedIndex}` : undefined
+          }
           className="w-full border-none bg-transparent text-[13.5px] text-ink outline-none"
         />
         {query.length > 0 && (
@@ -265,9 +272,13 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
       </form>
 
       {showDropdown && (
-        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-[95] min-h-[52px] overflow-hidden rounded-[12px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]">
+        <div
+          id={listboxId}
+          role="listbox"
+          className="absolute left-0 right-0 top-[calc(100%+6px)] z-[95] min-h-[52px] overflow-hidden rounded-[12px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]"
+        >
           {suggestions.length === 0 ? (
-            <div className="px-3 py-4 text-center text-[13px] text-[#9A9AA2]">
+            <div aria-live="polite" className="px-3 py-4 text-center text-[13px] text-[#9A9AA2]">
               검색 결과가 없습니다.
             </div>
           ) : (
@@ -275,6 +286,9 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
               {suggestions.map((card, i) => (
                 <button
                   key={card.id}
+                  id={`${listboxId}-option-${i}`}
+                  role="option"
+                  aria-selected={i === highlightedIndex}
                   ref={(el) => {
                     itemRefs.current[i] = el;
                   }}
