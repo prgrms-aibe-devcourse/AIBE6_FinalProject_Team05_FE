@@ -17,6 +17,8 @@ export interface CardSearchFilters {
   types?: string[];
   rarity?: string[];
   grades?: string[]; // BE 화이트리스트: S/A/B만 허용, 그 외 값은 400(INVALID_INPUT).
+  minPrice?: number;
+  maxPrice?: number; // minPrice > maxPrice면 BE가 400(INVALID_INPUT) 반환.
   sort?: CardSort;
   page?: number; // 0-indexed(Spring Pageable 관례)
   size?: number;
@@ -36,6 +38,8 @@ export async function fetchCardsPage(
   if (filters.types?.length) query.set("types", filters.types.join(","));
   if (filters.rarity?.length) query.set("rarity", filters.rarity.join(","));
   if (filters.grades?.length) query.set("grades", filters.grades.join(","));
+  if (filters.minPrice != null) query.set("minPrice", String(filters.minPrice));
+  if (filters.maxPrice != null) query.set("maxPrice", String(filters.maxPrice));
   if (filters.sort) query.set("sort", filters.sort);
   appendPagination(query, filters.page, filters.size);
   const qs = query.toString();

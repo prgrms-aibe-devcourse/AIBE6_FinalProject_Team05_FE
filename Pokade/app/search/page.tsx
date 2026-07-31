@@ -24,6 +24,13 @@ function priceLabel(summary?: CardPriceSummaryResponse): string | null {
 
 const PRICE_MAX = 3000000;
 
+// URL의 minPrice/maxPrice를 읽어 [0, PRICE_MAX] 범위를 벗어나거나 숫자가 아니면 null(기본값 사용).
+function parsePriceQueryParam(raw: string | null): number | null {
+  if (raw == null) return null;
+  const v = Number(raw);
+  return Number.isFinite(v) && v >= 0 && v <= PRICE_MAX ? v : null;
+}
+
 // size 파라미터를 넘기지 않을 때 BE 기본 페이지 size(cardApi.ts 주석 참고)와 맞춘 스켈레톤 칸 수.
 const SEARCH_SKELETON_COUNT = 20;
 
@@ -78,8 +85,16 @@ function SearchDashboard() {
   const searchParams = useSearchParams();
   const q = searchParams.get("q")?.trim() || "";
   const [view, setView] = useState<"search" | "dash">("search");
-  const [priceMin, setPriceMin] = useState(0);
-  const [priceMax, setPriceMax] = useState(1500000);
+  const [priceMin, setPriceMin] = useState<number>(() => {
+    const min = parsePriceQueryParam(searchParams.get("minPrice"));
+    const max = parsePriceQueryParam(searchParams.get("maxPrice"));
+    return min != null ? Math.min(min, max ?? PRICE_MAX) : 0;
+  });
+  const [priceMax, setPriceMax] = useState<number>(() => {
+    const min = parsePriceQueryParam(searchParams.get("minPrice"));
+    const max = parsePriceQueryParam(searchParams.get("maxPrice"));
+    return max != null ? Math.max(max, min ?? 0) : PRICE_MAX;
+  });
   // URL을 직접 조작해 화이트리스트에 없는 값(예: types=INVALID)을 넣어도
   // 체크박스로 선택 가능한 값만 채택한다 — 배열은 유효한 값만 걸러내고
   // 나머지는 유지(전체를 버리지 않음).
@@ -134,7 +149,7 @@ function SearchDashboard() {
   }
 
   // 정렬/필터가 바뀌면 이전 페이지 번호가 새 결과 집합에 더는 유효하지 않으므로 1페이지로 되돌린다.
-  const filterKey = `${selectedExpansionId}|${selectedTypes.join(",")}|${selectedRarities.join(",")}|${sort}`;
+  const filterKey = `${selectedExpansionId}|${selectedTypes.join(",")}|${selectedRarities.join(",")}|${sort}|${priceMin}|${priceMax}`;
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
@@ -150,6 +165,8 @@ function SearchDashboard() {
           expansionId: selectedExpansionId ?? undefined,
           types: selectedTypes,
           rarity: selectedRarities,
+          minPrice: priceMin > 0 ? priceMin : undefined,
+          maxPrice: priceMax < PRICE_MAX ? priceMax : undefined,
           sort,
           page: page - 1,
         });
@@ -171,7 +188,17 @@ function SearchDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey, selectedExpansionId, selectedTypes, selectedRarities, sort, page, q]);
+  }, [
+    reloadKey,
+    selectedExpansionId,
+    selectedTypes,
+    selectedRarities,
+    priceMin,
+    priceMax,
+    sort,
+    page,
+    q,
+  ]);
 
   // 화면에 보이는 카드가 바뀔 때마다(필터/정렬/페이지 전환 포함) 가격을 한 번에 배치 조회한다.
   // 가격 조회 실패는 카드 목록 자체를 막지 않고, 실패한 카드는 기존처럼 "가격 정보 없음"으로 남는다.
@@ -235,6 +262,10 @@ function SearchDashboard() {
     else params.delete("types");
     if (selectedRarities.length) params.set("rarity", selectedRarities.join(","));
     else params.delete("rarity");
+    if (priceMin > 0) params.set("minPrice", String(priceMin));
+    else params.delete("minPrice");
+    if (priceMax < PRICE_MAX) params.set("maxPrice", String(priceMax));
+    else params.delete("maxPrice");
     if (sort !== "latest") params.set("sort", sort);
     else params.delete("sort");
     if (page > 1) params.set("page", String(page));
@@ -242,7 +273,7 @@ function SearchDashboard() {
     const qs = params.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedExpansionId, selectedTypes, selectedRarities, sort, page]);
+  }, [selectedExpansionId, selectedTypes, selectedRarities, priceMin, priceMax, sort, page]);
 
   // 페이지 번호/이전·다음 버튼 클릭 시에만 맨 위로 스크롤 — 필터/정렬 변경으로
   // 인한 자동 setPage(1)은 이 핸들러를 거치지 않으므로 스크롤 동작이 없다.
@@ -253,7 +284,7 @@ function SearchDashboard() {
 
   const resetFilters = () => {
     setPriceMin(0);
-    setPriceMax(1500000);
+    setPriceMax(PRICE_MAX);
     setLoadState("loading");
     setSelectedExpansionId(null);
     setSelectedTypes([]);
