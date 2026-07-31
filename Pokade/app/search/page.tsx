@@ -6,9 +6,21 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import GradeBadge, { Grade } from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
 import { CardSearchItem, toCardSearchItem } from "@/types/card";
-import { CardSort, fetchCardsByKeywordPage, fetchCardsPage } from "@/lib/cardApi";
+import { CardPriceSummaryResponse } from "@/types/price";
+import {
+  CardSort,
+  fetchCardsByKeywordPage,
+  fetchCardsPage,
+  fetchPriceSummaries,
+} from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
 import { highlightMatch } from "@/lib/highlightMatch";
+
+// buyPrice(즉시구매가) 우선, 없으면 sellPrice(판매호가)를 대신 보여준다 — 둘 다 없으면 null.
+function priceLabel(summary?: CardPriceSummaryResponse): string | null {
+  const price = summary?.buyPrice ?? summary?.sellPrice;
+  return price != null ? `${price.toLocaleString("ko-KR")}원` : null;
+}
 
 const GRADE_CHIP: Record<Grade, string> = {
   S: "text-[#5A4300] bg-[#FFF3CE] border-[#F0E0A0]",
@@ -107,6 +119,9 @@ function SearchDashboard() {
     return Number.isInteger(p) && p > 1 ? p : 1;
   });
   const [cards, setCards] = useState<CardSearchItem[]>([]);
+  const [priceSummaries, setPriceSummaries] = useState<Map<number, CardPriceSummaryResponse>>(
+    new Map(),
+  );
   const [totalPages, setTotalPages] = useState(1);
   const [totalElements, setTotalElements] = useState(0);
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -163,6 +178,25 @@ function SearchDashboard() {
       cancelled = true;
     };
   }, [reloadKey, selectedExpansionId, selectedTypes, selectedRarities, sort, page, q]);
+
+  // 화면에 보이는 카드가 바뀔 때마다(필터/정렬/페이지 전환 포함) 가격을 한 번에 배치 조회한다.
+  // 가격 조회 실패는 카드 목록 자체를 막지 않고, 실패한 카드는 기존처럼 "가격 정보 없음"으로 남는다.
+  useEffect(() => {
+    if (cards.length === 0) return;
+    let cancelled = false;
+
+    fetchPriceSummaries(cards.map((c) => c.id))
+      .then((summaries) => {
+        if (!cancelled) setPriceSummaries(summaries);
+      })
+      .catch(() => {
+        // 가격 조회 실패는 조용히 무시 — 카드 목록은 이미 정상 표시된 상태를 유지한다.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cards]);
 
   // 필터가 좁아져 현재 페이지가 범위를 벗어나면(예: URL을 page=999로 직접 수정) 마지막 페이지로 보정.
   if (loadState === "ready" && totalPages > 0 && page > totalPages) {
@@ -581,9 +615,9 @@ function SearchDashboard() {
                           </div>
                         )}
                         <div className="mt-auto pt-2.5 text-[15px] font-extrabold text-ink">
-                          {c.price ?? (
+                          {priceLabel(priceSummaries.get(c.id)) ?? (
                             <span className="text-[13px] font-semibold text-[#9A9AA2]">
-                              가격 정보 준비중
+                              가격 정보 없음
                             </span>
                           )}
                         </div>

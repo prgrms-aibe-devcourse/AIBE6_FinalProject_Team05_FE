@@ -1,6 +1,11 @@
 import { apiGet, apiGetRaw, PageResponse } from "@/lib/apiClient";
 import { CardDetailResponse, CardResponse } from "@/types/card";
-import { ListingSummaryResponse, PriceSummaryResponse, TradeSummaryResponse } from "@/types/price";
+import {
+  CardPriceSummaryResponse,
+  ListingSummaryResponse,
+  PriceSummaryResponse,
+  TradeSummaryResponse,
+} from "@/types/price";
 
 // BE 화이트리스트(SORT_COLUMN_WHITELIST)와 일치 — 그 외 값은 BE가 latest로 폴백.
 // "popular"은 view_count 기준(feature/#62에서 BE 지원 확인).
@@ -76,6 +81,31 @@ export async function fetchPriceSummary(
 ): Promise<PriceSummaryResponse> {
   const query = variantId != null ? `?variantId=${variantId}` : "";
   return apiGet<PriceSummaryResponse>(`/api/prices/${cardId}/summary${query}`);
+}
+
+// BE 배치 한도(PriceService.MAX_SUMMARIES_BATCH_SIZE)와 일치 — 초과分은 여러 번 나눠 호출한다.
+const PRICE_SUMMARIES_BATCH_SIZE = 100;
+
+// GET /api/prices/summaries?cardIds=1,2,3 — 카드 목록 화면에서 N+1 호출을 피하기 위한 배치 조회.
+// 응답 배열은 순서를 보장하지 않으므로 cardId 기준 Map으로 변환해서 반환한다.
+export async function fetchPriceSummaries(
+  cardIds: number[],
+): Promise<Map<number, CardPriceSummaryResponse>> {
+  const distinctIds = Array.from(new Set(cardIds));
+  if (distinctIds.length === 0) return new Map();
+
+  const chunks: number[][] = [];
+  for (let i = 0; i < distinctIds.length; i += PRICE_SUMMARIES_BATCH_SIZE) {
+    chunks.push(distinctIds.slice(i, i + PRICE_SUMMARIES_BATCH_SIZE));
+  }
+
+  const results = await Promise.all(
+    chunks.map((chunk) =>
+      apiGet<CardPriceSummaryResponse[]>(`/api/prices/summaries?cardIds=${chunk.join(",")}`),
+    ),
+  );
+
+  return new Map(results.flat().map((summary) => [summary.cardId, summary]));
 }
 
 // GET /api/prices/{cardId}/trades — 최근 체결 내역 (최대 20건, 서버 고정, 최신순).
