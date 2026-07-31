@@ -12,10 +12,20 @@ export interface CardResponse {
   imageSmall: string;
   imageMedium: string;
   expansionId: string | null;
+  // 판매 중인 매물의 등급 목록. BE가 GRADE_DISPLAY_ORDER(S>A>B) 순으로 정렬해서 내려준다.
+  // 매물이 없으면 빈 배열.
+  grades: string[];
+}
+
+// BE grades 배열에서 배지에 표시할 대표 등급 하나를 뽑는다 — S > A > B 우선순위, 빈 배열이면 undefined.
+const GRADE_PRIORITY: Grade[] = ["S", "A", "B"];
+
+export function pickRepresentativeGrade(grades: string[]): Grade | undefined {
+  return GRADE_PRIORITY.find((g) => grades.includes(g));
 }
 
 // 화면(카드 검색 그리드)이 쓰는 형태.
-// grade/price는 CardResponse에 없는 필드 — 각각 등급진단/시세 API 연동 전까지 undefined.
+// price는 CardResponse에 없는 필드 — 시세 API 연동 전까지 undefined.
 export interface CardSearchItem {
   id: number;
   name: string;
@@ -33,7 +43,7 @@ export function toCardSearchItem(card: CardResponse): CardSearchItem {
     set: `${card.setName} · ${card.rarity}`,
     imageUrl: card.imageMedium || card.imageSmall,
     types: card.types,
-    grade: undefined,
+    grade: pickRepresentativeGrade(card.grades),
     price: undefined,
   };
 }
@@ -56,6 +66,8 @@ export interface VariantSummary {
   primary: boolean;
   imageSmall: string;
   imageLarge: string;
+  // 이 판본으로 등록된 매물의 등급 목록(S/A/B, GRADE_DISPLAY_ORDER 순). 매물이 없으면 빈 배열.
+  grades: string[];
 }
 
 // BE(Scrydex 동기화)가 원본 그대로 내려주는 variantName을 사람이 읽기 좋은 라벨로 변환.
@@ -92,6 +104,4 @@ export interface CardDetailResponse {
   imageLarge: string;
   expansion: ExpansionSummary | null;
   variants: VariantSummary[];
-  // 등급진단 API 연동 전까지 응답에 없는 필드 — undefined.
-  grade?: Grade;
 }

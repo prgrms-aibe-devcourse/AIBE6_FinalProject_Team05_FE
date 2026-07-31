@@ -10,6 +10,7 @@ import {
   CardDetailResponse,
   CardSearchItem,
   parseCardId,
+  pickRepresentativeGrade,
   toCardSearchItem,
   variantLabel,
 } from "@/types/card";
@@ -347,6 +348,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
               selectedVariant?.imageSmall ||
               card.imageLarge ||
               card.imageMedium;
+            const mainGrade = pickRepresentativeGrade(selectedVariant?.grades ?? []);
 
             return (
               <>
@@ -356,8 +358,8 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                     onClick={() => setLightboxOpen(true)}
                   >
                     <CardImage src={mainImageSrc} alt={card.name} label="카드" />
-                    {card.grade && (
-                      <GradeBadge grade={card.grade} className="absolute left-3 top-3" />
+                    {mainGrade && (
+                      <GradeBadge grade={mainGrade} className="absolute left-3 top-3" />
                     )}
                   </div>
                   <div className="flex flex-col">
