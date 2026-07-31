@@ -47,7 +47,7 @@ function formatTradedAt(iso: string) {
 const LISTING_GRADE_STYLES: Partial<Record<ListingGrade, string>> = {
   S: "bg-grade-s text-grade-s-ink",
   A: "bg-grade-a text-white",
-  B: "bg-grade-b text-white",
+  B: "bg-grade-b text-[#374151]",
 };
 
 function ListingGradeBadge({ grade }: { grade: ListingGrade | null }) {

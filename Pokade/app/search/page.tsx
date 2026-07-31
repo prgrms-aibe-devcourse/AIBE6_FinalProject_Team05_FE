@@ -461,7 +461,10 @@ function SearchDashboard() {
                       max={PRICE_MAX}
                       step={50000}
                       value={priceMin}
-                      onChange={(e) => setPriceMin(Math.min(+e.target.value, priceMax))}
+                      onChange={(e) => {
+                        setLoadState("loading");
+                        setPriceMin(Math.min(+e.target.value, priceMax));
+                      }}
                       className="dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent"
                     />
                     <input
@@ -470,7 +473,10 @@ function SearchDashboard() {
                       max={PRICE_MAX}
                       step={50000}
                       value={priceMax}
-                      onChange={(e) => setPriceMax(Math.max(+e.target.value, priceMin))}
+                      onChange={(e) => {
+                        setLoadState("loading");
+                        setPriceMax(Math.max(+e.target.value, priceMin));
+                      }}
                       className="dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent"
                     />
                   </div>
