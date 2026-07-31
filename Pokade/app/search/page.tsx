@@ -95,6 +95,10 @@ function SearchDashboard() {
     const max = parsePriceQueryParam(searchParams.get("maxPrice"));
     return max != null ? Math.max(max, min ?? 0) : PRICE_MAX;
   });
+  // API 요청/URL 동기화용 디바운스된 값 — 라벨/thumb는 priceMin/priceMax(즉시값)를 그대로 쓰고,
+  // 이 값은 드래그가 멈춘 뒤에만 갱신되어 재요청 트리거로 쓰인다.
+  const [debouncedPriceMin, setDebouncedPriceMin] = useState(priceMin);
+  const [debouncedPriceMax, setDebouncedPriceMax] = useState(priceMax);
   // URL을 직접 조작해 화이트리스트에 없는 값(예: types=INVALID)을 넣어도
   // 체크박스로 선택 가능한 값만 채택한다 — 배열은 유효한 값만 걸러내고
   // 나머지는 유지(전체를 버리지 않음).
@@ -149,12 +153,26 @@ function SearchDashboard() {
   }
 
   // 정렬/필터가 바뀌면 이전 페이지 번호가 새 결과 집합에 더는 유효하지 않으므로 1페이지로 되돌린다.
-  const filterKey = `${selectedExpansionId}|${selectedTypes.join(",")}|${selectedRarities.join(",")}|${sort}|${priceMin}|${priceMax}`;
+  // 가격대는 debounced 값 기준 — 드래그 중간값으로 매번 1페이지/로딩 상태가 흔들리지 않도록 함.
+  // (다른 필터는 각 onChange에서 이미 setLoadState("loading")을 즉시 호출하므로 여기서 또
+  // 호출해도 중복일 뿐 해가 없고, debounced 가격 변경은 이 지점이 유일한 트리거가 된다.)
+  const filterKey = `${selectedExpansionId}|${selectedTypes.join(",")}|${selectedRarities.join(",")}|${sort}|${debouncedPriceMin}|${debouncedPriceMax}`;
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
+    setLoadState("loading");
     setPage(1);
   }
+
+  // 가격 슬라이더는 드래그 중 priceMin/priceMax가 연속으로 바뀌므로, 300~500ms 동안
+  // 값이 안정된 뒤에야 debouncedPriceMin/Max를 갱신한다 — API 요청/URL 동기화는 이 값을 본다.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedPriceMin(priceMin);
+      setDebouncedPriceMax(priceMax);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [priceMin, priceMax]);
 
   useEffect(() => {
     let cancelled = false;
@@ -165,8 +183,8 @@ function SearchDashboard() {
           expansionId: selectedExpansionId ?? undefined,
           types: selectedTypes,
           rarity: selectedRarities,
-          minPrice: priceMin > 0 ? priceMin : undefined,
-          maxPrice: priceMax < PRICE_MAX ? priceMax : undefined,
+          minPrice: debouncedPriceMin > 0 ? debouncedPriceMin : undefined,
+          maxPrice: debouncedPriceMax < PRICE_MAX ? debouncedPriceMax : undefined,
           sort,
           page: page - 1,
         });
@@ -193,8 +211,8 @@ function SearchDashboard() {
     selectedExpansionId,
     selectedTypes,
     selectedRarities,
-    priceMin,
-    priceMax,
+    debouncedPriceMin,
+    debouncedPriceMax,
     sort,
     page,
     q,
@@ -262,9 +280,9 @@ function SearchDashboard() {
     else params.delete("types");
     if (selectedRarities.length) params.set("rarity", selectedRarities.join(","));
     else params.delete("rarity");
-    if (priceMin > 0) params.set("minPrice", String(priceMin));
+    if (debouncedPriceMin > 0) params.set("minPrice", String(debouncedPriceMin));
     else params.delete("minPrice");
-    if (priceMax < PRICE_MAX) params.set("maxPrice", String(priceMax));
+    if (debouncedPriceMax < PRICE_MAX) params.set("maxPrice", String(debouncedPriceMax));
     else params.delete("maxPrice");
     if (sort !== "latest") params.set("sort", sort);
     else params.delete("sort");
@@ -273,7 +291,15 @@ function SearchDashboard() {
     const qs = params.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedExpansionId, selectedTypes, selectedRarities, priceMin, priceMax, sort, page]);
+  }, [
+    selectedExpansionId,
+    selectedTypes,
+    selectedRarities,
+    debouncedPriceMin,
+    debouncedPriceMax,
+    sort,
+    page,
+  ]);
 
   // 페이지 번호/이전·다음 버튼 클릭 시에만 맨 위로 스크롤 — 필터/정렬 변경으로
   // 인한 자동 setPage(1)은 이 핸들러를 거치지 않으므로 스크롤 동작이 없다.
@@ -282,9 +308,17 @@ function SearchDashboard() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  // 슬라이더 드래그가 아닌 즉시 액션(초기화, 칩 제거)은 debounce를 기다리지 않고
+  // priceMin/priceMax와 debouncedPriceMin/Max를 한 번에 맞춰 바로 재요청되게 한다.
+  const setPriceRangeNow = (min: number, max: number) => {
+    setPriceMin(min);
+    setPriceMax(max);
+    setDebouncedPriceMin(min);
+    setDebouncedPriceMax(max);
+  };
+
   const resetFilters = () => {
-    setPriceMin(0);
-    setPriceMax(PRICE_MAX);
+    setPriceRangeNow(0, PRICE_MAX);
     setLoadState("loading");
     setSelectedExpansionId(null);
     setSelectedTypes([]);
@@ -461,10 +495,7 @@ function SearchDashboard() {
                       max={PRICE_MAX}
                       step={50000}
                       value={priceMin}
-                      onChange={(e) => {
-                        setLoadState("loading");
-                        setPriceMin(Math.min(+e.target.value, priceMax));
-                      }}
+                      onChange={(e) => setPriceMin(Math.min(+e.target.value, priceMax))}
                       aria-label="최소 가격"
                       aria-valuetext={`${priceMin.toLocaleString("ko-KR")}원`}
                       className="dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent"
@@ -475,10 +506,7 @@ function SearchDashboard() {
                       max={PRICE_MAX}
                       step={50000}
                       value={priceMax}
-                      onChange={(e) => {
-                        setLoadState("loading");
-                        setPriceMax(Math.max(+e.target.value, priceMin));
-                      }}
+                      onChange={(e) => setPriceMax(Math.max(+e.target.value, priceMin))}
                       aria-label="최대 가격"
                       aria-valuetext={`${priceMax.toLocaleString("ko-KR")}원`}
                       className="dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent"
@@ -588,11 +616,7 @@ function SearchDashboard() {
                     {(priceMin > 0 || priceMax < PRICE_MAX) && (
                       <FilterChip
                         label={`${priceMin.toLocaleString("ko-KR")}원~${priceMax.toLocaleString("ko-KR")}원`}
-                        onRemove={() => {
-                          setLoadState("loading");
-                          setPriceMin(0);
-                          setPriceMax(PRICE_MAX);
-                        }}
+                        onRemove={() => setPriceRangeNow(0, PRICE_MAX)}
                       />
                     )}
                   </div>
