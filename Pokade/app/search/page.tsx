@@ -465,6 +465,8 @@ function SearchDashboard() {
                         setLoadState("loading");
                         setPriceMin(Math.min(+e.target.value, priceMax));
                       }}
+                      aria-label="최소 가격"
+                      aria-valuetext={`${priceMin.toLocaleString("ko-KR")}원`}
                       className="dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent"
                     />
                     <input
@@ -477,6 +479,8 @@ function SearchDashboard() {
                         setLoadState("loading");
                         setPriceMax(Math.max(+e.target.value, priceMin));
                       }}
+                      aria-label="최대 가격"
+                      aria-valuetext={`${priceMax.toLocaleString("ko-KR")}원`}
                       className="dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent"
                     />
                   </div>
@@ -545,7 +549,9 @@ function SearchDashboard() {
               {!q &&
                 (selectedExpansionId ||
                   selectedTypes.length > 0 ||
-                  selectedRarities.length > 0) && (
+                  selectedRarities.length > 0 ||
+                  priceMin > 0 ||
+                  priceMax < PRICE_MAX) && (
                   <div className="mb-4 flex flex-wrap gap-2">
                     {selectedExpansionId && (
                       <FilterChip
@@ -579,6 +585,16 @@ function SearchDashboard() {
                         }}
                       />
                     ))}
+                    {(priceMin > 0 || priceMax < PRICE_MAX) && (
+                      <FilterChip
+                        label={`${priceMin.toLocaleString("ko-KR")}원~${priceMax.toLocaleString("ko-KR")}원`}
+                        onRemove={() => {
+                          setLoadState("loading");
+                          setPriceMin(0);
+                          setPriceMax(PRICE_MAX);
+                        }}
+                      />
+                    )}
                   </div>
                 )}
 
