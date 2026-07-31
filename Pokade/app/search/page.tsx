@@ -95,6 +95,9 @@ function SearchDashboard() {
     const max = parsePriceQueryParam(searchParams.get("maxPrice"));
     return max != null ? Math.max(max, min ?? 0) : PRICE_MAX;
   });
+  // min/max 핸들이 겹쳐 있을 때(값이 근접) 마지막으로 조작한 쪽이 위로 오도록
+  // z-index를 정하는 데만 쓰는 state — null이면 기존처럼 max가 위(기본 동작).
+  const [activeHandle, setActiveHandle] = useState<"min" | "max" | null>(null);
   // API 요청/URL 동기화용 디바운스된 값 — 라벨/thumb는 priceMin/priceMax(즉시값)를 그대로 쓰고,
   // 이 값은 드래그가 멈춘 뒤에만 갱신되어 재요청 트리거로 쓰인다.
   const [debouncedPriceMin, setDebouncedPriceMin] = useState(priceMin);
@@ -495,10 +498,15 @@ function SearchDashboard() {
                       max={PRICE_MAX}
                       step={50000}
                       value={priceMin}
-                      onChange={(e) => setPriceMin(Math.min(+e.target.value, priceMax))}
+                      onChange={(e) => {
+                        setActiveHandle("min");
+                        setPriceMin(Math.min(+e.target.value, priceMax));
+                      }}
                       aria-label="최소 가격"
                       aria-valuetext={`${priceMin.toLocaleString("ko-KR")}원`}
-                      className="dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent"
+                      className={`dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent ${
+                        activeHandle === "min" ? "z-20" : "z-10"
+                      }`}
                     />
                     <input
                       type="range"
@@ -506,10 +514,15 @@ function SearchDashboard() {
                       max={PRICE_MAX}
                       step={50000}
                       value={priceMax}
-                      onChange={(e) => setPriceMax(Math.max(+e.target.value, priceMin))}
+                      onChange={(e) => {
+                        setActiveHandle("max");
+                        setPriceMax(Math.max(+e.target.value, priceMin));
+                      }}
                       aria-label="최대 가격"
                       aria-valuetext={`${priceMax.toLocaleString("ko-KR")}원`}
-                      className="dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent"
+                      className={`dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent ${
+                        activeHandle === "min" ? "z-10" : "z-20"
+                      }`}
                     />
                   </div>
                   <div className="mt-1.5 flex justify-between text-xs text-[#9A9AA2]">
