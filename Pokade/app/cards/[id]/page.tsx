@@ -110,6 +110,13 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     }
   };
 
+  // /search에서 스크롤을 많이 내린 상태로 카드를 클릭하면, 상세 페이지가 처음
+  // 커밋되는 순간(로딩 스피너, 짧은 문서 높이)에 브라우저가 scrollY를 그 문서의
+  // 바닥으로 강제 클램프한다. 데이터 페칭 effect보다 먼저 실행되도록 맨 위에 둔다.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   useEffect(() => {
     return () => {
       if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
