@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CardImage from "@/components/CardImage";
 import { fetchCardsByKeywordPage } from "@/lib/cardApi";
+import { highlightMatch } from "@/lib/highlightMatch";
 import {
   addRecentSearch,
   clearRecentSearches,
@@ -29,23 +30,6 @@ function variantFor(path: string): "in" | "out" | "admin" {
   if (path.startsWith("/admin")) return "admin";
   if (IN_PATHS.some((p) => path === p || path.startsWith(p + "/"))) return "in";
   return "out"; // 홈/검색/로그인/회원가입 → 로그인·회원가입 버튼 노출
-}
-
-// 검색어와 일치하는 부분만 굵게 + primary 색으로 강조 (대소문자 무시).
-function highlightMatch(text: string, query: string): React.ReactNode {
-  const trimmed = query.trim();
-  if (!trimmed) return text;
-  const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const parts = text.split(new RegExp(`(${escaped})`, "gi"));
-  return parts.map((part, i) =>
-    i % 2 === 1 ? (
-      <mark key={i} className="bg-transparent font-semibold text-primary">
-        {part}
-      </mark>
-    ) : (
-      <span key={i}>{part}</span>
-    ),
-  );
 }
 
 function SearchBar({ width = "w-60" }: { width?: string }) {
@@ -284,7 +268,7 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
         <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-[95] min-h-[52px] overflow-hidden rounded-[12px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]">
           {suggestions.length === 0 ? (
             <div className="px-3 py-4 text-center text-[13px] text-[#9A9AA2]">
-              검색 결과가 없습니다
+              검색 결과가 없습니다.
             </div>
           ) : (
             <div className="max-h-[280px] overflow-y-auto">

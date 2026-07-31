@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import GradeBadge, { Grade } from "@/components/GradeBadge";
+import GradeBadge from "@/components/GradeBadge";
 import ConditionBar from "@/components/ConditionBar";
 import CardImage from "@/components/CardImage";
+import { CardSearchItem, toCardSearchItem } from "@/types/card";
+import { fetchCards } from "@/lib/cardApi";
+import { ApiError } from "@/lib/apiClient";
 
 const TICKER = [
   { name: "리자몽 ex SAR", price: "₩142,000", chg: "▲ 3.2%", up: true },
@@ -15,61 +18,8 @@ const TICKER = [
   { name: "이상해꽃 ex", price: "₩64,200", chg: "▲ 2.5%", up: true },
 ];
 
-const CARDS: {
-  id: string;
-  name: string;
-  set: string;
-  grade: Grade;
-  bar: string;
-  filled: number;
-  price: string;
-}[] = [
-  {
-    id: "pc-1",
-    name: "리자몽 ex",
-    set: "흑염의 지배자 · SAR",
-    grade: "S",
-    bar: "bg-grade-s",
-    filled: 9,
-    price: "₩142,000",
-  },
-  {
-    id: "pc-2",
-    name: "뮤츠 ex",
-    set: "레이징 서프 · SAR",
-    grade: "A",
-    bar: "bg-grade-a",
-    filled: 7,
-    price: "₩211,000",
-  },
-  {
-    id: "pc-3",
-    name: "피카츄 VMAX",
-    set: "프로모 · HR",
-    grade: "S",
-    bar: "bg-grade-s",
-    filled: 10,
-    price: "₩55,000",
-  },
-  {
-    id: "pc-4",
-    name: "뮤 UR",
-    set: "151 · UR",
-    grade: "A",
-    bar: "bg-grade-a",
-    filled: 8,
-    price: "₩89,500",
-  },
-  {
-    id: "pc-5",
-    name: "가디안 ex",
-    set: "클레이 버스트 · SAR",
-    grade: "B",
-    bar: "bg-grade-b",
-    filled: 5,
-    price: "₩38,700",
-  },
-];
+// 인기 카드 그리드 칸 수 — 이 수만큼만 인기순 카드를 요청한다.
+const POPULAR_CARDS_SIZE = 5;
 
 const STEPS = [
   {
@@ -96,9 +46,35 @@ const STATS = [
   { v: "1.2M+", l: "AI 진단 횟수" },
 ];
 
+type LoadState = "loading" | "error" | "ready";
+
 export default function HomePage() {
-  const [liked, setLiked] = useState<Record<string, boolean>>({});
-  const toggle = (id: string) => setLiked((s) => ({ ...s, [id]: !s[id] }));
+  const [liked, setLiked] = useState<Record<number, boolean>>({});
+  const toggle = (id: number) => setLiked((s) => ({ ...s, [id]: !s[id] }));
+
+  const [popularCards, setPopularCards] = useState<CardSearchItem[]>([]);
+  const [loadState, setLoadState] = useState<LoadState>("loading");
+  const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchCards({ sort: "popular", size: POPULAR_CARDS_SIZE })
+      .then((responses) => {
+        if (cancelled) return;
+        setPopularCards(responses.map(toCardSearchItem));
+        setLoadState("ready");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setErrorMessage(err instanceof ApiError ? err.message : "인기 카드를 불러오지 못했습니다.");
+        setLoadState("error");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <main className="main-content">
@@ -165,7 +141,7 @@ export default function HomePage() {
       </section>
 
       {/* POPULAR CARDS */}
-      <section className="bg-white px-10 py-14">
+      <section className="bg-white px-4 py-14 sm:px-10">
         <div className="mx-auto max-w-container">
           <div className="mb-[26px] flex items-end justify-between">
             <div>
@@ -178,51 +154,88 @@ export default function HomePage() {
               전체보기 &gt;
             </Link>
           </div>
-          <div className="grid grid-cols-5 gap-[18px]">
-            {CARDS.map((c) => (
-              <div
-                key={c.id}
-                className="flex cursor-pointer flex-col overflow-hidden rounded-[14px] border border-[#EDEDF0] transition hover:-translate-y-1 hover:shadow-lift"
-              >
-                <div className="relative h-[196px] bg-[#F2F2F5]">
-                  <CardImage label="카드" />
-                  <GradeBadge grade={c.grade} className="absolute left-2.5 top-2.5" />
-                </div>
-                <div className="flex flex-1 flex-col p-3.5">
-                  <div className="text-[14.5px] font-bold leading-[1.35]">{c.name}</div>
-                  <div className="mt-[3px] text-xs text-[#9A9AA2]">{c.set}</div>
-                  <div className="mt-3">
-                    <ConditionBar filled={c.filled} color={c.bar} />
+          {loadState === "loading" && (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 lg:gap-[18px]">
+              {Array.from({ length: POPULAR_CARDS_SIZE }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-[280px] animate-pulse rounded-[14px] border border-[#EDEDF0] bg-[#F2F2F5]"
+                />
+              ))}
+            </div>
+          )}
+
+          {loadState === "error" && (
+            <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-[#EDEDF0] bg-white py-24">
+              <span className="text-[13.5px] font-bold text-[#D14343]">{errorMessage}</span>
+            </div>
+          )}
+
+          {loadState === "ready" && popularCards.length === 0 && (
+            <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-[#EDEDF0] bg-white py-24">
+              <span className="text-[13.5px] font-semibold text-[#8A8A92]">
+                인기 카드를 준비 중입니다.
+              </span>
+            </div>
+          )}
+
+          {loadState === "ready" && popularCards.length > 0 && (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 lg:gap-[18px]">
+              {popularCards.map((c) => (
+                <Link
+                  key={c.id}
+                  href={`/cards/${c.id}`}
+                  className="flex cursor-pointer flex-col overflow-hidden rounded-[14px] border border-[#EDEDF0] transition hover:-translate-y-1 hover:shadow-lift"
+                >
+                  <div className="relative h-[196px] bg-[#F2F2F5]">
+                    <CardImage src={c.imageUrl} alt={c.name} label="카드" className="object-top" />
+                    {c.grade && (
+                      <GradeBadge grade={c.grade} className="absolute left-2.5 top-2.5" />
+                    )}
                   </div>
-                  <div className="mt-auto flex items-end justify-between pt-3.5">
-                    <div>
-                      <div className="text-[11px] text-[#9A9AA2]">최근 시세</div>
-                      <div className="text-base font-extrabold text-ink">{c.price}</div>
-                    </div>
-                    <button
-                      onClick={() => toggle(c.id)}
-                      aria-label="관심 등록"
-                      className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#EDEDF0] bg-white hover:border-primary hover:bg-[#FFF5F5]"
-                    >
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        stroke="#EE1515"
-                        strokeWidth="2"
-                        fill={liked[c.id] ? "#EE1515" : "none"}
+                  <div className="flex flex-1 flex-col p-3.5">
+                    <div className="text-[14.5px] font-bold leading-[1.35]">{c.name}</div>
+                    <div className="mt-[3px] text-xs text-[#9A9AA2]">{c.set}</div>
+                    <div className="mt-auto flex items-end justify-between pt-3.5">
+                      <div>
+                        <div className="text-[11px] text-[#9A9AA2]">최근 시세</div>
+                        <div className="text-base font-extrabold text-ink">
+                          {c.price ?? (
+                            <span className="text-[13px] font-semibold text-[#9A9AA2]">
+                              가격 정보 준비중
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          toggle(c.id);
+                        }}
+                        aria-label="관심 등록"
+                        className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#EDEDF0] bg-white hover:border-primary hover:bg-[#FFF5F5]"
                       >
-                        <path
-                          d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
-                          transform="translate(-3 0)"
-                        />
-                      </svg>
-                    </button>
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          stroke="#EE1515"
+                          strokeWidth="2"
+                          fill={liked[c.id] ? "#EE1515" : "none"}
+                        >
+                          <path
+                            d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
+                            transform="translate(-3 0)"
+                          />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </div>
-            ))}
-          </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
