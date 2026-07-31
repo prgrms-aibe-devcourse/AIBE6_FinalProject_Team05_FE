@@ -314,7 +314,6 @@ function SearchDashboard() {
                       필터
                       <span
                         tabIndex={0}
-                        title={`S: ${GRADE_DESCRIPTIONS.S}\nA: ${GRADE_DESCRIPTIONS.A}\nB: ${GRADE_DESCRIPTIONS.B}`}
                         className="group relative inline-flex h-3.5 w-3.5 shrink-0 cursor-help items-center justify-center rounded-full bg-black/10 text-[8px] font-bold leading-none text-[#6B6B72] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#6B6B72]"
                       >
                         ?
