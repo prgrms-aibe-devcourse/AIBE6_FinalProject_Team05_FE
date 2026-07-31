@@ -416,7 +416,11 @@ function SearchDashboard() {
                           setLoadState("loading");
                           setSelectedGrades(toggleValue(selectedGrades, g) as Grade[]);
                         }}
-                        className={`cursor-pointer rounded-full border px-2.5 py-1 text-[11.5px] font-bold ${GRADE_CHIP[g]}`}
+                        className={`cursor-pointer rounded-full border px-2.5 py-1 text-[11.5px] font-bold ${
+                          selectedGrades.includes(g)
+                            ? GRADE_CHIP[g]
+                            : "border-[#DDDDE3] bg-white text-[#8A8A92]"
+                        }`}
                       >
                         {g}
                       </button>
