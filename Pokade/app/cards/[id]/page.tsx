@@ -133,6 +133,16 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     };
   }, [lightboxOpen]);
 
+  // ESC로 라이트박스 닫기 (/search 필터 드로어와 동일 패턴).
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [lightboxOpen]);
+
   useEffect(() => {
     if (cardId == null) return;
     let cancelled = false;
@@ -208,11 +218,15 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   }, [cardId, loadState]);
 
   useEffect(() => {
-    if (loadState !== "ready" || cardId == null) return;
+    if (loadState !== "ready" || cardId == null || !card) return;
     let cancelled = false;
+    // 판본이 2개 이상인 카드는 대표 판본 가격을 아래 판본별 시세 비교 effect에서
+    // fetchPriceSummary(cardId, primaryVariantId)로 이미 조회하므로(BE는 variantId 생략 시
+    // 대표 판본 기준으로 응답), 여기서 fetchPriceSummary(cardId)를 중복 요청하지 않는다.
+    const hasSingleVariant = card.variants.length <= 1;
 
     Promise.allSettled([
-      fetchPriceSummary(cardId),
+      hasSingleVariant ? fetchPriceSummary(cardId) : Promise.resolve(null),
       fetchRecentTrades(cardId),
       fetchActiveListings(cardId),
     ]).then(([summaryResult, tradesResult, listingsResult]) => {
@@ -236,7 +250,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     return () => {
       cancelled = true;
     };
-  }, [cardId, loadState]);
+  }, [cardId, loadState, card]);
 
   // 판본이 여러 개인 카드만 판본별 시세 비교가 필요하므로, 판본당 summary를 병렬로 따로 조회한다.
   // (판본 1개 카드는 기존 priceSummary 조회만으로 충분해 이 effect 자체가 동작하지 않는다.)
@@ -655,6 +669,8 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                   <div
                     className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
                     onClick={() => setLightboxOpen(false)}
+                    role="dialog"
+                    aria-modal="true"
                   >
                     <button
                       type="button"

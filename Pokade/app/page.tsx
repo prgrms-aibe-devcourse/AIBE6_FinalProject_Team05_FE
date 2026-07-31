@@ -214,6 +214,7 @@ export default function HomePage() {
                           toggle(c.id);
                         }}
                         aria-label="관심 등록"
+                        aria-pressed={!!liked[c.id]}
                         className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#EDEDF0] bg-white hover:border-primary hover:bg-[#FFF5F5]"
                       >
                         <svg

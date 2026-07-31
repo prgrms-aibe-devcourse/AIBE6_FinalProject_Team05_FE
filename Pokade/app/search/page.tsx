@@ -220,6 +220,16 @@ function SearchDashboard() {
     };
   }, [filterOpen]);
 
+  // ESC로 모바일 필터 드로어 닫기.
+  useEffect(() => {
+    if (!filterOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setFilterOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [filterOpen]);
+
   // 필터 상태를 URL 쿼리 파라미터에 반영 — 상세 페이지 진입 후 뒤로가기 시 필터가 유지되도록 함.
   // 세터 호출 지점마다 흩어져 있던 동기화 호출을 걷어내고, 필터 상태 변화를 감시하는
   // 단일 effect로 모아서 처리한다.
@@ -298,6 +308,8 @@ function SearchDashboard() {
                     : "hidden lg:block"
                 }
                 onClick={filterOpen ? () => setFilterOpen(false) : undefined}
+                role={filterOpen ? "dialog" : undefined}
+                aria-modal={filterOpen ? true : undefined}
               >
                 <div
                   className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl border border-[#EDEDF0] bg-white p-[22px] lg:sticky lg:top-[88px] lg:max-h-none lg:w-auto lg:overflow-visible lg:rounded-2xl"
