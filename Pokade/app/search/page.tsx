@@ -52,6 +52,7 @@ const RARITY_OPTIONS = [
   "Illustration Rare",
   "Rare Holo EX",
 ];
+const GRADE_OPTIONS: Grade[] = ["S", "A", "B"];
 
 type LoadState = "loading" | "error" | "ready";
 
@@ -107,6 +108,13 @@ function SearchDashboard() {
         ?.split(",")
         .filter((r) => RARITY_OPTIONS.includes(r)) ?? [],
   );
+  const [selectedGrades, setSelectedGrades] = useState<Grade[]>(
+    () =>
+      (searchParams
+        .get("grades")
+        ?.split(",")
+        .filter((g): g is Grade => GRADE_OPTIONS.includes(g as Grade)) ?? []) as Grade[],
+  );
   // BE 화이트리스트에 없는 값은 latest로 취급 — /api/cards/search(키워드 검색)는
   // sort를 지원하지 않으므로 q가 있을 때는 드롭다운 자체를 숨긴다.
   const [sort, setSort] = useState<CardSort>(() => {
@@ -140,7 +148,7 @@ function SearchDashboard() {
   }
 
   // 정렬/필터가 바뀌면 이전 페이지 번호가 새 결과 집합에 더는 유효하지 않으므로 1페이지로 되돌린다.
-  const filterKey = `${selectedExpansionId}|${selectedTypes.join(",")}|${selectedRarities.join(",")}|${sort}`;
+  const filterKey = `${selectedExpansionId}|${selectedTypes.join(",")}|${selectedRarities.join(",")}|${selectedGrades.join(",")}|${sort}`;
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
@@ -156,6 +164,7 @@ function SearchDashboard() {
           expansionId: selectedExpansionId ?? undefined,
           types: selectedTypes,
           rarity: selectedRarities,
+          grades: selectedGrades,
           sort,
           page: page - 1,
         });
@@ -177,7 +186,7 @@ function SearchDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey, selectedExpansionId, selectedTypes, selectedRarities, sort, page, q]);
+  }, [reloadKey, selectedExpansionId, selectedTypes, selectedRarities, selectedGrades, sort, page, q]);
 
   // 화면에 보이는 카드가 바뀔 때마다(필터/정렬/페이지 전환 포함) 가격을 한 번에 배치 조회한다.
   // 가격 조회 실패는 카드 목록 자체를 막지 않고, 실패한 카드는 기존처럼 "가격 정보 없음"으로 남는다.
@@ -241,6 +250,8 @@ function SearchDashboard() {
     else params.delete("types");
     if (selectedRarities.length) params.set("rarity", selectedRarities.join(","));
     else params.delete("rarity");
+    if (selectedGrades.length) params.set("grades", selectedGrades.join(","));
+    else params.delete("grades");
     if (sort !== "latest") params.set("sort", sort);
     else params.delete("sort");
     if (page > 1) params.set("page", String(page));
@@ -248,7 +259,7 @@ function SearchDashboard() {
     const qs = params.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedExpansionId, selectedTypes, selectedRarities, sort, page]);
+  }, [selectedExpansionId, selectedTypes, selectedRarities, selectedGrades, sort, page]);
 
   // 페이지 번호/이전·다음 버튼 클릭 시에만 맨 위로 스크롤 — 필터/정렬 변경으로
   // 인한 자동 setPage(1)은 이 핸들러를 거치지 않으므로 스크롤 동작이 없다.
@@ -264,6 +275,7 @@ function SearchDashboard() {
     setSelectedExpansionId(null);
     setSelectedTypes([]);
     setSelectedRarities([]);
+    setSelectedGrades([]);
     setSort("latest");
     setPage(1);
     // 필터가 이미 초기값이면 위 세터들이 상태를 바꾸지 않아 카드 목록 effect가
@@ -395,13 +407,19 @@ function SearchDashboard() {
                   <div className="mb-[18px] h-px bg-[#F0F0F0]" />
                   <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">등급</div>
                   <div className="mb-5 flex flex-wrap gap-[7px]">
-                    {(["S", "A", "B"] as Grade[]).map((g) => (
-                      <span
+                    {GRADE_OPTIONS.map((g) => (
+                      <button
                         key={g}
+                        type="button"
+                        aria-pressed={selectedGrades.includes(g)}
+                        onClick={() => {
+                          setLoadState("loading");
+                          setSelectedGrades(toggleValue(selectedGrades, g) as Grade[]);
+                        }}
                         className={`cursor-pointer rounded-full border px-2.5 py-1 text-[11.5px] font-bold ${GRADE_CHIP[g]}`}
                       >
                         {g}
-                      </span>
+                      </button>
                     ))}
                   </div>
                   <div className="mb-[18px] h-px bg-[#F0F0F0]" />
@@ -504,7 +522,8 @@ function SearchDashboard() {
               {!q &&
                 (selectedExpansionId ||
                   selectedTypes.length > 0 ||
-                  selectedRarities.length > 0) && (
+                  selectedRarities.length > 0 ||
+                  selectedGrades.length > 0) && (
                   <div className="mb-4 flex flex-wrap gap-2">
                     {selectedExpansionId && (
                       <FilterChip
@@ -535,6 +554,16 @@ function SearchDashboard() {
                         onRemove={() => {
                           setLoadState("loading");
                           setSelectedRarities(selectedRarities.filter((v) => v !== r));
+                        }}
+                      />
+                    ))}
+                    {selectedGrades.map((g) => (
+                      <FilterChip
+                        key={`grade-${g}`}
+                        label={g}
+                        onRemove={() => {
+                          setLoadState("loading");
+                          setSelectedGrades(selectedGrades.filter((v) => v !== g));
                         }}
                       />
                     ))}
