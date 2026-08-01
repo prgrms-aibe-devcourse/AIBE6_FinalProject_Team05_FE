@@ -322,6 +322,7 @@ function SearchDashboard() {
 
   const resetFilters = () => {
     setPriceRangeNow(0, PRICE_MAX);
+    setActiveHandle(null);
     setLoadState("loading");
     setSelectedExpansionId(null);
     setSelectedTypes([]);
