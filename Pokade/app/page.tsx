@@ -182,58 +182,62 @@ export default function HomePage() {
           {loadState === "ready" && popularCards.length > 0 && (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 lg:gap-[18px]">
               {popularCards.map((c) => (
-                <Link
+                <div
                   key={c.id}
-                  href={`/cards/${c.id}`}
-                  className="flex cursor-pointer flex-col overflow-hidden rounded-[14px] border border-[#EDEDF0] transition hover:-translate-y-1 hover:shadow-lift"
+                  className="relative flex flex-col overflow-hidden rounded-[14px] border border-[#EDEDF0] transition hover:-translate-y-1 hover:shadow-lift"
                 >
-                  <div className="relative h-[196px] bg-[#F2F2F5]">
-                    <CardImage src={c.imageUrl} alt={c.name} label="카드" className="object-top" />
-                    {c.grade && (
-                      <GradeBadge grade={c.grade} className="absolute left-2.5 top-2.5" />
-                    )}
-                  </div>
-                  <div className="flex flex-1 flex-col p-3.5">
-                    <div className="text-[14.5px] font-bold leading-[1.35]">{c.name}</div>
-                    <div className="mt-[3px] text-xs text-[#9A9AA2]">{c.set}</div>
-                    <div className="mt-auto flex items-end justify-between pt-3.5">
-                      <div>
-                        <div className="text-[11px] text-[#9A9AA2]">최근 시세</div>
-                        <div className="text-base font-extrabold text-ink">
-                          {c.price ?? (
-                            <span className="text-[13px] font-semibold text-[#9A9AA2]">
-                              가격 정보 준비중
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          toggle(c.id);
-                        }}
-                        aria-label="관심 등록"
-                        aria-pressed={!!liked[c.id]}
-                        className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#EDEDF0] bg-white hover:border-primary hover:bg-[#FFF5F5]"
-                      >
-                        <svg
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          stroke="#EE1515"
-                          strokeWidth="2"
-                          fill={liked[c.id] ? "#EE1515" : "none"}
-                        >
-                          <path
-                            d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
-                            transform="translate(-3 0)"
-                          />
-                        </svg>
-                      </button>
+                  <Link href={`/cards/${c.id}`} className="flex flex-1 cursor-pointer flex-col">
+                    <div className="relative h-[196px] bg-[#F2F2F5]">
+                      <CardImage
+                        src={c.imageUrl}
+                        alt={c.name}
+                        label="카드"
+                        className="object-top"
+                      />
+                      {c.grade && (
+                        <GradeBadge grade={c.grade} className="absolute left-2.5 top-2.5" />
+                      )}
                     </div>
-                  </div>
-                </Link>
+                    <div className="flex flex-1 flex-col p-3.5">
+                      <div className="text-[14.5px] font-bold leading-[1.35]">{c.name}</div>
+                      <div className="mt-[3px] text-xs text-[#9A9AA2]">{c.set}</div>
+                      <div className="mt-auto flex items-end justify-between pt-3.5">
+                        <div>
+                          <div className="text-[11px] text-[#9A9AA2]">최근 시세</div>
+                          <div className="text-base font-extrabold text-ink">
+                            {c.price ?? (
+                              <span className="text-[13px] font-semibold text-[#9A9AA2]">
+                                가격 정보 준비중
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {/* 좋아요 버튼이 차지하던 자리를 그대로 예약해 가격 텍스트와 겹치지 않게 함 */}
+                        <div className="h-9 w-9 flex-shrink-0" aria-hidden="true" />
+                      </div>
+                    </div>
+                  </Link>
+                  <button
+                    onClick={() => toggle(c.id)}
+                    aria-label="관심 등록"
+                    aria-pressed={!!liked[c.id]}
+                    className="absolute bottom-3.5 right-3.5 flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#EDEDF0] bg-white hover:border-primary hover:bg-[#FFF5F5]"
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      stroke="#EE1515"
+                      strokeWidth="2"
+                      fill={liked[c.id] ? "#EE1515" : "none"}
+                    >
+                      <path
+                        d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
+                        transform="translate(-3 0)"
+                      />
+                    </svg>
+                  </button>
+                </div>
               ))}
             </div>
           )}
