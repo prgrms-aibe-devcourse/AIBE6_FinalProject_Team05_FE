@@ -388,7 +388,7 @@ function SearchDashboard() {
                         ?
                         <span
                           role="tooltip"
-                          className="pointer-events-none absolute left-0 top-[calc(100%+6px)] z-20 w-max max-w-[280px] break-keep rounded-md bg-[#1A1A1E] px-2.5 py-1.5 text-[11px] font-medium leading-relaxed text-white opacity-0 shadow-lift transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100 lg:left-1/2 lg:max-w-[190px] lg:-translate-x-1/2"
+                          className="pointer-events-none absolute left-0 top-[calc(100%+6px)] z-20 w-max max-w-[calc(100vw-80px)] break-keep rounded-md bg-[#1A1A1E] px-2.5 py-1.5 text-[11px] font-medium leading-relaxed text-white opacity-0 shadow-lift transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100 lg:left-1/2 lg:max-w-[190px] lg:-translate-x-1/2"
                         >
                           <span className="mb-1 block">
                             <b>S</b>: {GRADE_DESCRIPTIONS.S}
