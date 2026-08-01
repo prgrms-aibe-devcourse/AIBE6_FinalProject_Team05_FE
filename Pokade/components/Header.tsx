@@ -245,7 +245,9 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
           aria-expanded={showDropdown}
           aria-controls={listboxId}
           aria-activedescendant={
-            highlightedIndex >= 0 ? `${listboxId}-option-${highlightedIndex}` : undefined
+            showDropdown && highlightedIndex >= 0
+              ? `${listboxId}-option-${highlightedIndex}`
+              : undefined
           }
           className="w-full border-none bg-transparent text-[13.5px] text-ink outline-none"
         />

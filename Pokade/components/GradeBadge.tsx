@@ -34,7 +34,7 @@ export default function GradeBadge({
   if (!grade) {
     return (
       <span
-        className={`inline-flex items-center justify-center rounded-full border-2 border-[#D5D7DC] bg-[#EEF0F2] shadow-sm ${s.text} ${s.padX} ${s.padY} font-bold leading-none tracking-[0.5px] text-[#9A9AA2] ${className}`}
+        className={`inline-flex items-center justify-center rounded-full border-2 border-[#D5D7DC] bg-[#EEF0F2] shadow-sm ${s.text} ${s.padX} ${s.padY} font-bold leading-none tracking-[0.5px] text-[#5F6368] ${className}`}
       >
         등급 미정
       </span>

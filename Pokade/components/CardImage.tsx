@@ -7,7 +7,7 @@ import Image from "next/image";
 // placeholder when there's no src yet, or if the src fails to load.
 export default function CardImage({
   src,
-  alt = "",
+  alt,
   label,
   className = "",
   rounded = "",
@@ -19,12 +19,13 @@ export default function CardImage({
   rounded?: string;
 }) {
   const [failed, setFailed] = useState(false);
+  const resolvedAlt = alt ?? label ?? "카드 이미지";
 
   if (src && !failed) {
     return (
       <Image
         src={src}
-        alt={alt}
+        alt={resolvedAlt}
         fill
         sizes="(min-width: 768px) 25vw, 50vw"
         onError={() => setFailed(true)}

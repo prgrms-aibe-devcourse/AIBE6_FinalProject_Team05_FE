@@ -553,7 +553,11 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                       {activeListings.map((l) => (
                         <div key={l.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5">
                           <div className="relative h-[52px] w-[38px] shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
-                            <CardImage src={l.thumbnailUrl ?? undefined} label="카드" />
+                            <CardImage
+                              src={l.thumbnailUrl ?? undefined}
+                              alt={card.name}
+                              label="카드"
+                            />
                           </div>
                           <div className="flex flex-1 items-center justify-between">
                             <ListingGradeBadge grade={l.grade} />
@@ -673,6 +677,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                     onClick={() => setLightboxOpen(false)}
                     role="dialog"
                     aria-modal="true"
+                    aria-label="카드 이미지 확대"
                   >
                     <button
                       type="button"
