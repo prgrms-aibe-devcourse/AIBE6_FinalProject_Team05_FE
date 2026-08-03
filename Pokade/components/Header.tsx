@@ -487,6 +487,8 @@ const PROFILE_MENU: { label: string; href: string }[] = [
 function LoggedInRight() {
   const [open, setOpen] = useState<null | "notif" | "profile">(null);
   const toggle = (which: "notif" | "profile") => setOpen((o) => (o === which ? null : which));
+  const notifId = useId();
+  const profileId = useId();
 
   return (
     <div className="relative flex items-center gap-4">
@@ -494,6 +496,9 @@ function LoggedInRight() {
       <button
         onClick={() => toggle("notif")}
         aria-label="알림"
+        aria-haspopup="true"
+        aria-expanded={open === "notif"}
+        aria-controls={notifId}
         className="relative flex h-10 w-10 items-center justify-center rounded-[9px] bg-neutral transition-colors hover:bg-[#ECECEF]"
       >
         <svg
@@ -512,15 +517,24 @@ function LoggedInRight() {
       <button
         onClick={() => toggle("profile")}
         aria-label="프로필"
+        aria-haspopup="true"
+        aria-expanded={open === "profile"}
+        aria-controls={profileId}
         className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-[14px] font-bold text-white"
       >
         김
       </button>
 
-      {open && <div onClick={() => setOpen(null)} className="fixed inset-0 z-[80]" />}
+      {open && (
+        <div onClick={() => setOpen(null)} aria-hidden="true" className="fixed inset-0 z-[80]" />
+      )}
 
       {open === "notif" && (
-        <div className="absolute right-[44px] top-[52px] z-[90] w-[344px] overflow-hidden rounded-[14px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]">
+        <div
+          id={notifId}
+          aria-label="알림 목록"
+          className="absolute right-[44px] top-[52px] z-[90] w-[344px] overflow-hidden rounded-[14px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]"
+        >
           <div className="flex items-center justify-between border-b border-[#F0F0F0] px-4 py-3.5">
             <span className="text-[14.5px] font-extrabold">알림</span>
             <span className="cursor-pointer text-xs font-bold text-secondary hover:text-secondary-dark">
@@ -564,7 +578,12 @@ function LoggedInRight() {
       )}
 
       {open === "profile" && (
-        <div className="absolute right-0 top-[52px] z-[90] w-[260px] overflow-hidden rounded-[14px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]">
+        <div
+          id={profileId}
+          role="menu"
+          aria-label="프로필 메뉴"
+          className="absolute right-0 top-[52px] z-[90] w-[260px] overflow-hidden rounded-[14px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]"
+        >
           <div className="flex items-center gap-3 px-4 py-[18px]">
             <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-secondary text-base font-extrabold text-white">
               김
@@ -580,6 +599,7 @@ function LoggedInRight() {
               <Link
                 key={m.label}
                 href={m.href}
+                role="menuitem"
                 className="flex items-center gap-2.5 rounded-[9px] px-3 py-2.5 text-[13.5px] font-semibold text-[#3A3A42] hover:bg-[#F5F5F7] hover:text-ink"
               >
                 {m.label}
@@ -590,6 +610,7 @@ function LoggedInRight() {
           <div className="p-2">
             <Link
               href="/login"
+              role="menuitem"
               className="flex items-center gap-2.5 rounded-[9px] px-3 py-2.5 text-[13.5px] font-bold text-primary hover:bg-[#FFF5F5] hover:text-primary"
             >
               로그아웃
