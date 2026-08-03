@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import Image from "next/image";
+import { usePathname, useParams, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
 import GradeBadge from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
 import {
   CardDetailResponse,
   CardSearchItem,
   parseCardId,
+  pickRepresentativeGrade,
   toCardSearchItem,
   variantLabel,
 } from "@/types/card";
@@ -45,7 +47,7 @@ function formatTradedAt(iso: string) {
 const LISTING_GRADE_STYLES: Partial<Record<ListingGrade, string>> = {
   S: "bg-grade-s text-grade-s-ink",
   A: "bg-grade-a text-white",
-  B: "bg-grade-b text-white",
+  B: "bg-grade-b text-[#374151]",
 };
 
 function ListingGradeBadge({ grade }: { grade: ListingGrade | null }) {
@@ -63,12 +65,17 @@ function ListingGradeBadge({ grade }: { grade: ListingGrade | null }) {
 // 새 카드 응답을 받기 전까지 화면에 잔존하는 것을 방지한다.
 function CardDetailView({ cardId }: { cardId: number | null }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const [card, setCard] = useState<CardDetailResponse | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
+  const [copied, setCopied] = useState(false);
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const [relatedCards, setRelatedCards] = useState<CardSearchItem[]>([]);
   const [relatedLoadState, setRelatedLoadState] = useState<RelatedLoadState>("loading");
@@ -76,6 +83,11 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   const [priceSummary, setPriceSummary] = useState<PriceSummaryResponse | null>(null);
   const [recentTrades, setRecentTrades] = useState<TradeSummaryResponse[]>([]);
   const [activeListings, setActiveListings] = useState<ListingSummaryResponse[]>([]);
+  // 판본이 2개 이상인 카드에서만 채워지는 판본별 시세 비교용 상태(variantId -> summary).
+  const [variantPrices, setVariantPrices] = useState<Record<number, PriceSummaryResponse | null>>(
+    {},
+  );
+  const [variantPricesLoadState, setVariantPricesLoadState] = useState<RelatedLoadState>("loading");
   // GET /api/listings는 (summary/trades와 달리) 아직 인증이 필요해 401이 날 수 있다 —
   // "매물 없음"과 "조회 권한 없음"을 구분해서 보여주기 위한 별도 상태.
   const [listingsError, setListingsError] = useState<ApiError | null>(null);
@@ -88,6 +100,50 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     router.push(sessionStorage.getItem("searchBackUrl") || "/search");
   };
 
+  const handleShare = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // 클립보드 접근이 차단된 환경(권한 거부 등)에서는 조용히 무시.
+    }
+  };
+
+  // /search에서 스크롤을 많이 내린 상태로 카드를 클릭하면, 상세 페이지가 처음
+  // 커밋되는 순간(로딩 스피너, 짧은 문서 높이)에 브라우저가 scrollY를 그 문서의
+  // 바닥으로 강제 클램프한다. 데이터 페칭 effect보다 먼저 실행되도록 맨 위에 둔다.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+    };
+  }, []);
+
+  // 라이트박스가 열려 있는 동안 배경 스크롤 방지 (/search 필터 드로어와 동일 패턴).
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [lightboxOpen]);
+
+  // ESC로 라이트박스 닫기 (/search 필터 드로어와 동일 패턴).
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [lightboxOpen]);
+
   useEffect(() => {
     if (cardId == null) return;
     let cancelled = false;
@@ -97,7 +153,14 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
         if (cancelled) return;
         setCard(res);
         const primary = res.variants.find((v) => v.primary);
-        setSelectedVariantId(primary?.id ?? res.variants[0]?.id ?? null);
+        const defaultVariantId = primary?.id ?? res.variants[0]?.id ?? null;
+        const variantParam = searchParams.get("variant");
+        const parsedVariantId = variantParam !== null ? Number(variantParam) : null;
+        const requestedVariantId =
+          parsedVariantId != null && res.variants.some((v) => v.id === parsedVariantId)
+            ? parsedVariantId
+            : defaultVariantId;
+        setSelectedVariantId(requestedVariantId);
         setLoadState("ready");
       })
       .catch((err) => {
@@ -113,7 +176,26 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     return () => {
       cancelled = true;
     };
+    // searchParams는 최초 진입 시 판본 초기화에만 쓰고, 이후 판본 클릭으로 URL이
+    // 바뀔 때마다 카드 상세를 다시 불러오지 않도록 deps에서 제외한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardId, reloadKey]);
+
+  // 판본이 2개 이상인 카드에서만 선택 상태를 ?variant= 쿼리로 반영해 공유 가능하게 한다.
+  // 대표 판본으로 돌아오면 파라미터를 지워 기본 상태의 URL을 깔끔하게 유지한다.
+  useEffect(() => {
+    if (!card || card.variants.length <= 1) return;
+    const defaultVariantId = card.variants.find((v) => v.primary)?.id ?? card.variants[0]?.id;
+    const params = new URLSearchParams(searchParams.toString());
+    if (selectedVariantId != null && selectedVariantId !== defaultVariantId) {
+      params.set("variant", String(selectedVariantId));
+    } else {
+      params.delete("variant");
+    }
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedVariantId, card]);
 
   useEffect(() => {
     if (loadState !== "ready" || cardId == null) return;
@@ -137,11 +219,15 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   }, [cardId, loadState]);
 
   useEffect(() => {
-    if (loadState !== "ready" || cardId == null) return;
+    if (loadState !== "ready" || cardId == null || !card) return;
     let cancelled = false;
+    // 판본이 2개 이상인 카드는 대표 판본 가격을 아래 판본별 시세 비교 effect에서
+    // fetchPriceSummary(cardId, primaryVariantId)로 이미 조회하므로(BE는 variantId 생략 시
+    // 대표 판본 기준으로 응답), 여기서 fetchPriceSummary(cardId)를 중복 요청하지 않는다.
+    const hasSingleVariant = card.variants.length <= 1;
 
     Promise.allSettled([
-      fetchPriceSummary(cardId),
+      hasSingleVariant ? fetchPriceSummary(cardId) : Promise.resolve(null),
       fetchRecentTrades(cardId),
       fetchActiveListings(cardId),
     ]).then(([summaryResult, tradesResult, listingsResult]) => {
@@ -165,18 +251,54 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     return () => {
       cancelled = true;
     };
-  }, [cardId, loadState]);
+  }, [cardId, loadState, card]);
+
+  // 판본이 여러 개인 카드만 판본별 시세 비교가 필요하므로, 판본당 summary를 병렬로 따로 조회한다.
+  // (판본 1개 카드는 기존 priceSummary 조회만으로 충분해 이 effect 자체가 동작하지 않는다.)
+  useEffect(() => {
+    if (loadState !== "ready" || cardId == null || !card || card.variants.length <= 1) return;
+    let cancelled = false;
+
+    Promise.allSettled(card.variants.map((v) => fetchPriceSummary(cardId, v.id))).then(
+      (results) => {
+        if (cancelled) return;
+        const next: Record<number, PriceSummaryResponse | null> = {};
+        card.variants.forEach((v, i) => {
+          const r = results[i];
+          next[v.id] = r.status === "fulfilled" ? r.value : null;
+        });
+        setVariantPrices(next);
+        setVariantPricesLoadState("ready");
+      },
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cardId, loadState, card]);
 
   return (
-    <main className="main-content bg-neutral px-10 pb-14 pt-8">
+    <main className="main-content bg-neutral px-4 pb-14 pt-8 sm:px-10">
       <div className="mx-auto max-w-[1000px]">
-        <Link
-          href="/search"
-          onClick={goBackToSearch}
-          className="mb-5 inline-block text-[13.5px] font-semibold text-[#8A8A92] hover:text-primary"
-        >
-          ← 카드 검색으로 돌아가기
-        </Link>
+        <div className="mb-5 flex items-center justify-between">
+          <Link
+            href="/search"
+            onClick={goBackToSearch}
+            className="inline-block text-[13.5px] font-semibold text-[#8A8A92] hover:text-primary"
+          >
+            ← 카드 검색으로 돌아가기
+          </Link>
+          <div className="flex items-center gap-2">
+            {copied && <span className="text-[12.5px] font-bold text-primary">복사됨</span>}
+            <button
+              type="button"
+              onClick={handleShare}
+              className="rounded-[9px] border-[1.5px] border-[#DDDDE3] bg-white px-3 py-1.5 text-[12.5px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary"
+            >
+              공유하기
+            </button>
+          </div>
+        </div>
 
         {loadState === "loading" && cardId != null && (
           <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[#EDEDF0] bg-white py-24">
@@ -226,14 +348,18 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
               selectedVariant?.imageSmall ||
               card.imageLarge ||
               card.imageMedium;
+            const mainGrade = pickRepresentativeGrade(selectedVariant?.grades ?? []);
 
             return (
               <>
-                <div className="grid grid-cols-[280px_1fr] gap-8 rounded-2xl border border-[#EDEDF0] bg-white p-8">
-                  <div className="relative aspect-[5/7] w-full overflow-hidden rounded-2xl bg-[#F2F2F5]">
+                <div className="grid grid-cols-1 gap-8 rounded-2xl border border-[#EDEDF0] bg-white p-8 md:grid-cols-[280px_1fr]">
+                  <div
+                    className="relative aspect-[5/7] w-full cursor-pointer overflow-hidden rounded-2xl bg-[#F2F2F5]"
+                    onClick={() => setLightboxOpen(true)}
+                  >
                     <CardImage src={mainImageSrc} alt={card.name} label="카드" />
-                    {card.grade && (
-                      <GradeBadge grade={card.grade} className="absolute left-3 top-3" />
+                    {mainGrade && (
+                      <GradeBadge grade={mainGrade} className="absolute left-3 top-3" />
                     )}
                   </div>
                   <div className="flex flex-col">
@@ -291,40 +417,99 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                         <span className="font-bold">{card.printedNumber || "-"}</span>
                       </div>
                     </div>
-                    <div className="mt-auto flex items-end justify-between gap-4 rounded-xl bg-neutral px-4 py-3.5 pt-3.5">
-                      <div>
-                        <div className="text-[12px] font-semibold text-[#8A8A92]">즉시구매가</div>
-                        <div className="mt-1 text-[22px] font-extrabold text-primary">
-                          {priceLoadState === "loading" ? (
-                            <span className="text-[14px] font-semibold text-[#9A9AA2]">
-                              불러오는 중...
-                            </span>
-                          ) : priceSummary?.buyPrice != null ? (
-                            `${priceSummary.buyPrice.toLocaleString("ko-KR")}원`
-                          ) : (
-                            <span className="text-[14px] font-semibold text-[#9A9AA2]">
-                              매물 없음
-                            </span>
-                          )}
+                    {card.variants.length > 1 ? (
+                      <div className="mt-auto flex flex-col gap-2 rounded-xl bg-neutral px-4 py-3.5">
+                        <div className="text-[12px] font-semibold text-[#8A8A92]">
+                          판본별 시세 비교
+                        </div>
+                        {card.variants.map((v) => {
+                          const vp = variantPrices[v.id];
+                          return (
+                            <div
+                              key={v.id}
+                              className="flex items-center justify-between gap-4 rounded-lg bg-white px-3 py-2.5"
+                            >
+                              <span className="text-[12.5px] font-bold text-ink">
+                                {variantLabel(v.variantName)}
+                              </span>
+                              <div className="flex items-end gap-5">
+                                <div>
+                                  <div className="text-[10.5px] font-semibold text-[#8A8A92]">
+                                    즉시구매가
+                                  </div>
+                                  <div className="mt-0.5 text-right text-[15px] font-extrabold text-primary">
+                                    {variantPricesLoadState === "loading" ? (
+                                      <span className="text-[12.5px] font-semibold text-[#9A9AA2]">
+                                        불러오는 중...
+                                      </span>
+                                    ) : vp?.buyPrice != null ? (
+                                      `${vp.buyPrice.toLocaleString("ko-KR")}원`
+                                    ) : (
+                                      <span className="text-[12.5px] font-semibold text-[#9A9AA2]">
+                                        매물 없음
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div className="text-[10.5px] font-semibold text-[#8A8A92]">
+                                    판매가
+                                  </div>
+                                  <div className="mt-0.5 text-right text-[13px] font-bold text-ink">
+                                    {variantPricesLoadState === "loading" ? (
+                                      <span className="text-[12px] font-semibold text-[#9A9AA2]">
+                                        불러오는 중...
+                                      </span>
+                                    ) : vp?.sellPrice != null ? (
+                                      `${vp.sellPrice.toLocaleString("ko-KR")}원`
+                                    ) : (
+                                      <span className="text-[12px] font-semibold text-[#9A9AA2]">
+                                        판매 요청 없음
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="mt-auto flex items-end justify-between gap-4 rounded-xl bg-neutral px-4 py-3.5 pt-3.5">
+                        <div>
+                          <div className="text-[12px] font-semibold text-[#8A8A92]">즉시구매가</div>
+                          <div className="mt-1 text-[22px] font-extrabold text-primary">
+                            {priceLoadState === "loading" ? (
+                              <span className="text-[14px] font-semibold text-[#9A9AA2]">
+                                불러오는 중...
+                              </span>
+                            ) : priceSummary?.buyPrice != null ? (
+                              `${priceSummary.buyPrice.toLocaleString("ko-KR")}원`
+                            ) : (
+                              <span className="text-[14px] font-semibold text-[#9A9AA2]">
+                                매물 없음
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[12px] font-semibold text-[#8A8A92]">판매가</div>
+                          <div className="mt-1 text-[16px] font-bold text-ink">
+                            {priceLoadState === "loading" ? (
+                              <span className="text-[13px] font-semibold text-[#9A9AA2]">
+                                불러오는 중...
+                              </span>
+                            ) : priceSummary?.sellPrice != null ? (
+                              `${priceSummary.sellPrice.toLocaleString("ko-KR")}원`
+                            ) : (
+                              <span className="text-[13px] font-semibold text-[#9A9AA2]">
+                                판매 요청 없음
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-[12px] font-semibold text-[#8A8A92]">판매가</div>
-                        <div className="mt-1 text-[16px] font-bold text-ink">
-                          {priceLoadState === "loading" ? (
-                            <span className="text-[13px] font-semibold text-[#9A9AA2]">
-                              불러오는 중...
-                            </span>
-                          ) : priceSummary?.sellPrice != null ? (
-                            `${priceSummary.sellPrice.toLocaleString("ko-KR")}원`
-                          ) : (
-                            <span className="text-[13px] font-semibold text-[#9A9AA2]">
-                              판매 요청 없음
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </div>
 
@@ -368,7 +553,11 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                       {activeListings.map((l) => (
                         <div key={l.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5">
                           <div className="relative h-[52px] w-[38px] shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
-                            <CardImage src={l.thumbnailUrl ?? undefined} label="카드" />
+                            <CardImage
+                              src={l.thumbnailUrl ?? undefined}
+                              alt={card.name}
+                              label="카드"
+                            />
                           </div>
                           <div className="flex flex-1 items-center justify-between">
                             <ListingGradeBadge grade={l.grade} />
@@ -433,7 +622,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                   <h2 className="mb-4 text-[17px] font-extrabold">비슷한 카드</h2>
 
                   {relatedLoadState === "loading" && (
-                    <div className="grid grid-cols-5 gap-4">
+                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                       {Array.from({ length: 5 }).map((_, i) => (
                         <div
                           key={i}
@@ -450,7 +639,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                   )}
 
                   {relatedLoadState === "ready" && relatedCards.length > 0 && (
-                    <div className="grid grid-cols-5 gap-4">
+                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                       {relatedCards.map((rc) => (
                         <Link
                           key={rc.id}
@@ -481,6 +670,36 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                     </div>
                   )}
                 </div>
+
+                {lightboxOpen && (
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+                    onClick={() => setLightboxOpen(false)}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="카드 이미지 확대"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setLightboxOpen(false)}
+                      aria-label="닫기"
+                      className="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-[18px] font-bold text-ink hover:bg-white"
+                    >
+                      ×
+                    </button>
+                    {mainImageSrc && (
+                      <Image
+                        src={mainImageSrc}
+                        alt={card.name}
+                        width={500}
+                        height={700}
+                        sizes="90vw"
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-auto w-auto max-h-[90vh] max-w-[90vw] rounded-2xl object-contain"
+                      />
+                    )}
+                  </div>
+                )}
               </>
             );
           })()}
@@ -491,5 +710,9 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
 
 export default function CardDetailPage() {
   const { id } = useParams<{ id: string }>();
-  return <CardDetailView key={id} cardId={parseCardId(id)} />;
+  return (
+    <Suspense fallback={null}>
+      <CardDetailView key={id} cardId={parseCardId(id)} />
+    </Suspense>
+  );
 }

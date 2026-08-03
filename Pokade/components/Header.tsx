@@ -1,10 +1,11 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CardImage from "@/components/CardImage";
 import { fetchCardsByKeywordPage } from "@/lib/cardApi";
+import { highlightMatch } from "@/lib/highlightMatch";
 import {
   addRecentSearch,
   clearRecentSearches,
@@ -12,6 +13,7 @@ import {
   removeRecentSearch,
 } from "@/lib/recentSearches";
 import { CardResponse } from "@/types/card";
+import { useUserStore } from "@/store/useUserStore";
 
 // 자동완성 API 호출 최소 글자 수 — 1글자는 노이즈가 많아 2글자부터 호출한다.
 const MIN_QUERY_LENGTH = 2;
@@ -21,32 +23,6 @@ const NAV: { label: string; href: string }[] = [
   { label: "AI 등급진단", href: "/ai-diagnosis" },
   { label: "커뮤니티", href: "#" },
 ];
-
-// 로그인 이후에만 진입하는 화면 → "in"(검색바+알림+프로필)
-const IN_PATHS = ["/chat", "/watchlist", "/trade-status", "/ai-diagnosis"];
-
-function variantFor(path: string): "in" | "out" | "admin" {
-  if (path.startsWith("/admin")) return "admin";
-  if (IN_PATHS.some((p) => path === p || path.startsWith(p + "/"))) return "in";
-  return "out"; // 홈/검색/로그인/회원가입 → 로그인·회원가입 버튼 노출
-}
-
-// 검색어와 일치하는 부분만 굵게 + primary 색으로 강조 (대소문자 무시).
-function highlightMatch(text: string, query: string): React.ReactNode {
-  const trimmed = query.trim();
-  if (!trimmed) return text;
-  const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const parts = text.split(new RegExp(`(${escaped})`, "gi"));
-  return parts.map((part, i) =>
-    i % 2 === 1 ? (
-      <mark key={i} className="bg-transparent font-semibold text-primary">
-        {part}
-      </mark>
-    ) : (
-      <span key={i}>{part}</span>
-    ),
-  );
-}
 
 function SearchBar({ width = "w-60" }: { width?: string }) {
   // useSearchParams는 Suspense 경계가 필요 — Header는 모든 페이지에 걸쳐있으므로
@@ -104,6 +80,7 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listboxId = useId();
 
   // 최근 검색어 — 포커스 전에는 렌더되지 않으므로 lazy init으로 즉시 로드해도 하이드레이션에 영향 없음.
   const [recentSearches, setRecentSearches] = useState<string[]>(() => getRecentSearches());
@@ -256,6 +233,14 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
           onBlur={() => setFocused(false)}
           onKeyDown={handleKeyDown}
           placeholder="카드 이름으로 검색"
+          role="combobox"
+          aria-expanded={showDropdown}
+          aria-controls={listboxId}
+          aria-activedescendant={
+            showDropdown && highlightedIndex >= 0
+              ? `${listboxId}-option-${highlightedIndex}`
+              : undefined
+          }
           className="w-full border-none bg-transparent text-[13.5px] text-ink outline-none"
         />
         {query.length > 0 && (
@@ -281,16 +266,23 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
       </form>
 
       {showDropdown && (
-        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-[95] min-h-[52px] overflow-hidden rounded-[12px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]">
+        <div
+          id={listboxId}
+          role="listbox"
+          className="absolute left-0 right-0 top-[calc(100%+6px)] z-[95] min-h-[52px] overflow-hidden rounded-[12px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]"
+        >
           {suggestions.length === 0 ? (
-            <div className="px-3 py-4 text-center text-[13px] text-[#9A9AA2]">
-              검색 결과가 없습니다
+            <div aria-live="polite" className="px-3 py-4 text-center text-[13px] text-[#9A9AA2]">
+              검색 결과가 없습니다.
             </div>
           ) : (
             <div className="max-h-[280px] overflow-y-auto">
               {suggestions.map((card, i) => (
                 <button
                   key={card.id}
+                  id={`${listboxId}-option-${i}`}
+                  role="option"
+                  aria-selected={i === highlightedIndex}
                   ref={(el) => {
                     itemRefs.current[i] = el;
                   }}
@@ -304,7 +296,7 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
                       : "border-transparent hover:bg-[#FAFAFB]"
                   }`}
                 >
-                  <div className="h-9 w-9 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
+                  <div className="relative h-9 w-9 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
                     <CardImage src={card.imageSmall} alt={card.name} label="카드" />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -488,6 +480,10 @@ const PROFILE_MENU: { label: string; href: string }[] = [
 function LoggedInRight() {
   const [open, setOpen] = useState<null | "notif" | "profile">(null);
   const toggle = (which: "notif" | "profile") => setOpen((o) => (o === which ? null : which));
+  const router = useRouter();
+  const nickname = useUserStore((s) => s.nickname);
+  const email = useUserStore((s) => s.email);
+  const logout = useUserStore((s) => s.logout);
 
   return (
     <div className="relative flex items-center gap-4">
@@ -515,7 +511,7 @@ function LoggedInRight() {
         aria-label="프로필"
         className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-[14px] font-bold text-white"
       >
-        김
+        {nickname?.charAt(0) ?? "U"}
       </button>
 
       {open && <div onClick={() => setOpen(null)} className="fixed inset-0 z-[80]" />}
@@ -568,11 +564,11 @@ function LoggedInRight() {
         <div className="absolute right-0 top-[52px] z-[90] w-[260px] overflow-hidden rounded-[14px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]">
           <div className="flex items-center gap-3 px-4 py-[18px]">
             <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-secondary text-base font-extrabold text-white">
-              김
+              {nickname?.charAt(0) ?? "U"}
             </div>
             <div className="min-w-0">
-              <div className="text-[14.5px] font-extrabold">김트레이너</div>
-              <div className="truncate text-xs text-[#9A9AA2]">trainer.kim@example.com</div>
+              <div className="text-[14.5px] font-extrabold">{nickname ?? "사용자"}</div>
+              <div className="truncate text-xs text-[#9A9AA2]">{email ?? ""}</div>
             </div>
           </div>
           <div className="h-px bg-[#F0F0F0]" />
@@ -589,12 +585,16 @@ function LoggedInRight() {
           </div>
           <div className="h-px bg-[#F0F0F0]" />
           <div className="p-2">
-            <Link
-              href="/login"
-              className="flex items-center gap-2.5 rounded-[9px] px-3 py-2.5 text-[13.5px] font-bold text-primary hover:bg-[#FFF5F5] hover:text-primary"
+            <button
+              onClick={async () => {
+                setOpen(null);
+                await logout();
+                router.push("/");
+              }}
+              className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-bold text-primary hover:bg-[#FFF5F5] hover:text-primary"
             >
               로그아웃
-            </Link>
+            </button>
           </div>
         </div>
       )}
@@ -604,7 +604,17 @@ function LoggedInRight() {
 
 export default function Header() {
   const pathname = usePathname() || "/";
-  const variant = variantFor(pathname);
+  const isLoggedIn = useUserStore((s) => s.isLoggedIn);
+  const status = useUserStore((s) => s.status);
+  const role = useUserStore((s) => s.role);
+  const variant: "loading" | "in" | "out" | "admin" =
+    status === "loading"
+      ? "loading"
+      : status === "unauthenticated"
+        ? "out"
+        : role === "admin"
+          ? "admin"
+          : "in";
 
   return (
     <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-b border-[#F0F0F0] bg-white px-10">
@@ -637,6 +647,7 @@ export default function Header() {
       </div>
 
       <div className="flex items-center gap-4">
+        {variant === "loading" && <div className="h-10 w-10 rounded-full bg-neutral" />}
         {variant === "out" && (
           <>
             <SearchBar width="w-56" />
