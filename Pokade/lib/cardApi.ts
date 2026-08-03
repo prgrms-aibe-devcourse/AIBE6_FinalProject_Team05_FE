@@ -51,11 +51,6 @@ export async function fetchCards(filters: CardSearchFilters = {}): Promise<CardR
 
 // GET /api/cards/search?q= — 이름 키워드 검색. q가 blank면 BE가 400(INVALID_INPUT) 반환.
 // BE에 sort 파라미터가 없어(고정 정렬) 정렬 옵션은 받지 않는다.
-export async function fetchCardsByKeyword(q: string): Promise<CardResponse[]> {
-  const page = await fetchCardsByKeywordPage(q);
-  return page.content;
-}
-
 // 헤더 자동완성 / 검색 결과 페이지네이션용 — totalElements까지 필요할 때 페이지 응답 전체를 반환.
 export async function fetchCardsByKeywordPage(
   q: string,
