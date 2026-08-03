@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
-import GradeBadge from "@/components/GradeBadge";
+import GradeBadge, { GRADE_BG } from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
 import {
   CardDetailResponse,
@@ -46,9 +46,9 @@ function formatTradedAt(iso: string) {
 // "같은 등급 개념은 같은 색"을 유지하고, 대응값이 없는 PSA10/9/8은 중립 톤으로 남겨둔다
 // (PSA 등급과 S/A/B 등급 간 우열 매핑은 거래 도메인이 정할 몫이라 임의로 만들지 않음).
 const LISTING_GRADE_STYLES: Partial<Record<ListingGrade, string>> = {
-  S: "bg-grade-s text-grade-s-ink",
-  A: "bg-grade-a text-white",
-  B: "bg-grade-b text-[#374151]",
+  S: `${GRADE_BG.S} text-grade-s-ink`,
+  A: `${GRADE_BG.A} text-white`,
+  B: `${GRADE_BG.B} text-[#374151]`,
 };
 
 function ListingGradeBadge({ grade }: { grade: ListingGrade | null }) {
