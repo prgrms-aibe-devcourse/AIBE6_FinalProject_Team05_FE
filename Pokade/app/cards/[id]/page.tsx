@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import GradeBadge from "@/components/GradeBadge";
@@ -9,6 +10,7 @@ import {
   CardDetailResponse,
   CardSearchItem,
   parseCardId,
+  pickRepresentativeGrade,
   toCardSearchItem,
   variantLabel,
 } from "@/types/card";
@@ -45,7 +47,7 @@ function formatTradedAt(iso: string) {
 const LISTING_GRADE_STYLES: Partial<Record<ListingGrade, string>> = {
   S: "bg-grade-s text-grade-s-ink",
   A: "bg-grade-a text-white",
-  B: "bg-grade-b text-white",
+  B: "bg-grade-b text-[#374151]",
 };
 
 function ListingGradeBadge({ grade }: { grade: ListingGrade | null }) {
@@ -109,6 +111,13 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     }
   };
 
+  // /search에서 스크롤을 많이 내린 상태로 카드를 클릭하면, 상세 페이지가 처음
+  // 커밋되는 순간(로딩 스피너, 짧은 문서 높이)에 브라우저가 scrollY를 그 문서의
+  // 바닥으로 강제 클램프한다. 데이터 페칭 effect보다 먼저 실행되도록 맨 위에 둔다.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   useEffect(() => {
     return () => {
       if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
@@ -123,6 +132,16 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     return () => {
       document.body.style.overflow = prev;
     };
+  }, [lightboxOpen]);
+
+  // ESC로 라이트박스 닫기 (/search 필터 드로어와 동일 패턴).
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
   }, [lightboxOpen]);
 
   useEffect(() => {
@@ -200,11 +219,15 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   }, [cardId, loadState]);
 
   useEffect(() => {
-    if (loadState !== "ready" || cardId == null) return;
+    if (loadState !== "ready" || cardId == null || !card) return;
     let cancelled = false;
+    // 판본이 2개 이상인 카드는 대표 판본 가격을 아래 판본별 시세 비교 effect에서
+    // fetchPriceSummary(cardId, primaryVariantId)로 이미 조회하므로(BE는 variantId 생략 시
+    // 대표 판본 기준으로 응답), 여기서 fetchPriceSummary(cardId)를 중복 요청하지 않는다.
+    const hasSingleVariant = card.variants.length <= 1;
 
     Promise.allSettled([
-      fetchPriceSummary(cardId),
+      hasSingleVariant ? fetchPriceSummary(cardId) : Promise.resolve(null),
       fetchRecentTrades(cardId),
       fetchActiveListings(cardId),
     ]).then(([summaryResult, tradesResult, listingsResult]) => {
@@ -228,7 +251,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     return () => {
       cancelled = true;
     };
-  }, [cardId, loadState]);
+  }, [cardId, loadState, card]);
 
   // 판본이 여러 개인 카드만 판본별 시세 비교가 필요하므로, 판본당 summary를 병렬로 따로 조회한다.
   // (판본 1개 카드는 기존 priceSummary 조회만으로 충분해 이 effect 자체가 동작하지 않는다.)
@@ -325,6 +348,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
               selectedVariant?.imageSmall ||
               card.imageLarge ||
               card.imageMedium;
+            const mainGrade = pickRepresentativeGrade(selectedVariant?.grades ?? []);
 
             return (
               <>
@@ -334,8 +358,8 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                     onClick={() => setLightboxOpen(true)}
                   >
                     <CardImage src={mainImageSrc} alt={card.name} label="카드" />
-                    {card.grade && (
-                      <GradeBadge grade={card.grade} className="absolute left-3 top-3" />
+                    {mainGrade && (
+                      <GradeBadge grade={mainGrade} className="absolute left-3 top-3" />
                     )}
                   </div>
                   <div className="flex flex-col">
@@ -529,7 +553,11 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                       {activeListings.map((l) => (
                         <div key={l.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5">
                           <div className="relative h-[52px] w-[38px] shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
-                            <CardImage src={l.thumbnailUrl ?? undefined} label="카드" />
+                            <CardImage
+                              src={l.thumbnailUrl ?? undefined}
+                              alt={card.name}
+                              label="카드"
+                            />
                           </div>
                           <div className="flex flex-1 items-center justify-between">
                             <ListingGradeBadge grade={l.grade} />
@@ -647,6 +675,9 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                   <div
                     className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
                     onClick={() => setLightboxOpen(false)}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="카드 이미지 확대"
                   >
                     <button
                       type="button"
@@ -657,11 +688,14 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                       ×
                     </button>
                     {mainImageSrc && (
-                      <img
+                      <Image
                         src={mainImageSrc}
                         alt={card.name}
+                        width={500}
+                        height={700}
+                        sizes="90vw"
                         onClick={(e) => e.stopPropagation()}
-                        className="max-h-[90vh] max-w-[90vw] rounded-2xl object-contain"
+                        className="h-auto w-auto max-h-[90vh] max-w-[90vw] rounded-2xl object-contain"
                       />
                     )}
                   </div>
