@@ -1,13 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useUserStore } from "@/store/useUserStore";
 import { ApiError } from "@/lib/apiClient";
 
+// redirect 쿼리로 임의 도메인 이동(오픈 리다이렉트)을 허용하지 않도록, "/"로 시작하는
+// 내부 경로만 허용한다("//evil.com"처럼 프로토콜-상대 URL로 해석되는 경우도 차단).
+function sanitizeRedirect(target: string | null): string {
+  if (target && target.startsWith("/") && !target.startsWith("//")) {
+    return target;
+  }
+  return "/";
+}
+
+// useSearchParams는 정적 프리렌더 시 Suspense 경계를 요구함(next build에서 강제됨)
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const login = useUserStore((s) => s.login);
 
   const [email, setEmail] = useState("");
@@ -24,7 +43,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(loginEmail, loginPassword);
-      router.push("/"); // 로그인 성공 → 홈으로
+      router.push(sanitizeRedirect(searchParams.get("redirect"))); // 로그인 성공 → 원래 가려던 페이지(없으면 홈)로
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "로그인에 실패했습니다.");
     } finally {

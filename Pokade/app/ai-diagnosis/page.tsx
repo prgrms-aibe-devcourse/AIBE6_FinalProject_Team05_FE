@@ -271,7 +271,7 @@ export default function AIDiagnosisPage() {
   // 비로그인 사용자는 진단 화면을 이용할 수 없음 — 세션 복원(loading) 끝난 뒤 미인증이면 로그인으로 이동
   useEffect(() => {
     if (authStatus === "unauthenticated") {
-      router.push("/login");
+      router.push("/login?redirect=/ai-diagnosis");
     }
   }, [authStatus, router]);
 
