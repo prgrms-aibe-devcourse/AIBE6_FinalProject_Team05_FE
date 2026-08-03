@@ -1,6 +1,7 @@
 import { getAccessToken, setAccessToken } from "@/lib/authToken";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+const REQUEST_TIMEOUT_MS = 10000; // 10초
 
 // BE ApiResponse<T> 래퍼 (com.pokade.global.response.ApiResponse) 미러링.
 // 성공 응답은 msg, 에러 응답(ErrorResponse)은 message 필드를 쓰는 등 필드명이
@@ -42,7 +43,8 @@ export function reissueAccessToken(): Promise<string | null> {
       try {
         const res = await fetch(`${API_BASE_URL}/api/auth/reissue`, {
           method: "POST",
-          credentials: "include", // refresh 쿠키 송수신
+          credentials: "include", // refresh 쿠키 송수신 (login Set-Cookie / reissue·logout 전송)
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         });
         if (!res.ok) return null;
         const body = (await res.json()) as ApiEnvelope<{ accessToken: string }>;
@@ -83,6 +85,7 @@ async function request(path: string, init: RequestInit = {}, retry = true): Prom
       ...init,
       headers,
       credentials: "include", // refresh 쿠키 송수신 (login Set-Cookie / reissue·logout 전송)
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch {
     throw new ApiError(
