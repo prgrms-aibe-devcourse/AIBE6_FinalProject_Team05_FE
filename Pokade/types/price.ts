@@ -37,3 +37,26 @@ export interface ListingSummaryResponse {
   thumbnailUrl: string | null;
   createdAt: string;
 }
+
+// POST /api/listings 요청 바디 — com.pokade.domain.listing.dto.ListingCreateRequest 미러링.
+// imageUrls는 최소 1개 필요(BE @NotEmpty), 별도 업로드 기능 없이 URL을 직접 입력받는다.
+export interface ListingCreateRequest {
+  cardId: number;
+  variantId?: number;
+  price: number;
+  grade?: ListingGrade;
+  imageUrls: string[];
+}
+
+// POST/PUT /api/listings 응답 — com.pokade.domain.listing.dto.ListingResponse 미러링.
+export interface ListingResponse {
+  id: number;
+  cardId: number;
+  sellerId: number;
+  variantId: number | null;
+  price: number;
+  grade: ListingGrade | null;
+  status: ListingStatus;
+  imageUrls: string[];
+  createdAt: string;
+}
