@@ -11,12 +11,11 @@ import {
 // "popular"은 view_count 기준(feature/#62에서 BE 지원 확인).
 export type CardSort = "latest" | "name" | "popular";
 
-// GET /api/cards — types/rarity/grades/expansionId 정확 일치 필터 (기본 페이지 size=20).
+// GET /api/cards — types/rarity/expansionId 정확 일치 필터 (기본 페이지 size=20).
 export interface CardSearchFilters {
   expansionId?: string;
   types?: string[];
   rarity?: string[];
-  grades?: string[]; // BE 화이트리스트: S/A/B만 허용, 그 외 값은 400(INVALID_INPUT).
   minPrice?: number;
   maxPrice?: number; // minPrice > maxPrice면 BE가 400(INVALID_INPUT) 반환.
   sort?: CardSort;
@@ -37,7 +36,6 @@ export async function fetchCardsPage(
   if (filters.expansionId) query.set("expansionId", filters.expansionId);
   if (filters.types?.length) query.set("types", filters.types.join(","));
   if (filters.rarity?.length) query.set("rarity", filters.rarity.join(","));
-  if (filters.grades?.length) query.set("grades", filters.grades.join(","));
   if (filters.minPrice != null) query.set("minPrice", String(filters.minPrice));
   if (filters.maxPrice != null) query.set("maxPrice", String(filters.maxPrice));
   if (filters.sort) query.set("sort", filters.sort);
