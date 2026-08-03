@@ -274,53 +274,52 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
       </form>
 
       {showDropdown && (
-        <div
-          id={listboxId}
-          role="listbox"
-          className="absolute left-0 right-0 top-[calc(100%+6px)] z-[95] min-h-[52px] overflow-hidden rounded-[12px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]"
-        >
-          {suggestions.length === 0 ? (
+        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-[95] min-h-[52px] overflow-hidden rounded-[12px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]">
+          <div id={listboxId} role="listbox">
+            {suggestions.length > 0 && (
+              <div className="max-h-[280px] overflow-y-auto">
+                {suggestions.map((card, i) => (
+                  <button
+                    key={card.id}
+                    id={`${listboxId}-option-${i}`}
+                    role="option"
+                    aria-selected={i === highlightedIndex}
+                    ref={(el) => {
+                      itemRefs.current[i] = el;
+                    }}
+                    type="button"
+                    // mousedown에서 preventDefault로 input의 blur 자체를 막아 클릭이 확실히 반영되게 한다.
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => selectSuggestion(card)}
+                    className={`flex w-full items-center gap-2.5 border-l-[3px] py-2 pl-[9px] pr-3 text-left ${
+                      i === highlightedIndex
+                        ? "border-secondary bg-lavender"
+                        : "border-transparent hover:bg-[#FAFAFB]"
+                    }`}
+                  >
+                    <div className="relative h-9 w-9 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
+                      <CardImage src={card.imageSmall} alt={card.name} label="카드" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div
+                        className={`truncate text-[13px] font-bold ${
+                          i === highlightedIndex ? "text-secondary" : "text-ink"
+                        }`}
+                      >
+                        {highlightMatch(card.name, query)}
+                      </div>
+                      <div className="truncate text-[11.5px] text-[#9A9AA2]">
+                        {card.setName} · {card.rarity}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {suggestions.length === 0 && (
             <div aria-live="polite" className="px-3 py-4 text-center text-[13px] text-[#9A9AA2]">
               검색 결과가 없습니다.
-            </div>
-          ) : (
-            <div className="max-h-[280px] overflow-y-auto">
-              {suggestions.map((card, i) => (
-                <button
-                  key={card.id}
-                  id={`${listboxId}-option-${i}`}
-                  role="option"
-                  aria-selected={i === highlightedIndex}
-                  ref={(el) => {
-                    itemRefs.current[i] = el;
-                  }}
-                  type="button"
-                  // mousedown에서 preventDefault로 input의 blur 자체를 막아 클릭이 확실히 반영되게 한다.
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => selectSuggestion(card)}
-                  className={`flex w-full items-center gap-2.5 border-l-[3px] py-2 pl-[9px] pr-3 text-left ${
-                    i === highlightedIndex
-                      ? "border-secondary bg-lavender"
-                      : "border-transparent hover:bg-[#FAFAFB]"
-                  }`}
-                >
-                  <div className="relative h-9 w-9 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
-                    <CardImage src={card.imageSmall} alt={card.name} label="카드" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div
-                      className={`truncate text-[13px] font-bold ${
-                        i === highlightedIndex ? "text-secondary" : "text-ink"
-                      }`}
-                    >
-                      {highlightMatch(card.name, query)}
-                    </div>
-                    <div className="truncate text-[11.5px] text-[#9A9AA2]">
-                      {card.setName} · {card.rarity}
-                    </div>
-                  </div>
-                </button>
-              ))}
             </div>
           )}
           {suggestions.length > 0 && totalElements > 8 && (
