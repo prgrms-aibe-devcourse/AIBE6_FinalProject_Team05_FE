@@ -54,10 +54,14 @@ async function requestGrade(photos: File[], retryOfId: number | null): Promise<G
     if (e instanceof ApiError) {
       console.error(`AI 진단 요청 실패 (HTTP ${e.status}):`, e.message);
       if (e.status === 503) {
-        throw new Error("AI 진단 서비스에 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+        throw new Error(
+          "AI 진단 서비스에 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
+        );
       }
       if (e.status === 413) {
-        throw new Error("사진 용량이 너무 큽니다. 전체 합계 기준으로도 용량을 줄여 다시 올려주세요.");
+        throw new Error(
+          "사진 용량이 너무 큽니다. 전체 합계 기준으로도 용량을 줄여 다시 올려주세요.",
+        );
       }
       throw new Error("진단 요청에 실패했습니다.");
     }
