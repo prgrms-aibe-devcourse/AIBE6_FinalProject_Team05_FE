@@ -19,11 +19,21 @@ export default function SignupPage() {
   const [verifying, setVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [resending, setResending] = useState(false);
 
-  const ageError = (() => {
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(birth.trim());
-    return m ? 2026 - parseInt(m[1], 10) < 14 : false;
+  // 생년월일 완성 여부 + 만 나이(월·일까지) 계산
+  const birthValid = /^\d{4}-\d{2}-\d{2}$/.test(birth.trim());
+  const age = (() => {
+    if (!birthValid) return null;
+    const [y, m, d] = birth.trim().split("-").map(Number);
+    const today = new Date();
+    let a = today.getFullYear() - y;
+    const beforeBirthday =
+      today.getMonth() + 1 < m || (today.getMonth() + 1 === m && today.getDate() < d);
+    if (beforeBirthday) a -= 1;
+    return a;
   })();
+  const ageError = age !== null && age < 14;
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -58,6 +68,14 @@ export default function SignupPage() {
     }
     if (!/^(?=.*[A-Za-z])(?=.*\d)\S{8,20}$/.test(password)) {
       setError("비밀번호는 영문과 숫자를 포함해 공백 없이 8~20자로 입력해 주세요.");
+      return;
+    }
+    if (!birthValid) {
+      setError("생년월일을 입력해 주세요.");
+      return;
+    }
+    if (ageError) {
+      setError("만 14세 이상만 가입 가능합니다.");
       return;
     }
     if (password !== passwordConfirm) {
@@ -131,7 +149,8 @@ export default function SignupPage() {
   }
 
   async function handleResend() {
-    if (resendCooldown > 0) return;
+    if (resendCooldown > 0 || resending) return;
+    setResending(true);
     setVerifyError(null);
     try {
       await sendEmailCode(email.trim());
@@ -140,6 +159,8 @@ export default function SignupPage() {
       setVerifyError(
         e instanceof ApiError ? messageForStep1Error(e) : "코드 재발송에 실패했습니다.",
       );
+    } finally {
+      setResending(false);
     }
   }
 
@@ -283,9 +304,6 @@ export default function SignupPage() {
             >
               {submitting ? "처리 중…" : "다음 단계 →"}
             </button>
-            <p className="mt-4 text-center text-xs text-[#B0B0B8]">
-              데모: 생년월일에 2013-05-05 입력 시 연령 제한 상태 확인
-            </p>
           </div>
         )}
 
