@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import GradeBadge, { type Grade } from "@/components/GradeBadge";
 import ConditionBar from "@/components/ConditionBar";
 import { apiPostFormRaw, ApiError } from "@/lib/apiClient";
+import { useUserStore } from "@/store/useUserStore";
 
 // 슬롯 순서는 백엔드 @RequestPart 이름과 그대로 매칭되어야 함 (front/back/corner_tl/tr/bl/br)
 const SLOTS: { field: string; label: string }[] = [
@@ -261,8 +263,17 @@ function ResultView({ result, onReset }: { result: GradeResponse; onReset: () =>
 }
 
 export default function AIDiagnosisPage() {
+  const router = useRouter();
+  const authStatus = useUserStore((s) => s.status);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<DiagnosisStatus>({ kind: "idle" });
+
+  // 비로그인 사용자는 진단 화면을 이용할 수 없음 — 세션 복원(loading) 끝난 뒤 미인증이면 로그인으로 이동
+  useEffect(() => {
+    if (authStatus === "unauthenticated") {
+      router.push("/login");
+    }
+  }, [authStatus, router]);
 
   const handleSubmit = async (photos: File[]) => {
     const retryOfId = status.kind === "qualityFail" ? status.retryOfId : null;
@@ -289,6 +300,17 @@ export default function AIDiagnosisPage() {
   };
 
   const handleReset = () => setStatus({ kind: "idle" });
+
+  // 세션 복원 중이거나 비로그인(리다이렉트 예정)인 동안은 업로드 폼을 노출하지 않는다
+  if (authStatus !== "authenticated") {
+    return (
+      <main className="main-content flex items-center justify-center bg-neutral px-10 py-14">
+        <p className="text-sm text-[#8A8A92]">
+          {authStatus === "loading" ? "세션 확인 중..." : "로그인 페이지로 이동 중..."}
+        </p>
+      </main>
+    );
+  }
 
   return (
     <main className="main-content bg-neutral px-10 pb-14 pt-9">
