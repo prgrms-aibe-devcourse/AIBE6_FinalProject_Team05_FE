@@ -29,10 +29,18 @@ export default function PriceDashboardView() {
           </div>
           <div className="mt-6 flex h-[170px] items-end gap-3">
             {[48, 56, 44, 68].map((h, i) => (
-              <div key={i} className="flex-1 rounded-t-[5px] bg-secondary" style={{ height: `${h}%` }} />
+              <div
+                key={i}
+                className="flex-1 rounded-t-[5px] bg-secondary"
+                style={{ height: `${h}%` }}
+              />
             ))}
             {[62, 82, 100].map((h, i) => (
-              <div key={i} className="flex-1 rounded-t-[5px] bg-primary" style={{ height: `${h}%` }} />
+              <div
+                key={i}
+                className="flex-1 rounded-t-[5px] bg-primary"
+                style={{ height: `${h}%` }}
+              />
             ))}
           </div>
           <div className="mt-2.5 flex justify-between text-[11px] text-[#A8A8B0]">
@@ -93,8 +101,12 @@ export default function PriceDashboardView() {
               </div>
             </div>
           </div>
-          <button className="mt-[18px] w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3 text-[14.5px] font-bold text-white shadow-tactile-sm active:translate-y-0.5">
-            워치리스트에 추가
+          <button
+            type="button"
+            disabled
+            className="mt-[18px] w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3 text-[14.5px] font-bold text-white shadow-tactile-sm active:translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            워치리스트에 추가 (준비 중)
           </button>
         </div>
         <div className="rounded-2xl border border-[#EDEDF0] bg-white p-6">
@@ -121,7 +133,9 @@ export default function PriceDashboardView() {
                 </div>
                 <div className="text-right">
                   <div className="text-[13.5px] font-extrabold">{r.p}</div>
-                  <div className={`text-[11.5px] font-bold ${r.up ? "text-primary" : "text-secondary"}`}>
+                  <div
+                    className={`text-[11.5px] font-bold ${r.up ? "text-primary" : "text-secondary"}`}
+                  >
                     {r.c}
                   </div>
                 </div>

@@ -492,7 +492,6 @@ function LoggedInRight() {
       <button
         onClick={() => toggle("notif")}
         aria-label="알림"
-        aria-haspopup="true"
         aria-expanded={open === "notif"}
         aria-controls={notifId}
         className="relative flex h-10 w-10 items-center justify-center rounded-[9px] bg-neutral transition-colors hover:bg-[#ECECEF]"
@@ -513,7 +512,6 @@ function LoggedInRight() {
       <button
         onClick={() => toggle("profile")}
         aria-label="프로필"
-        aria-haspopup="true"
         aria-expanded={open === "profile"}
         aria-controls={profileId}
         className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-[14px] font-bold text-white"
@@ -577,7 +575,6 @@ function LoggedInRight() {
       {open === "profile" && (
         <div
           id={profileId}
-          role="menu"
           aria-label="프로필 메뉴"
           className="absolute right-0 top-[52px] z-[90] w-[260px] overflow-hidden rounded-[14px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]"
         >
@@ -596,7 +593,6 @@ function LoggedInRight() {
               <Link
                 key={m.label}
                 href={m.href}
-                role="menuitem"
                 className="flex items-center gap-2.5 rounded-[9px] px-3 py-2.5 text-[13.5px] font-semibold text-[#3A3A42] hover:bg-[#F5F5F7] hover:text-ink"
               >
                 {m.label}
@@ -606,7 +602,6 @@ function LoggedInRight() {
           <div className="h-px bg-[#F0F0F0]" />
           <div className="p-2">
             <button
-              role="menuitem"
               onClick={async () => {
                 setOpen(null);
                 await logout();

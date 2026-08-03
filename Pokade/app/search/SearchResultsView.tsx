@@ -1,4 +1,4 @@
-import { Dispatch, SetStateAction } from "react";
+import { Dispatch, SetStateAction, useEffect, useRef } from "react";
 import Link from "next/link";
 import GradeBadge, { GRADE_DESCRIPTIONS } from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
@@ -69,6 +69,45 @@ interface SearchResultsViewProps {
 const toggleValue = (list: string[], value: string) =>
   list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 
+// 페이지네이션 윈도우 — 전체 페이지를 다 그리지 않고 현재 페이지 주변 + 처음/끝만 노출,
+// 나머지는 "..."로 생략한다. (siblingCount=1: 현재 페이지 양옆 1개씩)
+type PaginationItem = number | "ellipsis";
+
+function getPaginationRange(current: number, total: number): PaginationItem[] {
+  const siblingCount = 1;
+  const totalVisible = siblingCount * 2 + 5; // 처음 + 끝 + 현재 + 양옆 + 생략기호 2개 여유
+
+  if (totalVisible >= total) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+
+  const leftSibling = Math.max(current - siblingCount, 1);
+  const rightSibling = Math.min(current + siblingCount, total);
+  const showLeftEllipsis = leftSibling > 2;
+  const showRightEllipsis = rightSibling < total - 1;
+
+  if (!showLeftEllipsis && showRightEllipsis) {
+    const leftItemCount = 3 + siblingCount * 2;
+    const leftRange = Array.from({ length: leftItemCount }, (_, i) => i + 1);
+    return [...leftRange, "ellipsis", total];
+  }
+
+  if (showLeftEllipsis && !showRightEllipsis) {
+    const rightItemCount = 3 + siblingCount * 2;
+    const rightRange = Array.from(
+      { length: rightItemCount },
+      (_, i) => total - rightItemCount + i + 1,
+    );
+    return [1, "ellipsis", ...rightRange];
+  }
+
+  const middleRange = Array.from(
+    { length: rightSibling - leftSibling + 1 },
+    (_, i) => leftSibling + i,
+  );
+  return [1, "ellipsis", ...middleRange, "ellipsis", total];
+}
+
 // /search의 "카드 검색" 탭 — 필터 사이드바/드로어 + 검색 결과 그리드 + 페이지네이션.
 export default function SearchResultsView({
   q,
@@ -101,6 +140,19 @@ export default function SearchResultsView({
   resetFilters,
   setReloadKey,
 }: SearchResultsViewProps) {
+  const filterPanelRef = useRef<HTMLDivElement>(null);
+  const filterButtonRef = useRef<HTMLButtonElement>(null);
+  const prevFilterOpenRef = useRef(filterOpen);
+
+  useEffect(() => {
+    if (filterOpen && !prevFilterOpenRef.current) {
+      filterPanelRef.current?.focus();
+    } else if (!filterOpen && prevFilterOpenRef.current) {
+      filterButtonRef.current?.focus();
+    }
+    prevFilterOpenRef.current = filterOpen;
+  }, [filterOpen]);
+
   return (
     <div
       className={`grid items-start gap-6 ${q ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-[250px_1fr]"}`}
@@ -117,14 +169,17 @@ export default function SearchResultsView({
           onClick={filterOpen ? () => setFilterOpen(false) : undefined}
           role={filterOpen ? "dialog" : undefined}
           aria-modal={filterOpen ? true : undefined}
+          aria-labelledby={filterOpen ? "filter-drawer-title" : undefined}
         >
           <div
-            className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl border border-[#EDEDF0] bg-white p-[22px] lg:sticky lg:top-[88px] lg:max-h-none lg:w-auto lg:overflow-visible lg:rounded-2xl"
+            ref={filterPanelRef}
+            tabIndex={-1}
+            className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl border border-[#EDEDF0] bg-white p-[22px] outline-none lg:sticky lg:top-[88px] lg:max-h-none lg:w-auto lg:overflow-visible lg:rounded-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between lg:relative">
               <span className="flex items-center gap-1.5 text-[15px] font-extrabold">
-                필터
+                <span id="filter-drawer-title">필터</span>
                 <span
                   tabIndex={0}
                   className="group relative inline-flex h-3.5 w-3.5 shrink-0 cursor-help items-center justify-center rounded-full bg-black/10 text-[8px] font-bold leading-none text-[#6B6B72] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#6B6B72] lg:static"
@@ -272,7 +327,7 @@ export default function SearchResultsView({
             </div>
             <div className="mt-1.5 flex justify-between text-xs text-[#9A9AA2]">
               <span>0원</span>
-              <span>3,000,000원</span>
+              <span>{PRICE_MAX.toLocaleString("ko-KR")}원</span>
             </div>
             <button
               onClick={resetFilters}
@@ -297,6 +352,7 @@ export default function SearchResultsView({
           <div className="flex items-center gap-2">
             {!q && (
               <button
+                ref={filterButtonRef}
                 type="button"
                 onClick={() => setFilterOpen(true)}
                 className="flex items-center gap-1 rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-2 text-[13px] font-bold text-[#4B4B52] lg:hidden"
@@ -323,6 +379,7 @@ export default function SearchResultsView({
                 setLoadState("loading");
                 setSort(e.target.value as CardSort);
               }}
+              aria-label="정렬 기준"
               className="cursor-pointer rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-2 text-[13px] outline-none"
             >
               <option value="latest">최신순</option>
@@ -488,20 +545,29 @@ export default function SearchResultsView({
             >
               &lt;
             </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-              <button
-                key={p}
-                onClick={() => goToPage(p)}
-                aria-current={p === page ? "page" : undefined}
-                className={`h-9 w-9 rounded-[9px] text-[13px] font-bold ${
-                  p === page
-                    ? "bg-primary text-white"
-                    : "border border-[#DDDDE3] bg-white text-[#4B4B52] hover:border-primary hover:text-primary"
-                }`}
-              >
-                {p}
-              </button>
-            ))}
+            {getPaginationRange(page, totalPages).map((p, i) =>
+              p === "ellipsis" ? (
+                <span
+                  key={`ellipsis-${i}`}
+                  className="flex h-9 w-9 items-center justify-center text-[13px] text-[#9A9AA2]"
+                >
+                  ...
+                </span>
+              ) : (
+                <button
+                  key={p}
+                  onClick={() => goToPage(p)}
+                  aria-current={p === page ? "page" : undefined}
+                  className={`h-9 w-9 rounded-[9px] text-[13px] font-bold ${
+                    p === page
+                      ? "bg-primary text-white"
+                      : "border border-[#DDDDE3] bg-white text-[#4B4B52] hover:border-primary hover:text-primary"
+                  }`}
+                >
+                  {p}
+                </button>
+              ),
+            )}
             <button
               onClick={() => goToPage(Math.min(totalPages, page + 1))}
               disabled={page >= totalPages}
