@@ -539,9 +539,10 @@ function LoggedInRight() {
           </div>
           <div className="max-h-[340px] overflow-y-auto">
             {NOTIFS.map((n, i) => (
-              <div
+              <button
                 key={i}
-                className={`flex cursor-pointer gap-[11px] border-b border-[#F5F5F7] px-4 py-[13px] hover:bg-[#FAFAFB] ${n.unread ? "bg-[#FFF7F7]" : ""}`}
+                type="button"
+                className={`flex w-full cursor-pointer gap-[11px] border-b border-[#F5F5F7] px-4 py-[13px] text-left hover:bg-[#FAFAFB] ${n.unread ? "bg-[#FFF7F7]" : ""}`}
               >
                 <span
                   className={`mt-[15px] h-[7px] w-[7px] flex-shrink-0 rounded-full ${n.unread ? "bg-primary" : "bg-transparent"}`}
@@ -561,7 +562,7 @@ function LoggedInRight() {
                   <div className="mt-px text-xs text-[#9A9AA2]">{n.sub}</div>
                   <div className="mt-[3px] text-[11px] text-[#B0B0B8]">{n.time}</div>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
           <Link
