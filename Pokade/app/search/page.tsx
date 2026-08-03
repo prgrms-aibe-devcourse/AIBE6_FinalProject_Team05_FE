@@ -15,6 +15,7 @@ import {
 } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
 import { highlightMatch } from "@/lib/highlightMatch";
+import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 
 // buyPrice(즉시구매가) 우선, 없으면 sellPrice(판매호가)를 대신 보여준다 — 둘 다 없으면 null.
 function priceLabel(summary?: CardPriceSummaryResponse): string | null {
@@ -252,25 +253,8 @@ function SearchDashboard() {
     sessionStorage.setItem("searchBackUrl", qs ? `${pathname}?${qs}` : pathname);
   }, [pathname, searchParams]);
 
-  // 모바일 바텀시트로 필터가 열려 있는 동안 배경 스크롤 방지.
-  useEffect(() => {
-    if (!filterOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [filterOpen]);
-
-  // ESC로 모바일 필터 드로어 닫기.
-  useEffect(() => {
-    if (!filterOpen) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setFilterOpen(false);
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [filterOpen]);
+  // 모바일 필터 드로어 열림 중 ESC 닫기 + 배경 스크롤 방지 (라이트박스와 공용 훅).
+  useEscapeAndScrollLock(filterOpen, () => setFilterOpen(false));
 
   // 필터 상태를 URL 쿼리 파라미터에 반영 — 상세 페이지 진입 후 뒤로가기 시 필터가 유지되도록 함.
   // 세터 호출 지점마다 흩어져 있던 동기화 호출을 걷어내고, 필터 상태 변화를 감시하는
