@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import GradeBadge, { type Grade } from "@/components/GradeBadge";
 import ConditionBar from "@/components/ConditionBar";
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+import { apiPostFormRaw, ApiError } from "@/lib/apiClient";
 
 // 슬롯 순서는 백엔드 @RequestPart 이름과 그대로 매칭되어야 함 (front/back/corner_tl/tr/bl/br)
 const SLOTS: { field: string; label: string }[] = [
@@ -47,23 +46,21 @@ async function requestGrade(photos: File[], retryOfId: number | null): Promise<G
   SLOTS.forEach(({ field }, i) => formData.append(field, photos[i]));
   if (retryOfId != null) formData.append("retryOfId", String(retryOfId));
 
-  const res = await fetch(`${API_BASE_URL}/api/ai/grade`, {
-    method: "POST",
-    body: formData,
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    console.error(`AI 진단 요청 실패 (HTTP ${res.status}):`, body);
-    if (res.status === 503) {
-      throw new Error("AI 진단 서비스에 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+  try {
+    return await apiPostFormRaw<GradeResponse>("/api/ai/grade", formData);
+  } catch (e) {
+    if (e instanceof ApiError) {
+      console.error(`AI 진단 요청 실패 (HTTP ${e.status}):`, e.message);
+      if (e.status === 503) {
+        throw new Error("AI 진단 서비스에 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+      }
+      if (e.status === 413) {
+        throw new Error("사진 용량이 너무 큽니다. 전체 합계 기준으로도 용량을 줄여 다시 올려주세요.");
+      }
+      throw new Error("진단 요청에 실패했습니다.");
     }
-    if (res.status === 413) {
-      throw new Error("사진 용량이 너무 큽니다. 전체 합계 기준으로도 용량을 줄여 다시 올려주세요.");
-    }
-    throw new Error("진단 요청에 실패했습니다.");
+    throw e;
   }
-  return res.json();
 }
 
 function UploadView({
