@@ -180,7 +180,7 @@ export default function PriceChart({
   return (
     <div className="rounded-2xl border border-[#EDEDF0] bg-white p-6">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-[17px] font-extrabold">시세 추이</h2>
+        <h2 className="text-[17px] font-extrabold">시세 차트</h2>
         <div className="flex gap-1.5">
           {PERIODS.map((p) => (
             <button
@@ -233,17 +233,17 @@ export default function PriceChart({
       )}
 
       {loading && (
-        <div className="flex h-[240px] items-center justify-center">
+        <div className="flex h-[320px] items-center justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-[#E7E7EB] border-t-primary" />
         </div>
       )}
 
       {!loading && locked && (
-        <div className="relative h-[240px] overflow-hidden rounded-xl">
+        <div className="relative h-[320px] overflow-hidden rounded-xl">
           <div className="h-full w-full bg-[#F2F2F5] blur-[2px]" />
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 bg-white/25">
             <span className="whitespace-nowrap text-[13px] font-bold text-ink">
-              자세한 시세 차트는 로그인 후 확인할 수 있습니다.
+              시세 차트는 로그인 후 확인할 수 있습니다.
             </span>
             <Link
               href="/login"
@@ -256,13 +256,13 @@ export default function PriceChart({
       )}
 
       {!loading && !locked && isEmpty && (
-        <div className="flex h-[240px] items-center justify-center text-[13.5px] text-[#9A9AA2]">
+        <div className="flex h-[320px] items-center justify-center text-[13.5px] text-[#9A9AA2]">
           해당 기간에 체결된 거래가 없습니다.
         </div>
       )}
 
       {!loading && !locked && !isEmpty && (
-        <ResponsiveContainer width="100%" height={240}>
+        <ResponsiveContainer width="100%" height={320}>
           <LineChart data={chartData} margin={{ top: 8, right: 16, left: 4, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#EDEDF0" />
             <XAxis
