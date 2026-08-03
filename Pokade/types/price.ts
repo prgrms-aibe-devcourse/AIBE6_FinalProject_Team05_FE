@@ -16,6 +16,9 @@ export interface TradeSummaryResponse {
   grade: ListingGrade | null;
 }
 
+// com.pokade.domain.price.ChartPeriod 미러링 — GET /api/prices/{cardId}/chart?period= 값.
+export type ChartPeriod = "30d" | "90d" | "1y";
+
 // com.pokade.domain.listing.ListingStatus 미러링.
 export type ListingStatus = "ACTIVE" | "TRADING" | "SOLD" | "EXPIRED" | "CANCELLED" | "HIDDEN";
 
