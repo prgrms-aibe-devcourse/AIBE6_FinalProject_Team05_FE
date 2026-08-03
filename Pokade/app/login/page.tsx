@@ -6,11 +6,19 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useUserStore } from "@/store/useUserStore";
 import { ApiError } from "@/lib/apiClient";
 
-// redirect 쿼리로 임의 도메인 이동(오픈 리다이렉트)을 허용하지 않도록, "/"로 시작하는
-// 내부 경로만 허용한다("//evil.com"처럼 프로토콜-상대 URL로 해석되는 경우도 차단).
+// redirect 쿼리로 임의 도메인 이동(오픈 리다이렉트)을 허용하지 않도록, 브라우저의 URL 파서로
+// 해석한 뒤 origin이 현재 사이트와 같은 경우에만 허용한다. startsWith("/") 같은 문자열 검사는
+// "/\evil.example"처럼 역슬래시가 브라우저에서 "//evil.example"(프로토콜-상대 URL)로 정규화되는
+// 경우를 놓치므로, 반드시 파싱된 origin으로 비교해야 한다.
 function sanitizeRedirect(target: string | null): string {
-  if (target && target.startsWith("/") && !target.startsWith("//")) {
-    return target;
+  if (!target) return "/";
+  try {
+    const url = new URL(target, window.location.origin);
+    if (url.origin === window.location.origin) {
+      return url.pathname + url.search + url.hash;
+    }
+  } catch {
+    // 유효하지 않은 URL
   }
   return "/";
 }
