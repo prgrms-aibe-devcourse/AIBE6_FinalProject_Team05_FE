@@ -3,20 +3,33 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import GradeBadge, { Grade } from "@/components/GradeBadge";
+import GradeBadge, { Grade, GRADE_DESCRIPTIONS } from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
 import { CardSearchItem, toCardSearchItem } from "@/types/card";
-import { CardSort, fetchCardsByKeywordPage, fetchCardsPage } from "@/lib/cardApi";
+import { CardPriceSummaryResponse } from "@/types/price";
+import {
+  CardSort,
+  fetchCardsByKeywordPage,
+  fetchCardsPage,
+  fetchPriceSummaries,
+} from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
 import { highlightMatch } from "@/lib/highlightMatch";
 
-const GRADE_CHIP: Record<Grade, string> = {
-  S: "text-[#5A4300] bg-[#FFF3CE] border-[#F0E0A0]",
-  A: "text-secondary bg-lavender border-[#D4D9F5]",
-  B: "text-[#6B7280] bg-[#EEF0F2] border-[#DCDFE3]",
-};
+// buyPrice(즉시구매가) 우선, 없으면 sellPrice(판매호가)를 대신 보여준다 — 둘 다 없으면 null.
+function priceLabel(summary?: CardPriceSummaryResponse): string | null {
+  const price = summary?.buyPrice ?? summary?.sellPrice;
+  return price != null ? `${price.toLocaleString("ko-KR")}원` : null;
+}
 
 const PRICE_MAX = 3000000;
+
+// URL의 minPrice/maxPrice를 읽어 [0, PRICE_MAX] 범위를 벗어나거나 숫자가 아니면 null(기본값 사용).
+function parsePriceQueryParam(raw: string | null): number | null {
+  if (raw == null) return null;
+  const v = Number(raw);
+  return Number.isFinite(v) && v >= 0 && v <= PRICE_MAX ? v : null;
+}
 
 // size 파라미터를 넘기지 않을 때 BE 기본 페이지 size(cardApi.ts 주석 참고)와 맞춘 스켈레톤 칸 수.
 const SEARCH_SKELETON_COUNT = 20;
@@ -72,8 +85,23 @@ function SearchDashboard() {
   const searchParams = useSearchParams();
   const q = searchParams.get("q")?.trim() || "";
   const [view, setView] = useState<"search" | "dash">("search");
-  const [priceMin, setPriceMin] = useState(0);
-  const [priceMax, setPriceMax] = useState(1500000);
+  const [priceMin, setPriceMin] = useState<number>(() => {
+    const min = parsePriceQueryParam(searchParams.get("minPrice"));
+    const max = parsePriceQueryParam(searchParams.get("maxPrice"));
+    return min != null ? Math.min(min, max ?? PRICE_MAX) : 0;
+  });
+  const [priceMax, setPriceMax] = useState<number>(() => {
+    const min = parsePriceQueryParam(searchParams.get("minPrice"));
+    const max = parsePriceQueryParam(searchParams.get("maxPrice"));
+    return max != null ? Math.max(max, min ?? 0) : PRICE_MAX;
+  });
+  // min/max 핸들이 겹쳐 있을 때(값이 근접) 마지막으로 조작한 쪽이 위로 오도록
+  // z-index를 정하는 데만 쓰는 state — null이면 기존처럼 max가 위(기본 동작).
+  const [activeHandle, setActiveHandle] = useState<"min" | "max" | null>(null);
+  // API 요청/URL 동기화용 디바운스된 값 — 라벨/thumb는 priceMin/priceMax(즉시값)를 그대로 쓰고,
+  // 이 값은 드래그가 멈춘 뒤에만 갱신되어 재요청 트리거로 쓰인다.
+  const [debouncedPriceMin, setDebouncedPriceMin] = useState(priceMin);
+  const [debouncedPriceMax, setDebouncedPriceMax] = useState(priceMax);
   // URL을 직접 조작해 화이트리스트에 없는 값(예: types=INVALID)을 넣어도
   // 체크박스로 선택 가능한 값만 채택한다 — 배열은 유효한 값만 걸러내고
   // 나머지는 유지(전체를 버리지 않음).
@@ -107,6 +135,9 @@ function SearchDashboard() {
     return Number.isInteger(p) && p > 1 ? p : 1;
   });
   const [cards, setCards] = useState<CardSearchItem[]>([]);
+  const [priceSummaries, setPriceSummaries] = useState<Map<number, CardPriceSummaryResponse>>(
+    new Map(),
+  );
   const [totalPages, setTotalPages] = useState(1);
   const [totalElements, setTotalElements] = useState(0);
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -125,12 +156,26 @@ function SearchDashboard() {
   }
 
   // 정렬/필터가 바뀌면 이전 페이지 번호가 새 결과 집합에 더는 유효하지 않으므로 1페이지로 되돌린다.
-  const filterKey = `${selectedExpansionId}|${selectedTypes.join(",")}|${selectedRarities.join(",")}|${sort}`;
+  // 가격대는 debounced 값 기준 — 드래그 중간값으로 매번 1페이지/로딩 상태가 흔들리지 않도록 함.
+  // (다른 필터는 각 onChange에서 이미 setLoadState("loading")을 즉시 호출하므로 여기서 또
+  // 호출해도 중복일 뿐 해가 없고, debounced 가격 변경은 이 지점이 유일한 트리거가 된다.)
+  const filterKey = `${selectedExpansionId}|${selectedTypes.join(",")}|${selectedRarities.join(",")}|${sort}|${debouncedPriceMin}|${debouncedPriceMax}`;
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
+    setLoadState("loading");
     setPage(1);
   }
+
+  // 가격 슬라이더는 드래그 중 priceMin/priceMax가 연속으로 바뀌므로, 300~500ms 동안
+  // 값이 안정된 뒤에야 debouncedPriceMin/Max를 갱신한다 — API 요청/URL 동기화는 이 값을 본다.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedPriceMin(priceMin);
+      setDebouncedPriceMax(priceMax);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [priceMin, priceMax]);
 
   useEffect(() => {
     let cancelled = false;
@@ -141,6 +186,8 @@ function SearchDashboard() {
           expansionId: selectedExpansionId ?? undefined,
           types: selectedTypes,
           rarity: selectedRarities,
+          minPrice: debouncedPriceMin > 0 ? debouncedPriceMin : undefined,
+          maxPrice: debouncedPriceMax < PRICE_MAX ? debouncedPriceMax : undefined,
           sort,
           page: page - 1,
         });
@@ -162,7 +209,36 @@ function SearchDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [reloadKey, selectedExpansionId, selectedTypes, selectedRarities, sort, page, q]);
+  }, [
+    reloadKey,
+    selectedExpansionId,
+    selectedTypes,
+    selectedRarities,
+    debouncedPriceMin,
+    debouncedPriceMax,
+    sort,
+    page,
+    q,
+  ]);
+
+  // 화면에 보이는 카드가 바뀔 때마다(필터/정렬/페이지 전환 포함) 가격을 한 번에 배치 조회한다.
+  // 가격 조회 실패는 카드 목록 자체를 막지 않고, 실패한 카드는 기존처럼 "가격 정보 없음"으로 남는다.
+  useEffect(() => {
+    if (cards.length === 0) return;
+    let cancelled = false;
+
+    fetchPriceSummaries(cards.map((c) => c.id))
+      .then((summaries) => {
+        if (!cancelled) setPriceSummaries(summaries);
+      })
+      .catch(() => {
+        // 가격 조회 실패는 조용히 무시 — 카드 목록은 이미 정상 표시된 상태를 유지한다.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cards]);
 
   // 필터가 좁아져 현재 페이지가 범위를 벗어나면(예: URL을 page=999로 직접 수정) 마지막 페이지로 보정.
   if (loadState === "ready" && totalPages > 0 && page > totalPages) {
@@ -186,6 +262,16 @@ function SearchDashboard() {
     };
   }, [filterOpen]);
 
+  // ESC로 모바일 필터 드로어 닫기.
+  useEffect(() => {
+    if (!filterOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setFilterOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [filterOpen]);
+
   // 필터 상태를 URL 쿼리 파라미터에 반영 — 상세 페이지 진입 후 뒤로가기 시 필터가 유지되도록 함.
   // 세터 호출 지점마다 흩어져 있던 동기화 호출을 걷어내고, 필터 상태 변화를 감시하는
   // 단일 effect로 모아서 처리한다.
@@ -197,6 +283,10 @@ function SearchDashboard() {
     else params.delete("types");
     if (selectedRarities.length) params.set("rarity", selectedRarities.join(","));
     else params.delete("rarity");
+    if (debouncedPriceMin > 0) params.set("minPrice", String(debouncedPriceMin));
+    else params.delete("minPrice");
+    if (debouncedPriceMax < PRICE_MAX) params.set("maxPrice", String(debouncedPriceMax));
+    else params.delete("maxPrice");
     if (sort !== "latest") params.set("sort", sort);
     else params.delete("sort");
     if (page > 1) params.set("page", String(page));
@@ -204,7 +294,15 @@ function SearchDashboard() {
     const qs = params.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedExpansionId, selectedTypes, selectedRarities, sort, page]);
+  }, [
+    selectedExpansionId,
+    selectedTypes,
+    selectedRarities,
+    debouncedPriceMin,
+    debouncedPriceMax,
+    sort,
+    page,
+  ]);
 
   // 페이지 번호/이전·다음 버튼 클릭 시에만 맨 위로 스크롤 — 필터/정렬 변경으로
   // 인한 자동 setPage(1)은 이 핸들러를 거치지 않으므로 스크롤 동작이 없다.
@@ -213,9 +311,18 @@ function SearchDashboard() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  // 슬라이더 드래그가 아닌 즉시 액션(초기화, 칩 제거)은 debounce를 기다리지 않고
+  // priceMin/priceMax와 debouncedPriceMin/Max를 한 번에 맞춰 바로 재요청되게 한다.
+  const setPriceRangeNow = (min: number, max: number) => {
+    setPriceMin(min);
+    setPriceMax(max);
+    setDebouncedPriceMin(min);
+    setDebouncedPriceMax(max);
+  };
+
   const resetFilters = () => {
-    setPriceMin(0);
-    setPriceMax(1500000);
+    setPriceRangeNow(0, PRICE_MAX);
+    setActiveHandle(null);
     setLoadState("loading");
     setSelectedExpansionId(null);
     setSelectedTypes([]);
@@ -264,13 +371,37 @@ function SearchDashboard() {
                     : "hidden lg:block"
                 }
                 onClick={filterOpen ? () => setFilterOpen(false) : undefined}
+                role={filterOpen ? "dialog" : undefined}
+                aria-modal={filterOpen ? true : undefined}
               >
                 <div
                   className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl border border-[#EDEDF0] bg-white p-[22px] lg:sticky lg:top-[88px] lg:max-h-none lg:w-auto lg:overflow-visible lg:rounded-2xl"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="mb-4 flex items-center justify-between">
-                    <span className="text-[15px] font-extrabold">필터</span>
+                  <div className="mb-4 flex items-center justify-between lg:relative">
+                    <span className="flex items-center gap-1.5 text-[15px] font-extrabold">
+                      필터
+                      <span
+                        tabIndex={0}
+                        className="group relative inline-flex h-3.5 w-3.5 shrink-0 cursor-help items-center justify-center rounded-full bg-black/10 text-[8px] font-bold leading-none text-[#6B6B72] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#6B6B72] lg:static"
+                      >
+                        ?
+                        <span
+                          role="tooltip"
+                          className="pointer-events-none absolute left-0 top-[calc(100%+6px)] z-20 w-max max-w-[calc(100vw-80px)] break-keep rounded-md bg-[#1A1A1E] px-2.5 py-1.5 text-[11px] font-medium leading-relaxed text-white opacity-0 shadow-lift transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100 lg:left-1/2 lg:max-w-[190px] lg:-translate-x-1/2"
+                        >
+                          <span className="mb-1 block">
+                            <b>S</b>: {GRADE_DESCRIPTIONS.S}
+                          </span>
+                          <span className="mb-1 block">
+                            <b>A</b>: {GRADE_DESCRIPTIONS.A}
+                          </span>
+                          <span className="block">
+                            <b>B</b>: {GRADE_DESCRIPTIONS.B}
+                          </span>
+                        </span>
+                      </span>
+                    </span>
                     <button
                       type="button"
                       onClick={() => setFilterOpen(false)}
@@ -347,18 +478,6 @@ function SearchDashboard() {
                     ))}
                   </div>
                   <div className="mb-[18px] h-px bg-[#F0F0F0]" />
-                  <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">등급</div>
-                  <div className="mb-5 flex flex-wrap gap-[7px]">
-                    {(["S", "A", "B"] as Grade[]).map((g) => (
-                      <span
-                        key={g}
-                        className={`cursor-pointer rounded-full border px-2.5 py-1 text-[11.5px] font-bold ${GRADE_CHIP[g]}`}
-                      >
-                        {g}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="mb-[18px] h-px bg-[#F0F0F0]" />
                   <div className="mb-3 text-[12.5px] font-bold text-[#4B4B52]">가격대</div>
                   <div className="mb-3 flex justify-between text-[12.5px] font-bold text-ink">
                     <span>{priceMin.toLocaleString("ko-KR")}원</span>
@@ -380,8 +499,15 @@ function SearchDashboard() {
                       max={PRICE_MAX}
                       step={50000}
                       value={priceMin}
-                      onChange={(e) => setPriceMin(Math.min(+e.target.value, priceMax))}
-                      className="dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent"
+                      onChange={(e) => {
+                        setActiveHandle("min");
+                        setPriceMin(Math.min(+e.target.value, priceMax));
+                      }}
+                      aria-label="최소 가격"
+                      aria-valuetext={`${priceMin.toLocaleString("ko-KR")}원`}
+                      className={`dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent ${
+                        activeHandle === "min" ? "z-20" : "z-10"
+                      }`}
                     />
                     <input
                       type="range"
@@ -389,8 +515,15 @@ function SearchDashboard() {
                       max={PRICE_MAX}
                       step={50000}
                       value={priceMax}
-                      onChange={(e) => setPriceMax(Math.max(+e.target.value, priceMin))}
-                      className="dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent"
+                      onChange={(e) => {
+                        setActiveHandle("max");
+                        setPriceMax(Math.max(+e.target.value, priceMin));
+                      }}
+                      aria-label="최대 가격"
+                      aria-valuetext={`${priceMax.toLocaleString("ko-KR")}원`}
+                      className={`dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent ${
+                        activeHandle === "min" ? "z-10" : "z-20"
+                      }`}
                     />
                   </div>
                   <div className="mt-1.5 flex justify-between text-xs text-[#9A9AA2]">
@@ -458,7 +591,9 @@ function SearchDashboard() {
               {!q &&
                 (selectedExpansionId ||
                   selectedTypes.length > 0 ||
-                  selectedRarities.length > 0) && (
+                  selectedRarities.length > 0 ||
+                  priceMin > 0 ||
+                  priceMax < PRICE_MAX) && (
                   <div className="mb-4 flex flex-wrap gap-2">
                     {selectedExpansionId && (
                       <FilterChip
@@ -492,6 +627,12 @@ function SearchDashboard() {
                         }}
                       />
                     ))}
+                    {(priceMin > 0 || priceMax < PRICE_MAX) && (
+                      <FilterChip
+                        label={`${priceMin.toLocaleString("ko-KR")}원~${priceMax.toLocaleString("ko-KR")}원`}
+                        onRemove={() => setPriceRangeNow(0, PRICE_MAX)}
+                      />
+                    )}
                   </div>
                 )}
 
@@ -581,9 +722,9 @@ function SearchDashboard() {
                           </div>
                         )}
                         <div className="mt-auto pt-2.5 text-[15px] font-extrabold text-ink">
-                          {c.price ?? (
+                          {priceLabel(priceSummaries.get(c.id)) ?? (
                             <span className="text-[13px] font-semibold text-[#9A9AA2]">
-                              가격 정보 준비중
+                              가격 정보 없음
                             </span>
                           )}
                         </div>
