@@ -18,6 +18,7 @@ export default function VerifyEmailPage() {
   // 로그인/회원가입에서 넘긴 이메일 자동 채움
   useEffect(() => {
     const pending = sessionStorage.getItem("pendingVerifyEmail");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 마운트 시 sessionStorage에서 1회 자동 채움
     if (pending) setEmail(pending);
   }, []);
 
@@ -128,12 +129,22 @@ export default function VerifyEmailPage() {
               가입에 사용한 이메일로 인증 코드를 받아 입력해 주세요.
             </p>
 
-            <label className="mb-[7px] mt-6 block text-[13px] font-bold text-[#4B4B52]">
+            <label
+              htmlFor="email"
+              className="mb-[7px] mt-6 block text-[13px] font-bold text-[#4B4B52]"
+            >
               이메일
             </label>
             <input
+              id="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (sent) {
+                  setSent(false);
+                  setCode("");
+                }
+              }}
               placeholder="you@example.com"
               className={field}
             />
@@ -154,10 +165,14 @@ export default function VerifyEmailPage() {
 
             {sent && (
               <>
-                <label className="mb-[7px] mt-6 block text-[13px] font-bold text-[#4B4B52]">
+                <label
+                  htmlFor="code"
+                  className="mb-[7px] mt-6 block text-[13px] font-bold text-[#4B4B52]"
+                >
                   인증 코드
                 </label>
                 <input
+                  id="code"
                   value={code}
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                   inputMode="numeric"

@@ -107,7 +107,7 @@ export default function SignupPage() {
       setResendCooldown(60); // 60초 쿨다운
     } catch (e) {
       if (e instanceof ApiError && e.code === "EMAIL_NOT_VERIFIED") {
-        setError("이미 가입된 이메일이에요. 이메일 인증을 마저 진행해 주세요.");
+        setError("이미 가입된 이메일입니다. 이메일 인증을 완료해 주세요.");
         setNeedVerify(true);
         sessionStorage.setItem("pendingVerifyEmail", email.trim());
       } else {
