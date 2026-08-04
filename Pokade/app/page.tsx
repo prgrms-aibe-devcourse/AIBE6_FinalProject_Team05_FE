@@ -194,9 +194,6 @@ export default function HomePage() {
                         label="카드"
                         className="object-top"
                       />
-                      {c.grade && (
-                        <GradeBadge grade={c.grade} className="absolute left-2.5 top-2.5" />
-                      )}
                     </div>
                     <div className="flex flex-1 flex-col p-3.5">
                       <div className="text-[14.5px] font-bold leading-[1.35]">{c.name}</div>
