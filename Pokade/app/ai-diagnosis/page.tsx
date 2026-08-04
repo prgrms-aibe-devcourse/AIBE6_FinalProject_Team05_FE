@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import GradeBadge, { type Grade } from "@/components/GradeBadge";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import GradeBadge from "@/components/GradeBadge";
 import ConditionBar from "@/components/ConditionBar";
-import { apiPostFormRaw, ApiError } from "@/lib/apiClient";
+import PixelCharizard from "@/components/PixelCharizard";
+import { apiPostFormRaw, ApiError, PageResponse } from "@/lib/apiClient";
+import { fetchGradeHistory } from "@/lib/aiApi";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
+import type { GradeResponse } from "@/types/ai";
 
 // 슬롯 순서는 백엔드 @RequestPart 이름과 그대로 매칭되어야 함 (front/back/corner_tl/tr/bl/br)
 const SLOTS: { field: string; label: string }[] = [
@@ -16,23 +20,7 @@ const SLOTS: { field: string; label: string }[] = [
   { field: "corner_br", label: "우하단 모서리" },
 ];
 
-type GradeStatus = "SUCCESS" | "QUALITY_FAIL";
-
-interface GradeResponse {
-  gradeResultId: number;
-  status: GradeStatus;
-  grade: Grade | null;
-  centeringScore: number | null;
-  edgeScore: number | null;
-  surfaceScore: number | null;
-  cornerScore: number | null;
-  confidence: number | null;
-  isFree: boolean;
-  pointUsed: number;
-  retryAllowed: boolean;
-  notice: string;
-  createdAt: string;
-}
+const HISTORY_PAGE_SIZE = 10;
 
 // 진단 흐름의 상태를 하나의 판별 유니언으로 관리 — 서로 동시에 있을 수 없는 값들을 분리된 state로 두면
 // 항상 함께 세팅해야 하는 규칙이 컴파일러가 아닌 개발자 주의에만 의존하게 됨
@@ -204,7 +192,15 @@ function UploadView({
   );
 }
 
-function ResultView({ result, onReset }: { result: GradeResponse; onReset: () => void }) {
+function ResultView({
+  result,
+  onReset,
+  resetLabel = "다시 진단하기",
+}: {
+  result: GradeResponse;
+  onReset: () => void;
+  resetLabel?: string;
+}) {
   const scores: [string, number | null][] = [
     ["센터링", result.centeringScore],
     ["엣지", result.edgeScore],
@@ -251,7 +247,7 @@ function ResultView({ result, onReset }: { result: GradeResponse; onReset: () =>
           onClick={onReset}
           className="flex-1 rounded-[11px] border-2 border-[#D6D6DC] bg-white py-3.5 text-[15.5px] font-bold text-[#4B4B52]"
         >
-          다시 진단하기
+          {resetLabel}
         </button>
         <button
           disabled
@@ -265,10 +261,176 @@ function ResultView({ result, onReset }: { result: GradeResponse; onReset: () =>
   );
 }
 
+function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function HistoryView() {
+  const [page, setPage] = useState(0);
+  const [data, setData] = useState<PageResponse<GradeResponse> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<GradeResponse | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchGradeHistory(page, HISTORY_PAGE_SIZE)
+      .then((res) => {
+        if (cancelled) return;
+        setData(res);
+        setError(null);
+        setLoading(false);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setError(e instanceof ApiError ? e.message : "이력을 불러오지 못했습니다.");
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [page]);
+
+  // 페이지 전환 시 로딩 표시는 여기(이벤트 핸들러)에서 미리 켠다 — effect 본문에서
+  // setState를 동기 호출하면 리렌더가 겹치는 문제가 있어(react-hooks/set-state-in-effect) 피한다.
+  const goToPage = (p: number) => {
+    setLoading(true);
+    setPage(p);
+  };
+
+  if (selected) {
+    return (
+      <ResultView
+        result={selected}
+        onReset={() => setSelected(null)}
+        resetLabel="목록으로 돌아가기"
+      />
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-[#EDEDF0] bg-white p-[50px] text-center text-[13.5px] text-[#8A8A92]">
+        불러오는 중...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-[#F6C6C6] bg-[#FFF1F1] p-[30px] text-center text-[13.5px] font-bold text-[#C21414]">
+        {error}
+      </div>
+    );
+  }
+
+  const items = data?.content ?? [];
+  const totalPages = data?.totalPages ?? 0;
+
+  if (items.length === 0) {
+    return (
+      <div className="flex flex-col items-center rounded-2xl border border-[#EDEDF0] bg-white p-[50px] text-center">
+        <PixelCharizard />
+        <p className="mt-5 text-[14.5px] font-bold text-[#8A8A92]">이력이 없습니다</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-[#EDEDF0] bg-white p-[30px]">
+      <div className="flex flex-col gap-3">
+        {items.map((item) => (
+          <button
+            key={item.gradeResultId}
+            onClick={() => setSelected(item)}
+            className="flex items-center justify-between rounded-[11px] border border-[#EDEDF0] px-5 py-4 text-left transition hover:border-primary"
+          >
+            <div className="flex items-center gap-3">
+              <GradeBadge grade={item.grade ?? undefined} />
+              <div>
+                <div className="text-[13.5px] font-bold text-[#4B4B52]">
+                  {item.status === "SUCCESS" ? "진단 완료" : "품질 미달"}
+                </div>
+                <div className="text-[12px] text-[#9A9AA2]">{formatDateTime(item.createdAt)}</div>
+              </div>
+            </div>
+            <span className="text-[12px] font-semibold text-[#9A9AA2]">
+              {item.isFree ? "무료" : `포인트 ${item.pointUsed}`}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {totalPages > 1 && (
+        <div className="mt-6 flex items-center justify-center gap-1.5">
+          <button
+            onClick={() => goToPage(Math.max(0, page - 1))}
+            disabled={page <= 0}
+            aria-label="이전 페이지"
+            className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#DDDDE3] bg-white text-[13px] font-bold text-[#4B4B52] enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            &lt;
+          </button>
+          {Array.from({ length: totalPages }, (_, i) => i).map((p) => (
+            <button
+              key={p}
+              onClick={() => goToPage(p)}
+              aria-current={p === page ? "page" : undefined}
+              className={`h-9 w-9 rounded-[9px] text-[13px] font-bold ${
+                p === page
+                  ? "bg-primary text-white"
+                  : "border border-[#DDDDE3] bg-white text-[#4B4B52] hover:border-primary hover:text-primary"
+              }`}
+            >
+              {p + 1}
+            </button>
+          ))}
+          <button
+            onClick={() => goToPage(Math.min(totalPages - 1, page + 1))}
+            disabled={page >= totalPages - 1}
+            aria-label="다음 페이지"
+            className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#DDDDE3] bg-white text-[13px] font-bold text-[#4B4B52] enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            &gt;
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// useSearchParams는 정적 프리렌더 시 Suspense 경계를 요구함(next build에서 강제됨)
 export default function AIDiagnosisPage() {
+  return (
+    <Suspense>
+      <AIDiagnosisContent />
+    </Suspense>
+  );
+}
+
+function AIDiagnosisContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const authStatus = useRequireAuth();
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<DiagnosisStatus>({ kind: "idle" });
+  // 새로고침해도 보던 탭(새 진단/이력)이 유지되도록 쿼리 파라미터(?tab=history)로 관리
+  const [tab, setTabState] = useState<"new" | "history">(
+    searchParams.get("tab") === "history" ? "history" : "new",
+  );
+
+  const setTab = (next: "new" | "history") => {
+    setTabState(next);
+    router.replace(next === "history" ? "/ai-diagnosis?tab=history" : "/ai-diagnosis", {
+      scroll: false,
+    });
+  };
 
   const handleSubmit = async (photos: File[]) => {
     const retryOfId = status.kind === "qualityFail" ? status.retryOfId : null;
@@ -320,7 +482,32 @@ export default function AIDiagnosisPage() {
           </p>
         </div>
 
-        {status.kind === "success" ? (
+        <div className="mb-5 flex justify-center gap-2">
+          <button
+            onClick={() => setTab("new")}
+            className={`rounded-[10px] px-5 py-2.5 text-[13.5px] font-bold transition ${
+              tab === "new"
+                ? "bg-primary text-white"
+                : "border border-[#DDDDE3] bg-white text-[#4B4B52] hover:border-primary hover:text-primary"
+            }`}
+          >
+            새 진단 요청
+          </button>
+          <button
+            onClick={() => setTab("history")}
+            className={`rounded-[10px] px-5 py-2.5 text-[13.5px] font-bold transition ${
+              tab === "history"
+                ? "bg-primary text-white"
+                : "border border-[#DDDDE3] bg-white text-[#4B4B52] hover:border-primary hover:text-primary"
+            }`}
+          >
+            진단 이력
+          </button>
+        </div>
+
+        {tab === "history" ? (
+          <HistoryView />
+        ) : status.kind === "success" ? (
           <ResultView result={status.data} onReset={handleReset} />
         ) : (
           <UploadView
