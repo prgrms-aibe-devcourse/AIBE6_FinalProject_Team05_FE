@@ -28,6 +28,7 @@ import {
   fetchRelatedCards,
 } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
+import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 
 type LoadState = "loading" | "error" | "notfound" | "ready";
 type RelatedLoadState = "loading" | "ready";
@@ -118,25 +119,8 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     };
   }, []);
 
-  // 라이트박스가 열려 있는 동안 배경 스크롤 방지 (/search 필터 드로어와 동일 패턴).
-  useEffect(() => {
-    if (!lightboxOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [lightboxOpen]);
-
-  // ESC로 라이트박스 닫기 (/search 필터 드로어와 동일 패턴).
-  useEffect(() => {
-    if (!lightboxOpen) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setLightboxOpen(false);
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [lightboxOpen]);
+  // 라이트박스 열림 중 ESC 닫기 + 배경 스크롤 방지 (/search 필터 드로어와 공용 훅).
+  useEscapeAndScrollLock(lightboxOpen, () => setLightboxOpen(false));
 
   useEffect(() => {
     if (cardId == null) return;
