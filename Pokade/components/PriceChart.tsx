@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
   CartesianGrid,
@@ -13,6 +14,7 @@ import {
   YAxis,
 } from "recharts";
 import { ChartPeriod, TradeSummaryResponse } from "@/types/price";
+import { loginUrlFor } from "@/lib/authRedirect";
 
 // 등급별 고정 색상 — S/A/B는 GradeBadge/ListingGradeBadge와 톤을 맞추고,
 // PSA/미등급(RAW)은 겹치지 않는 색을 새로 배정한다.
@@ -145,6 +147,9 @@ export default function PriceChart({
 }) {
   const { points, grades } = buildChartData(data);
   const [selectedGrade, setSelectedGrade] = useState<string>(ALL_GRADES);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const loginHref = loginUrlFor(pathname, searchParams);
 
   // 기간을 바꿔서 선택 중이던 등급의 거래가 더 이상 없으면(예: 30일→해당 등급 거래 없음)
   // 조용히 "전체"로 되돌린다 — 존재하지 않는 등급 탭이 선택된 채로 남지 않도록.
@@ -246,7 +251,7 @@ export default function PriceChart({
               시세 차트는 로그인 후 확인할 수 있습니다.
             </span>
             <Link
-              href="/login"
+              href={loginHref}
               className="rounded-[9px] border-2 border-primary-dark bg-primary px-4 py-2 text-[12.5px] font-bold text-white shadow-tactile hover:brightness-105"
             >
               로그인하기
