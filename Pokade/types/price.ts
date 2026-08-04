@@ -28,9 +28,12 @@ export interface TradeSummaryResponse {
 export type ListingStatus = "ACTIVE" | "TRADING" | "SOLD" | "EXPIRED" | "CANCELLED" | "HIDDEN";
 
 // com.pokade.domain.listing.dto.ListingSummaryResponse 미러링.
+// cardId/cardName은 "내 매물" 화면에서 카드 상세로 연결하기 위해 BE에 추가 요청해 받은 필드.
 export interface ListingSummaryResponse {
   id: number;
   sellerId: number;
+  cardId: number;
+  cardName: string | null;
   price: number;
   grade: ListingGrade | null;
   status: ListingStatus;
@@ -46,6 +49,11 @@ export interface ListingCreateRequest {
   price: number;
   grade?: ListingGrade;
   imageUrls: string[];
+}
+
+// PUT /api/listings/{id} 요청 바디 — com.pokade.domain.listing.dto.ListingUpdateRequest 미러링.
+export interface ListingUpdateRequest {
+  price: number;
 }
 
 // POST/PUT /api/listings 응답 — com.pokade.domain.listing.dto.ListingResponse 미러링.
