@@ -14,19 +14,27 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [needVerify, setNeedVerify] = useState(false);
 
   const inputCls = `w-full rounded-[11px] px-3.5 py-3 text-[14.5px] text-ink outline-none border ${
     error ? "border-[1.5px] border-primary bg-[#FFF6F6]" : "border-[#DDDDE3]"
   }`;
 
   const doLogin = async (loginEmail: string, loginPassword: string) => {
+    setNeedVerify(false);
     setError(null);
     setLoading(true);
     try {
       await login(loginEmail, loginPassword);
       router.push("/"); // 로그인 성공 → 홈으로
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "로그인에 실패했습니다.");
+      if (err instanceof ApiError && err.code === "EMAIL_NOT_VERIFIED") {
+        setError("이메일 인증이 완료되지 않았습니다");
+        setNeedVerify(true);
+        sessionStorage.setItem("pendingVerifyEmail", loginEmail); // 인증 페이지에서 이메일 자동 채움
+      } else {
+        setError(err instanceof ApiError ? err.message : "로그인에 실패했습니다.");
+      }
     } finally {
       setLoading(false);
     }
@@ -72,6 +80,17 @@ export default function LoginPage() {
             className={inputCls}
           />
           {error && <p className="mt-[9px] text-[12.5px] font-semibold text-primary">{error}</p>}
+
+          {needVerify && (
+            <button
+              type="button"
+              onClick={() => router.push("/verify-email")}
+              className="mt-3 w-full rounded-[11px] border-2 border-primary bg-[#FFF6F6] py-3 text-[14px] font-bold text-primary"
+            >
+              이메일 인증하러 가기 →
+            </button>
+          )}
+
           <div className="mt-3.5 flex justify-end">
             <Link
               href="#"
