@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { signup, sendEmailCode, verifyEmail } from "@/lib/authApi";
+import { signup, sendEmailCode } from "@/lib/authApi";
 import { useRouter } from "next/navigation";
 import { ApiError } from "@/lib/apiClient";
+import { authErrorMessage } from "@/lib/authErrorMessages";
+import EmailVerificationForm from "@/components/EmailVerificationForm";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -17,11 +19,6 @@ export default function SignupPage() {
   const [signedUp, setSignedUp] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [code, setCode] = useState("");
-  const [verifying, setVerifying] = useState(false);
-  const [verifyError, setVerifyError] = useState<string | null>(null);
-  const [resendCooldown, setResendCooldown] = useState(0);
-  const [resending, setResending] = useState(false);
   const [needVerify, setNeedVerify] = useState(false);
 
   // 생년월일 완성 여부 + 만 나이(월·일까지) 계산
@@ -38,28 +35,7 @@ export default function SignupPage() {
   })();
   const ageError = age !== null && age < 14;
 
-  useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const t = setInterval(() => setResendCooldown((c) => c - 1), 1000);
-    return () => clearInterval(t);
-  }, [resendCooldown]);
-
   const passwordMismatch = passwordConfirm.length > 0 && password !== passwordConfirm;
-
-  function messageForStep1Error(e: ApiError): string {
-    switch (e.code) {
-      case "DUPLICATE_EMAIL":
-        return "이미 가입된 이메일입니다.";
-      case "DUPLICATE_NICKNAME":
-        return "이미 사용 중인 닉네임입니다.";
-      case "EMAIL_SEND_RATE_LIMITED":
-        return "인증 코드는 잠시 후에 다시 요청해 주세요.";
-      case "EMAIL_ALREADY_VERIFIED":
-        return "이미 인증이 완료된 계정입니다. 로그인해 주세요.";
-      default:
-        return e.message; // BE가 준 메시지로 폴백
-    }
-  }
 
   async function handleStep1Submit() {
     setError(null);
@@ -90,10 +66,6 @@ export default function SignupPage() {
       setError("닉네임은 2~20자로 입력해 주세요.");
       return;
     }
-    if (ageError) {
-      setError("만 14세 이상만 가입 가능합니다.");
-      return;
-    }
 
     setSubmitting(true);
     try {
@@ -104,73 +76,16 @@ export default function SignupPage() {
       }
       await sendEmailCode(email.trim());
       setStep(2);
-      setResendCooldown(60); // 60초 쿨다운
     } catch (e) {
       if (e instanceof ApiError && e.code === "EMAIL_NOT_VERIFIED") {
         setError("이미 가입된 이메일입니다. 이메일 인증을 완료해 주세요.");
         setNeedVerify(true);
         sessionStorage.setItem("pendingVerifyEmail", email.trim());
       } else {
-        setError(
-          e instanceof ApiError
-            ? messageForStep1Error(e)
-            : "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
-        );
+        setError(authErrorMessage(e));
       }
     } finally {
       setSubmitting(false);
-    }
-  }
-
-  function messageForVerifyError(e: ApiError): string {
-    switch (e.code) {
-      case "EMAIL_CODE_MISMATCH":
-        return "인증 코드가 일치하지 않습니다.";
-      case "EMAIL_CODE_EXPIRED":
-        return "인증 코드가 만료되었습니다. 코드를 재발송해 주세요.";
-      case "EMAIL_VERIFY_ATTEMPT_EXCEEDED":
-        return "인증 시도 횟수를 초과했습니다. 5분 후 다시 시도해 주세요.";
-      case "EMAIL_ALREADY_VERIFIED":
-        return "이미 인증이 완료되었습니다. 로그인해 주세요.";
-      default:
-        return e.message;
-    }
-  }
-
-  async function handleVerify() {
-    setVerifyError(null);
-    if (!/^\d{6}$/.test(code)) {
-      setVerifyError("6자리 숫자 코드를 입력해 주세요.");
-      return;
-    }
-    setVerifying(true);
-    try {
-      await verifyEmail(email.trim(), code);
-      setStep(3);
-    } catch (e) {
-      setVerifyError(
-        e instanceof ApiError
-          ? messageForVerifyError(e)
-          : "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
-      );
-    } finally {
-      setVerifying(false);
-    }
-  }
-
-  async function handleResend() {
-    if (resendCooldown > 0 || resending) return;
-    setResending(true);
-    setVerifyError(null);
-    try {
-      await sendEmailCode(email.trim());
-      setResendCooldown(60);
-    } catch (e) {
-      setVerifyError(
-        e instanceof ApiError ? messageForStep1Error(e) : "코드 재발송에 실패했습니다.",
-      );
-    } finally {
-      setResending(false);
     }
   }
 
@@ -299,7 +214,10 @@ export default function SignupPage() {
             )}
 
             {error && (
-              <p className="mt-4 rounded-[11px] border border-[#F6C6C6] bg-[#FFF1F1] px-[15px] py-3 text-[13px] font-semibold text-[#C21414]">
+              <p
+                role="alert"
+                className="mt-4 rounded-[11px] border border-[#F6C6C6] bg-[#FFF1F1] px-[15px] py-3 text-[13px] font-semibold text-[#C21414]"
+              >
                 {error}
               </p>
             )}
@@ -347,42 +265,11 @@ export default function SignupPage() {
               인증 코드 6자리를 보냈습니다.
             </p>
 
-            <label className="mb-[7px] mt-6 block text-[13px] font-bold text-[#4B4B52]">
-              인증 코드
-            </label>
-            <input
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              inputMode="numeric"
-              placeholder="6자리 숫자"
-              className={`${field} text-center text-[20px] tracking-[8px]`}
+            <EmailVerificationForm
+              email={email}
+              onVerified={() => setStep(3)}
+              initialCooldown={60}
             />
-
-            {verifyError && (
-              <p className="mt-4 rounded-[11px] border border-[#F6C6C6] bg-[#FFF1F1] px-[15px] py-3 text-[13px] font-semibold text-[#C21414]">
-                {verifyError}
-              </p>
-            )}
-
-            <button
-              onClick={handleVerify}
-              disabled={verifying}
-              className={`mt-[26px] w-full rounded-[11px] border-2 py-3.5 text-[15.5px] font-bold ${
-                verifying
-                  ? "cursor-not-allowed border-[#D6D6DC] bg-[#E4E4E8] text-[#A0A0A8]"
-                  : "border-primary-dark bg-primary text-white shadow-tactile"
-              }`}
-            >
-              {verifying ? "확인 중…" : "인증 확인"}
-            </button>
-
-            <button
-              onClick={handleResend}
-              disabled={resendCooldown > 0}
-              className="mt-3 w-full text-[13px] font-semibold text-secondary disabled:text-[#B0B0B8]"
-            >
-              {resendCooldown > 0 ? `코드 재발송 (${resendCooldown}s)` : "코드 재발송"}
-            </button>
           </div>
         )}
 

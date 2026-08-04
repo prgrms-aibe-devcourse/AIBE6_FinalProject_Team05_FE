@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useUserStore } from "@/store/useUserStore";
 import { ApiError } from "@/lib/apiClient";
+import { authErrorMessage } from "@/lib/authErrorMessages";
 
 // redirect 쿼리로 임의 도메인 이동(오픈 리다이렉트)을 허용하지 않도록, "/"로 시작하는
 // 내부 경로만 허용한다("//evil.com"처럼 프로토콜-상대 URL로 해석되는 경우도 차단).
@@ -52,7 +53,7 @@ function LoginForm() {
         setNeedVerify(true);
         sessionStorage.setItem("pendingVerifyEmail", loginEmail); // 인증 페이지에서 이메일 자동 채움
       } else {
-        setError(err instanceof ApiError ? err.message : "로그인에 실패했습니다.");
+        setError(authErrorMessage(err, "로그인에 실패했습니다."));
       }
     } finally {
       setLoading(false);
@@ -98,7 +99,11 @@ function LoginForm() {
             placeholder="비밀번호를 입력하세요"
             className={inputCls}
           />
-          {error && <p className="mt-[9px] text-[12.5px] font-semibold text-primary">{error}</p>}
+          {error && (
+            <p role="alert" className="mt-[9px] text-[12.5px] font-semibold text-primary">
+              {error}
+            </p>
+          )}
 
           {needVerify && (
             <button
