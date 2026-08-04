@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function Error({
   error,
@@ -9,6 +10,8 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const router = useRouter();
+
   useEffect(() => {
     console.error(error);
   }, [error]);
@@ -36,7 +39,10 @@ export default function Error({
           잠시 후 다시 시도해 주세요.
         </p>
         <button
-          onClick={reset}
+          onClick={() => {
+            router.refresh();
+            reset();
+          }}
           className="mt-6 w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3 text-[15px] font-bold text-white shadow-tactile"
         >
           다시 시도

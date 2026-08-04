@@ -99,7 +99,11 @@ function LoginForm() {
             placeholder="비밀번호를 입력하세요"
             className={inputCls}
           />
-          {error && <p className="mt-[9px] text-[12.5px] font-semibold text-primary">{error}</p>}
+          {error && (
+            <p role="alert" className="mt-[9px] text-[12.5px] font-semibold text-primary">
+              {error}
+            </p>
+          )}
 
           {needVerify && (
             <button

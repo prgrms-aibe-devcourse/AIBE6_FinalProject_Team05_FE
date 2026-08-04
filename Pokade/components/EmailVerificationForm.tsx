@@ -39,6 +39,7 @@ export default function EmailVerificationForm({
     }`;
 
   async function handleVerify() {
+    if (verifying || resending) return;
     setError(null);
     if (!/^\d{6}$/.test(code)) {
       setError("6자리 숫자 코드를 입력해 주세요.");
@@ -56,7 +57,7 @@ export default function EmailVerificationForm({
   }
 
   async function handleResend() {
-    if (resendCooldown > 0 || resending) return;
+    if (resendCooldown > 0 || verifying || resending) return;
     setError(null);
     setResending(true);
     try {
@@ -85,22 +86,25 @@ export default function EmailVerificationForm({
 
       <button
         onClick={handleVerify}
-        disabled={verifying}
-        className={`mt-[18px] ${primaryBtn(!verifying)}`}
+        disabled={verifying || resending}
+        className={`mt-[18px] ${primaryBtn(!verifying && !resending)}`}
       >
         {verifying ? "확인 중…" : "인증 확인"}
       </button>
 
       <button
         onClick={handleResend}
-        disabled={resendCooldown > 0 || resending}
+        disabled={resendCooldown > 0 || verifying || resending}
         className="mt-3 w-full text-[13px] font-semibold text-secondary disabled:text-[#B0B0B8]"
       >
         {resendCooldown > 0 ? `코드 재발송 (${resendCooldown}s)` : "코드 재발송"}
       </button>
 
       {error && (
-        <p className="mt-4 rounded-[11px] border border-[#F6C6C6] bg-[#FFF1F1] px-[15px] py-3 text-[13px] font-semibold text-[#C21414]">
+        <p
+          role="alert"
+          className="mt-4 rounded-[11px] border border-[#F6C6C6] bg-[#FFF1F1] px-[15px] py-3 text-[13px] font-semibold text-[#C21414]"
+        >
           {error}
         </p>
       )}

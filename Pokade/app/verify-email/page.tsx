@@ -121,7 +121,10 @@ export default function VerifyEmailPage() {
             )}
 
             {error && (
-              <p className="mt-4 rounded-[11px] border border-[#F6C6C6] bg-[#FFF1F1] px-[15px] py-3 text-[13px] font-semibold text-[#C21414]">
+              <p
+                role="alert"
+                className="mt-4 rounded-[11px] border border-[#F6C6C6] bg-[#FFF1F1] px-[15px] py-3 text-[13px] font-semibold text-[#C21414]"
+              >
                 {error}
               </p>
             )}
