@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import GradeBadge from "@/components/GradeBadge";
 import ConditionBar from "@/components/ConditionBar";
 import PixelCharizard from "@/components/PixelCharizard";
@@ -405,12 +405,32 @@ function HistoryView() {
   );
 }
 
+// useSearchParams는 정적 프리렌더 시 Suspense 경계를 요구함(next build에서 강제됨)
 export default function AIDiagnosisPage() {
+  return (
+    <Suspense>
+      <AIDiagnosisContent />
+    </Suspense>
+  );
+}
+
+function AIDiagnosisContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const authStatus = useUserStore((s) => s.status);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<DiagnosisStatus>({ kind: "idle" });
-  const [tab, setTab] = useState<"new" | "history">("new");
+  // 새로고침해도 보던 탭(새 진단/이력)이 유지되도록 쿼리 파라미터(?tab=history)로 관리
+  const [tab, setTabState] = useState<"new" | "history">(
+    searchParams.get("tab") === "history" ? "history" : "new",
+  );
+
+  const setTab = (next: "new" | "history") => {
+    setTabState(next);
+    router.replace(next === "history" ? "/ai-diagnosis?tab=history" : "/ai-diagnosis", {
+      scroll: false,
+    });
+  };
 
   // 비로그인 사용자는 진단 화면을 이용할 수 없음 — 세션 복원(loading) 끝난 뒤 미인증이면 로그인으로 이동
   useEffect(() => {
