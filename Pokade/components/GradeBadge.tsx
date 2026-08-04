@@ -6,11 +6,20 @@ const SIZES = {
   lg: { text: "text-[13px]", padX: "px-[13px]", padY: "py-[4px]" },
 };
 
+// 등급별 배경색 — cards/[id]/page.tsx의 매물/체결 등급 배지(ListingGradeBadge)에서도
+// 동일한 톤으로 재사용한다. 테두리/텍스트색은 배지마다 형태가 달라(테두리 유무, B 텍스트색 등)
+// 도메인별로 따로 두고, 실제로 겹치는 배경색 정의만 여기서 단일 소스로 공유한다.
+export const GRADE_BG: Record<Grade, string> = {
+  S: "bg-grade-s",
+  A: "bg-grade-a",
+  B: "bg-grade-b",
+};
+
 // 등급별 배경/테두리/텍스트 조합 — WCAG AA(4.5:1) 검증 완료.
 const GRADE_STYLE: Record<Grade, string> = {
-  S: "bg-grade-s border-[#C99A00] text-grade-s-ink",
-  A: "bg-secondary border-[#28348F] text-white",
-  B: "bg-grade-b border-[#6B7280] text-[#1F2937]",
+  S: `${GRADE_BG.S} border-[#C99A00] text-grade-s-ink`,
+  A: `${GRADE_BG.A} border-[#28348F] text-white`,
+  B: `${GRADE_BG.B} border-[#6B7280] text-[#1F2937]`,
 };
 
 // Grade 판정 기준 — /search 필터 사이드바의 등급 설명 툴팁 등에서 재사용.

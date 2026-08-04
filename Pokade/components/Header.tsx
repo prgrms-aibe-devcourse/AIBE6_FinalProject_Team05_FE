@@ -266,53 +266,52 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
       </form>
 
       {showDropdown && (
-        <div
-          id={listboxId}
-          role="listbox"
-          className="absolute left-0 right-0 top-[calc(100%+6px)] z-[95] min-h-[52px] overflow-hidden rounded-[12px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]"
-        >
-          {suggestions.length === 0 ? (
+        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-[95] min-h-[52px] overflow-hidden rounded-[12px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]">
+          <div id={listboxId} role="listbox">
+            {suggestions.length > 0 && (
+              <div className="max-h-[280px] overflow-y-auto">
+                {suggestions.map((card, i) => (
+                  <button
+                    key={card.id}
+                    id={`${listboxId}-option-${i}`}
+                    role="option"
+                    aria-selected={i === highlightedIndex}
+                    ref={(el) => {
+                      itemRefs.current[i] = el;
+                    }}
+                    type="button"
+                    // mousedown에서 preventDefault로 input의 blur 자체를 막아 클릭이 확실히 반영되게 한다.
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => selectSuggestion(card)}
+                    className={`flex w-full items-center gap-2.5 border-l-[3px] py-2 pl-[9px] pr-3 text-left ${
+                      i === highlightedIndex
+                        ? "border-secondary bg-lavender"
+                        : "border-transparent hover:bg-[#FAFAFB]"
+                    }`}
+                  >
+                    <div className="relative h-9 w-9 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
+                      <CardImage src={card.imageSmall} alt={card.name} label="카드" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div
+                        className={`truncate text-[13px] font-bold ${
+                          i === highlightedIndex ? "text-secondary" : "text-ink"
+                        }`}
+                      >
+                        {highlightMatch(card.name, query)}
+                      </div>
+                      <div className="truncate text-[11.5px] text-[#9A9AA2]">
+                        {card.setName} · {card.rarity}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {suggestions.length === 0 && (
             <div aria-live="polite" className="px-3 py-4 text-center text-[13px] text-[#9A9AA2]">
               검색 결과가 없습니다.
-            </div>
-          ) : (
-            <div className="max-h-[280px] overflow-y-auto">
-              {suggestions.map((card, i) => (
-                <button
-                  key={card.id}
-                  id={`${listboxId}-option-${i}`}
-                  role="option"
-                  aria-selected={i === highlightedIndex}
-                  ref={(el) => {
-                    itemRefs.current[i] = el;
-                  }}
-                  type="button"
-                  // mousedown에서 preventDefault로 input의 blur 자체를 막아 클릭이 확실히 반영되게 한다.
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => selectSuggestion(card)}
-                  className={`flex w-full items-center gap-2.5 border-l-[3px] py-2 pl-[9px] pr-3 text-left ${
-                    i === highlightedIndex
-                      ? "border-secondary bg-lavender"
-                      : "border-transparent hover:bg-[#FAFAFB]"
-                  }`}
-                >
-                  <div className="relative h-9 w-9 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
-                    <CardImage src={card.imageSmall} alt={card.name} label="카드" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div
-                      className={`truncate text-[13px] font-bold ${
-                        i === highlightedIndex ? "text-secondary" : "text-ink"
-                      }`}
-                    >
-                      {highlightMatch(card.name, query)}
-                    </div>
-                    <div className="truncate text-[11.5px] text-[#9A9AA2]">
-                      {card.setName} · {card.rarity}
-                    </div>
-                  </div>
-                </button>
-              ))}
             </div>
           )}
           {suggestions.length > 0 && totalElements > 8 && (
@@ -480,6 +479,8 @@ const PROFILE_MENU: { label: string; href: string }[] = [
 function LoggedInRight() {
   const [open, setOpen] = useState<null | "notif" | "profile">(null);
   const toggle = (which: "notif" | "profile") => setOpen((o) => (o === which ? null : which));
+  const notifId = useId();
+  const profileId = useId();
   const router = useRouter();
   const nickname = useUserStore((s) => s.nickname);
   const email = useUserStore((s) => s.email);
@@ -491,6 +492,8 @@ function LoggedInRight() {
       <button
         onClick={() => toggle("notif")}
         aria-label="알림"
+        aria-expanded={open === "notif"}
+        aria-controls={notifId}
         className="relative flex h-10 w-10 items-center justify-center rounded-[9px] bg-neutral transition-colors hover:bg-[#ECECEF]"
       >
         <svg
@@ -509,15 +512,23 @@ function LoggedInRight() {
       <button
         onClick={() => toggle("profile")}
         aria-label="프로필"
+        aria-expanded={open === "profile"}
+        aria-controls={profileId}
         className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-[14px] font-bold text-white"
       >
         {nickname?.charAt(0) ?? "U"}
       </button>
 
-      {open && <div onClick={() => setOpen(null)} className="fixed inset-0 z-[80]" />}
+      {open && (
+        <div onClick={() => setOpen(null)} aria-hidden="true" className="fixed inset-0 z-[80]" />
+      )}
 
       {open === "notif" && (
-        <div className="absolute right-[44px] top-[52px] z-[90] w-[344px] overflow-hidden rounded-[14px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]">
+        <div
+          id={notifId}
+          aria-label="알림 목록"
+          className="absolute right-[44px] top-[52px] z-[90] w-[344px] overflow-hidden rounded-[14px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]"
+        >
           <div className="flex items-center justify-between border-b border-[#F0F0F0] px-4 py-3.5">
             <span className="text-[14.5px] font-extrabold">알림</span>
             <span className="cursor-pointer text-xs font-bold text-secondary hover:text-secondary-dark">
@@ -526,9 +537,10 @@ function LoggedInRight() {
           </div>
           <div className="max-h-[340px] overflow-y-auto">
             {NOTIFS.map((n, i) => (
-              <div
+              <button
                 key={i}
-                className={`flex cursor-pointer gap-[11px] border-b border-[#F5F5F7] px-4 py-[13px] hover:bg-[#FAFAFB] ${n.unread ? "bg-[#FFF7F7]" : ""}`}
+                type="button"
+                className={`flex w-full cursor-pointer gap-[11px] border-b border-[#F5F5F7] px-4 py-[13px] text-left hover:bg-[#FAFAFB] ${n.unread ? "bg-[#FFF7F7]" : ""}`}
               >
                 <span
                   className={`mt-[15px] h-[7px] w-[7px] flex-shrink-0 rounded-full ${n.unread ? "bg-primary" : "bg-transparent"}`}
@@ -548,7 +560,7 @@ function LoggedInRight() {
                   <div className="mt-px text-xs text-[#9A9AA2]">{n.sub}</div>
                   <div className="mt-[3px] text-[11px] text-[#B0B0B8]">{n.time}</div>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
           <Link
@@ -561,7 +573,11 @@ function LoggedInRight() {
       )}
 
       {open === "profile" && (
-        <div className="absolute right-0 top-[52px] z-[90] w-[260px] overflow-hidden rounded-[14px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]">
+        <div
+          id={profileId}
+          aria-label="프로필 메뉴"
+          className="absolute right-0 top-[52px] z-[90] w-[260px] overflow-hidden rounded-[14px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]"
+        >
           <div className="flex items-center gap-3 px-4 py-[18px]">
             <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-secondary text-base font-extrabold text-white">
               {nickname?.charAt(0) ?? "U"}

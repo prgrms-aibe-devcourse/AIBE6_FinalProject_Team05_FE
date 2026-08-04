@@ -3,9 +3,11 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { signup, sendEmailCode, verifyEmail } from "@/lib/authApi";
+import { useRouter } from "next/navigation";
 import { ApiError } from "@/lib/apiClient";
 
 export default function SignupPage() {
+  const router = useRouter();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,6 +22,7 @@ export default function SignupPage() {
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resending, setResending] = useState(false);
+  const [needVerify, setNeedVerify] = useState(false);
 
   // 생년월일 완성 여부 + 만 나이(월·일까지) 계산
   const birthValid = /^\d{4}-\d{2}-\d{2}$/.test(birth.trim());
@@ -60,6 +63,7 @@ export default function SignupPage() {
 
   async function handleStep1Submit() {
     setError(null);
+    setNeedVerify(false);
 
     // 클라 전용 검증 (BE 제약과 동일하게 선반영 — 왕복 줄이기)
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
@@ -102,11 +106,17 @@ export default function SignupPage() {
       setStep(2);
       setResendCooldown(60); // 60초 쿨다운
     } catch (e) {
-      setError(
-        e instanceof ApiError
-          ? messageForStep1Error(e)
-          : "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
-      );
+      if (e instanceof ApiError && e.code === "EMAIL_NOT_VERIFIED") {
+        setError("이미 가입된 이메일입니다. 이메일 인증을 완료해 주세요.");
+        setNeedVerify(true);
+        sessionStorage.setItem("pendingVerifyEmail", email.trim());
+      } else {
+        setError(
+          e instanceof ApiError
+            ? messageForStep1Error(e)
+            : "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
+        );
+      }
     } finally {
       setSubmitting(false);
     }
@@ -292,6 +302,15 @@ export default function SignupPage() {
               <p className="mt-4 rounded-[11px] border border-[#F6C6C6] bg-[#FFF1F1] px-[15px] py-3 text-[13px] font-semibold text-[#C21414]">
                 {error}
               </p>
+            )}
+            {needVerify && (
+              <button
+                type="button"
+                onClick={() => router.push("/verify-email")}
+                className="mt-3 w-full rounded-[11px] border-2 border-primary bg-[#FFF6F6] py-3 text-[14px] font-bold text-primary"
+              >
+                이메일 인증하러 가기 →
+              </button>
             )}
             <button
               onClick={handleStep1Submit}
