@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import CardImage from "@/components/CardImage";
 import { useUserStore } from "@/store/useUserStore";
 import { ApiError } from "@/lib/apiClient";
 import { deleteListing, fetchMyListings, updateListingPrice } from "@/lib/listingApi";
@@ -244,12 +243,6 @@ export default function MyListingsPage() {
                     href={`/cards/${listing.cardId}`}
                     className="flex min-w-0 flex-1 items-center gap-4"
                   >
-                    <div className="relative h-16 w-12 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
-                      <CardImage
-                        src={listing.thumbnailUrl ?? undefined}
-                        alt={listing.cardName ?? "매물 사진"}
-                      />
-                    </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="truncate text-[14.5px] font-bold text-ink hover:text-primary">

@@ -28,6 +28,8 @@ import {
   fetchRelatedCards,
 } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
+import { createTrade } from "@/lib/tradeApi";
+import { useUserStore } from "@/store/useUserStore";
 
 type LoadState = "loading" | "error" | "notfound" | "ready";
 type RelatedLoadState = "loading" | "ready";
@@ -67,6 +69,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const userStatus = useUserStore((s) => s.status);
 
   const [card, setCard] = useState<CardDetailResponse | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -91,6 +94,9 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   // GET /api/listings는 (summary/trades와 달리) 아직 인증이 필요해 401이 날 수 있다 —
   // "매물 없음"과 "조회 권한 없음"을 구분해서 보여주기 위한 별도 상태.
   const [listingsError, setListingsError] = useState<ApiError | null>(null);
+  // 즉시구매 — 한 번에 하나의 매물만 처리(동시 클릭 방지)하고, 결과 배너는 목록 위에 표시한다.
+  const [buyingListingId, setBuyingListingId] = useState<number | null>(null);
+  const [buyError, setBuyError] = useState<string | null>(null);
   const [priceLoadState, setPriceLoadState] = useState<RelatedLoadState>("loading");
 
   // /search에서 저장해 둔 마지막 검색 URL(필터 쿼리 포함)로 돌아간다.
@@ -108,6 +114,22 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
       copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
     } catch {
       // 클립보드 접근이 차단된 환경(권한 거부 등)에서는 조용히 무시.
+    }
+  };
+
+  const handleBuy = async (listing: ListingSummaryResponse) => {
+    if (userStatus !== "authenticated") {
+      router.push("/login");
+      return;
+    }
+    setBuyingListingId(listing.id);
+    setBuyError(null);
+    try {
+      const trade = await createTrade({ listingId: listing.id });
+      router.push(`/trade-status/${trade.id}`);
+    } catch (err) {
+      setBuyError(err instanceof ApiError ? err.message : "구매 요청에 실패했습니다.");
+      setBuyingListingId(null);
     }
   };
 
@@ -542,6 +564,12 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                       </div>
                     ))}
 
+                  {buyError && (
+                    <div className="mb-2 rounded-2xl border border-[#F6C6C6] bg-[#FFF1F1] px-4 py-3 text-[13px] font-semibold text-[#C21414]">
+                      {buyError}
+                    </div>
+                  )}
+
                   {priceLoadState === "ready" && !listingsError && activeListings.length === 0 && (
                     <div className="rounded-2xl border border-[#EDEDF0] bg-white py-12 text-center text-[13.5px] text-[#9A9AA2]">
                       판매 중인 매물이 없습니다.
@@ -552,19 +580,20 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                     <div className="flex flex-col gap-2 rounded-2xl border border-[#EDEDF0] bg-white p-2">
                       {activeListings.map((l) => (
                         <div key={l.id} className="flex items-center gap-3 rounded-xl px-3 py-2.5">
-                          <div className="relative h-[52px] w-[38px] shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
-                            <CardImage
-                              src={l.thumbnailUrl ?? undefined}
-                              alt={card.name}
-                              label="카드"
-                            />
-                          </div>
                           <div className="flex flex-1 items-center justify-between">
                             <ListingGradeBadge grade={l.grade} />
                             <span className="text-[14px] font-extrabold text-ink">
                               {l.price.toLocaleString("ko-KR")}원
                             </span>
                           </div>
+                          <button
+                            type="button"
+                            disabled={buyingListingId === l.id}
+                            onClick={() => handleBuy(l)}
+                            className="flex-shrink-0 rounded-[9px] border-2 border-primary-dark bg-primary px-3 py-1.5 text-[12.5px] font-bold text-white shadow-tactile-sm transition active:translate-y-0.5 disabled:opacity-60"
+                          >
+                            {buyingListingId === l.id ? "구매 중..." : "구매하기"}
+                          </button>
                         </div>
                       ))}
                     </div>

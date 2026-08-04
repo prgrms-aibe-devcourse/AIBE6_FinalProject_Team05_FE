@@ -50,7 +50,6 @@ function NewListingForm() {
 
   const [price, setPrice] = useState("");
   const [grade, setGrade] = useState<ListingGrade | "">("");
-  const [imageUrls, setImageUrls] = useState<string[]>([""]);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,12 +103,6 @@ function NewListingForm() {
     };
   }, [query]);
 
-  const handleAddImageUrl = () => setImageUrls((urls) => [...urls, ""]);
-  const handleRemoveImageUrl = (index: number) =>
-    setImageUrls((urls) => urls.filter((_, i) => i !== index));
-  const handleImageUrlChange = (index: number, value: string) =>
-    setImageUrls((urls) => urls.map((u, i) => (i === index ? value : u)));
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -123,11 +116,6 @@ function NewListingForm() {
       setError("가격을 올바르게 입력해 주세요.");
       return;
     }
-    const trimmedUrls = imageUrls.map((u) => u.trim()).filter((u) => u.length > 0);
-    if (trimmedUrls.length === 0) {
-      setError("사진 URL을 최소 1개 이상 입력해 주세요.");
-      return;
-    }
 
     setSubmitting(true);
     try {
@@ -135,7 +123,6 @@ function NewListingForm() {
         cardId: selectedCard.id,
         price: priceNumber,
         grade: grade || undefined,
-        imageUrls: trimmedUrls,
       });
       router.push(`/cards/${selectedCard.id}`);
     } catch (err) {
@@ -258,42 +245,6 @@ function NewListingForm() {
               </option>
             ))}
           </select>
-
-          <div className="h-4" />
-
-          {/* 사진 URL */}
-          <label className="mb-[7px] block text-[13px] font-bold text-[#4B4B52]">
-            사진 URL (최소 1개)
-          </label>
-          <div className="flex flex-col gap-2.5">
-            {imageUrls.map((url, i) => (
-              <div key={i} className="flex gap-2">
-                <input
-                  type="text"
-                  value={url}
-                  onChange={(e) => handleImageUrlChange(i, e.target.value)}
-                  placeholder="https://example.com/image.png"
-                  className={inputCls}
-                />
-                {imageUrls.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveImageUrl(i)}
-                    className="flex-shrink-0 rounded-[11px] border border-[#DDDDE3] px-3 text-[13px] font-semibold text-[#8A8A92] hover:text-primary"
-                  >
-                    삭제
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={handleAddImageUrl}
-            className="mt-2 text-[12.5px] font-semibold text-[#8A8A92] hover:text-primary"
-          >
-            + 사진 URL 추가
-          </button>
 
           {error && <p className="mt-4 text-[12.5px] font-semibold text-primary">{error}</p>}
 

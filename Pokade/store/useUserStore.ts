@@ -11,6 +11,7 @@ import { reissueAccessToken, ApiError } from "@/lib/apiClient";
 interface UserState {
   isLoggedIn: boolean;
   status: "loading" | "authenticated" | "unauthenticated";
+  userId: number | null;
   nickname: string | null;
   email: string | null;
   role: "user" | "admin" | null;
@@ -29,6 +30,7 @@ function toStoreRole(role: MyInfo["role"]): "user" | "admin" {
 export const useUserStore = create<UserState>((set) => ({
   isLoggedIn: false,
   status: "loading",
+  userId: null,
   nickname: null,
   email: null,
   role: null,
@@ -43,6 +45,7 @@ export const useUserStore = create<UserState>((set) => ({
       set({
         isLoggedIn: true,
         status: "authenticated",
+        userId: me.userId,
         nickname: me.nickname,
         email: me.email,
         role: toStoreRole(me.role),
@@ -61,7 +64,14 @@ export const useUserStore = create<UserState>((set) => ({
       // 서버 무효화 실패는 무시(best-effort) — 클라 상태는 항상 초기화
     }
     setAccessToken(null);
-    set({ isLoggedIn: false, status: "unauthenticated", nickname: null, email: null, role: null });
+    set({
+      isLoggedIn: false,
+      status: "unauthenticated",
+      userId: null,
+      nickname: null,
+      email: null,
+      role: null,
+    });
   },
 
   // 새로고침 복원: refresh 쿠키로 reissue → 프로필 → 상태 복원 (없으면 비로그인 유지)
@@ -72,6 +82,7 @@ export const useUserStore = create<UserState>((set) => ({
       set({
         isLoggedIn: false,
         status: "unauthenticated",
+        userId: null,
         nickname: null,
         email: null,
         role: null,
@@ -83,6 +94,7 @@ export const useUserStore = create<UserState>((set) => ({
       set({
         isLoggedIn: true,
         status: "authenticated",
+        userId: me.userId,
         nickname: me.nickname,
         email: me.email,
         role: toStoreRole(me.role),
@@ -94,13 +106,21 @@ export const useUserStore = create<UserState>((set) => ({
         set({
           isLoggedIn: false,
           status: "unauthenticated",
+          userId: null,
           nickname: null,
           email: null,
           role: null,
         });
       } else {
         // 일시 오류(네트워크/5xx) → reissue는 성공했으니 세션은 유효. 토큰 유지, 프로필만 비움
-        set({ isLoggedIn: true, status: "authenticated", nickname: null, email: null, role: null });
+        set({
+          isLoggedIn: true,
+          status: "authenticated",
+          userId: null,
+          nickname: null,
+          email: null,
+          role: null,
+        });
       }
     }
   },
