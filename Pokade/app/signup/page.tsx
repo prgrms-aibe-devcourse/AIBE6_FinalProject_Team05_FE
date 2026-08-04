@@ -5,6 +5,7 @@ import Link from "next/link";
 import { signup, sendEmailCode, verifyEmail } from "@/lib/authApi";
 import { useRouter } from "next/navigation";
 import { ApiError } from "@/lib/apiClient";
+import { authErrorMessage } from "@/lib/authErrorMessages";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -45,21 +46,6 @@ export default function SignupPage() {
   }, [resendCooldown]);
 
   const passwordMismatch = passwordConfirm.length > 0 && password !== passwordConfirm;
-
-  function messageForStep1Error(e: ApiError): string {
-    switch (e.code) {
-      case "DUPLICATE_EMAIL":
-        return "이미 가입된 이메일입니다.";
-      case "DUPLICATE_NICKNAME":
-        return "이미 사용 중인 닉네임입니다.";
-      case "EMAIL_SEND_RATE_LIMITED":
-        return "인증 코드는 잠시 후에 다시 요청해 주세요.";
-      case "EMAIL_ALREADY_VERIFIED":
-        return "이미 인증이 완료된 계정입니다. 로그인해 주세요.";
-      default:
-        return e.message; // BE가 준 메시지로 폴백
-    }
-  }
 
   async function handleStep1Submit() {
     setError(null);
@@ -111,29 +97,10 @@ export default function SignupPage() {
         setNeedVerify(true);
         sessionStorage.setItem("pendingVerifyEmail", email.trim());
       } else {
-        setError(
-          e instanceof ApiError
-            ? messageForStep1Error(e)
-            : "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
-        );
+        setError(authErrorMessage(e));
       }
     } finally {
       setSubmitting(false);
-    }
-  }
-
-  function messageForVerifyError(e: ApiError): string {
-    switch (e.code) {
-      case "EMAIL_CODE_MISMATCH":
-        return "인증 코드가 일치하지 않습니다.";
-      case "EMAIL_CODE_EXPIRED":
-        return "인증 코드가 만료되었습니다. 코드를 재발송해 주세요.";
-      case "EMAIL_VERIFY_ATTEMPT_EXCEEDED":
-        return "인증 시도 횟수를 초과했습니다. 5분 후 다시 시도해 주세요.";
-      case "EMAIL_ALREADY_VERIFIED":
-        return "이미 인증이 완료되었습니다. 로그인해 주세요.";
-      default:
-        return e.message;
     }
   }
 
@@ -148,11 +115,7 @@ export default function SignupPage() {
       await verifyEmail(email.trim(), code);
       setStep(3);
     } catch (e) {
-      setVerifyError(
-        e instanceof ApiError
-          ? messageForVerifyError(e)
-          : "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
-      );
+      setVerifyError(authErrorMessage(e));
     } finally {
       setVerifying(false);
     }
@@ -166,9 +129,7 @@ export default function SignupPage() {
       await sendEmailCode(email.trim());
       setResendCooldown(60);
     } catch (e) {
-      setVerifyError(
-        e instanceof ApiError ? messageForStep1Error(e) : "코드 재발송에 실패했습니다.",
-      );
+      setVerifyError(authErrorMessage(e, "코드 재발송에 실패했습니다."));
     } finally {
       setResending(false);
     }

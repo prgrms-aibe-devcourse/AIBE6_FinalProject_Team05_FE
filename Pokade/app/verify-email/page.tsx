@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { sendEmailCode, verifyEmail } from "@/lib/authApi";
-import { ApiError } from "@/lib/apiClient";
+import { authErrorMessage } from "@/lib/authErrorMessages";
 
 export default function VerifyEmailPage() {
   const [email, setEmail] = useState("");
@@ -32,24 +32,6 @@ export default function VerifyEmailPage() {
   const field =
     "w-full rounded-[11px] border border-[#DDDDE3] px-3.5 py-3 text-[14.5px] outline-none";
 
-  function messageForError(e: ApiError): string {
-    switch (e.code) {
-      case "USER_NOT_FOUND":
-        return "가입되지 않은 이메일입니다.";
-      case "EMAIL_ALREADY_VERIFIED":
-        return "이미 인증이 완료된 계정입니다. 로그인해 주세요.";
-      case "EMAIL_SEND_RATE_LIMITED":
-        return "인증 코드는 잠시 후에 다시 요청해 주세요.";
-      case "EMAIL_CODE_MISMATCH":
-        return "인증 코드가 일치하지 않습니다.";
-      case "EMAIL_CODE_EXPIRED":
-        return "인증 코드가 만료되었습니다. 코드를 재발송해 주세요.";
-      case "EMAIL_VERIFY_ATTEMPT_EXCEEDED":
-        return "인증 시도 횟수를 초과했습니다. 코드를 재발송해 주세요.";
-      default:
-        return e.message;
-    }
-  }
 
   async function handleSend() {
     if (resendCooldown > 0 || sending) return;
@@ -64,7 +46,7 @@ export default function VerifyEmailPage() {
       setSent(true);
       setResendCooldown(60);
     } catch (e) {
-      setError(e instanceof ApiError ? messageForError(e) : "코드 발송에 실패했습니다.");
+      setError(authErrorMessage(e, "코드 발송에 실패했습니다."));
     } finally {
       setSending(false);
     }
@@ -82,7 +64,7 @@ export default function VerifyEmailPage() {
       sessionStorage.removeItem("pendingVerifyEmail");
       setDone(true);
     } catch (e) {
-      setError(e instanceof ApiError ? messageForError(e) : "인증에 실패했습니다.");
+      setError(authErrorMessage(e, "인증에 실패했습니다."));
     } finally {
       setVerifying(false);
     }
