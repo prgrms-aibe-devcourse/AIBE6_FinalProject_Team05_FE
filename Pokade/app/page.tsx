@@ -10,10 +10,17 @@ import { CardPriceSummaryResponse } from "@/types/price";
 import { fetchCards, fetchPriceSummaries } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
 
-// buyPrice(즉시구매가) 우선, 없으면 sellPrice(판매호가)를 대신 보여준다 — 둘 다 없으면 null.
-function priceLabel(summary?: CardPriceSummaryResponse): string | null {
-  const price = summary?.buyPrice ?? summary?.sellPrice;
-  return price != null ? `${price.toLocaleString("ko-KR")}원` : null;
+// buyPrice(S등급 매물가) 우선, 없으면 recentTradePrice(S등급 최근 체결가)를 대신 보여준다 — 둘 다 없으면 null.
+function resolvePriceDisplay(
+  summary?: CardPriceSummaryResponse,
+): { label: string; price: string } | null {
+  if (summary?.buyPrice != null) {
+    return { label: "S등급 매물가", price: `${summary.buyPrice.toLocaleString("ko-KR")}원` };
+  }
+  if (summary?.recentTradePrice != null) {
+    return { label: "최근 체결가", price: `${summary.recentTradePrice.toLocaleString("ko-KR")}원` };
+  }
+  return null;
 }
 
 const TICKER = [
@@ -92,7 +99,13 @@ export default function HomePage() {
     if (popularCards.length === 0) return;
     let cancelled = false;
 
-    fetchPriceSummaries(popularCards.map((c) => c.id))
+    fetchPriceSummaries(
+      popularCards.map((c) => c.id),
+      {
+        grade: "S",
+        includeRecentTradePrice: true,
+      },
+    )
       .then((summaries) => {
         if (!cancelled) setPriceSummaries(summaries);
       })
@@ -175,9 +188,7 @@ export default function HomePage() {
           <div className="mb-[26px] flex items-end justify-between">
             <div>
               <h2 className="m-0 text-[26px] font-extrabold tracking-[-0.5px]">인기 카드</h2>
-              <p className="mt-1.5 text-sm text-[#8A8A92]">
-                가장 주목받은 카드
-              </p>
+              <p className="mt-1.5 text-sm text-[#8A8A92]">가장 주목받은 카드</p>
             </div>
             <Link href="/search" className="text-sm font-bold text-primary hover:text-primary-dark">
               전체보기 &gt;
@@ -210,61 +221,66 @@ export default function HomePage() {
 
           {loadState === "ready" && popularCards.length > 0 && (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 lg:gap-[18px]">
-              {popularCards.map((c) => (
-                <div
-                  key={c.id}
-                  className="relative flex flex-col overflow-hidden rounded-[14px] border border-[#EDEDF0] transition hover:-translate-y-1 hover:shadow-lift"
-                >
-                  <Link href={`/cards/${c.id}`} className="flex flex-1 cursor-pointer flex-col">
-                    <div className="relative h-[196px] bg-[#F2F2F5]">
-                      <CardImage
-                        src={c.imageUrl}
-                        alt={c.name}
-                        label="카드"
-                        className="object-top"
-                      />
-                    </div>
-                    <div className="flex flex-1 flex-col p-3.5">
-                      <div className="text-[14.5px] font-bold leading-[1.35]">{c.name}</div>
-                      <div className="mt-[3px] text-xs text-[#9A9AA2]">{c.set}</div>
-                      <div className="mt-auto flex items-end justify-between pt-3.5">
-                        <div>
-                          <div className="text-[11px] text-[#9A9AA2]">최근 시세</div>
-                          <div className="text-base font-extrabold text-ink">
-                            {priceLabel(priceSummaries.get(c.id)) ?? (
-                              <span className="text-[13px] font-semibold text-[#9A9AA2]">
-                                가격 정보 준비중
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        {/* 좋아요 버튼이 차지하던 자리를 그대로 예약해 가격 텍스트와 겹치지 않게 함 */}
-                        <div className="h-9 w-9 flex-shrink-0" aria-hidden="true" />
-                      </div>
-                    </div>
-                  </Link>
-                  <button
-                    onClick={() => toggle(c.id)}
-                    aria-label="관심 등록"
-                    aria-pressed={!!liked[c.id]}
-                    className="absolute bottom-3.5 right-3.5 flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#EDEDF0] bg-white hover:border-primary hover:bg-[#FFF5F5]"
+              {popularCards.map((c) => {
+                const priceDisplay = resolvePriceDisplay(priceSummaries.get(c.id));
+                return (
+                  <div
+                    key={c.id}
+                    className="relative flex flex-col overflow-hidden rounded-[14px] border border-[#EDEDF0] transition hover:-translate-y-1 hover:shadow-lift"
                   >
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 24 24"
-                      stroke="#EE1515"
-                      strokeWidth="2"
-                      fill={liked[c.id] ? "#EE1515" : "none"}
+                    <Link href={`/cards/${c.id}`} className="flex flex-1 cursor-pointer flex-col">
+                      <div className="relative h-[196px] bg-[#F2F2F5]">
+                        <CardImage
+                          src={c.imageUrl}
+                          alt={c.name}
+                          label="카드"
+                          className="object-top"
+                        />
+                      </div>
+                      <div className="flex flex-1 flex-col p-3.5">
+                        <div className="text-[14.5px] font-bold leading-[1.35]">{c.name}</div>
+                        <div className="mt-[3px] text-xs text-[#9A9AA2]">{c.set}</div>
+                        <div className="mt-auto flex items-end justify-between pt-3.5">
+                          <div>
+                            <div className="text-[11px] text-[#9A9AA2]">
+                              {priceDisplay?.label ?? "최근 시세"}
+                            </div>
+                            <div className="text-base font-extrabold text-ink">
+                              {priceDisplay?.price ?? (
+                                <span className="text-[13px] font-semibold text-[#9A9AA2]">
+                                  가격 정보 준비중
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {/* 좋아요 버튼이 차지하던 자리를 그대로 예약해 가격 텍스트와 겹치지 않게 함 */}
+                          <div className="h-9 w-9 flex-shrink-0" aria-hidden="true" />
+                        </div>
+                      </div>
+                    </Link>
+                    <button
+                      onClick={() => toggle(c.id)}
+                      aria-label="관심 등록"
+                      aria-pressed={!!liked[c.id]}
+                      className="absolute bottom-3.5 right-3.5 flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#EDEDF0] bg-white hover:border-primary hover:bg-[#FFF5F5]"
                     >
-                      <path
-                        d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
-                        transform="translate(-3 0)"
-                      />
-                    </svg>
-                  </button>
-                </div>
-              ))}
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        stroke="#EE1515"
+                        strokeWidth="2"
+                        fill={liked[c.id] ? "#EE1515" : "none"}
+                      >
+                        <path
+                          d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
+                          transform="translate(-3 0)"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

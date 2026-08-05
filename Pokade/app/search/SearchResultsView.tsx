@@ -13,10 +13,17 @@ type LoadState = "loading" | "error" | "ready";
 // size 파라미터를 넘기지 않을 때 BE 기본 페이지 size(cardApi.ts 주석 참고)와 맞춘 스켈레톤 칸 수.
 const SEARCH_SKELETON_COUNT = 20;
 
-// buyPrice(즉시구매가) 우선, 없으면 sellPrice(판매호가)를 대신 보여준다 — 둘 다 없으면 null.
-function priceLabel(summary?: CardPriceSummaryResponse): string | null {
-  const price = summary?.buyPrice ?? summary?.sellPrice;
-  return price != null ? `${price.toLocaleString("ko-KR")}원` : null;
+// buyPrice(S등급 매물가) 우선, 없으면 recentTradePrice(S등급 최근 체결가)를 대신 보여준다 — 둘 다 없으면 null.
+function resolvePriceDisplay(
+  summary?: CardPriceSummaryResponse,
+): { label: string; price: string } | null {
+  if (summary?.buyPrice != null) {
+    return { label: "S등급 매물가", price: `${summary.buyPrice.toLocaleString("ko-KR")}원` };
+  }
+  if (summary?.recentTradePrice != null) {
+    return { label: "최근 체결가", price: `${summary.recentTradePrice.toLocaleString("ko-KR")}원` };
+  }
+  return null;
 }
 
 function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
@@ -493,42 +500,54 @@ export default function SearchResultsView({
               loadState === "loading" ? "pointer-events-none opacity-50" : "opacity-100"
             }`}
           >
-            {cards.map((c) => (
-              <Link
-                key={c.id}
-                href={`/cards/${c.id}`}
-                className="flex cursor-pointer flex-col overflow-hidden rounded-[13px] border border-[#EDEDF0] transition hover:-translate-y-[3px] hover:shadow-lift"
-              >
-                <div className="relative aspect-[5/7] w-full bg-[#F2F2F5]">
-                  <CardImage src={c.imageUrl} alt={c.name} label="카드" />
-                </div>
-                <div className="flex flex-1 flex-col p-3">
-                  <div className="text-[13.5px] font-bold">
-                    {q ? highlightMatch(c.name, q) : c.name}
+            {cards.map((c) => {
+              const priceDisplay = resolvePriceDisplay(priceSummaries.get(c.id));
+              return (
+                <Link
+                  key={c.id}
+                  href={`/cards/${c.id}`}
+                  className="flex cursor-pointer flex-col overflow-hidden rounded-[13px] border border-[#EDEDF0] transition hover:-translate-y-[3px] hover:shadow-lift"
+                >
+                  <div className="relative aspect-[5/7] w-full bg-[#F2F2F5]">
+                    <CardImage src={c.imageUrl} alt={c.name} label="카드" />
                   </div>
-                  <div className="mt-0.5 text-[11.5px] text-[#9A9AA2]">{c.set}</div>
-                  {c.types.length > 0 && (
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      {c.types.map((t) => (
-                        <span
-                          key={t}
-                          className="rounded-full border border-[#D4D9F5] bg-lavender px-2 py-0.5 text-[10px] font-bold text-secondary"
-                        >
-                          {t}
-                        </span>
-                      ))}
+                  <div className="flex flex-1 flex-col p-3">
+                    <div className="text-[13.5px] font-bold">
+                      {q ? highlightMatch(c.name, q) : c.name}
                     </div>
-                  )}
-                  <div className="mt-auto pt-2.5 text-[15px] font-extrabold text-ink">
-                    {priceLabel(priceSummaries.get(c.id)) ?? (
-                      <span className="text-[13px] font-semibold text-[#9A9AA2]">
-                        가격 정보 없음
-                      </span>
+                    <div className="mt-0.5 text-[11.5px] text-[#9A9AA2]">{c.set}</div>
+                    {c.types.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {c.types.map((t) => (
+                          <span
+                            key={t}
+                            className="rounded-full border border-[#D4D9F5] bg-lavender px-2 py-0.5 text-[10px] font-bold text-secondary"
+                          >
+                            {t}
+                          </span>
+                        ))}
+                      </div>
                     )}
+                    <div className="mt-auto pt-2.5">
+                      {priceDisplay ? (
+                        <>
+                          <div className="text-[11px] text-[#9A9AA2]">{priceDisplay.label}</div>
+                          <div className="text-[15px] font-extrabold text-ink">
+                            {priceDisplay.price}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-[15px] font-extrabold text-ink">
+                          <span className="text-[13px] font-semibold text-[#9A9AA2]">
+                            가격 정보 없음
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              );
+            })}
           </div>
         )}
 

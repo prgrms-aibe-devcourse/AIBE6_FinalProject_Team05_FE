@@ -3,6 +3,7 @@ import { CardDetailResponse, CardResponse } from "@/types/card";
 import {
   ChartPeriod,
   CardPriceSummaryResponse,
+  ListingGrade,
   ListingSummaryResponse,
   PriceStatsResponse,
   PriceSummaryResponse,
@@ -89,8 +90,11 @@ const PRICE_SUMMARIES_BATCH_SIZE = 100;
 
 // GET /api/prices/summaries?cardIds=1,2,3 — 카드 목록 화면에서 N+1 호출을 피하기 위한 배치 조회.
 // 응답 배열은 순서를 보장하지 않으므로 cardId 기준 Map으로 변환해서 반환한다.
+// grade를 넘기면 buyPrice가 해당 등급 매물만으로 계산되고, includeRecentTradePrice=true면
+// 응답에 recentTradePrice(해당 grade 기준 최근 체결가)가 추가된다.
 export async function fetchPriceSummaries(
   cardIds: number[],
+  options?: { grade?: ListingGrade; includeRecentTradePrice?: boolean },
 ): Promise<Map<number, CardPriceSummaryResponse>> {
   const distinctIds = Array.from(new Set(cardIds));
   if (distinctIds.length === 0) return new Map();
@@ -100,9 +104,16 @@ export async function fetchPriceSummaries(
     chunks.push(distinctIds.slice(i, i + PRICE_SUMMARIES_BATCH_SIZE));
   }
 
+  const extraParams = new URLSearchParams();
+  if (options?.grade) extraParams.set("grade", options.grade);
+  if (options?.includeRecentTradePrice) extraParams.set("includeRecentTradePrice", "true");
+  const extraQuery = extraParams.toString();
+
   const results = await Promise.all(
     chunks.map((chunk) =>
-      apiGet<CardPriceSummaryResponse[]>(`/api/prices/summaries?cardIds=${chunk.join(",")}`),
+      apiGet<CardPriceSummaryResponse[]>(
+        `/api/prices/summaries?cardIds=${chunk.join(",")}${extraQuery ? `&${extraQuery}` : ""}`,
+      ),
     ),
   );
 
