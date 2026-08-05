@@ -16,14 +16,12 @@ export interface CardResponse {
 }
 
 // 화면(카드 검색 그리드)이 쓰는 형태.
-// price는 CardResponse에 없는 필드 — 시세 API 연동 전까지 undefined.
 export interface CardSearchItem {
   id: number;
   name: string;
   set: string;
   imageUrl: string;
   types: string[];
-  price?: string;
 }
 
 export function toCardSearchItem(card: CardResponse): CardSearchItem {
@@ -33,7 +31,6 @@ export function toCardSearchItem(card: CardResponse): CardSearchItem {
     set: `${card.setName} · ${card.rarity}`,
     imageUrl: card.imageMedium || card.imageSmall,
     types: card.types,
-    price: undefined,
   };
 }
 
