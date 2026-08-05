@@ -6,11 +6,13 @@ export interface PriceSummaryResponse {
 }
 
 // GET /api/prices/summaries 배치 응답 항목 — com.pokade.domain.price.dto.CardPriceSummaryResponse 미러링.
+// recentTradePrice: includeRecentTradePrice=true로 요청했을 때만 채워짐(해당 grade 기준 최근 체결가).
 export interface CardPriceSummaryResponse {
   cardId: number;
   buyPrice: number | null;
   sellPrice: number | null;
   currency: string;
+  recentTradePrice?: number | null;
 }
 
 // 매물/체결 등급 — com.pokade.domain.listing.ListingGrade 미러링.

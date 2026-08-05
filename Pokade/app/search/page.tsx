@@ -181,7 +181,10 @@ function SearchDashboard() {
     if (cards.length === 0) return;
     let cancelled = false;
 
-    fetchPriceSummaries(cards.map((c) => c.id))
+    fetchPriceSummaries(
+      cards.map((c) => c.id),
+      { grade: "S", includeRecentTradePrice: true },
+    )
       .then((summaries) => {
         if (!cancelled) setPriceSummaries(summaries);
       })
