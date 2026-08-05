@@ -41,3 +41,12 @@ export interface PasswordResetConfirmRequest {
   code: string;
   newPassword: string;
 }
+
+export interface NicknameUpdateRequest {
+  nickname: string;
+}
+
+export interface PasswordUpdateRequest {
+  currentPassword: string;
+  newPassword: string;
+}
