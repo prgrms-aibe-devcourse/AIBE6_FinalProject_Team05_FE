@@ -72,6 +72,10 @@ function LoginForm() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email.trim() || !password) {
+      setError("이메일과 비밀번호를 입력해 주세요.");
+      return;
+    }
     doLogin(email, password);
   };
 
@@ -127,7 +131,7 @@ function LoginForm() {
 
           <div className="mt-3.5 flex justify-end">
             <Link
-              href="#"
+              href="/reset-password"
               className="text-[12.5px] font-semibold text-[#8A8A92] hover:text-primary"
             >
               비밀번호 찾기
