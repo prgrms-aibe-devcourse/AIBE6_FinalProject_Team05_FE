@@ -164,7 +164,14 @@ function NewListingForm() {
               <input
                 type="text"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setQuery(next);
+                  // 새 검색어로 갈아탈 때 이전 검색 결과가 잠깐 그대로 보이는 것을 막는다 —
+                  // 디바운스가 끝나기 전까지는 목록/검색중 상태를 여기서 바로 초기화.
+                  setSuggestions([]);
+                  setSearching(next.trim().length >= MIN_QUERY_LENGTH);
+                }}
                 placeholder="카드 이름으로 검색 (2자 이상)"
                 className={inputCls}
               />

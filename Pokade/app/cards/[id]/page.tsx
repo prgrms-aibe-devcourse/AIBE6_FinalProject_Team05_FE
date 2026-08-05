@@ -120,6 +120,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   };
 
   const handleBuy = async (listingId: number) => {
+    if (userStatus === "loading") return; // 세션 복원 중 — 확정될 때까지 아무 것도 하지 않는다.
     if (userStatus !== "authenticated") {
       router.push(loginUrlFor(pathname, searchParams));
       return;
@@ -603,18 +604,22 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
 
                     <button
                       type="button"
-                      disabled={!selectedOffer || buyingListingId != null}
+                      disabled={
+                        userStatus === "loading" || !selectedOffer || buyingListingId != null
+                      }
                       onClick={() => {
                         if (!selectedOffer) return;
                         handleBuy(selectedOffer.listingId);
                       }}
                       className="mt-1 w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3.5 text-[15px] font-bold text-white shadow-tactile transition active:translate-y-0.5 active:shadow-tactile-active disabled:cursor-not-allowed disabled:border-[#DDDDE3] disabled:bg-neutral disabled:text-[#9A9AA2] disabled:shadow-none"
                     >
-                      {buyingListingId != null
-                        ? "구매 중..."
-                        : selectedOffer
-                          ? "구매하기"
-                          : "등급을 선택하세요"}
+                      {userStatus === "loading"
+                        ? "인증 확인 중..."
+                        : buyingListingId != null
+                          ? "구매 중..."
+                          : selectedOffer
+                            ? "구매하기"
+                            : "등급을 선택하세요"}
                     </button>
                   </div>
                 </div>

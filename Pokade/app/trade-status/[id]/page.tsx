@@ -27,6 +27,7 @@ export default function TradeStatusPage() {
   const tradeId = parseTradeId(id);
   const userStatus = useRequireAuth();
   const userId = useUserStore((s) => s.userId);
+  const userIdRestoring = useUserStore((s) => s.userIdRestoring);
 
   const [trade, setTrade] = useState<TradeResponse | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -92,6 +93,16 @@ export default function TradeStatusPage() {
     return (
       <main className="main-content flex items-center justify-center bg-neutral px-10 py-14">
         <div className="text-[13.5px] text-[#9A9AA2]">잘못된 거래 번호입니다.</div>
+      </main>
+    );
+  }
+
+  // userId 복원이 끝나기 전에는 구매자 판정을 내리지 않는다 — 안 그러면 실제 구매자도
+  // 일시적으로 "구매 확정" 버튼이 안 보이는 것처럼 보일 수 있다.
+  if (userIdRestoring) {
+    return (
+      <main className="main-content flex items-center justify-center bg-neutral px-10 py-14">
+        <div className="text-[13.5px] text-[#9A9AA2]">인증 확인 중...</div>
       </main>
     );
   }

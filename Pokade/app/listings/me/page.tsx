@@ -162,8 +162,12 @@ export default function MyListingsPage() {
     setDeleteError(null);
     try {
       await deleteListing(listingId);
+      // "판매중" 필터는 CANCELLED 매물을 보여주지 않는 화면이므로 상태만 바꾸면 필터와 어긋난다 — 목록에서 아예 제거.
+      // 그 외 필터("전체" 등)는 취소된 매물도 계속 보여주므로 상태만 갱신.
       setListings((prev) =>
-        prev.map((l) => (l.id === listingId ? { ...l, status: "CANCELLED" } : l)),
+        statusFilter === "ACTIVE"
+          ? prev.filter((l) => l.id !== listingId)
+          : prev.map((l) => (l.id === listingId ? { ...l, status: "CANCELLED" } : l)),
       );
       setConfirmDeleteId(null);
     } catch (err) {
