@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname, useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import CardImage from "@/components/CardImage";
 import PriceChart from "@/components/PriceChart";
+import ImageLightbox from "@/components/ImageLightbox";
 import {
   CardDetailResponse,
   CardSearchItem,
@@ -32,7 +32,6 @@ import {
 import { ApiError } from "@/lib/apiClient";
 import { createTrade } from "@/lib/tradeApi";
 import { useUserStore } from "@/store/useUserStore";
-import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 import { loginUrlFor } from "@/lib/authRedirect";
 
 type LoadState = "loading" | "error" | "notfound" | "ready";
@@ -152,9 +151,6 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
       if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
     };
   }, []);
-
-  // 라이트박스 열림 중 ESC 닫기 + 배경 스크롤 방지 (/search 필터 드로어와 공용 훅).
-  useEscapeAndScrollLock(lightboxOpen, () => setLightboxOpen(false));
 
   useEffect(() => {
     if (cardId == null) return;
@@ -720,35 +716,12 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                   )}
                 </div>
 
-                {lightboxOpen && (
-                  <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-                    onClick={() => setLightboxOpen(false)}
-                    role="dialog"
-                    aria-modal="true"
-                    aria-label="카드 이미지 확대"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setLightboxOpen(false)}
-                      aria-label="닫기"
-                      className="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-[18px] font-bold text-ink hover:bg-white"
-                    >
-                      ×
-                    </button>
-                    {mainImageSrc && (
-                      <Image
-                        src={mainImageSrc}
-                        alt={card.name}
-                        width={500}
-                        height={700}
-                        sizes="90vw"
-                        onClick={(e) => e.stopPropagation()}
-                        className="h-auto w-auto max-h-[90vh] max-w-[90vw] rounded-2xl object-contain"
-                      />
-                    )}
-                  </div>
-                )}
+                <ImageLightbox
+                  isOpen={lightboxOpen}
+                  onClose={() => setLightboxOpen(false)}
+                  imageSrc={mainImageSrc}
+                  alt={card.name}
+                />
               </>
             );
           })()}
