@@ -31,6 +31,7 @@ import {
 } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
+import { loginUrlFor } from "@/lib/authRedirect";
 
 type LoadState = "loading" | "error" | "notfound" | "ready";
 type RelatedLoadState = "loading" | "ready";
@@ -568,7 +569,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                           <div className="flex flex-col items-center gap-2 rounded-xl bg-neutral py-8 text-center text-[13px] text-[#9A9AA2]">
                             <span>등급별 매물은 로그인 후 확인할 수 있습니다.</span>
                             <Link
-                              href="/login"
+                              href={loginUrlFor(pathname, searchParams)}
                               className="text-[12.5px] font-bold text-primary hover:text-primary-dark"
                             >
                               로그인하기

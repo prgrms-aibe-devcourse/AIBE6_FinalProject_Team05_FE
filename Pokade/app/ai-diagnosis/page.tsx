@@ -7,7 +7,7 @@ import ConditionBar from "@/components/ConditionBar";
 import PixelCharizard from "@/components/PixelCharizard";
 import { apiPostFormRaw, ApiError, PageResponse } from "@/lib/apiClient";
 import { fetchGradeHistory } from "@/lib/aiApi";
-import { useUserStore } from "@/store/useUserStore";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import type { GradeResponse } from "@/types/ai";
 
 // 슬롯 순서는 백엔드 @RequestPart 이름과 그대로 매칭되어야 함 (front/back/corner_tl/tr/bl/br)
@@ -417,7 +417,7 @@ export default function AIDiagnosisPage() {
 function AIDiagnosisContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const authStatus = useUserStore((s) => s.status);
+  const authStatus = useRequireAuth();
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<DiagnosisStatus>({ kind: "idle" });
   // 새로고침해도 보던 탭(새 진단/이력)이 유지되도록 쿼리 파라미터(?tab=history)로 관리
@@ -431,13 +431,6 @@ function AIDiagnosisContent() {
       scroll: false,
     });
   };
-
-  // 비로그인 사용자는 진단 화면을 이용할 수 없음 — 세션 복원(loading) 끝난 뒤 미인증이면 로그인으로 이동
-  useEffect(() => {
-    if (authStatus === "unauthenticated") {
-      router.push("/login?redirect=/ai-diagnosis");
-    }
-  }, [authStatus, router]);
 
   const handleSubmit = async (photos: File[]) => {
     const retryOfId = status.kind === "qualityFail" ? status.retryOfId : null;

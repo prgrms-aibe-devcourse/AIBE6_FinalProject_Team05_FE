@@ -6,8 +6,15 @@ import GradeBadge from "@/components/GradeBadge";
 import ConditionBar from "@/components/ConditionBar";
 import CardImage from "@/components/CardImage";
 import { CardSearchItem, toCardSearchItem } from "@/types/card";
-import { fetchCards } from "@/lib/cardApi";
+import { CardPriceSummaryResponse } from "@/types/price";
+import { fetchCards, fetchPriceSummaries } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
+
+// buyPrice(즉시구매가) 우선, 없으면 sellPrice(판매호가)를 대신 보여준다 — 둘 다 없으면 null.
+function priceLabel(summary?: CardPriceSummaryResponse): string | null {
+  const price = summary?.buyPrice ?? summary?.sellPrice;
+  return price != null ? `${price.toLocaleString("ko-KR")}원` : null;
+}
 
 const TICKER = [
   { name: "리자몽 ex SAR", price: "₩142,000", chg: "▲ 3.2%", up: true },
@@ -53,6 +60,9 @@ export default function HomePage() {
   const toggle = (id: number) => setLiked((s) => ({ ...s, [id]: !s[id] }));
 
   const [popularCards, setPopularCards] = useState<CardSearchItem[]>([]);
+  const [priceSummaries, setPriceSummaries] = useState<Map<number, CardPriceSummaryResponse>>(
+    new Map(),
+  );
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -75,6 +85,25 @@ export default function HomePage() {
       cancelled = true;
     };
   }, []);
+
+  // 인기 카드 목록이 바뀌면 가격을 한 번에 배치 조회한다.
+  // 가격 조회 실패는 카드 목록 자체를 막지 않고, 실패한 카드는 기존처럼 "가격 정보 준비중"으로 남는다.
+  useEffect(() => {
+    if (popularCards.length === 0) return;
+    let cancelled = false;
+
+    fetchPriceSummaries(popularCards.map((c) => c.id))
+      .then((summaries) => {
+        if (!cancelled) setPriceSummaries(summaries);
+      })
+      .catch(() => {
+        // 가격 조회 실패는 조용히 무시 — 카드 목록은 이미 정상 표시된 상태를 유지한다.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [popularCards]);
 
   return (
     <main className="main-content">
@@ -194,9 +223,6 @@ export default function HomePage() {
                         label="카드"
                         className="object-top"
                       />
-                      {c.grade && (
-                        <GradeBadge grade={c.grade} className="absolute left-2.5 top-2.5" />
-                      )}
                     </div>
                     <div className="flex flex-1 flex-col p-3.5">
                       <div className="text-[14.5px] font-bold leading-[1.35]">{c.name}</div>
@@ -205,7 +231,7 @@ export default function HomePage() {
                         <div>
                           <div className="text-[11px] text-[#9A9AA2]">최근 시세</div>
                           <div className="text-base font-extrabold text-ink">
-                            {c.price ?? (
+                            {priceLabel(priceSummaries.get(c.id)) ?? (
                               <span className="text-[13px] font-semibold text-[#9A9AA2]">
                                 가격 정보 준비중
                               </span>

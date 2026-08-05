@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useUserStore } from "@/store/useUserStore";
@@ -29,6 +29,15 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const login = useUserStore((s) => s.login);
+  const authStatus = useUserStore((s) => s.status);
+
+  // 이미 로그인된 상태로 /login에 진입(예: 로그인 후 뒤로가기)하면 로그인 폼 대신 바로 원래 목적지로 보낸다.
+  // replace를 써서 히스토리에 /login이 다시 쌓이지 않게 한다.
+  useEffect(() => {
+    if (authStatus === "authenticated") {
+      router.replace(sanitizeRedirect(searchParams.get("redirect")));
+    }
+  }, [authStatus, router, searchParams]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -46,7 +55,8 @@ function LoginForm() {
     setLoading(true);
     try {
       await login(loginEmail, loginPassword);
-      router.push(sanitizeRedirect(searchParams.get("redirect"))); // 로그인 성공 → 원래 가려던 페이지(없으면 홈)로
+      // replace로 이동 — push를 쓰면 히스토리에 /login이 남아 로그인 후 뒤로가기 시 다시 노출된다
+      router.replace(sanitizeRedirect(searchParams.get("redirect"))); // 로그인 성공 → 원래 가려던 페이지(없으면 홈)로
     } catch (err) {
       if (err instanceof ApiError && err.code === "EMAIL_NOT_VERIFIED") {
         setError("이메일 인증이 완료되지 않았습니다");

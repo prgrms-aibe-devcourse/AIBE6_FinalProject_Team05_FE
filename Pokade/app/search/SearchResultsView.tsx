@@ -1,6 +1,6 @@
 import { Dispatch, SetStateAction, useEffect, useRef } from "react";
 import Link from "next/link";
-import GradeBadge, { GRADE_DESCRIPTIONS } from "@/components/GradeBadge";
+import { GRADE_DESCRIPTIONS } from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
 import { CardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
@@ -501,9 +501,6 @@ export default function SearchResultsView({
               >
                 <div className="relative aspect-[5/7] w-full bg-[#F2F2F5]">
                   <CardImage src={c.imageUrl} alt={c.name} label="카드" />
-                  {c.grade && (
-                    <GradeBadge grade={c.grade} className="absolute left-[9px] top-[9px]" />
-                  )}
                 </div>
                 <div className="flex flex-1 flex-col p-3">
                   <div className="text-[13.5px] font-bold">
