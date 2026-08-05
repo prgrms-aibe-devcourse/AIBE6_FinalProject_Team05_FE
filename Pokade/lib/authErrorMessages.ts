@@ -11,6 +11,7 @@ const AUTH_ERROR_MESSAGES: Record<string, string> = {
   EMAIL_CODE_EXPIRED: "인증 코드가 만료되었습니다. 코드를 재발송해 주세요.",
   EMAIL_VERIFY_ATTEMPT_EXCEEDED: "인증 시도 횟수를 초과했습니다. 코드를 재발송해 주세요.",
   USER_NOT_FOUND: "가입되지 않은 이메일입니다.",
+  PASSWORD_CHANGE_NOT_ALLOWED: "소셜 로그인 계정은 비밀번호를 재설정할 수 없습니다.",
 };
 
 // ApiError면 코드별 메시지(미매핑은 서버가 준 메시지), 그 외는 fallback

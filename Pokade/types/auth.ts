@@ -31,3 +31,13 @@ export interface EmailVerifyRequest {
   email: string;
   code: string;
 }
+
+export interface PasswordResetSendRequest {
+  email: string;
+}
+
+export interface PasswordResetConfirmRequest {
+  email: string;
+  code: string;
+  newPassword: string;
+}
