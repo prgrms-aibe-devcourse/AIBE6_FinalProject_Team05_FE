@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import CardImage from "@/components/CardImage";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useUserStore } from "@/store/useUserStore";
 import { ApiError } from "@/lib/apiClient";
 import { cancelTrade, confirmTrade, fetchTrade } from "@/lib/tradeApi";
@@ -24,18 +25,13 @@ type LoadState = "loading" | "notfound" | "forbidden" | "error" | "ready";
 export default function TradeStatusPage() {
   const { id } = useParams<{ id: string }>();
   const tradeId = parseTradeId(id);
-  const router = useRouter();
-  const userStatus = useUserStore((s) => s.status);
+  const userStatus = useRequireAuth();
   const userId = useUserStore((s) => s.userId);
 
   const [trade, setTrade] = useState<TradeResponse | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [actionSubmitting, setActionSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (userStatus === "unauthenticated") router.replace("/login");
-  }, [userStatus, router]);
 
   useEffect(() => {
     if (userStatus !== "authenticated" || tradeId == null) return;

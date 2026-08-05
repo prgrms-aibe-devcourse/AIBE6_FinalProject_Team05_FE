@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import CardImage from "@/components/CardImage";
-import { useUserStore } from "@/store/useUserStore";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
 import { createListing } from "@/lib/listingApi";
 import { fetchCardDetail, fetchCardsByKeywordPage } from "@/lib/cardApi";
@@ -41,7 +41,7 @@ export default function NewListingPage() {
 function NewListingForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const status = useUserStore((s) => s.status);
+  const status = useRequireAuth();
 
   const [selectedCard, setSelectedCard] = useState<SelectedCard | null>(null);
   const [query, setQuery] = useState("");
@@ -53,11 +53,6 @@ function NewListingForm() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // 로그인 안 되어 있으면 로그인 페이지로 리다이렉트
-  useEffect(() => {
-    if (status === "unauthenticated") router.replace("/login");
-  }, [status, router]);
 
   // ?cardId= 로 진입했으면 카드 상세를 미리 조회해서 선택된 카드로 세팅
   useEffect(() => {

@@ -2,15 +2,99 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { signup, sendEmailCode } from "@/lib/authApi";
+import { useRouter } from "next/navigation";
+import { ApiError } from "@/lib/apiClient";
+import { authErrorMessage } from "@/lib/authErrorMessages";
+import EmailVerificationForm from "@/components/EmailVerificationForm";
 
 export default function SignupPage() {
-  const [step, setStep] = useState<1 | 3>(1);
+  const router = useRouter();
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [nickname, setNickname] = useState("");
   const [birth, setBirth] = useState("");
+  const [signedUp, setSignedUp] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [needVerify, setNeedVerify] = useState(false);
 
-  const ageError = (() => {
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(birth.trim());
-    return m ? 2026 - parseInt(m[1], 10) < 14 : false;
+  // 생년월일 완성 여부 + 만 나이(월·일까지) 계산
+  const birthValid = /^\d{4}-\d{2}-\d{2}$/.test(birth.trim());
+  const age = (() => {
+    if (!birthValid) return null;
+    const [y, m, d] = birth.trim().split("-").map(Number);
+    const today = new Date();
+    let a = today.getFullYear() - y;
+    const beforeBirthday =
+      today.getMonth() + 1 < m || (today.getMonth() + 1 === m && today.getDate() < d);
+    if (beforeBirthday) a -= 1;
+    return a;
   })();
+  const ageError = age !== null && age < 14;
+
+  const passwordMismatch = passwordConfirm.length > 0 && password !== passwordConfirm;
+
+  async function handleStep1Submit() {
+    setError(null);
+    setNeedVerify(false);
+
+    // 클라 전용 검증 (BE 제약과 동일하게 선반영 — 왕복 줄이기)
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError("올바른 이메일 형식이 아닙니다.");
+      return;
+    }
+    if (!/^(?=.*[A-Za-z])(?=.*\d)\S{8,20}$/.test(password)) {
+      setError("비밀번호는 영문과 숫자를 포함해 공백 없이 8~20자로 입력해 주세요.");
+      return;
+    }
+    if (!birthValid) {
+      setError("생년월일을 입력해 주세요.");
+      return;
+    }
+    if (ageError) {
+      setError("만 14세 이상만 가입 가능합니다.");
+      return;
+    }
+    if (password !== passwordConfirm) {
+      setError("비밀번호가 일치하지 않습니다.");
+      return;
+    }
+    if (nickname.trim().length < 2 || nickname.trim().length > 20) {
+      setError("닉네임은 2~20자로 입력해 주세요.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      // signup은 한 번만 (send 실패 후 재시도 시 DUPLICATE_EMAIL 방지)
+      if (!signedUp) {
+        await signup({ email: email.trim(), password, nickname: nickname.trim() });
+        setSignedUp(true);
+      }
+      await sendEmailCode(email.trim());
+      setStep(2);
+    } catch (e) {
+      if (e instanceof ApiError && e.code === "EMAIL_NOT_VERIFIED") {
+        setError("이미 가입된 이메일입니다. 이메일 인증을 완료해 주세요.");
+        setNeedVerify(true);
+        sessionStorage.setItem("pendingVerifyEmail", email.trim());
+      } else {
+        setError(authErrorMessage(e));
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // 숫자만 남겨 YYYY-MM-DD 형식으로 자동 포맷팅
+  function formatBirth(input: string): string {
+    const digits = input.replace(/\D/g, "").slice(0, 8);
+    const parts = [digits.slice(0, 4), digits.slice(4, 6), digits.slice(6, 8)].filter(Boolean);
+    return parts.join("-");
+  }
 
   const field =
     "w-full rounded-[11px] border border-[#DDDDE3] px-3.5 py-3 text-[14.5px] outline-none";
@@ -67,31 +151,60 @@ export default function SignupPage() {
             )}
 
             <label className="mb-[7px] block text-[13px] font-bold text-[#4B4B52]">이메일</label>
-            <input placeholder="you@example.com" className={field} />
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              className={field}
+            />
             <div className="h-4" />
             <div className="flex gap-3">
               <div className="flex-1">
                 <label className="mb-[7px] block text-[13px] font-bold text-[#4B4B52]">
                   비밀번호
                 </label>
-                <input type="password" placeholder="8자 이상" className={field} />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="8자 이상"
+                  className={field}
+                />
               </div>
               <div className="flex-1">
                 <label className="mb-[7px] block text-[13px] font-bold text-[#4B4B52]">
                   비밀번호 확인
                 </label>
-                <input type="password" placeholder="다시 입력" className={field} />
+                <input
+                  type="password"
+                  value={passwordConfirm}
+                  onChange={(e) => setPasswordConfirm(e.target.value)}
+                  placeholder="다시 입력"
+                  className={field}
+                />
+                {passwordMismatch && (
+                  <p className="mt-[7px] text-[12px] font-semibold text-primary">
+                    비밀번호가 일치하지 않습니다.
+                  </p>
+                )}
               </div>
             </div>
             <div className="h-4" />
             <label className="mb-[7px] block text-[13px] font-bold text-[#4B4B52]">닉네임</label>
-            <input placeholder="트레이너 닉네임" className={field} />
+            <input
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value)}
+              placeholder="닉네임"
+              className={field}
+            />
             <div className="h-4" />
             <label className="mb-[7px] block text-[13px] font-bold text-[#4B4B52]">생년월일</label>
             <input
               placeholder="YYYY-MM-DD"
               value={birth}
-              onChange={(e) => setBirth(e.target.value)}
+              onChange={(e) => setBirth(formatBirth(e.target.value))}
+              inputMode="numeric"
+              maxLength={10}
               className={`w-full rounded-[11px] border px-3.5 py-3 text-[14.5px] outline-none ${ageError ? "border-[1.5px] border-primary bg-[#FFF6F6]" : "border-[#DDDDE3]"}`}
             />
             {ageError && (
@@ -100,22 +213,63 @@ export default function SignupPage() {
               </p>
             )}
 
+            {error && (
+              <p
+                role="alert"
+                className="mt-4 rounded-[11px] border border-[#F6C6C6] bg-[#FFF1F1] px-[15px] py-3 text-[13px] font-semibold text-[#C21414]"
+              >
+                {error}
+              </p>
+            )}
+            {needVerify && (
+              <button
+                type="button"
+                onClick={() => router.push("/verify-email")}
+                className="mt-3 w-full rounded-[11px] border-2 border-primary bg-[#FFF6F6] py-3 text-[14px] font-bold text-primary"
+              >
+                이메일 인증하러 가기 →
+              </button>
+            )}
             <button
-              onClick={() => {
-                if (!ageError) setStep(3);
-              }}
-              disabled={ageError}
+              onClick={handleStep1Submit}
+              disabled={ageError || submitting}
               className={`mt-[26px] w-full rounded-[11px] border-2 py-3.5 text-[15.5px] font-bold ${
-                ageError
+                ageError || submitting
                   ? "cursor-not-allowed border-[#D6D6DC] bg-[#E4E4E8] text-[#A0A0A8]"
                   : "border-primary-dark bg-primary text-white shadow-tactile"
               }`}
             >
-              다음 단계 →
+              {submitting ? "처리 중…" : "다음 단계 →"}
             </button>
-            <p className="mt-4 text-center text-xs text-[#B0B0B8]">
-              데모: 생년월일에 2013-05-05 입력 시 연령 제한 상태 확인
+          </div>
+        )}
+
+        {step === 2 && (
+          <div>
+            <div className="text-[12.5px] font-extrabold tracking-[1px] text-secondary">2단계</div>
+            <div className="mt-3 flex items-baseline justify-between gap-10">
+              <h1 className="m-0 text-[26px] font-extrabold tracking-[-0.6px]">이메일 인증</h1>
+              <span className="whitespace-nowrap text-[13px] font-bold text-[#8A8A92]">
+                2/3 단계
+              </span>
+            </div>
+            <div className="mt-4 flex gap-1.5">
+              <div className="h-1.5 flex-1 rounded bg-secondary" />
+              <div className="h-1.5 flex-1 rounded bg-secondary" />
+              <div className="h-1.5 flex-1 rounded bg-[#E2E2E8]" />
+            </div>
+
+            <p className="mt-6 text-[14px] leading-relaxed text-[#7A7A82]">
+              <span className="font-bold text-[#4B4B52]">{email}</span> 으로
+              <br />
+              인증 코드 6자리를 보냈습니다.
             </p>
+
+            <EmailVerificationForm
+              email={email}
+              onVerified={() => setStep(3)}
+              initialCooldown={60}
+            />
           </div>
         )}
 

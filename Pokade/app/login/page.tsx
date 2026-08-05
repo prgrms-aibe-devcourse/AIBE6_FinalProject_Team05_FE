@@ -1,32 +1,70 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useUserStore } from "@/store/useUserStore";
 import { ApiError } from "@/lib/apiClient";
+import { authErrorMessage } from "@/lib/authErrorMessages";
 
+// redirect 쿼리로 임의 도메인 이동(오픈 리다이렉트)을 허용하지 않도록, "/"로 시작하는
+// 내부 경로만 허용한다("//evil.com"처럼 프로토콜-상대 URL로 해석되는 경우도 차단).
+function sanitizeRedirect(target: string | null): string {
+  if (target && target.startsWith("/") && !target.startsWith("//")) {
+    return target;
+  }
+  return "/";
+}
+
+// useSearchParams는 정적 프리렌더 시 Suspense 경계를 요구함(next build에서 강제됨)
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const login = useUserStore((s) => s.login);
+  const authStatus = useUserStore((s) => s.status);
+
+  // 이미 로그인된 상태로 /login에 진입(예: 로그인 후 뒤로가기)하면 로그인 폼 대신 바로 원래 목적지로 보낸다.
+  // replace를 써서 히스토리에 /login이 다시 쌓이지 않게 한다.
+  useEffect(() => {
+    if (authStatus === "authenticated") {
+      router.replace(sanitizeRedirect(searchParams.get("redirect")));
+    }
+  }, [authStatus, router, searchParams]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [needVerify, setNeedVerify] = useState(false);
 
   const inputCls = `w-full rounded-[11px] px-3.5 py-3 text-[14.5px] text-ink outline-none border ${
     error ? "border-[1.5px] border-primary bg-[#FFF6F6]" : "border-[#DDDDE3]"
   }`;
 
   const doLogin = async (loginEmail: string, loginPassword: string) => {
+    setNeedVerify(false);
     setError(null);
     setLoading(true);
     try {
       await login(loginEmail, loginPassword);
-      router.push("/"); // 로그인 성공 → 홈으로
+      // replace로 이동 — push를 쓰면 히스토리에 /login이 남아 로그인 후 뒤로가기 시 다시 노출된다
+      router.replace(sanitizeRedirect(searchParams.get("redirect"))); // 로그인 성공 → 원래 가려던 페이지(없으면 홈)로
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "로그인에 실패했습니다.");
+      if (err instanceof ApiError && err.code === "EMAIL_NOT_VERIFIED") {
+        setError("이메일 인증이 완료되지 않았습니다");
+        setNeedVerify(true);
+        sessionStorage.setItem("pendingVerifyEmail", loginEmail); // 인증 페이지에서 이메일 자동 채움
+      } else {
+        setError(authErrorMessage(err, "로그인에 실패했습니다."));
+      }
     } finally {
       setLoading(false);
     }
@@ -71,7 +109,22 @@ export default function LoginPage() {
             placeholder="비밀번호를 입력하세요"
             className={inputCls}
           />
-          {error && <p className="mt-[9px] text-[12.5px] font-semibold text-primary">{error}</p>}
+          {error && (
+            <p role="alert" className="mt-[9px] text-[12.5px] font-semibold text-primary">
+              {error}
+            </p>
+          )}
+
+          {needVerify && (
+            <button
+              type="button"
+              onClick={() => router.push("/verify-email")}
+              className="mt-3 w-full rounded-[11px] border-2 border-primary bg-[#FFF6F6] py-3 text-[14px] font-bold text-primary"
+            >
+              이메일 인증하러 가기 →
+            </button>
+          )}
+
           <div className="mt-3.5 flex justify-end">
             <Link
               href="#"

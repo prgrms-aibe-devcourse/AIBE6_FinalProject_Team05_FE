@@ -140,6 +140,17 @@ export async function apiGetRaw<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+// 멀티파트 업로드용 (예: POST /api/ai/grade). apiPost와 달리 Content-Type을 강제하지
+// 않아야 브라우저가 FormData의 boundary를 포함한 multipart/form-data를 자동으로 설정한다.
+// 응답도 ApiResponse 래퍼 없이 raw body 그대로 내려주는 엔드포인트용.
+export async function apiPostFormRaw<T>(path: string, formData: FormData): Promise<T> {
+  const res = await request(path, {
+    method: "POST",
+    body: formData,
+  });
+  return (await res.json()) as T;
+}
+
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   const res = await request(path, {
     method: "POST",

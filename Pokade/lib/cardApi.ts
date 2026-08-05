@@ -1,6 +1,7 @@
 import { apiGet, apiGetRaw, PageResponse } from "@/lib/apiClient";
 import { CardDetailResponse, CardResponse } from "@/types/card";
 import {
+  ChartPeriod,
   CardPriceSummaryResponse,
   ListingSummaryResponse,
   PriceSummaryResponse,
@@ -11,12 +12,11 @@ import {
 // "popular"은 view_count 기준(feature/#62에서 BE 지원 확인).
 export type CardSort = "latest" | "name" | "popular";
 
-// GET /api/cards — types/rarity/grades/expansionId 정확 일치 필터 (기본 페이지 size=20).
+// GET /api/cards — types/rarity/expansionId 정확 일치 필터 (기본 페이지 size=20).
 export interface CardSearchFilters {
   expansionId?: string;
   types?: string[];
   rarity?: string[];
-  grades?: string[]; // BE 화이트리스트: S/A/B만 허용, 그 외 값은 400(INVALID_INPUT).
   minPrice?: number;
   maxPrice?: number; // minPrice > maxPrice면 BE가 400(INVALID_INPUT) 반환.
   sort?: CardSort;
@@ -37,7 +37,6 @@ export async function fetchCardsPage(
   if (filters.expansionId) query.set("expansionId", filters.expansionId);
   if (filters.types?.length) query.set("types", filters.types.join(","));
   if (filters.rarity?.length) query.set("rarity", filters.rarity.join(","));
-  if (filters.grades?.length) query.set("grades", filters.grades.join(","));
   if (filters.minPrice != null) query.set("minPrice", String(filters.minPrice));
   if (filters.maxPrice != null) query.set("maxPrice", String(filters.maxPrice));
   if (filters.sort) query.set("sort", filters.sort);
@@ -53,11 +52,6 @@ export async function fetchCards(filters: CardSearchFilters = {}): Promise<CardR
 
 // GET /api/cards/search?q= — 이름 키워드 검색. q가 blank면 BE가 400(INVALID_INPUT) 반환.
 // BE에 sort 파라미터가 없어(고정 정렬) 정렬 옵션은 받지 않는다.
-export async function fetchCardsByKeyword(q: string): Promise<CardResponse[]> {
-  const page = await fetchCardsByKeywordPage(q);
-  return page.content;
-}
-
 // 헤더 자동완성 / 검색 결과 페이지네이션용 — totalElements까지 필요할 때 페이지 응답 전체를 반환.
 export async function fetchCardsByKeywordPage(
   q: string,
@@ -117,6 +111,15 @@ export async function fetchPriceSummaries(
 // GET /api/prices/{cardId}/trades — 최근 체결 내역 (최대 20건, 서버 고정, 최신순).
 export async function fetchRecentTrades(cardId: number): Promise<TradeSummaryResponse[]> {
   return apiGet<TradeSummaryResponse[]>(`/api/prices/${cardId}/trades`);
+}
+
+// GET /api/prices/{cardId}/chart?period= — 기간별 체결가 추이 (오래된순, TradeSummaryResponse 재사용).
+// grade별 필터링은 BE가 안 하므로(팀 결정, CLAUDE.md 참고) grade는 응답 그대로 두고 FE에서 묶어서 그린다.
+export async function fetchPriceChart(
+  cardId: number,
+  period: ChartPeriod,
+): Promise<TradeSummaryResponse[]> {
+  return apiGet<TradeSummaryResponse[]>(`/api/prices/${cardId}/chart?period=${period}`);
 }
 
 // GET /api/listings?cardId= — 판매 중(ACTIVE) 매물 목록, 가격 오름차순.

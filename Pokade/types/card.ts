@@ -1,5 +1,3 @@
-import { Grade } from "@/components/GradeBadge";
-
 // 카드검색 API(BE) 응답 형태 — com.pokade.domain.card.dto.CardResponse 미러링.
 export interface CardResponse {
   id: number;
@@ -17,13 +15,6 @@ export interface CardResponse {
   grades: string[];
 }
 
-// BE grades 배열에서 배지에 표시할 대표 등급 하나를 뽑는다 — S > A > B 우선순위, 빈 배열이면 undefined.
-const GRADE_PRIORITY: Grade[] = ["S", "A", "B"];
-
-export function pickRepresentativeGrade(grades: string[]): Grade | undefined {
-  return GRADE_PRIORITY.find((g) => grades.includes(g));
-}
-
 // 화면(카드 검색 그리드)이 쓰는 형태.
 // price는 CardResponse에 없는 필드 — 시세 API 연동 전까지 undefined.
 export interface CardSearchItem {
@@ -32,7 +23,6 @@ export interface CardSearchItem {
   set: string;
   imageUrl: string;
   types: string[];
-  grade?: Grade;
   price?: string;
 }
 
@@ -43,7 +33,6 @@ export function toCardSearchItem(card: CardResponse): CardSearchItem {
     set: `${card.setName} · ${card.rarity}`,
     imageUrl: card.imageMedium || card.imageSmall,
     types: card.types,
-    grade: pickRepresentativeGrade(card.grades),
     price: undefined,
   };
 }

@@ -16,3 +16,18 @@ export interface MyInfo {
   profileImageUrl: string | null;
   pointBalance: number;
 }
+
+export interface SignupRequest {
+  email: string;
+  password: string;
+  nickname: string;
+}
+
+export interface EmailSendRequest {
+  email: string;
+}
+
+export interface EmailVerifyRequest {
+  email: string;
+  code: string;
+}

@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useUserStore } from "@/store/useUserStore";
+import { GRADE_BG } from "@/components/GradeBadge";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
 import { deleteListing, fetchMyListings, updateListingPrice } from "@/lib/listingApi";
 import { ListingGrade, ListingStatus, ListingSummaryResponse } from "@/types/price";
@@ -18,11 +18,11 @@ const STATUS_FILTERS: { label: string; value: ListingStatus | null }[] = [
   { label: "숨김", value: "HIDDEN" },
 ];
 
-// 등급 배지 스타일 — app/cards/[id]/page.tsx의 ListingGradeBadge와 동일한 규칙(같은 등급은 같은 색).
+// 등급 배지 배경색 — components/GradeBadge.tsx의 GRADE_BG를 단일 소스로 공유 (텍스트색은 배지 형태가 달라 여기서만 정의).
 const GRADE_STYLES: Partial<Record<ListingGrade, string>> = {
-  S: "bg-grade-s text-grade-s-ink",
-  A: "bg-grade-a text-white",
-  B: "bg-grade-b text-[#374151]",
+  S: `${GRADE_BG.S} text-grade-s-ink`,
+  A: `${GRADE_BG.A} text-white`,
+  B: `${GRADE_BG.B} text-[#374151]`,
 };
 
 function GradeBadgeInline({ grade }: { grade: ListingGrade | null }) {
@@ -74,8 +74,7 @@ function formatDate(iso: string) {
 type LoadState = "loading" | "error" | "ready";
 
 export default function MyListingsPage() {
-  const router = useRouter();
-  const status = useUserStore((s) => s.status);
+  const status = useRequireAuth();
 
   const [statusFilter, setStatusFilter] = useState<ListingStatus | null>(null);
   const [listings, setListings] = useState<ListingSummaryResponse[]>([]);
@@ -92,10 +91,6 @@ export default function MyListingsPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (status === "unauthenticated") router.replace("/login");
-  }, [status, router]);
 
   useEffect(() => {
     if (status !== "authenticated") return;
