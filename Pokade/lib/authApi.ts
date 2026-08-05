@@ -6,6 +6,8 @@ import {
   SignupRequest,
   EmailSendRequest,
   EmailVerifyRequest,
+  PasswordResetSendRequest,
+  PasswordResetConfirmRequest,
 } from "@/types/auth";
 
 // POST /api/auth/login — accessToken 발급 + refresh 쿠키 세팅
@@ -36,4 +38,24 @@ export function sendEmailCode(email: string): Promise<void> {
 // POST /api/auth/email/verify — 코드 검증 → PENDING→ACTIVE
 export function verifyEmail(email: string, code: string): Promise<void> {
   return apiPost<void>("/api/auth/email/verify", { email, code } satisfies EmailVerifyRequest);
+}
+
+// POST /api/auth/password/reset/send — 재설정 코드 발송(쿨다운 60s)
+export function sendPasswordResetCode(email: string): Promise<void> {
+  return apiPost<void>("/api/auth/password/reset/send", {
+    email,
+  } satisfies PasswordResetSendRequest);
+}
+
+// POST /api/auth/password/reset/confirm — 코드 검증 + 새 비밀번호 설정
+export function confirmPasswordReset(
+  email: string,
+  code: string,
+  newPassword: string,
+): Promise<void> {
+  return apiPost<void>("/api/auth/password/reset/confirm", {
+    email,
+    code,
+    newPassword,
+  } satisfies PasswordResetConfirmRequest);
 }
