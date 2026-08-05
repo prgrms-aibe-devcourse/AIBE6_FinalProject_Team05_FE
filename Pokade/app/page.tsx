@@ -176,7 +176,7 @@ export default function HomePage() {
             <div>
               <h2 className="m-0 text-[26px] font-extrabold tracking-[-0.5px]">인기 카드</h2>
               <p className="mt-1.5 text-sm text-[#8A8A92]">
-                거래량 기준 이번 주 가장 주목받은 카드
+                이번 주 가장 주목받은 카드
               </p>
             </div>
             <Link href="/search" className="text-sm font-bold text-primary hover:text-primary-dark">
