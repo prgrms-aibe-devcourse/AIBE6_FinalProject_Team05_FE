@@ -12,7 +12,7 @@ export interface CardPriceSummaryResponse {
   buyPrice: number | null;
   sellPrice: number | null;
   currency: string;
-  recentTradePrice: number | null;
+  recentTradePrice?: number | null;
 }
 
 // 매물/체결 등급 — com.pokade.domain.listing.ListingGrade 미러링.
