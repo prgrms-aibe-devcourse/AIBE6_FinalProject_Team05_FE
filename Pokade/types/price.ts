@@ -31,12 +31,40 @@ export type ChartPeriod = "30d" | "90d" | "1y";
 export type ListingStatus = "ACTIVE" | "TRADING" | "SOLD" | "EXPIRED" | "CANCELLED" | "HIDDEN";
 
 // com.pokade.domain.listing.dto.ListingSummaryResponse 미러링.
+// cardId/cardName은 "내 매물" 화면에서 카드 상세로 연결하기 위해 BE에 추가 요청해 받은 필드.
+// 매물 사진은 없음 — 매칭은 플랫폼이 중개하므로 실물 사진을 보여줄 필요가 없어 제외.
 export interface ListingSummaryResponse {
   id: number;
   sellerId: number;
+  cardId: number;
+  cardName: string | null;
   price: number;
   grade: ListingGrade | null;
   status: ListingStatus;
-  thumbnailUrl: string | null;
+  createdAt: string;
+}
+
+// POST /api/listings 요청 바디 — com.pokade.domain.listing.dto.ListingCreateRequest 미러링.
+export interface ListingCreateRequest {
+  cardId: number;
+  variantId?: number;
+  price: number;
+  grade?: ListingGrade;
+}
+
+// PUT /api/listings/{id} 요청 바디 — com.pokade.domain.listing.dto.ListingUpdateRequest 미러링.
+export interface ListingUpdateRequest {
+  price: number;
+}
+
+// POST/PUT /api/listings 응답 — com.pokade.domain.listing.dto.ListingResponse 미러링.
+export interface ListingResponse {
+  id: number;
+  cardId: number;
+  sellerId: number;
+  variantId: number | null;
+  price: number;
+  grade: ListingGrade | null;
+  status: ListingStatus;
   createdAt: string;
 }

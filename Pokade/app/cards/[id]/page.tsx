@@ -28,6 +28,8 @@ import {
   fetchRelatedCards,
 } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
+import { createTrade } from "@/lib/tradeApi";
+import { useUserStore } from "@/store/useUserStore";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 import { loginUrlFor } from "@/lib/authRedirect";
 
@@ -36,18 +38,24 @@ type RelatedLoadState = "loading" | "ready";
 
 type GradeKey = ListingGrade | "RAW";
 
+// 등급별 최저가 매물 — 구매하기 버튼이 어떤 매물(listingId)을 살지 알아야 해서 가격뿐 아니라 id도 들고 있는다.
+interface GradeOffer {
+  listingId: number;
+  price: number;
+}
+
 // PSA10 > PSA9 > PSA8 > S > A > B 순으로 구매 박스에 노출(미등급은 구매 박스에서 제외).
 const GRADE_ORDER: GradeKey[] = ["PSA10", "PSA9", "PSA8", "S", "A", "B"];
 
 function computeGradeSummary(
   listings: ListingSummaryResponse[],
-): Partial<Record<GradeKey, number>> {
-  const summary: Partial<Record<GradeKey, number>> = {};
+): Partial<Record<GradeKey, GradeOffer>> {
+  const summary: Partial<Record<GradeKey, GradeOffer>> = {};
   for (const l of listings) {
     const key: GradeKey = l.grade ?? "RAW";
     const current = summary[key];
-    if (current == null || l.price < current) {
-      summary[key] = l.price;
+    if (current == null || l.price < current.price) {
+      summary[key] = { listingId: l.id, price: l.price };
     }
   }
   return summary;
@@ -59,6 +67,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const userStatus = useUserStore((s) => s.status);
 
   const [card, setCard] = useState<CardDetailResponse | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -87,6 +96,9 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   // GET /api/listings는 (summary/trades와 달리) 아직 인증이 필요해 401이 날 수 있다 —
   // "매물 없음"과 "조회 권한 없음"을 구분해서 보여주기 위한 별도 상태.
   const [listingsError, setListingsError] = useState<ApiError | null>(null);
+  // 즉시구매 — 한 번에 하나의 매물만 처리(동시 클릭 방지)하고, 에러는 구매 박스 안에 표시한다.
+  const [buyingListingId, setBuyingListingId] = useState<number | null>(null);
+  const [buyError, setBuyError] = useState<string | null>(null);
   const [priceLoadState, setPriceLoadState] = useState<RelatedLoadState>("loading");
 
   // /search에서 저장해 둔 마지막 검색 URL(필터 쿼리 포함)로 돌아간다.
@@ -104,6 +116,23 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
       copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
     } catch {
       // 클립보드 접근이 차단된 환경(권한 거부 등)에서는 조용히 무시.
+    }
+  };
+
+  const handleBuy = async (listingId: number) => {
+    if (userStatus === "loading") return; // 세션 복원 중 — 확정될 때까지 아무 것도 하지 않는다.
+    if (userStatus !== "authenticated") {
+      router.push(loginUrlFor(pathname, searchParams));
+      return;
+    }
+    setBuyingListingId(listingId);
+    setBuyError(null);
+    try {
+      const trade = await createTrade({ listingId });
+      router.push(`/trade-status/${trade.id}`);
+    } catch (err) {
+      setBuyError(err instanceof ApiError ? err.message : "구매 요청에 실패했습니다.");
+      setBuyingListingId(null);
     }
   };
 
@@ -160,7 +189,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardId, reloadKey]);
 
-  // 판본이 2개 이상인 카드에서만 선택 상태를 ?variant= 쿼리로 반영해 공유 가능하게 한다.
+  // 판본이 2개 이상인 카드만 선택 상태를 ?variant= 쿼리로 반영해 공유 가능하게 한다.
   // 대표 판본으로 돌아오면 파라미터를 지워 기본 상태의 URL을 깔끔하게 유지한다.
   useEffect(() => {
     if (!card || card.variants.length <= 1) return;
@@ -355,6 +384,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
               card.imageLarge ||
               card.imageMedium;
             const gradeSummary = computeGradeSummary(activeListings);
+            const selectedOffer = selectedGrade ? gradeSummary[selectedGrade] : undefined;
 
             return (
               <>
@@ -499,6 +529,12 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                       </div>
                     </div>
 
+                    {buyError && (
+                      <div className="rounded-xl border border-[#F6C6C6] bg-[#FFF1F1] px-3.5 py-2.5 text-[12.5px] font-semibold text-[#C21414]">
+                        {buyError}
+                      </div>
+                    )}
+
                     <div className="border-t border-[#F5F5F7] pt-4">
                       <div className="mb-2.5 text-[12.5px] font-bold text-ink">등급 선택</div>
 
@@ -534,8 +570,8 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                       {priceLoadState === "ready" && !listingsError && (
                         <div className="grid grid-cols-2 gap-2">
                           {GRADE_ORDER.map((grade) => {
-                            const price = gradeSummary[grade];
-                            const hasStock = price != null;
+                            const offer = gradeSummary[grade];
+                            const hasStock = offer != null;
                             const isSelected = selectedGrade === grade;
                             return (
                               <button
@@ -555,7 +591,9 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                                   {grade}
                                 </span>
                                 <span className="text-[11px] font-semibold text-[#8A8A92]">
-                                  {hasStock ? `${price.toLocaleString("ko-KR")}원` : "매물 없음"}
+                                  {hasStock
+                                    ? `${offer.price.toLocaleString("ko-KR")}원`
+                                    : "매물 없음"}
                                 </span>
                               </button>
                             );
@@ -566,10 +604,22 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
 
                     <button
                       type="button"
-                      disabled
-                      className="mt-1 w-full cursor-not-allowed rounded-[11px] border-2 border-[#DDDDE3] bg-neutral py-3.5 text-[15px] font-bold text-[#9A9AA2]"
+                      disabled={
+                        userStatus === "loading" || !selectedOffer || buyingListingId != null
+                      }
+                      onClick={() => {
+                        if (!selectedOffer) return;
+                        handleBuy(selectedOffer.listingId);
+                      }}
+                      className="mt-1 w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3.5 text-[15px] font-bold text-white shadow-tactile transition active:translate-y-0.5 active:shadow-tactile-active disabled:cursor-not-allowed disabled:border-[#DDDDE3] disabled:bg-neutral disabled:text-[#9A9AA2] disabled:shadow-none"
                     >
-                      구매하기 (준비 중)
+                      {userStatus === "loading"
+                        ? "인증 확인 중..."
+                        : buyingListingId != null
+                          ? "구매 중..."
+                          : selectedOffer
+                            ? "구매하기"
+                            : "등급을 선택하세요"}
                     </button>
                   </div>
                 </div>

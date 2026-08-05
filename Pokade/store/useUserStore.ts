@@ -11,6 +11,10 @@ import { reissueAccessToken, ApiError } from "@/lib/apiClient";
 interface UserState {
   isLoggedIn: boolean;
   status: "loading" | "authenticated" | "unauthenticated";
+  userId: number | null;
+  // true인 동안은 로그인은 확정됐지만 userId를 아직 신뢰할 수 없는 상태(프로필 조회 재시도 중) —
+  // 구매자/판매자 판정처럼 userId가 꼭 필요한 화면은 이 값이 false로 바뀔 때까지 판정을 미뤄야 한다.
+  userIdRestoring: boolean;
   nickname: string | null;
   email: string | null;
   role: "user" | "admin" | null;
@@ -21,6 +25,10 @@ interface UserState {
   markAllNotificationsRead: () => void;
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // BE role(대문자) → 스토어 role(소문자) 매핑
 function toStoreRole(role: MyInfo["role"]): "user" | "admin" {
   return role === "ADMIN" ? "admin" : "user";
@@ -29,6 +37,8 @@ function toStoreRole(role: MyInfo["role"]): "user" | "admin" {
 export const useUserStore = create<UserState>((set) => ({
   isLoggedIn: false,
   status: "loading",
+  userId: null,
+  userIdRestoring: false,
   nickname: null,
   email: null,
   role: null,
@@ -43,6 +53,8 @@ export const useUserStore = create<UserState>((set) => ({
       set({
         isLoggedIn: true,
         status: "authenticated",
+        userId: me.userId,
+        userIdRestoring: false,
         nickname: me.nickname,
         email: me.email,
         role: toStoreRole(me.role),
@@ -61,7 +73,15 @@ export const useUserStore = create<UserState>((set) => ({
       // 서버 무효화 실패는 무시(best-effort) — 클라 상태는 항상 초기화
     }
     setAccessToken(null);
-    set({ isLoggedIn: false, status: "unauthenticated", nickname: null, email: null, role: null });
+    set({
+      isLoggedIn: false,
+      status: "unauthenticated",
+      userId: null,
+      userIdRestoring: false,
+      nickname: null,
+      email: null,
+      role: null,
+    });
   },
 
   // 새로고침 복원: refresh 쿠키로 reissue → 프로필 → 상태 복원 (없으면 비로그인 유지)
@@ -72,21 +92,29 @@ export const useUserStore = create<UserState>((set) => ({
       set({
         isLoggedIn: false,
         status: "unauthenticated",
+        userId: null,
+        userIdRestoring: false,
         nickname: null,
         email: null,
         role: null,
       });
       return;
     }
+
+    // 프로필 조회 전에 먼저 "로그인은 됐지만 userId는 아직 모름" 상태를 노출한다 —
+    // 구매자 판정처럼 userId가 꼭 필요한 화면이 이 값을 보고 판정을 미룰 수 있게.
+    set({ isLoggedIn: true, status: "authenticated", userIdRestoring: true });
+
     try {
       const me = await authApi.getMyInfo();
       set({
-        isLoggedIn: true,
-        status: "authenticated",
+        userId: me.userId,
+        userIdRestoring: false,
         nickname: me.nickname,
         email: me.email,
         role: toStoreRole(me.role),
       });
+      return;
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         // 실제 인증 실패 → 세션 정리
@@ -94,14 +122,30 @@ export const useUserStore = create<UserState>((set) => ({
         set({
           isLoggedIn: false,
           status: "unauthenticated",
+          userId: null,
+          userIdRestoring: false,
           nickname: null,
           email: null,
           role: null,
         });
-      } else {
-        // 일시 오류(네트워크/5xx) → reissue는 성공했으니 세션은 유효. 토큰 유지, 프로필만 비움
-        set({ isLoggedIn: true, status: "authenticated", nickname: null, email: null, role: null });
+        return;
       }
+    }
+
+    // 일시 오류(네트워크/5xx) → reissue는 성공했으니 세션 자체는 유효. 잠깐 쉬었다가 한 번 더 시도.
+    await delay(1000);
+    try {
+      const me = await authApi.getMyInfo();
+      set({
+        userId: me.userId,
+        userIdRestoring: false,
+        nickname: me.nickname,
+        email: me.email,
+        role: toStoreRole(me.role),
+      });
+    } catch {
+      // 재시도도 실패 — userId는 여전히 모르는 채로 복원 시도만 종료(무한 로딩 방지).
+      set({ userIdRestoring: false });
     }
   },
 
