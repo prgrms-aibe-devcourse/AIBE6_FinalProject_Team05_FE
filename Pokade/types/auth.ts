@@ -15,6 +15,7 @@ export interface MyInfo {
   status: "PENDING" | "ACTIVE" | "SUSPENDED" | "DELETED";
   profileImageUrl: string | null;
   pointBalance: number;
+  provider: "LOCAL" | "GOOGLE" | "KAKAO";
 }
 
 export interface SignupRequest {
