@@ -9,19 +9,7 @@ import { CardSearchItem, toCardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
 import { fetchCards, fetchPriceSummaries } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
-
-// buyPrice(S등급 매물가) 우선, 없으면 recentTradePrice(S등급 최근 체결가)를 대신 보여준다 — 둘 다 없으면 null.
-function resolvePriceDisplay(
-  summary?: CardPriceSummaryResponse,
-): { label: string; price: string } | null {
-  if (summary?.buyPrice != null) {
-    return { label: "S등급 매물가", price: `${summary.buyPrice.toLocaleString("ko-KR")}원` };
-  }
-  if (summary?.recentTradePrice != null) {
-    return { label: "최근 체결가", price: `${summary.recentTradePrice.toLocaleString("ko-KR")}원` };
-  }
-  return null;
-}
+import { resolvePriceDisplay } from "@/lib/priceDisplay";
 
 const TICKER = [
   { name: "리자몽 ex SAR", price: "₩142,000", chg: "▲ 3.2%", up: true },

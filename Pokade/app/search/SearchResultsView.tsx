@@ -6,25 +6,13 @@ import { CardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
 import { CardSort } from "@/lib/cardApi";
 import { highlightMatch } from "@/lib/highlightMatch";
+import { resolvePriceDisplay } from "@/lib/priceDisplay";
 import { PRICE_MAX, SET_OPTIONS, TYPE_OPTIONS, RARITY_OPTIONS } from "./constants";
 
 type LoadState = "loading" | "error" | "ready";
 
 // size 파라미터를 넘기지 않을 때 BE 기본 페이지 size(cardApi.ts 주석 참고)와 맞춘 스켈레톤 칸 수.
 const SEARCH_SKELETON_COUNT = 20;
-
-// buyPrice(S등급 매물가) 우선, 없으면 recentTradePrice(S등급 최근 체결가)를 대신 보여준다 — 둘 다 없으면 null.
-function resolvePriceDisplay(
-  summary?: CardPriceSummaryResponse,
-): { label: string; price: string } | null {
-  if (summary?.buyPrice != null) {
-    return { label: "S등급 매물가", price: `${summary.buyPrice.toLocaleString("ko-KR")}원` };
-  }
-  if (summary?.recentTradePrice != null) {
-    return { label: "최근 체결가", price: `${summary.recentTradePrice.toLocaleString("ko-KR")}원` };
-  }
-  return null;
-}
 
 function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
