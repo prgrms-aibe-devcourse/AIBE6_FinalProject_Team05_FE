@@ -27,6 +27,15 @@ export interface TradeSummaryResponse {
 // com.pokade.domain.price.ChartPeriod 미러링 — GET /api/prices/{cardId}/chart?period= 값.
 export type ChartPeriod = "30d" | "90d" | "1y";
 
+// com.pokade.domain.price.dto.PriceStatsResponse 미러링 — GET /api/prices/{cardId}/stats.
+// changeRate(%)·changeAmount(원)는 최근 7일 vs 이전 7일 S등급 평균 체결가 비교, 데이터 부족 시 둘 다 0.
+// volume: 최근 7일 S등급 체결 건수.
+export interface PriceStatsResponse {
+  changeRate: number;
+  changeAmount: number;
+  volume: number;
+}
+
 // com.pokade.domain.listing.ListingStatus 미러링.
 export type ListingStatus = "ACTIVE" | "TRADING" | "SOLD" | "EXPIRED" | "CANCELLED" | "HIDDEN";
 

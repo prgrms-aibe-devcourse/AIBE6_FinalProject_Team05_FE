@@ -4,6 +4,7 @@ import {
   ChartPeriod,
   CardPriceSummaryResponse,
   ListingSummaryResponse,
+  PriceStatsResponse,
   PriceSummaryResponse,
   TradeSummaryResponse,
 } from "@/types/price";
@@ -120,6 +121,16 @@ export async function fetchPriceChart(
   period: ChartPeriod,
 ): Promise<TradeSummaryResponse[]> {
   return apiGet<TradeSummaryResponse[]>(`/api/prices/${cardId}/chart?period=${period}`);
+}
+
+// GET /api/prices/{cardId}/stats — 최근 7일 vs 이전 7일 S등급 평균가 등락률 + 최근 7일 거래량. 로그인 필요(401 가능).
+// variantId 생략 시 BE가 대표 판본(primary) 기준으로 응답한다.
+export async function fetchPriceStats(
+  cardId: number,
+  variantId?: number,
+): Promise<PriceStatsResponse> {
+  const query = variantId != null ? `?variantId=${variantId}` : "";
+  return apiGet<PriceStatsResponse>(`/api/prices/${cardId}/stats${query}`);
 }
 
 // GET /api/listings?cardId= — 판매 중(ACTIVE) 매물 목록, 가격 오름차순.

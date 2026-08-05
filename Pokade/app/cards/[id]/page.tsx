@@ -17,6 +17,7 @@ import {
   ChartPeriod,
   ListingGrade,
   ListingSummaryResponse,
+  PriceStatsResponse,
   PriceSummaryResponse,
   TradeSummaryResponse,
 } from "@/types/price";
@@ -24,6 +25,7 @@ import {
   fetchActiveListings,
   fetchCardDetail,
   fetchPriceChart,
+  fetchPriceStats,
   fetchPriceSummary,
   fetchRelatedCards,
 } from "@/lib/cardApi";
@@ -72,6 +74,8 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   const [relatedLoadState, setRelatedLoadState] = useState<RelatedLoadState>("loading");
 
   const [priceSummary, setPriceSummary] = useState<PriceSummaryResponse | null>(null);
+  // 비로그인이거나 체결 이력이 부족해 계산할 수 없으면 null — 뱃지 자체를 숨긴다(에러 UI 없음).
+  const [priceStats, setPriceStats] = useState<PriceStatsResponse | null>(null);
   const [activeListings, setActiveListings] = useState<ListingSummaryResponse[]>([]);
   // 판본이 2개 이상인 카드에서만 채워지는 판본별 시세 비교용 상태(variantId -> summary).
   const [variantPrices, setVariantPrices] = useState<Record<number, PriceSummaryResponse | null>>(
@@ -229,6 +233,27 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     };
   }, [cardId, loadState, card]);
 
+  // 카드 설명 박스 우측 상단 등락률 뱃지용. 로그인/체결 이력 부족 등 어떤 이유로든 실패하면
+  // 조용히 숨김 처리(비슷한 카드 목록과 동일한 관용적 처리) — 별도 에러 UI를 노출하지 않는다.
+  useEffect(() => {
+    if (loadState !== "ready" || cardId == null) return;
+    let cancelled = false;
+
+    fetchPriceStats(cardId)
+      .then((res) => {
+        if (cancelled) return;
+        setPriceStats(res);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPriceStats(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cardId, loadState]);
+
   // 판본이 여러 개인 카드만 판본별 시세 비교가 필요하므로, 판본당 summary를 병렬로 따로 조회한다.
   // (판본 1개 카드는 기존 priceSummary 조회만으로 충분해 이 effect 자체가 동작하지 않는다.)
   useEffect(() => {
@@ -359,7 +384,32 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
               <>
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
                   <div className="flex flex-col gap-6">
-                    <div className="flex gap-6 rounded-2xl border border-[#EDEDF0] bg-white p-6">
+                    <div className="relative flex gap-6 rounded-2xl border border-[#EDEDF0] bg-white p-6">
+                      {priceStats &&
+                        priceStats.changeRate !== 0 &&
+                        (() => {
+                          const isRise = priceStats.changeRate > 0;
+                          const sign = isRise ? "+" : "-";
+                          return (
+                            <div className="absolute right-6 top-6 flex items-center gap-1.5">
+                              <span className="text-[11.5px] font-semibold text-[#9A9AA2]">
+                                지난주대비
+                              </span>
+                              <span
+                                className={`rounded-full px-3.5 py-2 text-[15px] font-extrabold ${
+                                  isRise
+                                    ? "bg-[#FFF1F1] text-[#EE1515]"
+                                    : "bg-[#EEF3FF] text-[#2D5BFF]"
+                                }`}
+                              >
+                                {sign}
+                                {Math.abs(priceStats.changeAmount).toLocaleString("ko-KR")}원 (
+                                {sign}
+                                {Math.abs(priceStats.changeRate).toFixed(2)}%)
+                              </span>
+                            </div>
+                          );
+                        })()}
                       <div
                         className="relative aspect-[5/7] w-[160px] shrink-0 cursor-pointer overflow-hidden rounded-xl bg-[#F2F2F5]"
                         onClick={() => setLightboxOpen(true)}
