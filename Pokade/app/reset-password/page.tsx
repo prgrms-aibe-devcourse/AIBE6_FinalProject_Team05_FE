@@ -35,7 +35,7 @@ export default function ResetPasswordPage() {
     }`;
 
   async function handleSend() {
-    if (sending) return;
+    if (sending || cooldown > 0) return;
     setError(null);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       setError("올바른 이메일 형식이 아닙니다.");
@@ -150,8 +150,8 @@ export default function ResetPasswordPage() {
             {!sent && (
               <button
                 onClick={handleSend}
-                disabled={sending}
-                className={`mt-3 ${primaryBtn(!sending)}`}
+                disabled={sending || cooldown > 0}
+                className={`mt-3 ${primaryBtn(!sending && cooldown === 0)}`}
               >
                 {sending ? "발송 중…" : "재설정 코드 받기"}
               </button>
