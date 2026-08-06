@@ -175,7 +175,7 @@ export default function ChangePasswordPage() {
                 {saving ? "변경 중…" : "비밀번호 변경"}
               </button>
               {msg && (
-                <p role="alert" className={msgCls(msg.ok)}>
+                <p role={msg.ok ? "status" : "alert"} className={msgCls(msg.ok)}>
                   {msg.text}
                 </p>
               )}

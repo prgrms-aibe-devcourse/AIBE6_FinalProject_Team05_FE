@@ -130,10 +130,11 @@ export default function MyPage() {
                           value={nickInput}
                           onChange={(e) => setNickInput(e.target.value)}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter") saveNick();
+                            if (e.key === "Enter" && !e.nativeEvent.isComposing) saveNick();
                             if (e.key === "Escape") cancelEdit();
                           }}
                           aria-label="닉네임"
+                          autoComplete="off"
                           placeholder="2~20자"
                           className={`${inputCls} w-[160px]`}
                           autoFocus
@@ -174,7 +175,9 @@ export default function MyPage() {
                 className="mt-5 flex items-center justify-between rounded-[18px] border border-[#EDEDF0] bg-white px-8 py-6 shadow-card transition hover:bg-[#FAFAFB]"
               >
                 <span className="text-[15px] font-bold">비밀번호 변경</span>
-                <span className="text-[18px] leading-none text-[#B0B0B8]">›</span>
+                <span aria-hidden="true" className="text-[18px] leading-none text-[#B0B0B8]">
+                  ›
+                </span>
               </Link>
             )}
           </>
