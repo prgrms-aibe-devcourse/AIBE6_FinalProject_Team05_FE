@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPatchRaw, apiPutRaw } from "@/lib/apiClient";
+import { apiGet, apiPatch, apiPost, apiPut } from "@/lib/apiClient";
 import {
   LoginRequest,
   LoginResponse,
@@ -64,12 +64,12 @@ export function confirmPasswordReset(
 
 // PATCH /api/users/me - 닉네임 변경 (30일 쿨다운, 중복 검사)
 export function updateNickname(nickname: string): Promise<void> {
-  return apiPatchRaw<void>("/api/users/me", { nickname } satisfies NicknameUpdateRequest);
+  return apiPatch<void>("/api/users/me", { nickname } satisfies NicknameUpdateRequest);
 }
 
 // PUT /api/users/me/password - 비밀번호 변경 (LOCAL 계정, 현재 비번 확인)
 export function changePassword(currentPassword: string, newPassword: string): Promise<void> {
-  return apiPutRaw<void>("/api/users/me/password", {
+  return apiPut<void>("/api/users/me/password", {
     currentPassword,
     newPassword,
   } satisfies PasswordUpdateRequest);
