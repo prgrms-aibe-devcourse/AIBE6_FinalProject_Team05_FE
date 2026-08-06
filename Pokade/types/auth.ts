@@ -15,6 +15,7 @@ export interface MyInfo {
   status: "PENDING" | "ACTIVE" | "SUSPENDED" | "DELETED";
   profileImageUrl: string | null;
   pointBalance: number;
+  provider: "LOCAL" | "GOOGLE" | "KAKAO";
 }
 
 export interface SignupRequest {
@@ -39,5 +40,14 @@ export interface PasswordResetSendRequest {
 export interface PasswordResetConfirmRequest {
   email: string;
   code: string;
+  newPassword: string;
+}
+
+export interface NicknameUpdateRequest {
+  nickname: string;
+}
+
+export interface PasswordUpdateRequest {
+  currentPassword: string;
   newPassword: string;
 }
