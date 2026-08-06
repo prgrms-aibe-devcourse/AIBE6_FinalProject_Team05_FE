@@ -1,4 +1,4 @@
-import { apiGet, apiGetRaw, PageResponse } from "@/lib/apiClient";
+import { apiGet, PageResponse } from "@/lib/apiClient";
 import { CardDetailResponse, CardResponse } from "@/types/card";
 import {
   ChartPeriod,
@@ -140,7 +140,6 @@ export async function fetchPriceStats(
 }
 
 // GET /api/listings?cardId= — 판매 중(ACTIVE) 매물 목록, 가격 오름차순.
-// 다른 API와 달리 ApiResponse 래퍼 없이 raw 배열을 그대로 반환하므로 apiGetRaw 사용.
 export async function fetchActiveListings(cardId: number): Promise<ListingSummaryResponse[]> {
-  return apiGetRaw<ListingSummaryResponse[]>(`/api/listings?cardId=${cardId}`);
+  return apiGet<ListingSummaryResponse[]>(`/api/listings?cardId=${cardId}`);
 }
