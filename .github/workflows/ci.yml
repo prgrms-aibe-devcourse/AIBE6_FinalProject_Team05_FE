@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./Pokade
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: Pokade/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+        env:
+          # 빌드가 통과하는지만 보는 단계라 실제 API 주소가 필요 없다.
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
