@@ -151,9 +151,9 @@ export async function apiPostFormRaw<T>(path: string, formData: FormData): Promi
   return (await res.json()) as T;
 }
 
-export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
+async function requestWrapped<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await request(path, {
-    method: "POST",
+    method,
     headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
@@ -161,30 +161,20 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   return text ? (JSON.parse(text) as ApiEnvelope<T>).data : (undefined as T);
 }
 
-// ApiResponse 래퍼 없이 raw body를 그대로 내려주는 엔드포인트용 (예: POST/PUT/PATCH /api/listings, /api/trades).
-async function requestRaw<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const res = await request(path, {
-    method,
-    headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-  const text = await res.text();
-  return text ? (JSON.parse(text) as T) : (undefined as T);
+export function apiPost<T>(path: string, body?: unknown): Promise<T> {
+  return requestWrapped<T>("POST", path, body);
 }
 
-export function apiPostRaw<T>(path: string, body?: unknown): Promise<T> {
-  return requestRaw<T>("POST", path, body);
+export function apiPut<T>(path: string, body?: unknown): Promise<T> {
+  return requestWrapped<T>("PUT", path, body);
 }
 
-export function apiPutRaw<T>(path: string, body?: unknown): Promise<T> {
-  return requestRaw<T>("PUT", path, body);
+export function apiPatch<T>(path: string, body?: unknown): Promise<T> {
+  return requestWrapped<T>("PATCH", path, body);
 }
 
-export function apiPatchRaw<T>(path: string, body?: unknown): Promise<T> {
-  return requestRaw<T>("PATCH", path, body);
-}
-
-// 204 No Content 응답 전용 (예: DELETE /api/listings/{id}).
-export async function apiDeleteRaw(path: string): Promise<void> {
+// ApiResponse<Void> 래퍼 응답(성공 메시지만 있고 data는 없음)을 반환하는 삭제용.
+export async function apiDelete(path: string): Promise<void> {
   await request(path, { method: "DELETE" });
 }
+
