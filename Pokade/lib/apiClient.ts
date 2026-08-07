@@ -1,7 +1,12 @@
 import { getAccessToken, setAccessToken } from "@/lib/authToken";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
-const REQUEST_TIMEOUT_MS = 10000; // 10초
+const REQUEST_TIMEOUT_MS = 10000; // 10초 — 일반 CRUD 기준
+
+// AI 등급 진단(POST /api/ai/grade)은 이미지 6장 업로드 후 S3 업로드 6회 + 서버측 품질검사 +
+// Vision 모델 호출이 동기로 실행돼 수십 초~2분이 걸린다. 기본 10초로는 브라우저가 먼저
+// 요청을 끊어(nginx 499) 서버가 정상인데도 실패로 보인다. nginx proxy_read_timeout(180s)과 정렬.
+const UPLOAD_TIMEOUT_MS = 180_000; // 3분
 
 // BE ApiResponse<T> 래퍼 (com.pokade.global.response.ApiResponse) 미러링.
 // 성공 응답은 msg, 에러 응답(ErrorResponse)은 message 필드를 쓰는 등 필드명이
@@ -74,7 +79,12 @@ function isJavaExceptionMessage(message: string): boolean {
 }
 
 // 공통 요청 - access 토큰이 있으면 Authorization 자동 첨부 + refresh 쿠키 동봉(credentials)
-async function request(path: string, init: RequestInit = {}, retry = true): Promise<Response> {
+async function request(
+  path: string,
+  init: RequestInit = {},
+  retry = true,
+  timeoutMs = REQUEST_TIMEOUT_MS,
+): Promise<Response> {
   const token = getAccessToken();
   const headers = new Headers(init.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
@@ -85,9 +95,18 @@ async function request(path: string, init: RequestInit = {}, retry = true): Prom
       ...init,
       headers,
       credentials: "include", // refresh 쿠키 송수신 (login Set-Cookie / reissue·logout 전송)
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
-  } catch {
+  } catch (e) {
+    // 타임아웃(AbortSignal.timeout)과 연결 실패를 구분한다 — 둘 다 NETWORK_ERROR로 뭉개면
+    // 서버가 정상 동작 중인데도 "BE 서버 실행 여부를 확인해 주세요"가 떠서 원인 파악을 방해한다.
+    if (e instanceof DOMException && e.name === "TimeoutError") {
+      throw new ApiError(
+        0,
+        "REQUEST_TIMEOUT",
+        `응답이 너무 오래 걸려 요청을 중단했습니다. (${Math.round(timeoutMs / 1000)}초 초과)`,
+      );
+    }
     throw new ApiError(
       0,
       "NETWORK_ERROR",
@@ -98,7 +117,7 @@ async function request(path: string, init: RequestInit = {}, retry = true): Prom
   if (res.status === 401 && retry && !path.startsWith("/api/auth/")) {
     const newToken = await reissueAccessToken();
     if (newToken) {
-      return request(path, init, false); // 재귀 호출 시 retry=false로 무한 루프 방지
+      return request(path, init, false, timeoutMs); // 재귀 호출 시 retry=false로 무한 루프 방지
     }
   }
 
@@ -144,10 +163,15 @@ export async function apiGetRaw<T>(path: string): Promise<T> {
 // 않아야 브라우저가 FormData의 boundary를 포함한 multipart/form-data를 자동으로 설정한다.
 // 응답도 ApiResponse 래퍼 없이 raw body 그대로 내려주는 엔드포인트용.
 export async function apiPostFormRaw<T>(path: string, formData: FormData): Promise<T> {
-  const res = await request(path, {
-    method: "POST",
-    body: formData,
-  });
+  const res = await request(
+    path,
+    {
+      method: "POST",
+      body: formData,
+    },
+    true,
+    UPLOAD_TIMEOUT_MS, // 업로드 + AI 추론이 10초를 크게 넘긴다
+  );
   return (await res.json()) as T;
 }
 
