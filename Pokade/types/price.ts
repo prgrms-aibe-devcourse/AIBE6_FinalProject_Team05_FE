@@ -38,6 +38,21 @@ export interface PriceStatsResponse {
   volume: number;
 }
 
+// com.pokade.domain.price.RankingType 미러링 — GET /api/prices/ranking?type= 값.
+export type RankingType = "rise" | "fall";
+
+// com.pokade.domain.price.dto.PriceRankingResponse 미러링 — GET /api/prices/ranking 응답 항목.
+// changeRate(%)·changeAmount(원)는 PriceStatsResponse와 동일하게 최근 7일 vs 이전 7일
+// S등급 평균 체결가 비교 기준(둘 중 한쪽이라도 데이터가 없으면 해당 카드는 응답에서 제외됨).
+export interface PriceRankingResponse {
+  cardId: number;
+  cardName: string | null;
+  imageUrl: string | null;
+  price: number;
+  changeRate: number;
+  changeAmount: number;
+}
+
 // com.pokade.domain.listing.ListingStatus 미러링.
 export type ListingStatus = "ACTIVE" | "TRADING" | "SOLD" | "EXPIRED" | "CANCELLED" | "HIDDEN";
 

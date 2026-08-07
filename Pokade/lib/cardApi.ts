@@ -5,8 +5,10 @@ import {
   CardPriceSummaryResponse,
   ListingGrade,
   ListingSummaryResponse,
+  PriceRankingResponse,
   PriceStatsResponse,
   PriceSummaryResponse,
+  RankingType,
   TradeSummaryResponse,
 } from "@/types/price";
 
@@ -137,6 +139,12 @@ export async function fetchPriceStats(
 ): Promise<PriceStatsResponse> {
   const query = variantId != null ? `?variantId=${variantId}` : "";
   return apiGet<PriceStatsResponse>(`/api/prices/${cardId}/stats${query}`);
+}
+
+// GET /api/prices/ranking?type=rise|fall — 최근 7일 vs 이전 7일 S등급 평균 체결가 등락률 기준 TOP 10.
+// 로그인 필요(401 가능). 서버가 limit=10을 고정 적용하므로 페이지네이션 파라미터는 없음.
+export async function fetchPriceRanking(type: RankingType): Promise<PriceRankingResponse[]> {
+  return apiGet<PriceRankingResponse[]>(`/api/prices/ranking?type=${type}`);
 }
 
 // GET /api/listings?cardId= — 판매 중(ACTIVE) 매물 목록, 가격 오름차순.
