@@ -50,6 +50,11 @@ async function requestGrade(photos: File[], retryOfId: number | null): Promise<G
           "사진 용량이 너무 큽니다. 전체 합계 기준으로도 용량을 줄여 다시 올려주세요.",
         );
       }
+      if (e.code === "REQUEST_TIMEOUT") {
+        throw new Error(
+          "AI 분석이 예상보다 오래 걸려 요청을 중단했습니다. 잠시 후 다시 시도해 주세요.",
+        );
+      }
       throw new Error("진단 요청에 실패했습니다.");
     }
     throw e;

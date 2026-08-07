@@ -1,0 +1,109 @@
+name: Auto Promote develop to main
+
+on:
+  push:
+    branches: [develop]
+
+# PR 생성·병합은 아래 promote job이 PROMOTE_TOKEN(PAT)으로 수행하므로 GITHUB_TOKEN에는
+# 쓰기 권한이 필요 없다. GITHUB_TOKEN을 쓰는 곳은 actions/checkout 뿐이라 읽기면 충분하다.
+permissions:
+  contents: read
+
+# 여러 push가 겹칠 때 승격이 동시에 진행되지 않도록 직렬화 — 뒤늦게 끝난 이전 실행이
+# 이미 갱신된 develop을 병합하는 것을 막는다(아래 --match-head-commit과 함께 동작).
+concurrency:
+  group: auto-promote-to-main
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./Pokade
+    steps:
+      # checkout 이후 인증이 필요한 git 작업이 없어 자격 증명을 남기지 않는다.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: Pokade/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      # ci.yml(PR 게이트)과 동일한 검사를 수행한다 — develop에 직접 push된 커밋은 PR CI를
+      # 거치지 않으므로, 여기서 lint를 빼면 검증되지 않은 코드가 main으로 승격된다.
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+        env:
+          # 빌드가 통과하는지만 보는 단계라 실제 API 주소가 필요 없다.
+          # 실제 배포용 번들은 별도로 빌드되므로 이 값이 운영에 반영되지는 않는다.
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
+
+  # PROMOTE_TOKEN(PAT)을 쓰는 이유: GITHUB_TOKEN으로 병합하면 그로 인한 main push가
+  # 새 워크플로를 트리거하지 않아(GitHub의 재귀 방지 정책) deploy.yml이 돌지 않는다.
+  # PAT으로 병합해야 배포까지 이어진다.
+  promote:
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.PROMOTE_TOKEN }}
+    steps:
+      # main·develop 양쪽 이력이 필요해 전체 히스토리를 받는다(기본 shallow로는 rev-list 불가).
+      # 이후 git 작업은 로컬 ref를 읽는 rev-list 뿐이고 gh 명령은 PROMOTE_TOKEN을 쓰므로
+      # checkout이 남기는 자격 증명은 필요 없다.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check PROMOTE_TOKEN
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "PROMOTE_TOKEN secret이 비어 있습니다. 승격을 중단합니다." >&2
+            exit 1
+          fi
+
+      # main에 이미 반영된 내용만 있으면 gh pr create가 "No commits between..."으로 실패해
+      # 워크플로가 빨간불이 된다. 승격할 것이 없는 것은 정상 상황이므로 조용히 건너뛴다.
+      - name: Check whether there is anything to promote
+        id: check
+        run: |
+          COUNT=$(git rev-list --count origin/main..origin/develop)
+          echo "승격 대상 커밋 수: $COUNT"
+          if [ "$COUNT" -eq 0 ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create or update PR (develop -> main)
+        id: pr
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          EXISTING=$(gh pr list --base main --head develop --state open --json number --jq '.[0].number')
+          if [ -n "$EXISTING" ]; then
+            echo "number=$EXISTING" >> "$GITHUB_OUTPUT"
+          else
+            URL=$(gh pr create --base main --head develop \
+              --title "chore: develop → main 자동 배포 반영" \
+              --body "develop에 push된 변경사항을 main으로 자동 승격합니다. 빌드가 통과했으므로 자동 병합됩니다.")
+            NUMBER=$(echo "$URL" | grep -o '[0-9]*$')
+            echo "number=$NUMBER" >> "$GITHUB_OUTPUT"
+          fi
+
+      # --match-head-commit: PR HEAD가 이 워크플로가 빌드한 커밋과 다르면 병합을 거부한다.
+      # 그 사이 develop이 갱신됐다는 뜻이므로, 검증되지 않은 변경이 main에 들어가지 않도록 실패시킨다.
+      - name: Merge PR
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          gh pr merge ${{ steps.pr.outputs.number }} --merge \
+            --match-head-commit "${{ github.sha }}"

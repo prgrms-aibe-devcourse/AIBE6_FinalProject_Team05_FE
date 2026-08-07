@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from "@/lib/apiClient";
+import { apiGet, apiPatch, apiPost, apiPut } from "@/lib/apiClient";
 import {
   LoginRequest,
   LoginResponse,
@@ -8,6 +8,8 @@ import {
   EmailVerifyRequest,
   PasswordResetSendRequest,
   PasswordResetConfirmRequest,
+  NicknameUpdateRequest,
+  PasswordUpdateRequest,
 } from "@/types/auth";
 
 // POST /api/auth/login — accessToken 발급 + refresh 쿠키 세팅
@@ -58,4 +60,17 @@ export function confirmPasswordReset(
     code,
     newPassword,
   } satisfies PasswordResetConfirmRequest);
+}
+
+// PATCH /api/users/me - 닉네임 변경 (30일 쿨다운, 중복 검사)
+export function updateNickname(nickname: string): Promise<void> {
+  return apiPatch<void>("/api/users/me", { nickname } satisfies NicknameUpdateRequest);
+}
+
+// PUT /api/users/me/password - 비밀번호 변경 (LOCAL 계정, 현재 비번 확인)
+export function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  return apiPut<void>("/api/users/me/password", {
+    currentPassword,
+    newPassword,
+  } satisfies PasswordUpdateRequest);
 }

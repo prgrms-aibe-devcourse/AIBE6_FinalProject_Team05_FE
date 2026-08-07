@@ -23,6 +23,7 @@ interface UserState {
   logout: () => Promise<void>;
   restoreSession: () => Promise<void>;
   markAllNotificationsRead: () => void;
+  setNickname: (nickname: string) => void;
 }
 
 function delay(ms: number): Promise<void> {
@@ -150,4 +151,5 @@ export const useUserStore = create<UserState>((set) => ({
   },
 
   markAllNotificationsRead: () => set({ unreadNotifications: 0 }),
+  setNickname: (nickname) => set({ nickname }),
 }));

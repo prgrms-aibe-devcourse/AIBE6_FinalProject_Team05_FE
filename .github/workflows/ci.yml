@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+
+# lint·build만 수행하므로 코드를 읽는 권한이면 충분하다.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./Pokade
+    steps:
+      # checkout 이후 인증이 필요한 git 작업이 없다. 기본값(true)은 토큰을 .git/config에
+      # 남겨 워크스페이스를 통해 유출될 여지를 만들므로 끈다.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: Pokade/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+        env:
+          # 빌드가 통과하는지만 보는 단계라 실제 API 주소가 필요 없다.
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
