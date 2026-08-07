@@ -4,9 +4,10 @@ on:
   push:
     branches: [develop]
 
+# PR 생성·병합은 아래 promote job이 PROMOTE_TOKEN(PAT)으로 수행하므로 GITHUB_TOKEN에는
+# 쓰기 권한이 필요 없다. GITHUB_TOKEN을 쓰는 곳은 actions/checkout 뿐이라 읽기면 충분하다.
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 # 여러 push가 겹칠 때 승격이 동시에 진행되지 않도록 직렬화 — 뒤늦게 끝난 이전 실행이
 # 이미 갱신된 develop을 병합하는 것을 막는다(아래 --match-head-commit과 함께 동작).
@@ -21,7 +22,10 @@ jobs:
       run:
         working-directory: ./Pokade
     steps:
+      # checkout 이후 인증이 필요한 git 작업이 없어 자격 증명을 남기지 않는다.
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -54,9 +58,12 @@ jobs:
       GH_TOKEN: ${{ secrets.PROMOTE_TOKEN }}
     steps:
       # main·develop 양쪽 이력이 필요해 전체 히스토리를 받는다(기본 shallow로는 rev-list 불가).
+      # 이후 git 작업은 로컬 ref를 읽는 rev-list 뿐이고 gh 명령은 PROMOTE_TOKEN을 쓰므로
+      # checkout이 남기는 자격 증명은 필요 없다.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Check PROMOTE_TOKEN
         run: |

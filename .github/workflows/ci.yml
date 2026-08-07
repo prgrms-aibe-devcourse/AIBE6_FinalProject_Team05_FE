@@ -4,6 +4,10 @@ on:
   pull_request:
     branches: [develop, main]
 
+# lint·build만 수행하므로 코드를 읽는 권한이면 충분하다.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -11,7 +15,11 @@ jobs:
       run:
         working-directory: ./Pokade
     steps:
+      # checkout 이후 인증이 필요한 git 작업이 없다. 기본값(true)은 토큰을 .git/config에
+      # 남겨 워크스페이스를 통해 유출될 여지를 만들므로 끈다.
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
