@@ -61,7 +61,17 @@ export const useUserStore = create<UserState>((set, get) => ({
         role: toStoreRole(me.role),
       });
     } catch (err) {
-      setAccessToken(null); // 프로필 조회 실패 → 토큰 롤백(상태 불일치 방지)
+      // 프로필 조회 실패 → 토큰 + 인증 상태를 함께 롤백(부분 상태 불일치 방지)
+      setAccessToken(null);
+      set({
+        isLoggedIn: false,
+        status: "unauthenticated",
+        userId: null,
+        userIdRestoring: false,
+        nickname: null,
+        email: null,
+        role: null,
+      });
       throw err; // 화면에서 에러 처리하도록 재throw
     }
   },
