@@ -10,8 +10,8 @@ export default function OAuth2SuccessPage() {
 
   useEffect(() => {
     (async () => {
-      await restoreSession(); // refresh 쿠키로 access 획득 + 프로필 + 로그인 상태
-      router.replace("/"); // 완료 후 홈으로
+      const ok = await restoreSession(); // refresh 쿠키로 access 획득 + 프로필 + 로그인 상태
+      router.replace(ok ? "/" : "/login?error=session_restore_failed"); // 성공만 홈, 실패는 로그인
     })();
   }, [restoreSession, router]);
 

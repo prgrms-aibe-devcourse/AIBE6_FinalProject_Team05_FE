@@ -22,7 +22,7 @@ interface UserState {
   login: (email: string, password: string) => Promise<void>;
   loginWithToken: (accessToken: string) => Promise<void>;
   logout: () => Promise<void>;
-  restoreSession: () => Promise<void>;
+  restoreSession: () => Promise<boolean>;
   markAllNotificationsRead: () => void;
   setNickname: (nickname: string) => void;
 }
@@ -92,8 +92,13 @@ export const useUserStore = create<UserState>((set, get) => ({
   },
 
   // 새로고침 복원: refresh 쿠키로 reissue → 프로필 → 상태 복원 (없으면 비로그인 유지)
-  restoreSession: async () => {
-    const token = await reissueAccessToken();
+  restoreSession: async (): Promise<boolean> => {
+    let token: string | null = null;
+    try {
+      token = await reissueAccessToken();
+    } catch {
+      token = null; // reissue 자체 예외도 비로그인으로 흡수 (호출부 무한 로딩 방지)
+    }
     if (!token) {
       setAccessToken(null);
       set({
@@ -105,7 +110,7 @@ export const useUserStore = create<UserState>((set, get) => ({
         email: null,
         role: null,
       });
-      return;
+      return false;
     }
 
     // 프로필 조회 전에 먼저 "로그인은 됐지만 userId는 아직 모름" 상태를 노출한다 —
@@ -121,7 +126,7 @@ export const useUserStore = create<UserState>((set, get) => ({
         email: me.email,
         role: toStoreRole(me.role),
       });
-      return;
+      return true;
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         // 실제 인증 실패 → 세션 정리
@@ -135,7 +140,7 @@ export const useUserStore = create<UserState>((set, get) => ({
           email: null,
           role: null,
         });
-        return;
+        return false;
       }
     }
 
@@ -150,9 +155,11 @@ export const useUserStore = create<UserState>((set, get) => ({
         email: me.email,
         role: toStoreRole(me.role),
       });
+      return true;
     } catch {
-      // 재시도도 실패 — userId는 여전히 모르는 채로 복원 시도만 종료(무한 로딩 방지).
+      // 재시도도 실패 — userId는 모르지만 reissue는 성공했으니 로그인 자체는 유효.
       set({ userIdRestoring: false });
+      return true;
     }
   },
 
