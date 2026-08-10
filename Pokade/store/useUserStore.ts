@@ -20,6 +20,7 @@ interface UserState {
   role: "user" | "admin" | null;
   unreadNotifications: number;
   login: (email: string, password: string) => Promise<void>;
+  loginWithToken: (accessToken: string) => Promise<void>;
   logout: () => Promise<void>;
   restoreSession: () => Promise<void>;
   markAllNotificationsRead: () => void;
@@ -35,7 +36,7 @@ function toStoreRole(role: MyInfo["role"]): "user" | "admin" {
   return role === "ADMIN" ? "admin" : "user";
 }
 
-export const useUserStore = create<UserState>((set) => ({
+export const useUserStore = create<UserState>((set, get) => ({
   isLoggedIn: false,
   status: "loading",
   userId: null,
@@ -45,9 +46,8 @@ export const useUserStore = create<UserState>((set) => ({
   role: null,
   unreadNotifications: 3,
 
-  // 로그인: accessToken 저장 → 프로필 조회 → 상태 세팅 (실패 시 throw → 화면에서 처리)
-  login: async (email, password) => {
-    const { accessToken } = await authApi.login({ email, password });
+  // 이미 발급된 accessToken으로 세션 확정: 토큰 저장 → 프로필 조회 → 상태 세팅 (소셜 가입·로그인 공용)
+  loginWithToken: async (accessToken) => {
     setAccessToken(accessToken);
     try {
       const me = await authApi.getMyInfo();
@@ -64,6 +64,12 @@ export const useUserStore = create<UserState>((set) => ({
       setAccessToken(null); // 프로필 조회 실패 → 토큰 롤백(상태 불일치 방지)
       throw err; // 화면에서 에러 처리하도록 재throw
     }
+  },
+
+  // 로그인: 토큰 발급 후 공통 메서드 재사용
+  login: async (email, password) => {
+    const { accessToken } = await authApi.login({ email, password });
+    await get().loginWithToken(accessToken);
   },
 
   // 로그아웃: 서버 무효화(best-effort) + 클라 상태·토큰 초기화(항상)
