@@ -51,3 +51,9 @@ export interface PasswordUpdateRequest {
   currentPassword: string;
   newPassword: string;
 }
+
+export interface OAuth2RegisterRequest {
+  ticket: string;
+  nickname: string;
+  termsAgreed: boolean;
+}

@@ -10,6 +10,7 @@ import {
   PasswordResetConfirmRequest,
   NicknameUpdateRequest,
   PasswordUpdateRequest,
+  OAuth2RegisterRequest,
 } from "@/types/auth";
 
 // POST /api/auth/login — accessToken 발급 + refresh 쿠키 세팅
@@ -73,4 +74,9 @@ export function changePassword(currentPassword: string, newPassword: string): Pr
     currentPassword,
     newPassword,
   } satisfies PasswordUpdateRequest);
+}
+
+// POST /api/auth/oauth2/register — 소셜 신규가입(티켓+닉네임+약관) → accessToken + refresh 쿠키
+export function oauth2Register(body: OAuth2RegisterRequest): Promise<LoginResponse> {
+  return apiPost<LoginResponse>("/api/auth/oauth2/register", body);
 }

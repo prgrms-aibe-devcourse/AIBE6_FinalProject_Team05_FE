@@ -1,6 +1,6 @@
 import { getAccessToken, setAccessToken } from "@/lib/authToken";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 const REQUEST_TIMEOUT_MS = 10000; // 10초 — 일반 CRUD 기준
 
 // AI 등급 진단(POST /api/ai/grade)은 이미지 6장 업로드 후 S3 업로드 6회 + 서버측 품질검사 +
@@ -201,4 +201,3 @@ export function apiPatch<T>(path: string, body?: unknown): Promise<T> {
 export async function apiDelete(path: string): Promise<void> {
   await request(path, { method: "DELETE" });
 }
-
