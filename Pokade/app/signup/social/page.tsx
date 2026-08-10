@@ -22,6 +22,9 @@ export default function SocialSignupPage() {
       router.replace("/login?error=oauth2_failed");
       return;
     }
+    // URL fragment는 브라우저에서만 읽히므로 effect에서 1회 파싱해 상태에 반영한다.
+    // (lazy init으로 옮기면 SSR/hydration 불일치가 나서, 이 케이스는 effect가 맞음)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTicket(t);
     window.history.replaceState(null, "", window.location.pathname);
   }, [router]);
