@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useUserStore } from "@/store/useUserStore";
 import { ApiError } from "@/lib/apiClient";
 import { authErrorMessage } from "@/lib/authErrorMessages";
+import { API_BASE_URL } from "@/lib/apiClient";
 
 // redirect 쿼리로 임의 도메인 이동(오픈 리다이렉트)을 허용하지 않도록, "/"로 시작하는
 // 내부 경로만 허용한다("//evil.com"처럼 프로토콜-상대 URL로 해석되는 경우도 차단).
@@ -168,26 +169,24 @@ function LoginForm() {
           </button>
         )}
 
-        {/* 간편 로그인 — BE OAuth 미구현이라 비활성 */}
-        <div className="my-6 flex items-center gap-3">
-          <div className="h-px flex-1 bg-[#EDEDF0]" />
-          <span className="text-xs font-semibold text-[#B0B0B8]">간편 로그인</span>
-          <div className="h-px flex-1 bg-[#EDEDF0]" />
-        </div>
         <button
-          disabled
-          title="준비중"
-          className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-[11px] border border-[#E8D000] bg-[#FEE500] py-3 text-[14.5px] font-bold text-[#191600] opacity-60"
+          type="button"
+          onClick={() => {
+            window.location.href = `${API_BASE_URL}/api/oauth2/authorization/kakao`;
+          }}
+          className="flex w-full items-center justify-center gap-2 rounded-[11px] border border-[#E8D000] bg-[#FEE500] py-3 text-[14.5px] font-bold text-[#191600] transition active:translate-y-0.5"
         >
-          <span className="text-base">💬</span>카카오로 로그인 (준비중)
+          <span className="text-base">💬</span>카카오로 로그인
         </button>
         <div className="h-2.5" />
         <button
-          disabled
-          title="준비중"
-          className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-[11px] border border-[#DADCE0] bg-white py-3 text-[14.5px] font-bold text-[#3C4043] opacity-60"
+          type="button"
+          onClick={() => {
+            window.location.href = `${API_BASE_URL}/api/oauth2/authorization/google`;
+          }}
+          className="flex w-full items-center justify-center gap-2 rounded-[11px] border border-[#DADCE0] bg-white py-3 text-[14.5px] font-bold text-[#3C4043] transition active:translate-y-0.5"
         >
-          <span className="font-extrabold text-[#4285F4]">G</span>Google로 로그인 (준비중)
+          <span className="font-extrabold text-[#4285F4]">G</span>Google로 로그인
         </button>
 
         <p className="mt-6 text-center text-[13.5px] text-[#8A8A92]">
