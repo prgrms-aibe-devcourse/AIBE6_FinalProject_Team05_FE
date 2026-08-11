@@ -2,6 +2,7 @@ import { apiGet, PageResponse } from "@/lib/apiClient";
 import { CardDetailResponse, CardResponse } from "@/types/card";
 import {
   ChartPeriod,
+  CardPricePointResponse,
   CardPriceSummaryResponse,
   ListingGrade,
   ListingSummaryResponse,
@@ -139,6 +140,19 @@ export async function fetchPriceStats(
 ): Promise<PriceStatsResponse> {
   const query = variantId != null ? `?variantId=${variantId}` : "";
   return apiGet<PriceStatsResponse>(`/api/prices/${cardId}/stats${query}`);
+}
+
+// GET /api/prices/{cardId}/grade-chart?grade= — card_prices 등락률로 역산한 시점별 추정 가격(오래된순).
+// 실거래(trades) 이력이 거의 없는 PSA10/PSA9 같은 등급의 차트를 보완할 때만 쓴다(page.tsx 참고).
+// variantId 생략 시 BE가 대표 판본(primary) 기준으로 응답한다.
+export async function fetchGradeChart(
+  cardId: number,
+  grade: ListingGrade,
+  variantId?: number,
+): Promise<CardPricePointResponse[]> {
+  const query = new URLSearchParams({ grade });
+  if (variantId != null) query.set("variantId", String(variantId));
+  return apiGet<CardPricePointResponse[]>(`/api/prices/${cardId}/grade-chart?${query.toString()}`);
 }
 
 // GET /api/prices/ranking?type=rise|fall — 최근 7일 vs 이전 7일 S등급 평균 체결가 등락률 기준 TOP 10.

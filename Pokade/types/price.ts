@@ -27,7 +27,16 @@ export interface TradeSummaryResponse {
 }
 
 // com.pokade.domain.price.ChartPeriod 미러링 — GET /api/prices/{cardId}/chart?period= 값.
-export type ChartPeriod = "30d" | "90d" | "1y";
+export type ChartPeriod = "7d" | "30d" | "90d" | "180d";
+
+// com.pokade.domain.price.dto.CardPricePointResponse 미러링 — GET /api/prices/{cardId}/grade-chart 응답 항목.
+// 실제 체결 이력이 아니라 card_prices의 market을 change_*_pct로 거슬러 올라간 추정가 포인트.
+// price의 통화는 currency 그대로(USD/JPY일 수 있음, TradeSummaryResponse처럼 KRW로 고정돼 있지 않음).
+export interface CardPricePointResponse {
+  date: string;
+  price: number;
+  currency: string;
+}
 
 // com.pokade.domain.price.dto.PriceStatsResponse 미러링 — GET /api/prices/{cardId}/stats.
 // changeRate(%)·changeAmount(원)는 최근 7일 vs 이전 7일 S등급 평균 체결가 비교, 데이터 부족 시 둘 다 0.

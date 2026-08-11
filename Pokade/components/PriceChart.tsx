@@ -39,9 +39,10 @@ const ALL_GRADES = "ALL";
 const GRADE_ORDER = ["RAW", "S", "A", "B", "PSA10", "PSA9", "PSA8"];
 
 const PERIODS: { value: ChartPeriod; label: string }[] = [
+  { value: "7d", label: "7일" },
   { value: "30d", label: "30일" },
   { value: "90d", label: "90일" },
-  { value: "1y", label: "1년" },
+  { value: "180d", label: "180일" },
 ];
 
 function formatAxisDate(iso: string) {
@@ -116,16 +117,33 @@ function computeNiceAxis(
 
 // BE가 grade별로 묶어주지 않고 flat하게 내려주므로(팀 결정), 등급을 컬럼으로 펼쳐
 // recharts가 등급별 Line을 따로 그릴 수 있는 형태로 변환한다.
+//
+// 같은 날짜(일 단위)의 포인트는 등급이 달라도 한 행으로 합친다 — 합치지 않으면 카테고리형 X축에서
+// 등급마다 미세하게(밀리초 단위) 다른 타임스탬프가 서로 다른 칸으로 갈라져, 마우스를 올렸을 때
+// 옆 칸(다른 등급)의 값이 툴팁에 뜨는 문제가 생긴다. grade-chart 보완 데이터처럼 등급별로 API를
+// 따로 호출해 "지금"/"N일 전"이 호출마다 몇 ms씩 다르게 찍히는 경우 특히 두드러진다.
 function buildChartData(trades: TradeSummaryResponse[]): {
   points: ChartPoint[];
   grades: string[];
 } {
   const gradeSet = new Set<string>();
-  const points: ChartPoint[] = trades.map((t) => {
+  const byDay = new Map<string, ChartPoint>();
+
+  for (const t of trades) {
     const gradeKey = t.grade ?? "RAW";
     gradeSet.add(gradeKey);
-    return { tradedAt: t.tradedAt, [gradeKey]: t.price };
-  });
+    const dayKey = t.tradedAt.slice(0, 10);
+    const existing = byDay.get(dayKey);
+    if (existing) {
+      existing[gradeKey] = t.price;
+    } else {
+      byDay.set(dayKey, { tradedAt: t.tradedAt, [gradeKey]: t.price });
+    }
+  }
+
+  const points = Array.from(byDay.values()).sort(
+    (a, b) => new Date(a.tradedAt).getTime() - new Date(b.tradedAt).getTime(),
+  );
   const grades = Array.from(gradeSet).sort(
     (a, b) => GRADE_ORDER.indexOf(a) - GRADE_ORDER.indexOf(b),
   );
