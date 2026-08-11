@@ -6,22 +6,34 @@ import { usePathname } from "next/navigation";
 import { useChat } from "@/hooks/useChat";
 
 // 시세 챗봇 위젯 - 모든 페이지 우하단 FAB. 클릭하면 작은 창으로 미리보기 채팅을 하고,
-// "자세히 보기"를 누르면 전체 화면인 /chat 페이지로 이동한다. /chat 안에서는 중복이라 숨긴다.
+// "자세히 보기"를 누르면 전체 화면인 /chat 페이지로 이동한다.
+// /chat 안에서는 중복이라 숨기는데, useChat()이 불필요한 API 호출(FAQ/이력)을 하지 않도록
+// 경로 검사를 이 얇은 wrapper에서 먼저 하고, 본문(useChat 포함)은 /chat이 아닐 때만 마운트한다.
 export default function ChatWidget() {
   const pathname = usePathname();
+  if (pathname === "/chat") return null;
+  return <ChatWidgetPanel />;
+}
+
+function ChatWidgetPanel() {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
-  const { isLoggedIn, messages, quickQuestions, sending, error, send, goToLogin } = useChat();
+  const { isLoggedIn, messages, quickQuestions, sending, error, send, goToLogin, loadHistory } =
+    useChat({ eagerHistory: false });
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // 위젯은 모든 페이지에 항상 마운트돼 있으므로, 이력은 열기 전까지 미뤘다가 처음 열릴 때만 불러온다.
+  useEffect(() => {
+    if (open) loadHistory();
+  }, [open, loadHistory]);
 
   useEffect(() => {
     if (!open) return;
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [open, messages, sending]);
 
-  if (pathname === "/chat") return null;
-
   function handleSubmit() {
+    if (sending) return;
     if (!isLoggedIn) {
       goToLogin();
       return;
@@ -125,6 +137,7 @@ export default function ChatWidget() {
                 if (e.key === "Enter") handleSubmit();
               }}
               readOnly={!isLoggedIn}
+              aria-label="챗봇 메시지 입력"
               placeholder={isLoggedIn ? "메시지를 입력하세요" : "로그인 후 질문할 수 있어요"}
               className="flex-1 rounded-lg border border-[#DDDDE3] px-3 py-2 text-[13px] outline-none read-only:cursor-pointer read-only:bg-[#FAFAFB] read-only:text-[#9A9AA2]"
             />

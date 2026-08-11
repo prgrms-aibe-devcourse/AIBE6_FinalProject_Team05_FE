@@ -40,6 +40,7 @@ export default function ChatPage() {
   }, [messages, sending]);
 
   function handleSubmit() {
+    if (sending) return;
     if (!isLoggedIn) {
       goToLogin();
       return;
@@ -188,6 +189,7 @@ export default function ChatPage() {
                   if (e.key === "Enter") handleSubmit();
                 }}
                 readOnly={!isLoggedIn}
+                aria-label="챗봇 메시지 입력"
                 placeholder={isLoggedIn ? "메시지를 입력하세요" : "로그인 후 자유롭게 질문할 수 있어요"}
                 className="flex-1 rounded-xl border border-[#DDDDE3] px-[15px] py-3 text-sm outline-none read-only:cursor-pointer read-only:bg-[#FAFAFB] read-only:text-[#9A9AA2]"
               />

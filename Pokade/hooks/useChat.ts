@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useUserStore } from "@/store/useUserStore";
 import { loginUrlFor } from "@/lib/authRedirect";
@@ -15,9 +15,15 @@ export interface ChatUiMessage {
 
 const RETRY_ERROR_MESSAGE = "답변을 가져오지 못했어요. 잠시 후 다시 시도해 주세요.";
 
+export interface UseChatOptions {
+  // 이력을 마운트 즉시 불러올지 여부. /chat 전체 페이지는 즉시(기본값), 미니 위젯은 처음 열 때(loadHistory 수동 호출)만 불러온다 -
+  // 모든 페이지에 항상 마운트돼 있는 위젯이 열리지도 않았는데 로그인 사용자 전원의 이력을 매 페이지마다 조회하는 걸 막기 위함.
+  eagerHistory?: boolean;
+}
+
 // 시세 챗봇 화면 상태 - 세션 관리, FAQ 프리셋 로드, 이력 로드(로그인 시), 질의 전송을 한곳에서 처리.
 // 비로그인 사용자는 FAQ 프리셋 질문만 보낼 수 있고, 자유 입력을 시도하면 로그인 페이지로 보낸다(BE도 동일 정책을 401로 강제).
-export function useChat() {
+export function useChat({ eagerHistory = true }: UseChatOptions = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const isLoggedIn = useUserStore((s) => s.isLoggedIn);
@@ -30,6 +36,10 @@ export function useChat() {
   const [quickQuestions, setQuickQuestions] = useState<QuickQuestion[]>([]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // send()가 한 번이라도 호출되면 true - 그 뒤로 도착하는 이력 응답이 낙관적 업데이트를 덮어쓰지 않게 막는다.
+  const userSentRef = useRef(false);
+  // 이력을 이미 불러왔으면(또는 시도했으면) 다시 불러오지 않는다 - loadHistory가 여러 번 호출돼도 요청은 한 번만.
+  const historyLoadedRef = useRef(false);
 
   useEffect(() => {
     fetchQuickQuestions()
@@ -37,10 +47,13 @@ export function useChat() {
       .catch(() => setQuickQuestions([]));
   }, []);
 
-  useEffect(() => {
+  const loadHistory = useCallback(() => {
+    if (historyLoadedRef.current) return;
     if (!sessionId || authStatus !== "authenticated") return;
+    historyLoadedRef.current = true;
     fetchChatHistory(sessionId)
       .then((page) => {
+        if (userSentRef.current) return; // 이력 로드 중 사용자가 이미 메시지를 보냈으면 그 상태를 덮어쓰지 않음
         setMessages(
           page.content.map((m) => ({
             role: m.role === "USER" ? "user" : "assistant",
@@ -52,6 +65,11 @@ export function useChat() {
         // 비로그인/세션 만료(401)는 조용히 무시 - 새 대화로 취급
       });
   }, [sessionId, authStatus]);
+
+  useEffect(() => {
+    if (!eagerHistory) return;
+    loadHistory();
+  }, [eagerHistory, loadHistory]);
 
   const goToLogin = useCallback(() => {
     router.push(loginUrlFor(pathname));
@@ -67,6 +85,7 @@ export function useChat() {
         return;
       }
 
+      userSentRef.current = true;
       setError(null);
       setMessages((prev) => [...prev, { role: "user", content: text }]);
       setSending(true);
@@ -89,5 +108,5 @@ export function useChat() {
     [sessionId, sending, isLoggedIn, goToLogin],
   );
 
-  return { isLoggedIn, messages, quickQuestions, sending, error, send, goToLogin };
+  return { isLoggedIn, messages, quickQuestions, sending, error, send, goToLogin, loadHistory };
 }
