@@ -31,11 +31,32 @@ function ChatWidgetPanel() {
     loadHistory,
   } = useChat({ eagerHistory: false });
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [footerOverlap, setFooterOverlap] = useState(0);
 
   // 위젯은 모든 페이지에 항상 마운트돼 있으므로, 이력은 열기 전까지 미뤘다가 처음 열릴 때만 불러온다.
   useEffect(() => {
     if (open) loadHistory();
   }, [open, loadHistory]);
+
+  // 푸터(#site-footer)가 화면에 올라오면 그만큼 위젯을 밀어 올려 겹치지 않게 한다.
+  useEffect(() => {
+    const footer = document.getElementById("site-footer");
+    if (!footer) return;
+
+    function updateOverlap() {
+      const rect = footer!.getBoundingClientRect();
+      const overlap = window.innerHeight - rect.top;
+      setFooterOverlap(overlap > 0 ? overlap + 16 : 0);
+    }
+
+    updateOverlap();
+    window.addEventListener("scroll", updateOverlap, { passive: true });
+    window.addEventListener("resize", updateOverlap);
+    return () => {
+      window.removeEventListener("scroll", updateOverlap);
+      window.removeEventListener("resize", updateOverlap);
+    };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -64,7 +85,10 @@ function ChatWidgetPanel() {
   return (
     <>
       {open && (
-        <div className="fixed bottom-24 right-6 z-[100] flex h-[420px] w-[340px] flex-col overflow-hidden rounded-2xl border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]">
+        <div
+          className="fixed right-6 z-[100] flex h-[420px] w-[340px] flex-col overflow-hidden rounded-2xl border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]"
+          style={{ bottom: `${96 + footerOverlap}px` }}
+        >
           <div className="flex items-center justify-between border-b border-[#F0F0F0] px-4 py-3">
             <div className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-primary text-xs font-extrabold text-white">
@@ -192,7 +216,8 @@ function ChatWidgetPanel() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label={open ? "시세 챗봇 닫기" : "시세 챗봇 열기"}
-        className="fixed bottom-6 right-6 z-[100] flex h-14 w-14 items-center justify-center rounded-full border-2 border-primary-dark bg-primary text-white shadow-tactile-sm transition-transform hover:scale-105 active:translate-y-0.5"
+        className="fixed right-6 z-[100] flex h-14 w-14 items-center justify-center rounded-full border-2 border-primary-dark bg-primary text-white shadow-tactile-sm transition-transform hover:scale-105 active:translate-y-0.5"
+        style={{ bottom: `${24 + footerOverlap}px` }}
       >
         {open ? (
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">

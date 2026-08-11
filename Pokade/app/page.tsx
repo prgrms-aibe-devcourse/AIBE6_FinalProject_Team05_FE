@@ -5,9 +5,11 @@ import Link from "next/link";
 import GradeBadge from "@/components/GradeBadge";
 import ConditionBar from "@/components/ConditionBar";
 import CardImage from "@/components/CardImage";
+import HeroTiltCard from "@/components/HeroTiltCard";
+import ImageLightbox from "@/components/ImageLightbox";
 import { CardSearchItem, toCardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
-import { fetchCards, fetchPriceSummaries } from "@/lib/cardApi";
+import { fetchCards, fetchCardsByKeywordPage, fetchPriceSummaries } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
 import { resolvePriceDisplay } from "@/lib/priceDisplay";
 
@@ -22,6 +24,14 @@ const TICKER = [
 
 // 인기 카드 그리드 칸 수 — 이 수만큼만 인기순 카드를 요청한다.
 const POPULAR_CARDS_SIZE = 5;
+
+// 히어로 섹션에 노출할 대표 카드 (sm3-20 Charizard-GX / Burning Shadows).
+const HERO_CARD = {
+  externalId: "sm3-20",
+  name: "Charizard-GX",
+  alt: "Charizard-GX · Burning Shadows · Rare Holo GX · Fire · Mitsuhiro Arita · No.20/147",
+  image: "https://images.scrydex.com/pokemon/sm3-20/large",
+};
 
 const STEPS = [
   {
@@ -60,6 +70,26 @@ export default function HomePage() {
   );
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
+  const [isHeroCardOpen, setIsHeroCardOpen] = useState(false);
+  const [heroCardId, setHeroCardId] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchCardsByKeywordPage(HERO_CARD.name)
+      .then((page) => {
+        if (cancelled) return;
+        const match = page.content.find((c) => c.externalId === HERO_CARD.externalId);
+        if (match) setHeroCardId(match.id);
+      })
+      .catch(() => {
+        // 상세 페이지 링크만 못 만들 뿐, 히어로 카드 표시 자체는 계속 정상 동작해야 함.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -109,8 +139,13 @@ export default function HomePage() {
   return (
     <main className="main-content">
       {/* HERO */}
-      <section className="bg-navy px-10 py-12">
-        <div className="mx-auto flex max-w-container items-center justify-between gap-12">
+      <section className="relative overflow-hidden bg-navy px-10 py-12">
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: "url(/images/hero-bg.jpg)" }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-navy via-navy/85 to-navy/40" />
+        <div className="relative mx-auto flex max-w-container items-center justify-between gap-12">
           <div className="max-w-[600px]">
             <span className="inline-block rounded-md bg-primary/15 px-3 py-1.5 text-xs font-extrabold tracking-[1.5px] text-[#FF6B6B]">
               EXCLUSIVE DROP
@@ -131,16 +166,31 @@ export default function HomePage() {
               >
                 진단 시작하기
               </Link>
-              <button className="rounded-[11px] border-[1.5px] border-white/35 bg-transparent px-[26px] py-3.5 text-[15.5px] font-bold text-white transition hover:border-white hover:bg-white/[0.06]">
+              <Link
+                href={heroCardId != null ? `/cards/${heroCardId}` : "#"}
+                aria-disabled={heroCardId == null}
+                className="rounded-[11px] border-[1.5px] border-white/35 bg-transparent px-[26px] py-3.5 text-[15.5px] font-bold text-white transition hover:border-white hover:bg-white/[0.06]"
+              >
                 자세히 보기
-              </button>
+              </Link>
             </div>
           </div>
-          <div className="h-[300px] w-[300px] flex-shrink-0 overflow-hidden rounded-[18px] bg-navy-700 shadow-[0_20px_50px_rgba(0,0,0,0.4)]">
-            <CardImage label="히어로 카드 이미지" />
+          <div className="h-[462px] w-[330px] flex-shrink-0 overflow-visible rounded-[18px] bg-navy-700 shadow-[0_20px_50px_rgba(0,0,0,0.4)]">
+            <HeroTiltCard
+              src={HERO_CARD.image}
+              alt={HERO_CARD.alt}
+              onClick={() => setIsHeroCardOpen(true)}
+            />
           </div>
         </div>
       </section>
+
+      <ImageLightbox
+        isOpen={isHeroCardOpen}
+        onClose={() => setIsHeroCardOpen(false)}
+        imageSrc={HERO_CARD.image}
+        alt={HERO_CARD.alt}
+      />
 
       {/* TICKER */}
       <section className="bg-navy-800 px-10">
