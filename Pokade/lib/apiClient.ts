@@ -175,6 +175,17 @@ export async function apiPostFormRaw<T>(path: string, formData: FormData): Promi
   return (await res.json()) as T;
 }
 
+// ApiResponse 래퍼 없이 raw body를 그대로 내려주는 POST 엔드포인트용 (예: POST /api/chat/query).
+export async function apiPostRaw<T>(path: string, body?: unknown): Promise<T> {
+  const res = await request(path, {
+    method: "POST",
+    headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  const text = await res.text();
+  return text ? (JSON.parse(text) as T) : (undefined as T);
+}
+
 async function requestWrapped<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await request(path, {
     method,
