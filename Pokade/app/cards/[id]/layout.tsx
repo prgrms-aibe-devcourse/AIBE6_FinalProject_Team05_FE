@@ -12,7 +12,7 @@ export async function generateMetadata({
   if (cardId == null) return { title: "Card Detail - PocketTrade" };
   try {
     const card = await fetchCardDetail(cardId);
-    return { title: `${card.name} - PocketTrade` };
+    return { title: `${card.nameKo ?? card.name} - PocketTrade` };
   } catch {
     return { title: "Card Detail - PocketTrade" };
   }
