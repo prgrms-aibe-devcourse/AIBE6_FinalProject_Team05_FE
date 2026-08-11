@@ -45,8 +45,18 @@ interface GradeOffer {
   price: number;
 }
 
-// PSA10 > PSA9 > PSA8 > S > A > B 순으로 구매 박스에 노출(미등급은 구매 박스에서 제외).
-const GRADE_ORDER: GradeKey[] = ["PSA10", "PSA9", "PSA8", "S", "A", "B"];
+// PSA10 > PSA9 > PSA8 > S > A > B > 미등급 순으로 구매 박스에 노출.
+const GRADE_ORDER: GradeKey[] = ["PSA10", "PSA9", "PSA8", "S", "A", "B", "RAW"];
+
+const GRADE_LABELS: Record<GradeKey, string> = {
+  PSA10: "PSA10",
+  PSA9: "PSA9",
+  PSA8: "PSA8",
+  S: "S",
+  A: "A",
+  B: "B",
+  RAW: "미등급",
+};
 
 function computeGradeSummary(
   listings: ListingSummaryResponse[],
@@ -634,7 +644,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                                 }`}
                               >
                                 <span className="text-[12px] font-extrabold text-ink">
-                                  {grade}
+                                  {GRADE_LABELS[grade]}
                                 </span>
                                 <span className="text-[11px] font-semibold text-[#8A8A92]">
                                   {hasStock
