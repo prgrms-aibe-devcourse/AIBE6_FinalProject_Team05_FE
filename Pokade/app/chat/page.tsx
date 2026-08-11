@@ -1,12 +1,14 @@
-import GradeBadge, { Grade } from "@/components/GradeBadge";
-import CardImage from "@/components/CardImage";
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { useChat } from "@/hooks/useChat";
 
 const CONVOS = [
   {
     av: "AI",
     bg: "bg-primary",
     name: "시세 도우미",
-    msg: "리자몽 ex 최근 시세를 알려드릴게요",
+    msg: "카드 시세가 궁금하면 물어보세요",
     time: "방금",
     active: true,
     bold: true,
@@ -28,13 +30,24 @@ const CONVOS = [
   { av: "뮤츠", bg: "bg-grade-b", name: "뮤츠마스터", msg: "거래 감사합니다 :)", time: "7월 20일" },
 ];
 
-const RESULTS: { id: string; grade: Grade; price: string }[] = [
-  { id: "cb-1", grade: "S", price: "₩142,000" },
-  { id: "cb-2", grade: "A", price: "₩98,000" },
-  { id: "cb-3", grade: "B", price: "₩61,000" },
-];
-
 export default function ChatPage() {
+  const { isLoggedIn, messages, quickQuestions, sending, error, send, goToLogin } = useChat();
+  const [draft, setDraft] = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+  }, [messages, sending]);
+
+  function handleSubmit() {
+    if (!isLoggedIn) {
+      goToLogin();
+      return;
+    }
+    send(draft, false);
+    setDraft("");
+  }
+
   return (
     <main className="main-content bg-neutral px-10 pb-10 pt-7">
       <div className="mx-auto max-w-[1200px]">
@@ -101,77 +114,89 @@ export default function ChatPage() {
               </div>
             </div>
 
-            <div className="chat-scroll flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto bg-[#FAFAFB] p-[22px]">
-              <div className="max-w-[64%] self-end rounded-[14px_14px_3px_14px] bg-secondary px-[15px] py-3 text-sm leading-normal text-white">
-                리자몽 ex 카드 좀 찾아줘
-              </div>
-
-              <div className="max-w-[78%] self-start">
-                <div className="rounded-[3px_14px_14px_14px] border border-[#EDEDF0] bg-white px-4 py-3.5 text-sm leading-normal">
-                  &quot;리자몽 ex&quot; 검색 결과예요. 등급별로 3개 카드를 찾았어요.
-                  <div className="mt-3 grid grid-cols-3 gap-2.5">
-                    {RESULTS.map((r) => (
-                      <div
-                        key={r.id}
-                        className="overflow-hidden rounded-[10px] border border-[#EDEDF0]"
-                      >
-                        <div className="relative h-24 bg-[#F2F2F5]">
-                          <CardImage />
-                          <GradeBadge
-                            grade={r.grade}
-                            size="sm"
-                            className="absolute left-1.5 top-1.5"
-                          />
-                        </div>
-                        <div className="p-2">
-                          <div className="text-[11.5px] font-bold">리자몽 ex</div>
-                          <div className="mt-0.5 text-xs font-extrabold text-primary">
-                            {r.price}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+            <div
+              ref={scrollRef}
+              className="chat-scroll flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto bg-[#FAFAFB] p-[22px]"
+            >
+              {messages.length === 0 && (
+                <div className="max-w-[78%] self-start rounded-[3px_14px_14px_14px] border border-[#EDEDF0] bg-white px-4 py-3.5 text-sm leading-normal">
+                  카드 시세가 궁금하면 자유롭게 물어보세요! 아래 버튼으로도 바로 물어볼 수 있어요.
                 </div>
-                <div className="mt-[5px] text-[11px] text-[#B0B0B8]">오후 2:14</div>
-              </div>
+              )}
 
-              <div className="max-w-[64%] self-end rounded-[14px_14px_3px_14px] bg-secondary px-[15px] py-3 text-sm leading-normal text-white">
-                최근 시세 흐름은 어때?
-              </div>
-
-              <div className="max-w-[78%] self-start">
-                <div className="rounded-[3px_14px_14px_14px] border border-[#EDEDF0] bg-white px-4 py-3.5 text-sm leading-normal">
-                  리자몽 ex(S)는 지난 7일간 <b className="text-primary">+3.2%</b> 상승했어요. 최근
-                  30일 흐름이에요.
-                  <div className="mt-3 rounded-[10px] border border-[#EDEDF0] bg-[#FAFAFB] p-3">
-                    <div className="mb-2 flex items-baseline justify-between">
-                      <span className="text-xs font-semibold text-[#9A9AA2]">30일 시세</span>
-                      <span className="text-[15px] font-extrabold">₩142,000</span>
+              {messages.map((m, i) =>
+                m.role === "user" ? (
+                  <div
+                    key={i}
+                    className="max-w-[64%] self-end rounded-[14px_14px_3px_14px] bg-secondary px-[15px] py-3 text-sm leading-normal text-white"
+                  >
+                    {m.content}
+                  </div>
+                ) : (
+                  <div key={i} className="max-w-[78%] self-start">
+                    <div className="whitespace-pre-line rounded-[3px_14px_14px_14px] border border-[#EDEDF0] bg-white px-4 py-3.5 text-sm leading-normal">
+                      {m.content}
                     </div>
-                    <svg width="100%" height="56" viewBox="0 0 300 56" preserveAspectRatio="none">
-                      <polyline
-                        points="0,44 40,40 80,46 120,34 160,38 200,26 240,22 300,10"
-                        fill="none"
-                        stroke="#EE1515"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
+                    {m.disclaimer && (
+                      <div className="mt-1.5 rounded-lg border border-[#F5D9A8] bg-[#FFF7E8] px-3 py-2 text-xs font-semibold text-[#9A6A00]">
+                        ⚠ {m.disclaimer}
+                      </div>
+                    )}
                   </div>
+                ),
+              )}
+
+              {sending && (
+                <div className="max-w-[78%] self-start rounded-[3px_14px_14px_14px] border border-[#EDEDF0] bg-white px-4 py-3.5 text-sm leading-normal text-[#9A9AA2]">
+                  답변 작성 중...
                 </div>
-                <div className="mt-[5px] text-[11px] text-[#B0B0B8]">오후 2:15</div>
-              </div>
+              )}
+
+              {error && (
+                <div className="self-start rounded-lg border border-[#F5C2C0] bg-[#FDECEC] px-3 py-2 text-xs font-semibold text-[#C0392B]">
+                  {error}
+                </div>
+              )}
             </div>
+
+            {/* FAQ 프리셋 질문 버튼 */}
+            {quickQuestions.length > 0 && (
+              <div className="flex flex-wrap gap-2 border-t border-[#F0F0F0] px-[18px] py-3">
+                {quickQuestions.map((q) => (
+                  <button
+                    key={q.id}
+                    type="button"
+                    disabled={sending}
+                    onClick={() => send(q.question, true)}
+                    className="rounded-full border border-[#DDDDE3] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#4B4B55] hover:border-primary hover:text-primary disabled:opacity-50"
+                  >
+                    {q.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* input */}
             <div className="flex items-center gap-2.5 border-t border-[#F0F0F0] px-[18px] py-3.5">
               <input
-                placeholder="메시지를 입력하세요"
-                className="flex-1 rounded-xl border border-[#DDDDE3] px-[15px] py-3 text-sm outline-none"
+                value={isLoggedIn ? draft : ""}
+                onChange={(e) => setDraft(e.target.value)}
+                onFocus={() => {
+                  if (!isLoggedIn) goToLogin();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSubmit();
+                }}
+                readOnly={!isLoggedIn}
+                placeholder={isLoggedIn ? "메시지를 입력하세요" : "로그인 후 자유롭게 질문할 수 있어요"}
+                className="flex-1 rounded-xl border border-[#DDDDE3] px-[15px] py-3 text-sm outline-none read-only:cursor-pointer read-only:bg-[#FAFAFB] read-only:text-[#9A9AA2]"
               />
-              <button className="flex h-[46px] w-[46px] flex-shrink-0 items-center justify-center rounded-xl border-2 border-primary-dark bg-primary text-white shadow-tactile-sm active:translate-y-0.5">
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={sending || (isLoggedIn && !draft.trim())}
+                className="flex h-[46px] w-[46px] flex-shrink-0 items-center justify-center rounded-xl border-2 border-primary-dark bg-primary text-white shadow-tactile-sm active:translate-y-0.5 disabled:opacity-50"
+              >
                 <svg
                   width="20"
                   height="20"
