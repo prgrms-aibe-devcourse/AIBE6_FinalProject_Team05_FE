@@ -147,27 +147,23 @@ function LoginForm() {
           </button>
         </form>
 
-        {process.env.NODE_ENV === "development" && (
-          <button
-            type="button"
-            onClick={() => doLogin("test1@pokade.com", "test1234")}
-            disabled={loading}
-            className="mt-3 w-full rounded-[11px] border border-dashed border-[#B0B0B8] bg-[#F7F7F9] py-2.5 text-[13px] font-bold text-[#6E6E76] hover:bg-[#EFEFF2] disabled:opacity-60"
-          >
-            🧪 테스트 계정(test1)으로 로그인 · dev 전용
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => doLogin("test1@pokade.com", "test1234")}
+          disabled={loading}
+          className="mt-3 w-full rounded-[11px] border border-dashed border-[#B0B0B8] bg-[#F7F7F9] py-2.5 text-[13px] font-bold text-[#6E6E76] hover:bg-[#EFEFF2] disabled:opacity-60"
+        >
+          🧪 테스트 계정(test1)으로 로그인 · 데모
+        </button>
 
-        {process.env.NODE_ENV === "development" && (
-          <button
-            type="button"
-            onClick={() => doLogin("test2@pokade.com", "test1234")}
-            disabled={loading}
-            className="mt-3 w-full rounded-[11px] border border-dashed border-[#B0B0B8] bg-[#F7F7F9] py-2.5 text-[13px] font-bold text-[#6E6E76] hover:bg-[#EFEFF2] disabled:opacity-60"
-          >
-            🧪 테스트 계정(test2)으로 로그인 · dev 전용
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => doLogin("test2@pokade.com", "test1234")}
+          disabled={loading}
+          className="mt-3 w-full rounded-[11px] border border-dashed border-[#B0B0B8] bg-[#F7F7F9] py-2.5 text-[13px] font-bold text-[#6E6E76] hover:bg-[#EFEFF2] disabled:opacity-60"
+        >
+          🧪 테스트 계정(test2)으로 로그인 · 데모
+        </button>
 
         <button
           type="button"
