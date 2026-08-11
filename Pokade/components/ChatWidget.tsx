@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useChat } from "@/hooks/useChat";
 import { MAX_CHAT_MESSAGE_LENGTH } from "@/types/chat";
 
@@ -17,6 +16,7 @@ export default function ChatWidget() {
 }
 
 function ChatWidgetPanel() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const {
@@ -50,6 +50,15 @@ function ChatWidgetPanel() {
     }
     send(draft, false);
     setDraft("");
+  }
+
+  // 비로그인은 미니 위젯에서 FAQ까지만 - "자세히 보기"로 /chat 전체 페이지에 자유롭게 드나드는 것도 막고 로그인으로 보낸다.
+  function handleViewMore() {
+    if (!isLoggedIn) {
+      goToLogin();
+      return;
+    }
+    router.push("/chat");
   }
 
   return (
@@ -169,12 +178,13 @@ function ChatWidgetPanel() {
             </div>
           </div>
 
-          <Link
-            href="/chat"
-            className="block border-t border-[#F0F0F0] px-3 py-2 text-center text-[12px] font-bold text-secondary hover:bg-[#FAFAFB]"
+          <button
+            type="button"
+            onClick={handleViewMore}
+            className="block w-full border-t border-[#F0F0F0] px-3 py-2 text-center text-[12px] font-bold text-secondary hover:bg-[#FAFAFB]"
           >
             자세히 보기
-          </Link>
+          </button>
         </div>
       )}
 
