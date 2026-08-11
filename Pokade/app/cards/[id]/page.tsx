@@ -150,6 +150,36 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     }
   };
 
+  // 구매 실패(특히 매물 충돌) 후에도 등급 탭/상단 즉시구매가가 이미 팔린 매물 기준으로 남는 것을
+  // 막기 위해 매물·시세를 함께 재조회. 실패 시에는 이전 값을 그대로 두지 않고 "매물 없음"으로
+  // 떨어지도록 null로 리셋한다(기존 priceSummary?.buyPrice == null 분기가 이를 처리).
+  const refreshListingsAndPrice = async () => {
+    if (cardId == null || !card) return;
+    const hasSingleVariant = card.variants.length <= 1;
+
+    const [summaryResult, listingsResult] = await Promise.allSettled([
+      hasSingleVariant ? fetchPriceSummary(cardId) : Promise.resolve(null),
+      fetchActiveListings(cardId),
+    ]);
+
+    setPriceSummary(summaryResult.status === "fulfilled" ? summaryResult.value : null);
+
+    const nextListings = listingsResult.status === "fulfilled" ? listingsResult.value : [];
+    setActiveListings(nextListings);
+    setListingsError(
+      listingsResult.status === "fulfilled"
+        ? null
+        : listingsResult.reason instanceof ApiError
+          ? listingsResult.reason
+          : new ApiError(0, "UNKNOWN", "매물 정보를 불러오지 못했습니다."),
+    );
+
+    // 방금 실패한 매물이 선택 중이던 등급의 유일한 매물이었으면, 그 등급 선택을 해제해서
+    // "선택된 것처럼 보이지만 구매 불가"인 상태로 남지 않게 한다.
+    const nextSummary = computeGradeSummary(nextListings);
+    setSelectedGrade((prev) => (prev != null && nextSummary[prev] != null ? prev : null));
+  };
+
   const handleBuy = async (listingId: number) => {
     if (userStatus === "loading") return; // 세션 복원 중 — 확정될 때까지 아무 것도 하지 않는다.
     if (userStatus !== "authenticated") {
@@ -164,6 +194,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     } catch (err) {
       setBuyError(err instanceof ApiError ? err.message : "구매 요청에 실패했습니다.");
       setBuyingListingId(null);
+      await refreshListingsAndPrice();
     }
   };
 
@@ -489,6 +520,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
           card &&
           (() => {
             const selectedVariant = card.variants.find((v) => v.id === selectedVariantId) ?? null;
+            const displayName = card.nameKo ?? card.name;
             const mainImageSrc =
               selectedVariant?.imageLarge ||
               selectedVariant?.imageSmall ||
@@ -531,11 +563,11 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                         className="relative aspect-[5/7] w-[160px] shrink-0 cursor-pointer overflow-hidden rounded-xl bg-[#F2F2F5]"
                         onClick={() => setLightboxOpen(true)}
                       >
-                        <CardImage src={mainImageSrc} alt={card.name} label="카드" />
+                        <CardImage src={mainImageSrc} alt={displayName} label="카드" />
                       </div>
                       <div className="flex min-w-0 flex-col justify-center">
                         <h1 className="m-0 truncate text-[23px] font-extrabold tracking-[-0.4px]">
-                          {card.name}
+                          {displayName}
                         </h1>
                         <div className="mt-2 text-[14px] text-[#8A8A92]">
                           {card.setName} · {card.rarity}
@@ -810,7 +842,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                   isOpen={lightboxOpen}
                   onClose={() => setLightboxOpen(false)}
                   imageSrc={mainImageSrc}
-                  alt={card.name}
+                  alt={displayName}
                 />
               </>
             );

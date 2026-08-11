@@ -3,6 +3,7 @@ export interface CardResponse {
   id: number;
   externalId: string;
   name: string;
+  nameKo?: string | null;
   setName: string;
   rarity: string;
   supertype: string;
@@ -27,7 +28,7 @@ export interface CardSearchItem {
 export function toCardSearchItem(card: CardResponse): CardSearchItem {
   return {
     id: card.id,
-    name: card.name,
+    name: card.nameKo ?? card.name,
     set: `${card.setName} · ${card.rarity}`,
     imageUrl: card.imageMedium || card.imageSmall,
     types: card.types,
@@ -79,6 +80,7 @@ export interface CardDetailResponse {
   id: number;
   externalId: string;
   name: string;
+  nameKo?: string | null;
   setName: string;
   rarity: string;
   supertype: string;
