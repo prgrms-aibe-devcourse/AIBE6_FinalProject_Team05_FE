@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import CardImage from "@/components/CardImage";
@@ -63,17 +63,25 @@ function NewListingForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 진행 중인 카드 상세 조회 중 가장 마지막 요청만 상태에 반영하기 위한 순번 —
+  // 먼저 보낸 요청(예: ?cardId= 진입)이 나중에 끝나 검색으로 새로 고른 카드를 덮어쓰는 것을 방지.
+  const selectRequestIdRef = useRef(0);
+
   // 카드 상세(판본 목록 포함)를 조회해서 선택된 카드로 세팅 — 대표 판본을 기본 선택.
   const selectCardById = (cardId: number) => {
+    const requestId = ++selectRequestIdRef.current;
     fetchCardDetail(cardId)
       .then((detail) => {
+        if (selectRequestIdRef.current !== requestId) return; // 그 사이 다른 카드가 선택됨 — 무시
         const card = toSelectedCard(detail);
         setSelectedCard(card);
         const primary = card.variants.find((v) => v.primary) ?? card.variants[0];
         setSelectedVariantId(primary?.id ?? null);
+        setError(null);
       })
       .catch(() => {
-        // 카드 조회 실패 시 검색으로 직접 고르게 둔다
+        if (selectRequestIdRef.current !== requestId) return;
+        setError("카드 정보를 불러오지 못했습니다. 다시 선택해 주세요.");
       });
   };
 
