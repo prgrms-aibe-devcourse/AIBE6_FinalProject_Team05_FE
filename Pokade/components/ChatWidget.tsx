@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useChat } from "@/hooks/useChat";
+import { MAX_CHAT_MESSAGE_LENGTH } from "@/types/chat";
 
 // 시세 챗봇 위젯 - 모든 페이지 우하단 FAB. 클릭하면 작은 창으로 미리보기 채팅을 하고,
 // "자세히 보기"를 누르면 전체 화면인 /chat 페이지로 이동한다.
@@ -126,31 +127,37 @@ function ChatWidgetPanel() {
             </div>
           )}
 
-          <div className="flex items-center gap-2 border-t border-[#F0F0F0] px-3 py-2.5">
-            <input
-              value={isLoggedIn ? draft : ""}
-              onChange={(e) => setDraft(e.target.value)}
-              onFocus={() => {
-                if (!isLoggedIn) goToLogin();
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSubmit();
-              }}
-              readOnly={!isLoggedIn}
-              aria-label="챗봇 메시지 입력"
-              placeholder={isLoggedIn ? "메시지를 입력하세요" : "로그인 후 질문할 수 있어요"}
-              className="flex-1 rounded-lg border border-[#DDDDE3] px-3 py-2 text-[13px] outline-none read-only:cursor-pointer read-only:bg-[#FAFAFB] read-only:text-[#9A9AA2]"
-            />
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={sending || (isLoggedIn && !draft.trim())}
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border-2 border-primary-dark bg-primary text-white disabled:opacity-50"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
-                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
-              </svg>
-            </button>
+          <div className="border-t border-[#F0F0F0] px-3 py-2.5">
+            <div className="flex items-center gap-2">
+              <input
+                value={isLoggedIn ? draft : ""}
+                onChange={(e) => setDraft(e.target.value.slice(0, MAX_CHAT_MESSAGE_LENGTH))}
+                onFocus={() => {
+                  if (!isLoggedIn) goToLogin();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSubmit();
+                }}
+                readOnly={!isLoggedIn}
+                maxLength={MAX_CHAT_MESSAGE_LENGTH}
+                aria-label="챗봇 메시지 입력"
+                placeholder={isLoggedIn ? "메시지를 입력하세요" : "로그인 후 질문할 수 있어요"}
+                className="flex-1 rounded-lg border border-[#DDDDE3] px-3 py-2 text-[13px] outline-none read-only:cursor-pointer read-only:bg-[#FAFAFB] read-only:text-[#9A9AA2]"
+              />
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={sending || (isLoggedIn && !draft.trim())}
+                className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border-2 border-primary-dark bg-primary text-white disabled:opacity-50"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+                  <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+                </svg>
+              </button>
+            </div>
+            <div className="mt-1 text-right text-[10.5px] text-[#B0B0B8]">
+              {(isLoggedIn ? draft : "").length}/{MAX_CHAT_MESSAGE_LENGTH}
+            </div>
           </div>
 
           <Link
