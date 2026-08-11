@@ -157,7 +157,7 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
     inputRef.current?.blur();
     setQuery("");
     setSuggestions([]);
-    setRecentSearches(addRecentSearch(card.name));
+    setRecentSearches(addRecentSearch(card.nameKo ?? card.name));
     router.push(`/cards/${card.id}`);
   };
 
@@ -291,7 +291,7 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
                     }`}
                   >
                     <div className="relative h-9 w-9 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
-                      <CardImage src={card.imageSmall} alt={card.name} label="카드" />
+                      <CardImage src={card.imageSmall} alt={card.nameKo ?? card.name} label="카드" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div
@@ -299,7 +299,7 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
                           i === highlightedIndex ? "text-secondary" : "text-ink"
                         }`}
                       >
-                        {highlightMatch(card.name, query)}
+                        {highlightMatch(card.nameKo ?? card.name, query)}
                       </div>
                       <div className="truncate text-[11.5px] text-[#9A9AA2]">
                         {card.setName} · {card.rarity}
