@@ -27,6 +27,8 @@ interface UserState {
   setNickname: (nickname: string) => void;
 }
 
+const SESSION_HINT_KEY = "pokade_has_session"; // 세션이 있었음을 기억하는 로컬스토리지 키 (로그인 후 새로고침 시 restoreSession 호출 여부 판단용)
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -51,6 +53,7 @@ export const useUserStore = create<UserState>((set, get) => ({
     setAccessToken(accessToken);
     try {
       const me = await authApi.getMyInfo();
+      if (typeof window !== "undefined") localStorage.setItem(SESSION_HINT_KEY, "1");
       set({
         isLoggedIn: true,
         status: "authenticated",
@@ -63,6 +66,7 @@ export const useUserStore = create<UserState>((set, get) => ({
     } catch (err) {
       // 프로필 조회 실패 → 토큰 + 인증 상태를 함께 롤백(부분 상태 불일치 방지)
       setAccessToken(null);
+      if (typeof window !== "undefined") localStorage.removeItem(SESSION_HINT_KEY);
       set({
         isLoggedIn: false,
         status: "unauthenticated",
@@ -90,6 +94,7 @@ export const useUserStore = create<UserState>((set, get) => ({
       // 서버 무효화 실패는 무시(best-effort) — 클라 상태는 항상 초기화
     }
     setAccessToken(null);
+    if (typeof window !== "undefined") localStorage.removeItem(SESSION_HINT_KEY);
     set({
       isLoggedIn: false,
       status: "unauthenticated",
@@ -103,6 +108,20 @@ export const useUserStore = create<UserState>((set, get) => ({
 
   // 새로고침 복원: refresh 쿠키로 reissue → 프로필 → 상태 복원 (없으면 비로그인 유지)
   restoreSession: async (): Promise<boolean> => {
+    if (typeof window !== "undefined" && !localStorage.getItem(SESSION_HINT_KEY)) {
+      setAccessToken(null);
+      set({
+        isLoggedIn: false,
+        status: "unauthenticated",
+        userId: null,
+        userIdRestoring: false,
+        nickname: null,
+        email: null,
+        role: null,
+      });
+      return false;
+    }
+
     let token: string | null = null;
     try {
       token = await reissueAccessToken();
@@ -111,6 +130,7 @@ export const useUserStore = create<UserState>((set, get) => ({
     }
     if (!token) {
       setAccessToken(null);
+      if (typeof window !== "undefined") localStorage.removeItem(SESSION_HINT_KEY);
       set({
         isLoggedIn: false,
         status: "unauthenticated",
@@ -129,6 +149,7 @@ export const useUserStore = create<UserState>((set, get) => ({
 
     try {
       const me = await authApi.getMyInfo();
+      if (typeof window !== "undefined") localStorage.setItem(SESSION_HINT_KEY, "1");
       set({
         userId: me.userId,
         userIdRestoring: false,
@@ -141,6 +162,7 @@ export const useUserStore = create<UserState>((set, get) => ({
       if (err instanceof ApiError && err.status === 401) {
         // 실제 인증 실패 → 세션 정리
         setAccessToken(null);
+        if (typeof window !== "undefined") localStorage.removeItem(SESSION_HINT_KEY);
         set({
           isLoggedIn: false,
           status: "unauthenticated",
