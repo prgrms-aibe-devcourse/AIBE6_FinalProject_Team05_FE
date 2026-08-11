@@ -440,6 +440,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
           card &&
           (() => {
             const selectedVariant = card.variants.find((v) => v.id === selectedVariantId) ?? null;
+            const displayName = card.nameKo ?? card.name;
             const mainImageSrc =
               selectedVariant?.imageLarge ||
               selectedVariant?.imageSmall ||
@@ -482,11 +483,11 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                         className="relative aspect-[5/7] w-[160px] shrink-0 cursor-pointer overflow-hidden rounded-xl bg-[#F2F2F5]"
                         onClick={() => setLightboxOpen(true)}
                       >
-                        <CardImage src={mainImageSrc} alt={card.name} label="카드" />
+                        <CardImage src={mainImageSrc} alt={displayName} label="카드" />
                       </div>
                       <div className="flex min-w-0 flex-col justify-center">
                         <h1 className="m-0 truncate text-[23px] font-extrabold tracking-[-0.4px]">
-                          {card.name}
+                          {displayName}
                         </h1>
                         <div className="mt-2 text-[14px] text-[#8A8A92]">
                           {card.setName} · {card.rarity}
@@ -761,7 +762,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                   isOpen={lightboxOpen}
                   onClose={() => setLightboxOpen(false)}
                   imageSrc={mainImageSrc}
-                  alt={card.name}
+                  alt={displayName}
                 />
               </>
             );

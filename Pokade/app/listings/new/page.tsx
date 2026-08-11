@@ -31,7 +31,7 @@ interface SelectedCard {
 function toSelectedCard(detail: CardDetailResponse): SelectedCard {
   return {
     id: detail.id,
-    name: detail.name,
+    name: detail.nameKo ?? detail.name,
     setName: detail.setName,
     imageUrl: detail.imageMedium || detail.imageSmall,
     variants: detail.variants,
@@ -220,11 +220,14 @@ function NewListingForm() {
                         className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left hover:bg-neutral"
                       >
                         <div className="relative h-11 w-8 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
-                          <CardImage src={card.imageMedium || card.imageSmall} alt={card.name} />
+                          <CardImage
+                            src={card.imageMedium || card.imageSmall}
+                            alt={card.nameKo ?? card.name}
+                          />
                         </div>
                         <div className="min-w-0">
                           <div className="truncate text-[13.5px] font-bold text-ink">
-                            {card.name}
+                            {card.nameKo ?? card.name}
                           </div>
                           <div className="truncate text-xs text-[#8A8A92]">{card.setName}</div>
                         </div>
