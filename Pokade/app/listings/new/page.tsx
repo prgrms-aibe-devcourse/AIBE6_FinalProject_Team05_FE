@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import CardImage from "@/components/CardImage";
@@ -8,7 +8,13 @@ import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
 import { createListing } from "@/lib/listingApi";
 import { fetchCardDetail, fetchCardsByKeywordPage } from "@/lib/cardApi";
-import { CardResponse, parseCardId } from "@/types/card";
+import {
+  CardDetailResponse,
+  CardResponse,
+  parseCardId,
+  VariantSummary,
+  variantLabel,
+} from "@/types/card";
 import { ListingGrade } from "@/types/price";
 
 const MIN_QUERY_LENGTH = 2;
@@ -19,14 +25,16 @@ interface SelectedCard {
   name: string;
   setName: string;
   imageUrl: string;
+  variants: VariantSummary[];
 }
 
-function toSelectedCard(card: CardResponse): SelectedCard {
+function toSelectedCard(detail: CardDetailResponse): SelectedCard {
   return {
-    id: card.id,
-    name: card.name,
-    setName: card.setName,
-    imageUrl: card.imageMedium || card.imageSmall,
+    id: detail.id,
+    name: detail.name,
+    setName: detail.setName,
+    imageUrl: detail.imageMedium || detail.imageSmall,
+    variants: detail.variants,
   };
 }
 
@@ -44,6 +52,7 @@ function NewListingForm() {
   const status = useRequireAuth();
 
   const [selectedCard, setSelectedCard] = useState<SelectedCard | null>(null);
+  const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<CardResponse[]>([]);
   const [searching, setSearching] = useState(false);
@@ -54,24 +63,35 @@ function NewListingForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 진행 중인 카드 상세 조회 중 가장 마지막 요청만 상태에 반영하기 위한 순번 —
+  // 먼저 보낸 요청(예: ?cardId= 진입)이 나중에 끝나 검색으로 새로 고른 카드를 덮어쓰는 것을 방지.
+  const selectRequestIdRef = useRef(0);
+
+  // 카드 상세(판본 목록 포함)를 조회해서 선택된 카드로 세팅 — 대표 판본을 기본 선택.
+  const selectCardById = (cardId: number) => {
+    const requestId = ++selectRequestIdRef.current;
+    fetchCardDetail(cardId)
+      .then((detail) => {
+        if (selectRequestIdRef.current !== requestId) return; // 그 사이 다른 카드가 선택됨 — 무시
+        const card = toSelectedCard(detail);
+        setSelectedCard(card);
+        const primary = card.variants.find((v) => v.primary) ?? card.variants[0];
+        setSelectedVariantId(primary?.id ?? null);
+        setError(null);
+      })
+      .catch(() => {
+        if (selectRequestIdRef.current !== requestId) return;
+        setError("카드 정보를 불러오지 못했습니다. 다시 선택해 주세요.");
+      });
+  };
+
   // ?cardId= 로 진입했으면 카드 상세를 미리 조회해서 선택된 카드로 세팅
   useEffect(() => {
     const cardIdParam = searchParams.get("cardId");
     if (!cardIdParam) return;
     const cardId = parseCardId(cardIdParam);
     if (cardId == null) return;
-    fetchCardDetail(cardId)
-      .then((detail) =>
-        setSelectedCard({
-          id: detail.id,
-          name: detail.name,
-          setName: detail.setName,
-          imageUrl: detail.imageMedium || detail.imageSmall,
-        }),
-      )
-      .catch(() => {
-        // 카드 조회 실패 시 검색으로 직접 고르게 둔다
-      });
+    selectCardById(cardId);
   }, [searchParams]);
 
   // 카드 검색 자동완성 (디바운스)
@@ -116,6 +136,7 @@ function NewListingForm() {
     try {
       await createListing({
         cardId: selectedCard.id,
+        variantId: selectedVariantId ?? undefined,
         price: priceNumber,
         grade: grade || undefined,
       });
@@ -153,7 +174,10 @@ function NewListingForm() {
               </div>
               <button
                 type="button"
-                onClick={() => setSelectedCard(null)}
+                onClick={() => {
+                  setSelectedCard(null);
+                  setSelectedVariantId(null);
+                }}
                 className="flex-shrink-0 text-[12.5px] font-semibold text-[#8A8A92] hover:text-primary"
               >
                 다시 선택
@@ -189,9 +213,9 @@ function NewListingForm() {
                         key={card.id}
                         type="button"
                         onClick={() => {
-                          setSelectedCard(toSelectedCard(card));
                           setQuery("");
                           setSuggestions([]);
+                          selectCardById(card.id);
                         }}
                         className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left hover:bg-neutral"
                       >
@@ -210,6 +234,29 @@ function NewListingForm() {
                 </div>
               )}
             </div>
+          )}
+
+          {selectedCard && selectedCard.variants.length > 1 && (
+            <>
+              <div className="h-4" />
+              <label className="mb-[7px] block text-[13px] font-bold text-[#4B4B52]">판본</label>
+              <div className="flex flex-wrap gap-1.5">
+                {selectedCard.variants.map((v) => (
+                  <button
+                    key={v.id}
+                    type="button"
+                    onClick={() => setSelectedVariantId(v.id)}
+                    className={`rounded-full border px-3 py-1.5 text-[12.5px] font-bold transition ${
+                      selectedVariantId === v.id
+                        ? "border-primary bg-primary text-white"
+                        : "border-[#DDDDE3] bg-white text-[#4B4B52] hover:border-primary hover:text-primary"
+                    }`}
+                  >
+                    {variantLabel(v.variantName)}
+                  </button>
+                ))}
+              </div>
+            </>
           )}
 
           <div className="h-4" />
