@@ -19,8 +19,17 @@ export default function ChatWidget() {
 function ChatWidgetPanel() {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
-  const { isLoggedIn, messages, quickQuestions, sending, error, send, goToLogin, loadHistory } =
-    useChat({ eagerHistory: false });
+  const {
+    isLoggedIn,
+    messages,
+    quickQuestions,
+    sending,
+    error,
+    rateLimited,
+    send,
+    goToLogin,
+    loadHistory,
+  } = useChat({ eagerHistory: false });
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // 위젯은 모든 페이지에 항상 마운트돼 있으므로, 이력은 열기 전까지 미뤘다가 처음 열릴 때만 불러온다.
@@ -147,7 +156,7 @@ function ChatWidgetPanel() {
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={sending || (isLoggedIn && !draft.trim())}
+                disabled={sending || rateLimited || (isLoggedIn && !draft.trim())}
                 className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border-2 border-primary-dark bg-primary text-white disabled:opacity-50"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">

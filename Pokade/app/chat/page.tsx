@@ -32,7 +32,8 @@ const CONVOS = [
 ];
 
 export default function ChatPage() {
-  const { isLoggedIn, messages, quickQuestions, sending, error, send, goToLogin } = useChat();
+  const { isLoggedIn, messages, quickQuestions, sending, error, rateLimited, send, goToLogin } =
+    useChat();
   const [draft, setDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -199,7 +200,7 @@ export default function ChatPage() {
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  disabled={sending || (isLoggedIn && !draft.trim())}
+                  disabled={sending || rateLimited || (isLoggedIn && !draft.trim())}
                   className="flex h-[46px] w-[46px] flex-shrink-0 items-center justify-center rounded-xl border-2 border-primary-dark bg-primary text-white shadow-tactile-sm active:translate-y-0.5 disabled:opacity-50"
                 >
                   <svg

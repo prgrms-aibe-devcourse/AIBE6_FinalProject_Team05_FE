@@ -14,6 +14,7 @@ export interface ChatUiMessage {
 }
 
 const RETRY_ERROR_MESSAGE = "답변을 가져오지 못했어요. 잠시 후 다시 시도해 주세요.";
+const RATE_LIMIT_MESSAGE = "같은 질문을 너무 많이 반복했어요. 1분 후 다시 시도해주세요.";
 
 export interface UseChatOptions {
   // 이력을 마운트 즉시 불러올지 여부. /chat 전체 페이지는 즉시(기본값), 미니 위젯은 처음 열 때(loadHistory 수동 호출)만 불러온다 -
@@ -36,6 +37,8 @@ export function useChat({ eagerHistory = true }: UseChatOptions = {}) {
   const [quickQuestions, setQuickQuestions] = useState<QuickQuestion[]>([]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 같은 질문 반복으로 서버가 60초 잠금(429)을 걸었을 때 - 카운트다운 없이 전송 버튼만 살짝 비활성화하는 용도.
+  const [rateLimited, setRateLimited] = useState(false);
   // send()가 한 번이라도 호출되면 true - 그 뒤로 도착하는 이력 응답이 낙관적 업데이트를 덮어쓰지 않게 막는다.
   const userSentRef = useRef(false);
   // 이력을 이미 불러왔으면(또는 시도했으면) 다시 불러오지 않는다 - loadHistory가 여러 번 호출돼도 요청은 한 번만.
@@ -87,6 +90,7 @@ export function useChat({ eagerHistory = true }: UseChatOptions = {}) {
 
       userSentRef.current = true;
       setError(null);
+      setRateLimited(false);
       setMessages((prev) => [...prev, { role: "user", content: text }]);
       setSending(true);
       try {
@@ -100,6 +104,11 @@ export function useChat({ eagerHistory = true }: UseChatOptions = {}) {
           goToLogin();
           return;
         }
+        if (e instanceof ApiError && (e.status === 429 || e.code === "CHAT_RATE_LIMIT_EXCEEDED")) {
+          setError(e.message || RATE_LIMIT_MESSAGE);
+          setRateLimited(true);
+          return;
+        }
         setError(RETRY_ERROR_MESSAGE);
       } finally {
         setSending(false);
@@ -108,5 +117,15 @@ export function useChat({ eagerHistory = true }: UseChatOptions = {}) {
     [sessionId, sending, isLoggedIn, goToLogin],
   );
 
-  return { isLoggedIn, messages, quickQuestions, sending, error, send, goToLogin, loadHistory };
+  return {
+    isLoggedIn,
+    messages,
+    quickQuestions,
+    sending,
+    error,
+    rateLimited,
+    send,
+    goToLogin,
+    loadHistory,
+  };
 }
