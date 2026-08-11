@@ -128,6 +128,7 @@ function NewListingForm() {
     try {
       await createListing({
         cardId: selectedCard.id,
+        variantId: selectedVariantId ?? undefined,
         price: priceNumber,
         grade: grade || undefined,
       });

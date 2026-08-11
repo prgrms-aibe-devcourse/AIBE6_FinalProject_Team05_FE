@@ -132,6 +132,21 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     }
   };
 
+  // 구매 실패(특히 매물 충돌) 후에도 등급 탭이 이미 팔린 매물을 계속 노출하는 것을 막기 위해 재조회.
+  const refreshActiveListings = async () => {
+    if (cardId == null) return;
+    try {
+      const data = await fetchActiveListings(cardId);
+      setActiveListings(data);
+      setListingsError(null);
+    } catch (err) {
+      setActiveListings([]);
+      setListingsError(
+        err instanceof ApiError ? err : new ApiError(0, "UNKNOWN", "매물 정보를 불러오지 못했습니다."),
+      );
+    }
+  };
+
   const handleBuy = async (listingId: number) => {
     if (userStatus === "loading") return; // 세션 복원 중 — 확정될 때까지 아무 것도 하지 않는다.
     if (userStatus !== "authenticated") {
@@ -146,6 +161,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     } catch (err) {
       setBuyError(err instanceof ApiError ? err.message : "구매 요청에 실패했습니다.");
       setBuyingListingId(null);
+      await refreshActiveListings();
     }
   };
 
