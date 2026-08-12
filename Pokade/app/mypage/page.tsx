@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useUserStore } from "@/store/useUserStore";
-import { getMyInfo, updateNickname } from "@/lib/authApi";
+import { getMyInfo, updateNickname, cancelWithdrawal } from "@/lib/authApi";
 import { authErrorMessage } from "@/lib/authErrorMessages";
 import { MyInfo } from "@/types/auth";
 
@@ -19,6 +19,8 @@ export default function MyPage() {
   const [nickInput, setNickInput] = useState("");
   const [nickSaving, setNickSaving] = useState(false);
   const [nickError, setNickError] = useState<string | null>(null);
+  const [canceling, setCanceling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoadError(false);
@@ -88,12 +90,53 @@ export default function MyPage() {
     );
   }
 
+  function daysLeft(withdrawalRequestedAt: string | null): number {
+    if (!withdrawalRequestedAt) return 0;
+    const deadline = new Date(withdrawalRequestedAt).getTime() + 7 * 24 * 60 * 60 * 1000;
+    return Math.max(0, Math.ceil((deadline - new Date().getTime()) / (24 * 60 * 60 * 1000)));
+  }
+
+  async function handleCancelWithdrawal() {
+    if (canceling) return;
+    setCancelError(null);
+    setCanceling(true);
+    try {
+      await cancelWithdrawal();
+      await load(); // ACTIVE로 갱신 → 배너 사라짐
+    } catch (e) {
+      setCancelError(authErrorMessage(e, "탈퇴 철회에 실패했습니다."));
+    } finally {
+      setCanceling(false);
+    }
+  }
+
   const isLocal = info?.provider === "LOCAL";
 
   return (
     <main className="main-content bg-neutral px-10 py-12">
       <div className="mx-auto w-full max-w-[560px]">
         <h1 className="mb-6 text-[26px] font-extrabold tracking-[-0.6px]">마이페이지</h1>
+        {info?.status === "WITHDRAWAL_PENDING" && (
+          <div className="mb-5 rounded-[14px] border border-[#F6C6C6] bg-[#FFF1F1] px-6 py-5 shadow-card">
+            <p className="text-[15px] font-extrabold text-[#C21414]">탈퇴 진행 중</p>
+            <p className="mt-1.5 text-[13px] leading-relaxed text-[#8A4A4A]">
+              삭제까지 <b>D-{daysLeft(info.withdrawalRequestedAt)}</b> 남았습니다. 지금 철회하면
+              계정이 그대로 유지됩니다.
+            </p>
+            <button
+              onClick={handleCancelWithdrawal}
+              disabled={canceling}
+              className="mt-3 rounded-[10px] border-2 border-primary-dark bg-primary px-5 py-2.5 text-[13.5px] font-bold text-white shadow-tactile disabled:opacity-60"
+            >
+              {canceling ? "처리 중…" : "탈퇴 철회하기"}
+            </button>
+            {cancelError && (
+              <p role="alert" className="mt-2 text-[12.5px] font-semibold text-[#C21414]">
+                {cancelError}
+              </p>
+            )}
+          </div>
+        )}
 
         {loadError ? (
           <div className="rounded-[18px] border border-[#EDEDF0] bg-white px-8 py-10 text-center shadow-card">
@@ -139,10 +182,18 @@ export default function MyPage() {
                           className={`${inputCls} w-[160px]`}
                           autoFocus
                         />
-                        <button onClick={saveNick} disabled={nickSaving} className={smallBtn("primary")}>
+                        <button
+                          onClick={saveNick}
+                          disabled={nickSaving}
+                          className={smallBtn("primary")}
+                        >
                           {nickSaving ? "저장 중…" : "저장"}
                         </button>
-                        <button onClick={cancelEdit} disabled={nickSaving} className={smallBtn("ghost")}>
+                        <button
+                          onClick={cancelEdit}
+                          disabled={nickSaving}
+                          className={smallBtn("ghost")}
+                        >
                           취소
                         </button>
                       </div>
@@ -156,7 +207,10 @@ export default function MyPage() {
                     )}
                   </div>
                   {nickError && (
-                    <p role="alert" className="mt-2 text-right text-[12.5px] font-semibold text-[#C21414]">
+                    <p
+                      role="alert"
+                      className="mt-2 text-right text-[12.5px] font-semibold text-[#C21414]"
+                    >
                       {nickError}
                     </p>
                   )}
@@ -164,11 +218,23 @@ export default function MyPage() {
 
                 <div className="flex items-center justify-between">
                   <span className="text-[#8A8A92]">포인트</span>
-                  <span className="font-semibold">{info.pointBalance.toLocaleString("ko-KR")} P</span>
+                  <span className="font-semibold">
+                    {info.pointBalance.toLocaleString("ko-KR")} P
+                  </span>
                 </div>
               </div>
             </section>
-
+            {info.status === "ACTIVE" && (
+              <Link
+                href="/mypage/withdrawal"
+                className="mt-3 flex items-center justify-between rounded-[18px] border border-[#EDEDF0] bg-white px-8 py-6 shadow-card transition hover:bg-[#FAFAFB]"
+              >
+                <span className="text-[15px] font-bold text-[#C21414]">회원 탈퇴</span>
+                <span aria-hidden="true" className="text-[18px] leading-none text-[#B0B0B8]">
+                  ›
+                </span>
+              </Link>
+            )}
             {isLocal && (
               <Link
                 href="/mypage/password"
