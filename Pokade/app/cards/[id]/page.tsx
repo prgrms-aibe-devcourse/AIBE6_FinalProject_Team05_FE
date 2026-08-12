@@ -34,6 +34,7 @@ import { ApiError } from "@/lib/apiClient";
 import { createTrade } from "@/lib/tradeApi";
 import { useUserStore } from "@/store/useUserStore";
 import { loginUrlFor } from "@/lib/authRedirect";
+import { toKrw } from "@/lib/currency";
 
 type LoadState = "loading" | "error" | "notfound" | "ready";
 type RelatedLoadState = "loading" | "ready";
@@ -51,10 +52,6 @@ const GRADE_ORDER: GradeKey[] = ["PSA10", "PSA9", "PSA8", "S", "A", "B", "RAW"];
 
 // grade-chart 보완 대상 후보 등급 — RAW(미등급)는 ListingGrade가 아니라 제외.
 const CHART_FALLBACK_GRADES: ListingGrade[] = ["PSA10", "PSA9", "PSA8", "S", "A", "B"];
-
-// card_prices는 카드에 따라 USD/JPY로 저장돼 있어 KRW 기준 차트에 그대로 못 섞는다.
-// 실시간 환율 API가 없어 고정 근사치로 환산 — card_prices 자체가 아직 목업/추정 데이터인 시기라 근사치로 충분.
-const FX_TO_KRW: Record<string, number> = { KRW: 1, USD: 1400, JPY: 9 };
 
 const CHART_PERIOD_DAYS: Record<ChartPeriod, number> = { "7d": 7, "30d": 30, "90d": 90, "180d": 180 };
 
@@ -408,7 +405,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
             grade,
             result.value.map((point) => ({
               tradedAt: point.date,
-              price: Math.round(point.price * (FX_TO_KRW[point.currency] ?? 1)),
+              price: toKrw(point.price, point.currency),
               grade,
             })),
           );
