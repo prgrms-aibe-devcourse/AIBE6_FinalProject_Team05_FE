@@ -9,15 +9,14 @@ export interface PriceSummaryResponse {
 // recentTradePrice: includeRecentTradePrice=true로 요청했을 때만 채워짐(해당 grade 기준 최근 체결가).
 // marketPrice: card_prices의 비등급(raw) 시세 - buyPrice/recentTradePrice가 둘 다 없는 카드용 fallback.
 // buyPrice/sellPrice/recentTradePrice와 달리 KRW가 아니라 marketPriceCurrency(USD/JPY 등) 기준이라 별도 통화 필드로 옴.
-export interface CardPriceSummaryResponse {
+// BE는 marketPrice/marketPriceCurrency를 항상 같이 채우거나 같이 비워두므로, 둘이 따로 존재할 수 없게 타입으로도 표현한다.
+export type CardPriceSummaryResponse = {
   cardId: number;
   buyPrice: number | null;
   sellPrice: number | null;
   currency: string;
   recentTradePrice?: number | null;
-  marketPrice?: number | null;
-  marketPriceCurrency?: string | null;
-}
+} & ({ marketPrice: number; marketPriceCurrency: string } | { marketPrice?: null; marketPriceCurrency?: null });
 
 // 매물/체결 등급 — com.pokade.domain.listing.ListingGrade 미러링.
 // AI 등급진단 도메인의 Grade("S"|"A"|"B")와는 별개 개념(판매자가 매물 등록 시 직접 표기하는 등급).

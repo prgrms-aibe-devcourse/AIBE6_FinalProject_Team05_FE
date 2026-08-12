@@ -401,14 +401,12 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
         estimateResults.forEach((result, i) => {
           if (result.status !== "fulfilled" || result.value.length === 0) return;
           const grade = gradesNeedingEstimate[i];
-          sourceByGrade.set(
-            grade,
-            result.value.map((point) => ({
-              tradedAt: point.date,
-              price: toKrw(point.price, point.currency),
-              grade,
-            })),
-          );
+          // 지원하지 않는 통화면 잘못된 환율(1배)로 추정치를 만드는 대신 해당 포인트를 건너뛴다.
+          const points = result.value.flatMap((point) => {
+            const krw = toKrw(point.price, point.currency);
+            return krw == null ? [] : [{ tradedAt: point.date, price: krw, grade }];
+          });
+          if (points.length > 0) sourceByGrade.set(grade, points);
         });
 
         // 등급마다, card_prices와 동일한 기준 시점(REFERENCE_OFFSET_DAYS)에 가장 가까운 포인트 1개씩만
