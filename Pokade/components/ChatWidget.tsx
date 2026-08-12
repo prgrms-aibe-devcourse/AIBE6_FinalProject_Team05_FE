@@ -5,6 +5,13 @@ import { usePathname, useRouter } from "next/navigation";
 import { useChat } from "@/hooks/useChat";
 import { MAX_CHAT_MESSAGE_LENGTH } from "@/types/chat";
 
+// 풋터와 위젯 사이에 남길 최소 여백(px).
+const FOOTER_MARGIN = 16;
+// 각 요소의 평소(풋터가 안 보일 때) bottom 위치. 겹침 보정 시 두 요소를 항상 이 차이(72px)만큼
+// 떨어뜨린 채로 같이 밀어 올려야 패널과 FAB 버튼이 서로 겹치지 않는다.
+const FAB_REST_BOTTOM = 24;
+const PANEL_REST_BOTTOM = 96;
+
 // 시세 챗봇 위젯 - 모든 페이지 우하단 FAB. 클릭하면 작은 창으로 미리보기 채팅을 하고,
 // "자세히 보기"를 누르면 전체 화면인 /chat 페이지로 이동한다.
 // /chat 안에서는 중복이라 숨기는데, useChat()이 불필요한 API 호출(FAQ/이력)을 하지 않도록
@@ -31,30 +38,36 @@ function ChatWidgetPanel() {
     loadHistory,
   } = useChat({ eagerHistory: false });
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [footerOverlap, setFooterOverlap] = useState(0);
+  // 푸터가 화면에 보일 때, 그 지점부터 얼마나 위(margin 포함)까지는 위젯이 들어오면 안 되는지 나타내는 기준선.
+  // 0이면 푸터가 아직 화면 밖에 있어 위젯이 기본 위치(FAB_REST_BOTTOM/PANEL_REST_BOTTOM)에 있어도 된다는 뜻.
+  const [footerClearance, setFooterClearance] = useState(0);
 
   // 위젯은 모든 페이지에 항상 마운트돼 있으므로, 이력은 열기 전까지 미뤘다가 처음 열릴 때만 불러온다.
   useEffect(() => {
     if (open) loadHistory();
   }, [open, loadHistory]);
 
-  // 푸터(#site-footer)가 화면에 올라오면 그만큼 위젯을 밀어 올려 겹치지 않게 한다.
+  // 푸터(#site-footer)가 화면에 올라오면 위젯이 겹치지 않도록 밀어 올린다.
+  // scroll/resize 외에 ResizeObserver로 문서 전체 높이 변화도 감지 — /search처럼 데이터가 늦게 로딩되어
+  // 레이아웃이 나중에 늘어나는(=풋터가 더 아래로 내려가는) 페이지에서, 로딩 전 위치로 값이 고정돼버리는 걸 막는다.
   useEffect(() => {
     const footer = document.getElementById("site-footer");
     if (!footer) return;
 
-    function updateOverlap() {
+    function updateClearance() {
       const rect = footer!.getBoundingClientRect();
-      const overlap = window.innerHeight - rect.top;
-      setFooterOverlap(overlap > 0 ? overlap + 16 : 0);
+      setFooterClearance(Math.max(0, window.innerHeight - rect.top + FOOTER_MARGIN));
     }
 
-    updateOverlap();
-    window.addEventListener("scroll", updateOverlap, { passive: true });
-    window.addEventListener("resize", updateOverlap);
+    updateClearance();
+    window.addEventListener("scroll", updateClearance, { passive: true });
+    window.addEventListener("resize", updateClearance);
+    const resizeObserver = new ResizeObserver(updateClearance);
+    resizeObserver.observe(document.body);
     return () => {
-      window.removeEventListener("scroll", updateOverlap);
-      window.removeEventListener("resize", updateOverlap);
+      window.removeEventListener("scroll", updateClearance);
+      window.removeEventListener("resize", updateClearance);
+      resizeObserver.disconnect();
     };
   }, []);
 
@@ -62,6 +75,12 @@ function ChatWidgetPanel() {
     if (!open) return;
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [open, messages, sending]);
+
+  // FAB 버튼(더 아래에 있어 풋터에 먼저 닿는 쪽) 기준으로 필요한 만큼만 밀어 올리고,
+  // 패널은 그 위로 항상 같은 간격(72px)을 유지한 채 같이 밀어 올려 둘이 겹치지 않게 한다.
+  const pushUp = Math.max(0, footerClearance - FAB_REST_BOTTOM);
+  const fabBottom = FAB_REST_BOTTOM + pushUp;
+  const panelBottom = PANEL_REST_BOTTOM + pushUp;
 
   function handleSubmit() {
     if (sending) return;
@@ -87,7 +106,7 @@ function ChatWidgetPanel() {
       {open && (
         <div
           className="fixed right-6 z-[100] flex h-[420px] w-[340px] flex-col overflow-hidden rounded-2xl border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]"
-          style={{ bottom: `${96 + footerOverlap}px` }}
+          style={{ bottom: `${panelBottom}px` }}
         >
           <div className="flex items-center justify-between border-b border-[#F0F0F0] px-4 py-3">
             <div className="flex items-center gap-2">
@@ -102,7 +121,14 @@ function ChatWidgetPanel() {
               aria-label="시세 챗봇 닫기"
               className="text-[#9A9AA2] hover:text-ink"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <path d="M18 6L6 18M6 6l12 12" />
               </svg>
             </button>
@@ -192,7 +218,14 @@ function ChatWidgetPanel() {
                 disabled={sending || rateLimited || (isLoggedIn && !draft.trim())}
                 className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border-2 border-primary-dark bg-primary text-white disabled:opacity-50"
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#fff"
+                  strokeWidth="2"
+                >
                   <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
                 </svg>
               </button>
@@ -217,7 +250,7 @@ function ChatWidgetPanel() {
         onClick={() => setOpen((v) => !v)}
         aria-label={open ? "시세 챗봇 닫기" : "시세 챗봇 열기"}
         className="fixed right-6 z-[100] flex h-14 w-14 items-center justify-center rounded-full border-2 border-primary-dark bg-primary text-white shadow-tactile-sm transition-transform hover:scale-105 active:translate-y-0.5"
-        style={{ bottom: `${24 + footerOverlap}px` }}
+        style={{ bottom: `${fabBottom}px` }}
       >
         {open ? (
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
