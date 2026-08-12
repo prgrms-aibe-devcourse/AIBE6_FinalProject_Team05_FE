@@ -1,95 +1,107 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import GradeBadge, { Grade } from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { ApiError } from "@/lib/apiClient";
+import { fetchCardDetail, fetchPriceSummaries } from "@/lib/cardApi";
+import { resolvePriceDisplay } from "@/lib/priceDisplay";
+import { deleteWatchlistItem, fetchWatchlist } from "@/lib/watchlistApi";
+import { CardDetailResponse } from "@/types/card";
+import { CardPriceSummaryResponse } from "@/types/price";
+import { WatchlistResponse } from "@/types/watchlist";
 
-type Status = "대기중" | "목표도달" | "확인함";
+// BE에는 isNotified(목표가 도달 여부)만 있고 "확인함"에 대응하는 필드가 없어 2단계로 축소.
+type Status = "대기중" | "목표도달";
 const STATUS_CLS: Record<Status, string> = {
   대기중: "bg-[#FFF3CE] text-[#8A6A00]",
   목표도달: "bg-[#E8F7EF] text-[#087a4e]",
-  확인함: "bg-[#EEF0F2] text-[#6B7280]",
 };
 
-const ROWS: {
-  id: string;
-  name: string;
-  set: string;
-  grade: Grade;
-  price: string;
-  target: string;
-  chg: string;
-  up: boolean;
-  status: Status;
-}[] = [
-  {
-    id: "wl-1",
-    name: "리자몽 ex",
-    set: "흑염의 지배자 · SAR",
-    grade: "S",
-    price: "₩142,000",
-    target: "₩150,000",
-    chg: "▲ 3.2%",
-    up: true,
-    status: "대기중",
-  },
-  {
-    id: "wl-2",
-    name: "뮤 UR",
-    set: "151 · UR",
-    grade: "A",
-    price: "₩89,500",
-    target: "₩85,000",
-    chg: "▼ 1.4%",
-    up: false,
-    status: "목표도달",
-  },
-  {
-    id: "wl-3",
-    name: "피카츄 VMAX",
-    set: "프로모 · HR",
-    grade: "S",
-    price: "₩55,000",
-    target: "₩52,000",
-    chg: "▲ 5.8%",
-    up: true,
-    status: "목표도달",
-  },
-  {
-    id: "wl-4",
-    name: "뮤츠 ex",
-    set: "레이징 서프 · SAR",
-    grade: "A",
-    price: "₩211,000",
-    target: "₩220,000",
-    chg: "▲ 1.1%",
-    up: true,
-    status: "확인함",
-  },
-  {
-    id: "wl-5",
-    name: "이상해꽃 ex",
-    set: "클레이 버스트 · SAR",
-    grade: "S",
-    price: "₩64,200",
-    target: "₩70,000",
-    chg: "▲ 2.5%",
-    up: true,
-    status: "대기중",
-  },
+type WatchlistRow = {
+  item: WatchlistResponse;
+  card: CardDetailResponse | null;
+  priceSummary: CardPriceSummaryResponse | undefined;
+};
+
+type LoadState = "loading" | "error" | "ready";
+type Filter = "all" | "wait" | "reached";
+
+const TABS: { key: Filter; label: string }[] = [
+  { key: "all", label: "전체" },
+  { key: "wait", label: "대기중" },
+  { key: "reached", label: "목표도달" },
 ];
 
-const TABS = [
-  ["all", "전체 12"],
-  ["wait", "대기중 8"],
-  ["reached", "목표도달 3"],
-  ["seen", "확인함 1"],
-] as const;
+function statusOf(item: WatchlistResponse): Status {
+  return item.isNotified ? "목표도달" : "대기중";
+}
+
+// targetBuyPrice/targetSellPrice 중 최소 하나는 항상 있다(둘 다 없으면 BE가 400).
+function formatTarget(item: WatchlistResponse): string {
+  const target = item.targetBuyPrice ?? item.targetSellPrice;
+  return target != null ? `${target.toLocaleString("ko-KR")}원` : "-";
+}
 
 export default function WatchlistPage() {
-  const [empty, setEmpty] = useState(false);
-  const [filter, setFilter] = useState("all");
+  const authStatus = useRequireAuth();
+
+  const [rows, setRows] = useState<WatchlistRow[]>([]);
+  const [loadState, setLoadState] = useState<LoadState>("loading");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [filter, setFilter] = useState<Filter>("all");
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (authStatus !== "authenticated") return;
+    let cancelled = false;
+
+    fetchWatchlist()
+      .then(async (items) => {
+        const cardIds = Array.from(new Set(items.map((i) => i.cardId)));
+        // 카드 상세는 배치 조회 API가 없어 건당 호출 — WATCHLIST_LIMIT(20)로 상한이 있어 허용.
+        // 카드 하나가 조회 실패해도 나머지 행은 정상 표시되도록 개별 catch로 null 처리.
+        const [cards, priceMap] = await Promise.all([
+          Promise.all(cardIds.map((id) => fetchCardDetail(id).catch(() => null))),
+          fetchPriceSummaries(cardIds),
+        ]);
+        if (cancelled) return;
+        const cardById = new Map(cardIds.map((id, i) => [id, cards[i]]));
+        setRows(
+          items.map((item) => ({
+            item,
+            card: cardById.get(item.cardId) ?? null,
+            priceSummary: priceMap.get(item.cardId),
+          })),
+        );
+        setLoadState("ready");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setErrorMessage(
+          err instanceof ApiError ? err.message : "워치리스트 조회에 실패했습니다.",
+        );
+        setLoadState("error");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authStatus]);
+
+  const counts: Record<Filter, number> = {
+    all: rows.length,
+    wait: rows.filter((r) => !r.item.isNotified).length,
+    reached: rows.filter((r) => r.item.isNotified).length,
+  };
+
+  const filtered = rows.filter((r) => {
+    if (filter === "wait") return !r.item.isNotified;
+    if (filter === "reached") return r.item.isNotified;
+    return true;
+  });
 
   const tabCls = (active: boolean) =>
     `rounded-[10px] border-[1.5px] px-[15px] py-2 text-[13.5px] cursor-pointer ${
@@ -97,6 +109,22 @@ export default function WatchlistPage() {
         ? "border-primary bg-[#FFF5F5] font-bold text-primary"
         : "border-[#E4E4E9] bg-white font-semibold text-[#7A7A82]"
     }`;
+
+  const handleDelete = async (id: number) => {
+    if (!window.confirm("워치리스트에서 삭제하시겠어요?")) return;
+    setDeletingId(id);
+    setDeleteError(null);
+    try {
+      await deleteWatchlistItem(id);
+      setRows((prev) => prev.filter((r) => r.item.id !== id));
+    } catch (err) {
+      setDeleteError(err instanceof ApiError ? err.message : "삭제에 실패했습니다.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  if (authStatus !== "authenticated") return null;
 
   return (
     <main className="main-content bg-neutral px-10 pb-14 pt-9">
@@ -108,71 +136,21 @@ export default function WatchlistPage() {
               관심 카드의 목표가 도달 알림을 관리하세요
             </p>
           </div>
-          <button
-            onClick={() => setEmpty((e) => !e)}
-            className="rounded-[10px] border-[1.5px] border-[#DDDDE3] bg-white px-[15px] py-[9px] text-[13px] font-bold text-[#8A8A92] hover:border-primary hover:text-primary"
-          >
-            데모: 빈 상태 전환
-          </button>
         </div>
 
-        <div className="mb-[18px] flex gap-2">
-          {TABS.map(([k, l]) => (
-            <button key={k} className={tabCls(filter === k)} onClick={() => setFilter(k)}>
-              {l}
-            </button>
-          ))}
-        </div>
-
-        {!empty ? (
-          <div className="overflow-hidden rounded-2xl border border-[#EDEDF0] bg-white">
-            <div className="grid grid-cols-[2.4fr_1fr_1fr_1fr_1fr_0.6fr] gap-4 border-b border-[#EDEDF0] bg-[#FAFAFB] px-[22px] py-3.5 text-xs font-bold text-[#9A9AA2]">
-              <div>카드</div>
-              <div>현재 시세</div>
-              <div>목표가</div>
-              <div>등락</div>
-              <div>상태</div>
-              <div />
-            </div>
-            {ROWS.map((r, i) => (
-              <div
-                key={r.id}
-                className={`grid grid-cols-[2.4fr_1fr_1fr_1fr_1fr_0.6fr] items-center gap-4 px-[22px] py-4 hover:bg-[#FAFAFB] ${i < ROWS.length - 1 ? "border-b border-[#F2F2F5]" : ""}`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="h-14 w-10 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
-                    <CardImage />
-                  </div>
-                  <div>
-                    <div className="text-sm font-bold">{r.name}</div>
-                    <div className="text-xs text-[#9A9AA2]">{r.set}</div>
-                  </div>
-                </div>
-                <div className="text-sm font-bold">{r.price}</div>
-                <div className="text-sm text-[#4B4B52]">{r.target}</div>
-                <div
-                  className={`text-[13.5px] font-bold ${r.up ? "text-primary" : "text-secondary"}`}
-                >
-                  {r.chg}
-                </div>
-                <div>
-                  <span
-                    className={`rounded-full px-[11px] py-[5px] text-xs font-bold ${STATUS_CLS[r.status]}`}
-                  >
-                    {r.status}
-                  </span>
-                </div>
-                <div className="text-right">
-                  <button aria-label="삭제" className="text-[#C7C7CE] hover:text-primary">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            ))}
+        {loadState === "loading" && (
+          <div className="rounded-2xl border border-[#EDEDF0] bg-white px-6 py-14 text-center text-[13.5px] text-[#8A8A92]">
+            불러오는 중...
           </div>
-        ) : (
+        )}
+
+        {loadState === "error" && (
+          <div className="rounded-2xl border border-[#F6C6C6] bg-[#FFF1F1] px-6 py-6 text-center text-[13.5px] text-[#C21414]">
+            {errorMessage}
+          </div>
+        )}
+
+        {loadState === "ready" && rows.length === 0 && (
           <div className="rounded-2xl border border-[#EDEDF0] bg-white px-10 py-[72px] text-center">
             <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-[#F2F2F5]">
               <svg
@@ -199,6 +177,97 @@ export default function WatchlistPage() {
               카드 둘러보기
             </Link>
           </div>
+        )}
+
+        {loadState === "ready" && rows.length > 0 && (
+          <>
+            <div className="mb-[18px] flex gap-2">
+              {TABS.map(({ key, label }) => (
+                <button
+                  key={key}
+                  className={tabCls(filter === key)}
+                  onClick={() => setFilter(key)}
+                >
+                  {label} {counts[key]}
+                </button>
+              ))}
+            </div>
+
+            {deleteError && (
+              <div className="mb-[14px] rounded-[12px] border border-[#F6C6C6] bg-[#FFF1F1] px-4 py-3 text-[13px] font-semibold text-[#C21414]">
+                {deleteError}
+              </div>
+            )}
+
+            {filtered.length === 0 ? (
+              <div className="rounded-2xl border border-[#EDEDF0] bg-white px-6 py-14 text-center text-[13.5px] text-[#8A8A92]">
+                해당 상태의 카드가 없습니다.
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-2xl border border-[#EDEDF0] bg-white">
+                <div className="grid grid-cols-[2.4fr_1fr_1fr_1fr_1fr_0.6fr] gap-4 border-b border-[#EDEDF0] bg-[#FAFAFB] px-[22px] py-3.5 text-xs font-bold text-[#9A9AA2]">
+                  <div>카드</div>
+                  <div>현재 시세</div>
+                  <div>목표가</div>
+                  <div>등락</div>
+                  <div>상태</div>
+                  <div />
+                </div>
+                {filtered.map((row, i) => {
+                  const displayName =
+                    row.card?.nameKo ?? row.card?.name ?? "알 수 없는 카드";
+                  const priceLabel = resolvePriceDisplay(row.priceSummary)?.price ?? "정보 없음";
+                  const status = statusOf(row.item);
+                  return (
+                    <div
+                      key={row.item.id}
+                      className={`grid grid-cols-[2.4fr_1fr_1fr_1fr_1fr_0.6fr] items-center gap-4 px-[22px] py-4 hover:bg-[#FAFAFB] ${
+                        i < filtered.length - 1 ? "border-b border-[#F2F2F5]" : ""
+                      }`}
+                    >
+                      <Link
+                        href={`/cards/${row.item.cardId}`}
+                        className="flex items-center gap-3 hover:text-primary"
+                      >
+                        <div className="h-14 w-10 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
+                          <CardImage src={row.card?.imageMedium} alt={displayName} />
+                        </div>
+                        <div>
+                          <div className="text-sm font-bold">{displayName}</div>
+                          <div className="text-xs text-[#9A9AA2]">
+                            {row.card?.setName ?? "-"}
+                          </div>
+                        </div>
+                      </Link>
+                      <div className="text-sm font-bold">{priceLabel}</div>
+                      <div className="text-sm text-[#4B4B52]">{formatTarget(row.item)}</div>
+                      <div className="text-[13.5px] font-bold text-[#9A9AA2]">-</div>
+                      <div>
+                        <span
+                          className={`rounded-full px-[11px] py-[5px] text-xs font-bold ${STATUS_CLS[status]}`}
+                        >
+                          {status}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <button
+                          type="button"
+                          aria-label="삭제"
+                          disabled={deletingId === row.item.id}
+                          onClick={() => handleDelete(row.item.id)}
+                          className="text-[#C7C7CE] hover:text-primary disabled:opacity-50"
+                        >
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
       </div>
     </main>

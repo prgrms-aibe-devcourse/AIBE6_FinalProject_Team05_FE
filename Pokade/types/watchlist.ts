@@ -10,3 +10,12 @@ export interface WatchlistResponse {
   isNotified: boolean;
   createdAt: string;
 }
+
+// POST /api/watchlist 요청 바디 — com.pokade.domain.watchlist.dto.WatchlistCreateRequest 미러링.
+// targetBuyPrice/targetSellPrice 둘 다 없으면 BE가 400(TARGET_PRICE_REQUIRED) 반환.
+export interface WatchlistCreateRequest {
+  cardId: number;
+  variantId?: number;
+  targetBuyPrice?: number;
+  targetSellPrice?: number;
+}
