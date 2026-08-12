@@ -104,7 +104,7 @@ export default function MyListingsPage() {
       })
       .catch((err) => {
         if (!cancelled) {
-          setErrorMessage(err instanceof ApiError ? err.message : "매물 조회에 실패했습니다.");
+          setErrorMessage(err instanceof ApiError ? err.message : "상품 조회에 실패했습니다.");
           setLoadState("error");
         }
       });
@@ -171,7 +171,7 @@ export default function MyListingsPage() {
       );
       setConfirmDeleteId(null);
     } catch (err) {
-      setDeleteError(err instanceof ApiError ? err.message : "매물 삭제에 실패했습니다.");
+      setDeleteError(err instanceof ApiError ? err.message : "상품 삭제에 실패했습니다.");
     } finally {
       setDeleteSubmitting(false);
     }
@@ -183,12 +183,12 @@ export default function MyListingsPage() {
     <main className="main-content bg-neutral px-10 py-14">
       <div className="mx-auto w-full max-w-[860px]">
         <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-[22px] font-extrabold tracking-[-0.5px]">내 매물</h1>
+          <h1 className="text-[22px] font-extrabold tracking-[-0.5px]">내 상품</h1>
           <Link
             href="/listings/new"
             className="rounded-[11px] border-2 border-primary-dark bg-primary px-4 py-2.5 text-[13.5px] font-bold text-white shadow-tactile-sm transition active:translate-y-0.5"
           >
-            매물 등록
+            상품 등록
           </Link>
         </div>
 
@@ -226,7 +226,7 @@ export default function MyListingsPage() {
 
         {loadState === "ready" && listings.length === 0 && (
           <div className="rounded-[18px] border border-[#EDEDF0] bg-white px-6 py-14 text-center text-[13.5px] text-[#8A8A92]">
-            등록된 매물이 없습니다.
+            등록된 상품이 없습니다.
           </div>
         )}
 

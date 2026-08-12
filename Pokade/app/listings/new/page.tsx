@@ -142,7 +142,7 @@ function NewListingForm() {
       });
       router.push(`/cards/${selectedCard.id}`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "매물 등록에 실패했습니다.");
+      setError(err instanceof ApiError ? err.message : "상품 등록에 실패했습니다.");
     } finally {
       setSubmitting(false);
     }
@@ -156,7 +156,7 @@ function NewListingForm() {
   return (
     <main className="main-content bg-neutral px-10 py-14">
       <div className="mx-auto w-full max-w-[520px] rounded-[18px] border border-[#EDEDF0] bg-white px-[34px] py-9 shadow-card">
-        <h1 className="mb-6 text-[20px] font-extrabold tracking-[-0.5px]">매물 등록</h1>
+        <h1 className="mb-6 text-[20px] font-extrabold tracking-[-0.5px]">상품 등록</h1>
 
         <form onSubmit={handleSubmit}>
           {/* 카드 선택 */}
@@ -305,7 +305,7 @@ function NewListingForm() {
             disabled={submitting}
             className="mt-6 w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3.5 text-[15.5px] font-bold text-white shadow-tactile transition active:translate-y-0.5 active:shadow-tactile-active disabled:opacity-60"
           >
-            {submitting ? "등록 중..." : "매물 등록"}
+            {submitting ? "등록 중..." : "상품 등록"}
           </button>
         </form>
 
