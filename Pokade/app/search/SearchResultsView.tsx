@@ -6,8 +6,9 @@ import { CardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
 import { CardSort } from "@/lib/cardApi";
 import { highlightMatch } from "@/lib/highlightMatch";
+import { pickDisplayName } from "@/lib/pickDisplayName";
 import { resolvePriceDisplay } from "@/lib/priceDisplay";
-import { PRICE_MAX, SET_OPTIONS, TYPE_OPTIONS, RARITY_OPTIONS } from "./constants";
+import { PRICE_MAX } from "./constants";
 
 type LoadState = "loading" | "error" | "ready";
 
@@ -39,6 +40,10 @@ interface SearchResultsViewProps {
   setSelectedTypes: Dispatch<SetStateAction<string[]>>;
   selectedRarities: string[];
   setSelectedRarities: Dispatch<SetStateAction<string[]>>;
+  setOptions: { label: string; expansionId: string }[];
+  typeOptions: string[];
+  rarityOptions: string[];
+  facetsLoading: boolean;
   priceMin: number;
   setPriceMin: Dispatch<SetStateAction<number>>;
   priceMax: number;
@@ -114,6 +119,10 @@ export default function SearchResultsView({
   setSelectedTypes,
   selectedRarities,
   setSelectedRarities,
+  setOptions,
+  typeOptions,
+  rarityOptions,
+  facetsLoading,
   priceMin,
   setPriceMin,
   priceMax,
@@ -207,69 +216,81 @@ export default function SearchResultsView({
             </div>
             <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">세트</div>
             <div className="mb-5 flex flex-col gap-[9px]">
-              {SET_OPTIONS.map((opt) => (
-                <label
-                  key={opt.expansionId}
-                  className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
-                >
-                  <input
-                    type="radio"
-                    name="expansion-filter"
-                    checked={selectedExpansionId === opt.expansionId}
-                    onClick={() => {
-                      if (selectedExpansionId === opt.expansionId) {
+              {facetsLoading ? (
+                <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
+              ) : (
+                setOptions.map((opt) => (
+                  <label
+                    key={opt.expansionId}
+                    className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
+                  >
+                    <input
+                      type="radio"
+                      name="expansion-filter"
+                      checked={selectedExpansionId === opt.expansionId}
+                      onClick={() => {
+                        if (selectedExpansionId === opt.expansionId) {
+                          setLoadState("loading");
+                          setSelectedExpansionId(null);
+                        }
+                      }}
+                      onChange={() => {
                         setLoadState("loading");
-                        setSelectedExpansionId(null);
-                      }
-                    }}
-                    onChange={() => {
-                      setLoadState("loading");
-                      setSelectedExpansionId(opt.expansionId);
-                    }}
-                  />
-                  {opt.label}
-                </label>
-              ))}
+                        setSelectedExpansionId(opt.expansionId);
+                      }}
+                    />
+                    {opt.label}
+                  </label>
+                ))
+              )}
             </div>
             <div className="mb-[18px] h-px bg-[#F0F0F0]" />
             <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">타입</div>
             <div className="mb-5 flex flex-col gap-[9px]">
-              {TYPE_OPTIONS.map((t) => (
-                <label
-                  key={t}
-                  className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedTypes.includes(t)}
-                    onChange={() => {
-                      setLoadState("loading");
-                      setSelectedTypes(toggleValue(selectedTypes, t));
-                    }}
-                  />
-                  {t}
-                </label>
-              ))}
+              {facetsLoading ? (
+                <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
+              ) : (
+                typeOptions.map((t) => (
+                  <label
+                    key={t}
+                    className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedTypes.includes(t)}
+                      onChange={() => {
+                        setLoadState("loading");
+                        setSelectedTypes(toggleValue(selectedTypes, t));
+                      }}
+                    />
+                    {t}
+                  </label>
+                ))
+              )}
             </div>
             <div className="mb-[18px] h-px bg-[#F0F0F0]" />
             <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">레어도</div>
             <div className="mb-5 flex flex-col gap-[9px]">
-              {RARITY_OPTIONS.map((r) => (
-                <label
-                  key={r}
-                  className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedRarities.includes(r)}
-                    onChange={() => {
-                      setLoadState("loading");
-                      setSelectedRarities(toggleValue(selectedRarities, r));
-                    }}
-                  />
-                  {r}
-                </label>
-              ))}
+              {facetsLoading ? (
+                <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
+              ) : (
+                rarityOptions.map((r) => (
+                  <label
+                    key={r}
+                    className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedRarities.includes(r)}
+                      onChange={() => {
+                        setLoadState("loading");
+                        setSelectedRarities(toggleValue(selectedRarities, r));
+                      }}
+                    />
+                    {r}
+                  </label>
+                ))
+              )}
             </div>
             <div className="mb-[18px] h-px bg-[#F0F0F0]" />
             <div className="mb-3 text-[12.5px] font-bold text-[#4B4B52]">가격대</div>
@@ -394,7 +415,7 @@ export default function SearchResultsView({
               {selectedExpansionId && (
                 <FilterChip
                   label={
-                    SET_OPTIONS.find((o) => o.expansionId === selectedExpansionId)?.label ??
+                    setOptions.find((o) => o.expansionId === selectedExpansionId)?.label ??
                     selectedExpansionId
                   }
                   onRemove={() => {
@@ -497,6 +518,13 @@ export default function SearchResultsView({
           >
             {cards.map((c) => {
               const priceDisplay = resolvePriceDisplay(priceSummaries.get(c.id));
+              // pickDisplayName이 받는 { name, nameKo } 형태로 원본 필드를 매핑한다 — 여기서
+              // name은 병합된 c.name이 아니라 원본 영문명(c.nameEn)이어야 검색어와 정확히 대조된다.
+              // Header.tsx는 CardResponse가 이미 이 형태라 그대로 넘기지만, CardSearchItem은
+              // name을 이미 병합해둔 형태라 여기서만 별도로 매핑해 넘긴다.
+              const rawNames = { name: c.nameEn, nameKo: c.nameKo };
+              // alt와 화면 표시 텍스트가 항상 같은 언어를 가리키도록 한 번만 계산해 공유한다.
+              const displayName = q ? pickDisplayName(rawNames, q) : c.name;
               return (
                 <Link
                   key={c.id}
@@ -504,11 +532,11 @@ export default function SearchResultsView({
                   className="flex cursor-pointer flex-col overflow-hidden rounded-[13px] border border-[#EDEDF0] transition hover:-translate-y-[3px] hover:shadow-lift"
                 >
                   <div className="relative aspect-[5/7] w-full bg-[#F2F2F5]">
-                    <CardImage src={c.imageUrl} alt={c.name} label="카드" />
+                    <CardImage src={c.imageUrl} alt={displayName} label="카드" />
                   </div>
                   <div className="flex flex-1 flex-col p-3">
                     <div className="text-[13.5px] font-bold">
-                      {q ? highlightMatch(c.name, q) : c.name}
+                      {q ? highlightMatch(displayName, q) : displayName}
                     </div>
                     <div className="mt-0.5 text-[11.5px] text-[#9A9AA2]">{c.set}</div>
                     {c.types.length > 0 && (
