@@ -153,7 +153,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
         ? null
         : listingsResult.reason instanceof ApiError
           ? listingsResult.reason
-          : new ApiError(0, "UNKNOWN", "매물 정보를 불러오지 못했습니다."),
+          : new ApiError(0, "UNKNOWN", "상품 정보를 불러오지 못했습니다."),
     );
 
     // 방금 실패한 매물이 선택 중이던 등급의 유일한 매물이었으면, 그 등급 선택을 해제해서
@@ -289,7 +289,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
         setListingsError(
           listingsResult.reason instanceof ApiError
             ? listingsResult.reason
-            : new ApiError(0, "UNKNOWN", "매물 정보를 불러오지 못했습니다."),
+            : new ApiError(0, "UNKNOWN", "상품 정보를 불러오지 못했습니다."),
         );
       }
       setPriceLoadState("ready");
@@ -556,7 +556,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                                       `${vp.buyPrice.toLocaleString("ko-KR")}원`
                                     ) : (
                                       <span className="text-[12.5px] font-semibold text-[#9A9AA2]">
-                                        매물 없음
+                                        상품 없음
                                       </span>
                                     )}
                                   </div>
@@ -610,7 +610,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                           `${priceSummary.buyPrice.toLocaleString("ko-KR")}원`
                         ) : (
                           <span className="text-[14px] font-semibold text-[#9A9AA2]">
-                            매물 없음
+                            상품 없음
                           </span>
                         )}
                       </div>
@@ -640,7 +640,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                         listingsError &&
                         (listingsError.status === 401 || listingsError.status === 403 ? (
                           <div className="flex flex-col items-center gap-2 rounded-xl bg-neutral py-8 text-center text-[13px] text-[#9A9AA2]">
-                            <span>등급별 매물은 로그인 후 확인할 수 있습니다.</span>
+                            <span>등급별 상품은 로그인 후 확인할 수 있습니다.</span>
                             <Link
                               href={loginUrlFor(pathname, searchParams)}
                               className="text-[12.5px] font-bold text-primary hover:text-primary-dark"
@@ -650,7 +650,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                           </div>
                         ) : (
                           <div className="rounded-xl bg-neutral py-8 text-center text-[13px] text-[#9A9AA2]">
-                            매물 정보를 불러오지 못했습니다.
+                            상품 정보를 불러오지 못했습니다.
                           </div>
                         ))}
 
@@ -680,7 +680,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                                 <span className="text-[11px] font-semibold text-[#8A8A92]">
                                   {hasStock
                                     ? `${offer.price.toLocaleString("ko-KR")}원`
-                                    : "매물 없음"}
+                                    : "상품 없음"}
                                 </span>
                               </button>
                             );

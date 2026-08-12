@@ -74,7 +74,7 @@ const CONVOS: Convo[] = [
       { me: false, text: "카드 잘 받았습니다! 상태도 설명하신 그대로네요." },
       { me: true, text: "다행이네요 ㅎㅎ 구매확정 도와주시면 정산 진행돼요." },
       { me: false, text: "네 방금 구매확정 눌렀어요!" },
-      { me: false, text: "거래 감사합니다 :) 다음에 또 좋은 매물 있으면 연락드릴게요." },
+      { me: false, text: "거래 감사합니다 :) 다음에 또 좋은 상품 있으면 연락드릴게요." },
     ],
   },
   {
@@ -97,11 +97,11 @@ const CONVOS: Convo[] = [
     av: "리자몽",
     bg: "bg-grade-s",
     name: "리자몽매니아",
-    msg: "새 매물 올라오면 알려주세요!",
+    msg: "새 상품 올라오면 알려주세요!",
     time: "1주 전",
     lastSeen: "1주 전 접속",
     thread: [
-      { me: false, text: "관심목록에 리자몽 ex 추가해뒀어요, 새 매물 올라오면 알려주세요!" },
+      { me: false, text: "관심목록에 리자몽 ex 추가해뒀어요, 새 상품 올라오면 알려주세요!" },
       { me: true, text: "넵! 등록되는 대로 채팅으로 안내드릴게요." },
       { me: false, text: "감사합니다 :) S등급으로 부탁드려요." },
     ],

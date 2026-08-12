@@ -471,7 +471,7 @@ const NOTIFS: Notif[] = [
 
 const PROFILE_MENU: { label: string; href: string }[] = [
   { label: "마이페이지", href: "/mypage" },
-  { label: "내 매물 관리", href: "/listings/me" },
+  { label: "내 상품 관리", href: "/listings/me" },
   { label: "워치리스트", href: "/watchlist" },
   { label: "포인트 충전", href: "#" },
   { label: "설정", href: "#" },
