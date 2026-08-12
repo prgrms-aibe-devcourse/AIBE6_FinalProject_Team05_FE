@@ -22,7 +22,7 @@ const NAV: { label: string; href: string }[] = [
   { label: "마켓", href: "/search" },
   { label: "시세 랭킹", href: "/ranking" },
   { label: "AI 등급진단", href: "/ai-diagnosis" },
-  { label: "커뮤니티", href: "#" },
+  { label: "상품 등록", href: "/listings/new" },
 ];
 
 function SearchBar({ width = "w-60" }: { width?: string }) {
