@@ -8,7 +8,7 @@ import { CardSort } from "@/lib/cardApi";
 import { highlightMatch } from "@/lib/highlightMatch";
 import { pickDisplayName } from "@/lib/pickDisplayName";
 import { resolvePriceDisplay } from "@/lib/priceDisplay";
-import { PRICE_MAX, SET_OPTIONS, TYPE_OPTIONS, RARITY_OPTIONS } from "./constants";
+import { PRICE_MAX } from "./constants";
 
 type LoadState = "loading" | "error" | "ready";
 
@@ -40,6 +40,10 @@ interface SearchResultsViewProps {
   setSelectedTypes: Dispatch<SetStateAction<string[]>>;
   selectedRarities: string[];
   setSelectedRarities: Dispatch<SetStateAction<string[]>>;
+  setOptions: { label: string; expansionId: string }[];
+  typeOptions: string[];
+  rarityOptions: string[];
+  facetsLoading: boolean;
   priceMin: number;
   setPriceMin: Dispatch<SetStateAction<number>>;
   priceMax: number;
@@ -115,6 +119,10 @@ export default function SearchResultsView({
   setSelectedTypes,
   selectedRarities,
   setSelectedRarities,
+  setOptions,
+  typeOptions,
+  rarityOptions,
+  facetsLoading,
   priceMin,
   setPriceMin,
   priceMax,
@@ -208,69 +216,81 @@ export default function SearchResultsView({
             </div>
             <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">세트</div>
             <div className="mb-5 flex flex-col gap-[9px]">
-              {SET_OPTIONS.map((opt) => (
-                <label
-                  key={opt.expansionId}
-                  className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
-                >
-                  <input
-                    type="radio"
-                    name="expansion-filter"
-                    checked={selectedExpansionId === opt.expansionId}
-                    onClick={() => {
-                      if (selectedExpansionId === opt.expansionId) {
+              {facetsLoading ? (
+                <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
+              ) : (
+                setOptions.map((opt) => (
+                  <label
+                    key={opt.expansionId}
+                    className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
+                  >
+                    <input
+                      type="radio"
+                      name="expansion-filter"
+                      checked={selectedExpansionId === opt.expansionId}
+                      onClick={() => {
+                        if (selectedExpansionId === opt.expansionId) {
+                          setLoadState("loading");
+                          setSelectedExpansionId(null);
+                        }
+                      }}
+                      onChange={() => {
                         setLoadState("loading");
-                        setSelectedExpansionId(null);
-                      }
-                    }}
-                    onChange={() => {
-                      setLoadState("loading");
-                      setSelectedExpansionId(opt.expansionId);
-                    }}
-                  />
-                  {opt.label}
-                </label>
-              ))}
+                        setSelectedExpansionId(opt.expansionId);
+                      }}
+                    />
+                    {opt.label}
+                  </label>
+                ))
+              )}
             </div>
             <div className="mb-[18px] h-px bg-[#F0F0F0]" />
             <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">타입</div>
             <div className="mb-5 flex flex-col gap-[9px]">
-              {TYPE_OPTIONS.map((t) => (
-                <label
-                  key={t}
-                  className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedTypes.includes(t)}
-                    onChange={() => {
-                      setLoadState("loading");
-                      setSelectedTypes(toggleValue(selectedTypes, t));
-                    }}
-                  />
-                  {t}
-                </label>
-              ))}
+              {facetsLoading ? (
+                <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
+              ) : (
+                typeOptions.map((t) => (
+                  <label
+                    key={t}
+                    className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedTypes.includes(t)}
+                      onChange={() => {
+                        setLoadState("loading");
+                        setSelectedTypes(toggleValue(selectedTypes, t));
+                      }}
+                    />
+                    {t}
+                  </label>
+                ))
+              )}
             </div>
             <div className="mb-[18px] h-px bg-[#F0F0F0]" />
             <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">레어도</div>
             <div className="mb-5 flex flex-col gap-[9px]">
-              {RARITY_OPTIONS.map((r) => (
-                <label
-                  key={r}
-                  className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedRarities.includes(r)}
-                    onChange={() => {
-                      setLoadState("loading");
-                      setSelectedRarities(toggleValue(selectedRarities, r));
-                    }}
-                  />
-                  {r}
-                </label>
-              ))}
+              {facetsLoading ? (
+                <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
+              ) : (
+                rarityOptions.map((r) => (
+                  <label
+                    key={r}
+                    className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedRarities.includes(r)}
+                      onChange={() => {
+                        setLoadState("loading");
+                        setSelectedRarities(toggleValue(selectedRarities, r));
+                      }}
+                    />
+                    {r}
+                  </label>
+                ))
+              )}
             </div>
             <div className="mb-[18px] h-px bg-[#F0F0F0]" />
             <div className="mb-3 text-[12.5px] font-bold text-[#4B4B52]">가격대</div>
@@ -395,7 +415,7 @@ export default function SearchResultsView({
               {selectedExpansionId && (
                 <FilterChip
                   label={
-                    SET_OPTIONS.find((o) => o.expansionId === selectedExpansionId)?.label ??
+                    setOptions.find((o) => o.expansionId === selectedExpansionId)?.label ??
                     selectedExpansionId
                   }
                   onRemove={() => {

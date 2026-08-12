@@ -2,17 +2,20 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { CardSearchItem, toCardSearchItem } from "@/types/card";
+import { CardFacetsResponse, CardSearchItem, toCardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
 import {
   CardSort,
+  fetchCardFacets,
   fetchCardsByKeywordPage,
   fetchCardsPage,
   fetchPriceSummaries,
 } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
-import { PRICE_MAX, SET_OPTIONS, TYPE_OPTIONS, RARITY_OPTIONS } from "./constants";
+import { PRICE_MAX } from "./constants";
+
+const EMPTY_FACETS: CardFacetsResponse = { types: [], rarities: [], expansions: [] };
 import SearchResultsView from "./SearchResultsView";
 import PriceDashboardView from "./PriceDashboardView";
 
@@ -56,27 +59,19 @@ function SearchDashboard() {
   // 이 값은 드래그가 멈춘 뒤에만 갱신되어 재요청 트리거로 쓰인다.
   const [debouncedPriceMin, setDebouncedPriceMin] = useState(priceMin);
   const [debouncedPriceMax, setDebouncedPriceMax] = useState(priceMax);
-  // URL을 직접 조작해 화이트리스트에 없는 값(예: types=INVALID)을 넣어도
-  // 체크박스로 선택 가능한 값만 채택한다 — 배열은 유효한 값만 걸러내고
-  // 나머지는 유지(전체를 버리지 않음).
-  const [selectedExpansionId, setSelectedExpansionId] = useState<string | null>(() => {
-    const id = searchParams.get("expansionId");
-    return id && SET_OPTIONS.some((o) => o.expansionId === id) ? id : null;
-  });
+  // facet 목록이 비동기로 오기 전이라 여기서는 화이트리스트 검증 없이 URL 값을 그대로 받는다.
+  // facet 응답이 도착하면(아래 facet fetch effect) 그 시점에 존재하지 않는 값만 걸러낸다.
+  const [selectedExpansionId, setSelectedExpansionId] = useState<string | null>(
+    () => searchParams.get("expansionId") || null,
+  );
   const [selectedTypes, setSelectedTypes] = useState<string[]>(
-    () =>
-      searchParams
-        .get("types")
-        ?.split(",")
-        .filter((t) => TYPE_OPTIONS.includes(t)) ?? [],
+    () => searchParams.get("types")?.split(",").filter(Boolean) ?? [],
   );
   const [selectedRarities, setSelectedRarities] = useState<string[]>(
-    () =>
-      searchParams
-        .get("rarity")
-        ?.split(",")
-        .filter((r) => RARITY_OPTIONS.includes(r)) ?? [],
+    () => searchParams.get("rarity")?.split(",").filter(Boolean) ?? [],
   );
+  const [facets, setFacets] = useState<CardFacetsResponse>(EMPTY_FACETS);
+  const [facetsLoading, setFacetsLoading] = useState(true);
   // BE 화이트리스트에 없는 값은 latest로 취급 — /api/cards/search(키워드 검색)는
   // sort를 지원하지 않으므로 q가 있을 때는 드롭다운 자체를 숨긴다.
   const [sort, setSort] = useState<CardSort>(() => {
@@ -120,6 +115,33 @@ function SearchDashboard() {
     setLoadState("loading");
     setPage(1);
   }
+
+  // 필터 UI(세트/타입/레어도) 옵션 목록 — 마운트 시 한 번만 조회한다.
+  // 실패해도 EMPTY_FACETS 기본값을 유지하고 조용히 넘어간다(필터 체크박스만 빈 상태로 남고
+  // 나머지 화면은 정상 동작) — 이미 URL에 있던 선택값도 이 경우 그대로 유지한다.
+  useEffect(() => {
+    let cancelled = false;
+    fetchCardFacets()
+      .then((data) => {
+        if (cancelled) return;
+        setFacets(data);
+        // URL 직접 조작 등으로 들어온, facet에 실제로 없는 선택값만 걸러낸다.
+        setSelectedExpansionId((id) =>
+          id && data.expansions.some((e) => e.id === id) ? id : null,
+        );
+        setSelectedTypes((types) => types.filter((t) => data.types.includes(t)));
+        setSelectedRarities((rarities) => rarities.filter((r) => data.rarities.includes(r)));
+      })
+      .catch(() => {
+        // 무시 — facets는 EMPTY_FACETS로 남고 필터 체크박스 목록만 비어 보인다.
+      })
+      .finally(() => {
+        if (!cancelled) setFacetsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // 가격 슬라이더는 드래그 중 priceMin/priceMax가 연속으로 바뀌므로, 300~500ms 동안
   // 값이 안정된 뒤에야 debouncedPriceMin/Max를 갱신한다 — API 요청/URL 동기화는 이 값을 본다.
@@ -276,6 +298,10 @@ function SearchDashboard() {
   const seg = (a: boolean) =>
     `rounded-lg px-[18px] py-[9px] text-[13.5px] cursor-pointer ${a ? "bg-white font-bold text-ink shadow-[0_1px_3px_rgba(0,0,0,0.08)]" : "bg-transparent font-semibold text-[#8A8A92]"}`;
 
+  // 기존 SET_OPTIONS과 같은 모양({label, expansionId})으로 맞춰서, 이 값을 쓰는
+  // SearchResultsView 쪽 JSX(옵션 렌더링/칩 라벨 조회)를 그대로 재사용한다.
+  const setOptions = facets.expansions.map((e) => ({ label: e.name, expansionId: e.id }));
+
   return (
     <main className="main-content bg-neutral px-4 pb-14 pt-8 sm:px-10">
       <div className="mx-auto max-w-[1280px]">
@@ -306,6 +332,10 @@ function SearchDashboard() {
             setSelectedTypes={setSelectedTypes}
             selectedRarities={selectedRarities}
             setSelectedRarities={setSelectedRarities}
+            setOptions={setOptions}
+            typeOptions={facets.types}
+            rarityOptions={facets.rarities}
+            facetsLoading={facetsLoading}
             priceMin={priceMin}
             setPriceMin={setPriceMin}
             priceMax={priceMax}

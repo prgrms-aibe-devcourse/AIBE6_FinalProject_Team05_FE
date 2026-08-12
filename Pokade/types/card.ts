@@ -28,6 +28,13 @@ export interface CardSearchItem {
   types: string[];
 }
 
+// GET /api/cards/facets 응답 — 검색 필터(세트/타입/레어도) 체크박스가 쓰는 옵션 목록.
+export interface CardFacetsResponse {
+  types: string[];
+  rarities: string[];
+  expansions: { id: string; name: string }[];
+}
+
 export function toCardSearchItem(card: CardResponse): CardSearchItem {
   return {
     id: card.id,
