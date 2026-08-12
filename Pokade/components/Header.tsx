@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CardImage from "@/components/CardImage";
 import { fetchCardsByKeywordPage } from "@/lib/cardApi";
 import { highlightMatch } from "@/lib/highlightMatch";
+import { pickDisplayName } from "@/lib/pickDisplayName";
 import {
   addRecentSearch,
   clearRecentSearches,
@@ -293,7 +294,7 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
                     <div className="relative h-9 w-9 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
                       <CardImage
                         src={card.imageSmall}
-                        alt={card.nameKo ?? card.name}
+                        alt={pickDisplayName(card, query)}
                         label="카드"
                       />
                     </div>
@@ -303,7 +304,7 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
                           i === highlightedIndex ? "text-secondary" : "text-ink"
                         }`}
                       >
-                        {highlightMatch(card.nameKo ?? card.name, query)}
+                        {highlightMatch(pickDisplayName(card, query), query)}
                       </div>
                       <div className="truncate text-[11.5px] text-[#9A9AA2]">
                         {card.setName} · {card.rarity}

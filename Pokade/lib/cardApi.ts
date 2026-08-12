@@ -1,5 +1,5 @@
 import { apiGet, PageResponse } from "@/lib/apiClient";
-import { CardDetailResponse, CardResponse } from "@/types/card";
+import { CardDetailResponse, CardFacetsResponse, CardResponse } from "@/types/card";
 import {
   ChartPeriod,
   CardPricePointResponse,
@@ -53,6 +53,11 @@ export async function fetchCardsPage(
 export async function fetchCards(filters: CardSearchFilters = {}): Promise<CardResponse[]> {
   const page = await fetchCardsPage(filters);
   return page.content;
+}
+
+// GET /api/cards/facets — 검색 필터 UI(세트/타입/레어도)가 쓰는 옵션 목록.
+export async function fetchCardFacets(): Promise<CardFacetsResponse> {
+  return apiGet<CardFacetsResponse>("/api/cards/facets");
 }
 
 // GET /api/cards/search?q= — 이름 키워드 검색. q가 blank면 BE가 400(INVALID_INPUT) 반환.
