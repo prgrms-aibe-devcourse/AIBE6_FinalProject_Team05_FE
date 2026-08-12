@@ -498,6 +498,10 @@ export default function SearchResultsView({
           >
             {cards.map((c) => {
               const priceDisplay = resolvePriceDisplay(priceSummaries.get(c.id));
+              // alt와 화면 표시 텍스트가 항상 같은 언어를 가리키도록 한 번만 계산해 공유한다.
+              const displayName = q
+                ? pickDisplayName({ name: c.nameEn, nameKo: c.nameKo }, q)
+                : c.name;
               return (
                 <Link
                   key={c.id}
@@ -505,13 +509,11 @@ export default function SearchResultsView({
                   className="flex cursor-pointer flex-col overflow-hidden rounded-[13px] border border-[#EDEDF0] transition hover:-translate-y-[3px] hover:shadow-lift"
                 >
                   <div className="relative aspect-[5/7] w-full bg-[#F2F2F5]">
-                    <CardImage src={c.imageUrl} alt={c.name} label="카드" />
+                    <CardImage src={c.imageUrl} alt={displayName} label="카드" />
                   </div>
                   <div className="flex flex-1 flex-col p-3">
                     <div className="text-[13.5px] font-bold">
-                      {q
-                        ? highlightMatch(pickDisplayName({ name: c.nameEn, nameKo: c.nameKo }, q), q)
-                        : c.name}
+                      {q ? highlightMatch(displayName, q) : displayName}
                     </div>
                     <div className="mt-0.5 text-[11.5px] text-[#9A9AA2]">{c.set}</div>
                     {c.types.length > 0 && (
