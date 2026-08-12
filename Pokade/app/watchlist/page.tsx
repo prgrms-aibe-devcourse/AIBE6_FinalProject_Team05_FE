@@ -229,7 +229,7 @@ export default function WatchlistPage() {
                         href={`/cards/${row.item.cardId}`}
                         className="flex items-center gap-3 hover:text-primary"
                       >
-                        <div className="h-14 w-10 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
+                        <div className="relative h-14 w-10 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
                           <CardImage src={row.card?.imageMedium} alt={displayName} />
                         </div>
                         <div>

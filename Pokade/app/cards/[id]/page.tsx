@@ -6,6 +6,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import CardImage from "@/components/CardImage";
 import PriceChart from "@/components/PriceChart";
 import ImageLightbox from "@/components/ImageLightbox";
+import AddWatchlistModal from "@/components/AddWatchlistModal";
 import {
   CardDetailResponse,
   CardSearchItem,
@@ -103,6 +104,9 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   const [copied, setCopied] = useState(false);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [watchlistModalOpen, setWatchlistModalOpen] = useState(false);
+  const [watchlistAdded, setWatchlistAdded] = useState(false);
+  const watchlistAddedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [relatedCards, setRelatedCards] = useState<CardSearchItem[]>([]);
   const [relatedLoadState, setRelatedLoadState] = useState<RelatedLoadState>("loading");
@@ -145,6 +149,13 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     } catch {
       // 클립보드 접근이 차단된 환경(권한 거부 등)에서는 조용히 무시.
     }
+  };
+
+  // "복사됨"(handleShare)과 동일한 버튼 옆 텍스트 피드백 패턴 재사용.
+  const handleWatchlistAdded = () => {
+    setWatchlistAdded(true);
+    if (watchlistAddedTimeoutRef.current) clearTimeout(watchlistAddedTimeoutRef.current);
+    watchlistAddedTimeoutRef.current = setTimeout(() => setWatchlistAdded(false), 2000);
   };
 
   // 구매 실패(특히 매물 충돌) 후에도 등급 탭/상단 즉시구매가가 이미 팔린 매물 기준으로 남는 것을
@@ -205,6 +216,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   useEffect(() => {
     return () => {
       if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+      if (watchlistAddedTimeoutRef.current) clearTimeout(watchlistAddedTimeoutRef.current);
     };
   }, []);
 
@@ -520,6 +532,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
 
         {loadState === "ready" &&
           card &&
+          cardId != null &&
           (() => {
             const selectedVariant = card.variants.find((v) => v.id === selectedVariantId) ?? null;
             const displayName = card.nameKo ?? card.name;
@@ -791,6 +804,22 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                             ? "구매하기"
                             : "등급을 선택하세요"}
                     </button>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setWatchlistModalOpen(true)}
+                        aria-label="관심 등록"
+                        className="w-full rounded-[11px] border-[1.5px] border-[#DDDDE3] bg-white py-2.5 text-[13.5px] font-bold text-[#4B4B52] transition hover:border-primary hover:text-primary"
+                      >
+                        관심 등록
+                      </button>
+                      {watchlistAdded && (
+                        <span className="whitespace-nowrap text-[12.5px] font-bold text-primary">
+                          등록됨
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -840,6 +869,14 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                   onClose={() => setLightboxOpen(false)}
                   imageSrc={mainImageSrc}
                   alt={displayName}
+                />
+
+                <AddWatchlistModal
+                  isOpen={watchlistModalOpen}
+                  onClose={() => setWatchlistModalOpen(false)}
+                  cardId={cardId}
+                  variantId={selectedVariantId}
+                  onSuccess={handleWatchlistAdded}
                 />
               </>
             );
