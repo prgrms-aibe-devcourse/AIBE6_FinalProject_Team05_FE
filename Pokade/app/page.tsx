@@ -237,8 +237,15 @@ export default function HomePage() {
               {Array.from({ length: POPULAR_CARDS_SIZE }).map((_, i) => (
                 <div
                   key={i}
-                  className="h-[280px] animate-pulse rounded-[14px] border border-[#EDEDF0] bg-[#F2F2F5]"
-                />
+                  className="flex flex-col overflow-hidden rounded-[14px] border border-[#EDEDF0]"
+                >
+                  <div className="aspect-[5/7] w-full animate-pulse bg-[#F2F2F5]" />
+                  <div className="flex flex-1 flex-col gap-2 p-3.5">
+                    <div className="h-4 w-3/4 animate-pulse rounded bg-[#F2F2F5]" />
+                    <div className="h-3 w-1/2 animate-pulse rounded bg-[#F2F2F5]" />
+                    <div className="mt-auto h-4 w-2/3 animate-pulse rounded bg-[#F2F2F5]" />
+                  </div>
+                </div>
               ))}
             </div>
           )}
@@ -267,13 +274,8 @@ export default function HomePage() {
                     className="relative flex flex-col overflow-hidden rounded-[14px] border border-[#EDEDF0] transition hover:-translate-y-1 hover:shadow-lift"
                   >
                     <Link href={`/cards/${c.id}`} className="flex flex-1 cursor-pointer flex-col">
-                      <div className="relative h-[196px] bg-[#F2F2F5]">
-                        <CardImage
-                          src={c.imageUrl}
-                          alt={c.name}
-                          label="카드"
-                          className="object-top"
-                        />
+                      <div className="relative aspect-[5/7] w-full bg-[#F2F2F5]">
+                        <CardImage src={c.imageUrl} alt={c.name} label="카드" />
                       </div>
                       <div className="flex flex-1 flex-col p-3.5">
                         <div className="text-[14.5px] font-bold leading-[1.35]">{c.name}</div>

@@ -437,8 +437,15 @@ export default function SearchResultsView({
             {Array.from({ length: SEARCH_SKELETON_COUNT }).map((_, i) => (
               <div
                 key={i}
-                className="aspect-[5/7] w-full animate-pulse rounded-[13px] border border-[#EDEDF0] bg-[#F2F2F5]"
-              />
+                className="flex flex-col overflow-hidden rounded-[13px] border border-[#EDEDF0]"
+              >
+                <div className="aspect-[5/7] w-full animate-pulse bg-[#F2F2F5]" />
+                <div className="flex flex-1 flex-col gap-2 p-3">
+                  <div className="h-[13.5px] w-3/4 animate-pulse rounded bg-[#F2F2F5]" />
+                  <div className="h-[11.5px] w-1/2 animate-pulse rounded bg-[#F2F2F5]" />
+                  <div className="mt-auto h-[15px] w-2/3 animate-pulse rounded bg-[#F2F2F5]" />
+                </div>
+              </div>
             ))}
           </div>
         )}
