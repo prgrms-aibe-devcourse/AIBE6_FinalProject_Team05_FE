@@ -1,6 +1,9 @@
 import { CardPriceSummaryResponse } from "@/types/price";
+import { toKrw } from "@/lib/currency";
 
-// buyPrice(S등급 매물가) 우선, 없으면 recentTradePrice(S등급 최근 체결가)를 대신 보여준다 — 둘 다 없으면 null.
+// buyPrice(S등급 매물가) → recentTradePrice(S등급 최근 체결가) → marketPrice(card_prices 비등급 시세) 순으로
+// 표시한다. 앞의 둘은 우리 플랫폼에서 실제 거래된 카드에만 있어서, 거래 이력이 없는 대다수 카드는
+// marketPrice(Scrydex 동기화 참고 시세)까지 내려가야 값이 있다 — 셋 다 없으면 null.
 export function resolvePriceDisplay(
   summary?: CardPriceSummaryResponse,
 ): { label: string; price: string } | null {
@@ -9,6 +12,13 @@ export function resolvePriceDisplay(
   }
   if (summary?.recentTradePrice != null) {
     return { label: "최근 체결가", price: `${summary.recentTradePrice.toLocaleString("ko-KR")}원` };
+  }
+  if (summary?.marketPrice != null && summary.marketPriceCurrency != null) {
+    const krw = toKrw(summary.marketPrice, summary.marketPriceCurrency);
+    // 지원하지 않는 통화면 잘못된 환율로 추정치를 보여주는 대신 그냥 표시하지 않는다.
+    if (krw != null) {
+      return { label: "참고 시세", price: `${krw.toLocaleString("ko-KR")}원` };
+    }
   }
   return null;
 }
