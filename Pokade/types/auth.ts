@@ -12,10 +12,11 @@ export interface MyInfo {
   email: string;
   nickname: string;
   role: "USER" | "ADMIN";
-  status: "PENDING" | "ACTIVE" | "SUSPENDED" | "DELETED";
+  status: "PENDING" | "ACTIVE" | "WITHDRAWAL_PENDING" | "SUSPENDED" | "DELETED";
   profileImageUrl: string | null;
   pointBalance: number;
   provider: "LOCAL" | "GOOGLE" | "KAKAO";
+  withdrawalRequestedAt: string | null;
 }
 
 export interface SignupRequest {
@@ -56,4 +57,9 @@ export interface OAuth2RegisterRequest {
   ticket: string;
   nickname: string;
   termsAgreed: boolean;
+}
+
+export interface WithdrawalRequest {
+  password?: string; // LOCAL 계정용
+  code?: string; // 소셜 계정용 이메일 인증코드
 }

@@ -14,6 +14,8 @@ const AUTH_ERROR_MESSAGES: Record<string, string> = {
   PASSWORD_CHANGE_NOT_ALLOWED: "소셜 로그인 계정은 비밀번호를 재설정할 수 없습니다.",
   NICKNAME_CHANGE_LIMITED: "닉네임은 마지막 변경 후 30일이 지나야 다시 변경할 수 있습니다.",
   INVALID_CURRENT_PASSWORD: "현재 비밀번호가 일치하지 않습니다.",
+  WITHDRAWAL_NOT_ALLOWED: "탈퇴할 수 없는 계정 상태입니다.",
+  NOT_WITHDRAWAL_PENDING: "탈퇴 진행 중인 상태가 아닙니다.",
 };
 
 // ApiError면 코드별 메시지(미매핑은 서버가 준 메시지), 그 외는 fallback

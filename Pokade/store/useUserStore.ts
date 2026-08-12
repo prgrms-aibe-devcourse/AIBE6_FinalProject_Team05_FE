@@ -22,10 +22,12 @@ interface UserState {
   login: (email: string, password: string) => Promise<void>;
   loginWithToken: (accessToken: string) => Promise<void>;
   logout: () => Promise<void>;
-  restoreSession: () => Promise<boolean>;
+  restoreSession: (force?: boolean) => Promise<boolean>;
   markAllNotificationsRead: () => void;
   setNickname: (nickname: string) => void;
 }
+
+const SESSION_HINT_KEY = "pokade_has_session"; // 세션이 있었음을 기억하는 로컬스토리지 키 (로그인 후 새로고침 시 restoreSession 호출 여부 판단용)
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -51,6 +53,7 @@ export const useUserStore = create<UserState>((set, get) => ({
     setAccessToken(accessToken);
     try {
       const me = await authApi.getMyInfo();
+      if (typeof window !== "undefined") localStorage.setItem(SESSION_HINT_KEY, "1");
       set({
         isLoggedIn: true,
         status: "authenticated",
@@ -63,6 +66,7 @@ export const useUserStore = create<UserState>((set, get) => ({
     } catch (err) {
       // 프로필 조회 실패 → 토큰 + 인증 상태를 함께 롤백(부분 상태 불일치 방지)
       setAccessToken(null);
+      if (typeof window !== "undefined") localStorage.removeItem(SESSION_HINT_KEY);
       set({
         isLoggedIn: false,
         status: "unauthenticated",
@@ -90,6 +94,7 @@ export const useUserStore = create<UserState>((set, get) => ({
       // 서버 무효화 실패는 무시(best-effort) — 클라 상태는 항상 초기화
     }
     setAccessToken(null);
+    if (typeof window !== "undefined") localStorage.removeItem(SESSION_HINT_KEY);
     set({
       isLoggedIn: false,
       status: "unauthenticated",
@@ -102,7 +107,21 @@ export const useUserStore = create<UserState>((set, get) => ({
   },
 
   // 새로고침 복원: refresh 쿠키로 reissue → 프로필 → 상태 복원 (없으면 비로그인 유지)
-  restoreSession: async (): Promise<boolean> => {
+  restoreSession: async (force = false): Promise<boolean> => {
+    if (!force && typeof window !== "undefined" && !localStorage.getItem(SESSION_HINT_KEY)) {
+      setAccessToken(null);
+      set({
+        isLoggedIn: false,
+        status: "unauthenticated",
+        userId: null,
+        userIdRestoring: false,
+        nickname: null,
+        email: null,
+        role: null,
+      });
+      return false;
+    }
+
     let token: string | null = null;
     try {
       token = await reissueAccessToken();
@@ -111,6 +130,7 @@ export const useUserStore = create<UserState>((set, get) => ({
     }
     if (!token) {
       setAccessToken(null);
+      if (typeof window !== "undefined") localStorage.removeItem(SESSION_HINT_KEY);
       set({
         isLoggedIn: false,
         status: "unauthenticated",
@@ -126,7 +146,7 @@ export const useUserStore = create<UserState>((set, get) => ({
     // 프로필 조회 전에 먼저 "로그인은 됐지만 userId는 아직 모름" 상태를 노출한다 —
     // 구매자 판정처럼 userId가 꼭 필요한 화면이 이 값을 보고 판정을 미룰 수 있게.
     set({ isLoggedIn: true, status: "authenticated", userIdRestoring: true });
-
+    if (typeof window !== "undefined") localStorage.setItem(SESSION_HINT_KEY, "1");
     try {
       const me = await authApi.getMyInfo();
       set({
@@ -141,6 +161,7 @@ export const useUserStore = create<UserState>((set, get) => ({
       if (err instanceof ApiError && err.status === 401) {
         // 실제 인증 실패 → 세션 정리
         setAccessToken(null);
+        if (typeof window !== "undefined") localStorage.removeItem(SESSION_HINT_KEY);
         set({
           isLoggedIn: false,
           status: "unauthenticated",
