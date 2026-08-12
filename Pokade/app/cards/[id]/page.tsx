@@ -807,7 +807,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                       {Array.from({ length: 5 }).map((_, i) => (
                         <div
                           key={i}
-                          className="h-[190px] animate-pulse rounded-[13px] border border-[#EDEDF0] bg-[#F2F2F5]"
+                          className="aspect-[5/7] w-full animate-pulse rounded-[13px] border border-[#EDEDF0] bg-[#F2F2F5]"
                         />
                       ))}
                     </div>
