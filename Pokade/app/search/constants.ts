@@ -3,12 +3,18 @@
 
 export const PRICE_MAX = 3000000;
 
-// 세트 체크박스 → BE expansionId 매핑. data.sql에 실제 시드된 세트 중 4개만 노출.
+// 세트 체크박스 → BE expansionId 매핑. data.sql에 실제 시드된 세트 8개 전부 노출.
+// 뒤 4개(sm11/sm3/sv10_ja/xy7)는 확정된 한글 세트명이 없어 카드 이름의 nameKo 폴백 관례와
+// 동일하게 원본 이름(setName) 그대로 라벨로 사용 — 한글명이 확정되면 교체.
 export const SET_OPTIONS: { label: string; expansionId: string }[] = [
   { label: "베이스", expansionId: "base1" },
   { label: "151", expansionId: "sv3pt5" },
   { label: "블랙 볼트", expansionId: "zsv10pt5" },
   { label: "메가 에볼루션", expansionId: "me1" },
+  { label: "Unified Minds", expansionId: "sm11" },
+  { label: "Burning Shadows", expansionId: "sm3" },
+  { label: "サンダー", expansionId: "sv10_ja" },
+  { label: "Ancient Origins", expansionId: "xy7" },
 ];
 
 // 타입/레어도 체크박스 값 — 실행 중인 BE(/api/cards)에서 집계한 실제 값·빈도 기준.
