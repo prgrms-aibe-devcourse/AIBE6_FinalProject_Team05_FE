@@ -1,8 +1,9 @@
-import { apiGet, apiPatch, apiPost, apiPut } from "@/lib/apiClient";
+import { apiGet, apiPatch, apiPost, apiPut, apiDelete } from "@/lib/apiClient";
 import {
   LoginRequest,
   LoginResponse,
   MyInfo,
+  WithdrawalRequest,
   SignupRequest,
   EmailSendRequest,
   EmailVerifyRequest,
@@ -28,6 +29,20 @@ export function getMyInfo(): Promise<MyInfo> {
   return apiGet<MyInfo>("/api/users/me");
 }
 
+// POST /api/users/me/withdrawal/send-code - 소셜 탈퇴용 인증코드 발송(쿨다운 60s)
+export function sendWithdrawalCode(): Promise<void> {
+  return apiPost<void>("/api/users/me/withdrawal/send-code");
+}
+
+// DELETE /api/users/me — 회원 탈퇴 신청(LOCAL: password / 소셜: code) → WITHDRAWAL_PENDING(7일 유예)
+export function requestWithdrawal(body: WithdrawalRequest): Promise<void> {
+  return apiDelete("/api/users/me", body);
+}
+
+// POST /api/users/me/withdrawal/cancel — 탈퇴 신청 철회 → ACTIVE 복구
+export function cancelWithdrawal(): Promise<void> {
+  return apiPost<void>("/api/users/me/withdrawal/cancel");
+}
 // POST /api/auth/signup — 계정 생성(status=PENDING). 코드 발송은 별도(sendEmailCode).
 export function signup(body: SignupRequest): Promise<void> {
   return apiPost<void>("/api/auth/signup", body);

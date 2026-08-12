@@ -209,6 +209,10 @@ export function apiPatch<T>(path: string, body?: unknown): Promise<T> {
 }
 
 // ApiResponse<Void> 래퍼 응답(성공 메시지만 있고 data는 없음)을 반환하는 삭제용.
-export async function apiDelete(path: string): Promise<void> {
-  await request(path, { method: "DELETE" });
+export async function apiDelete(path: string, body?: unknown): Promise<void> {
+  await request(path, {
+    method: "DELETE",
+    headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
 }
