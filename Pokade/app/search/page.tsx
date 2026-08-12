@@ -14,10 +14,10 @@ import {
 import { ApiError } from "@/lib/apiClient";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 import { PRICE_MAX } from "./constants";
-
-const EMPTY_FACETS: CardFacetsResponse = { types: [], rarities: [], expansions: [] };
 import SearchResultsView from "./SearchResultsView";
 import PriceDashboardView from "./PriceDashboardView";
+
+const EMPTY_FACETS: CardFacetsResponse = { types: [], rarities: [], expansions: [] };
 
 // URL의 minPrice/maxPrice를 읽어 [0, PRICE_MAX] 범위를 벗어나거나 숫자가 아니면 null(기본값 사용).
 function parsePriceQueryParam(raw: string | null): number | null {
