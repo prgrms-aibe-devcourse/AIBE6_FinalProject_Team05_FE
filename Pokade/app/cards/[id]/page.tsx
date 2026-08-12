@@ -59,7 +59,7 @@ const FX_TO_KRW: Record<string, number> = { KRW: 1, USD: 1400, JPY: 9 };
 const CHART_PERIOD_DAYS: Record<ChartPeriod, number> = { "7d": 7, "30d": 30, "90d": 90, "180d": 180 };
 
 // 실거래가 이 개수 미만인 등급은 점/선이 너무 빈약해서(예: 1~2개) card_prices 추정치를 대신 쓴다.
-const MIN_REAL_POINTS_PER_GRADE = 5;
+const MIN_REAL_POINTS_PER_GRADE = 6;
 
 // card_prices의 change_1d~180d_pct와 동일한 기준 시점(일) — "지금"까지 포함. 실거래가 충분히 많은
 // 등급도 이 시점들에 각각 가장 가까운 거래 1개씩만 뽑아 점을 찍는다 — 매일 거래돼도 점이
@@ -382,6 +382,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
           if (list) list.push(t);
           else realTradesByGrade.set(t.grade, [t]);
         }
+        const rawTrades = res.filter((t) => t.grade == null);
 
         // 실거래가 충분치 않은(5개 미만) 등급만 card_prices 추정치(grade-chart)를 받아온다.
         const gradesNeedingEstimate = CHART_FALLBACK_GRADES.filter(
@@ -392,12 +393,14 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
         );
         if (cancelled) return;
 
-        // 등급별 "원본 소스" 하나를 정한다 — 실거래가 충분하면 실거래, 아니면 추정치.
-        const sourceByGrade = new Map<ListingGrade, TradeSummaryResponse[]>();
-        for (const grade of CHART_FALLBACK_GRADES) {
-          const real = realTradesByGrade.get(grade) ?? [];
-          if (real.length >= MIN_REAL_POINTS_PER_GRADE) sourceByGrade.set(grade, real);
+        // 등급별 "원본 소스" 하나를 정한다 — 실거래가 충분하면 실거래, 부족하면 추정치로
+        // 덮어쓴다. 단, 추정치 요청이 실패/빈 배열이면 부족한 실거래라도 그대로 남겨서
+        // 해당 등급이 차트에서 통째로 사라지지 않게 한다.
+        const sourceByGrade = new Map<GradeKey, TradeSummaryResponse[]>();
+        for (const [grade, trades] of realTradesByGrade) {
+          sourceByGrade.set(grade, trades);
         }
+        if (rawTrades.length > 0) sourceByGrade.set("RAW", rawTrades);
         estimateResults.forEach((result, i) => {
           if (result.status !== "fulfilled" || result.value.length === 0) return;
           const grade = gradesNeedingEstimate[i];
@@ -431,7 +434,11 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                 nearestDiff = diff;
               }
             }
-            resampled.push({ tradedAt: new Date(targetTime).toISOString(), price: nearest.price, grade });
+            resampled.push({
+              tradedAt: new Date(targetTime).toISOString(),
+              price: nearest.price,
+              grade: grade === "RAW" ? null : grade,
+            });
           }
         }
 
