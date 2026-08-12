@@ -146,10 +146,9 @@ export const useUserStore = create<UserState>((set, get) => ({
     // 프로필 조회 전에 먼저 "로그인은 됐지만 userId는 아직 모름" 상태를 노출한다 —
     // 구매자 판정처럼 userId가 꼭 필요한 화면이 이 값을 보고 판정을 미룰 수 있게.
     set({ isLoggedIn: true, status: "authenticated", userIdRestoring: true });
-
+    if (typeof window !== "undefined") localStorage.setItem(SESSION_HINT_KEY, "1");
     try {
       const me = await authApi.getMyInfo();
-      if (typeof window !== "undefined") localStorage.setItem(SESSION_HINT_KEY, "1");
       set({
         userId: me.userId,
         userIdRestoring: false,

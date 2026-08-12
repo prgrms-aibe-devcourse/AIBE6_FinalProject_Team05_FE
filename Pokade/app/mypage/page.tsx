@@ -120,8 +120,18 @@ export default function MyPage() {
           <div className="mb-5 rounded-[14px] border border-[#F6C6C6] bg-[#FFF1F1] px-6 py-5 shadow-card">
             <p className="text-[15px] font-extrabold text-[#C21414]">탈퇴 진행 중</p>
             <p className="mt-1.5 text-[13px] leading-relaxed text-[#8A4A4A]">
-              삭제까지 <b>D-{daysLeft(info.withdrawalRequestedAt)}</b> 남았습니다. 지금 철회하면
-              계정이 그대로 유지됩니다.
+              {info.withdrawalRequestedAt ? (
+                daysLeft(info.withdrawalRequestedAt) > 0 ? (
+                  <>
+                    삭제까지 <b>D-{daysLeft(info.withdrawalRequestedAt)}</b> 남았습니다. 지금
+                    철회하면 계정이 그대로 유지됩니다.
+                  </>
+                ) : (
+                  <>곧 탈퇴 처리됩니다. 지금 철회하면 계정이 그대로 유지됩니다.</>
+                )
+              ) : (
+                <>탈퇴가 진행 중입니다. 지금 철회하면 계정이 그대로 유지됩니다.</>
+              )}
             </p>
             <button
               onClick={handleCancelWithdrawal}
