@@ -24,6 +24,7 @@ import {
 import {
   fetchActiveListings,
   fetchCardDetail,
+  fetchGradeChart,
   fetchPriceChart,
   fetchPriceStats,
   fetchPriceSummary,
@@ -47,6 +48,23 @@ interface GradeOffer {
 
 // PSA10 > PSA9 > PSA8 > S > A > B > 미등급 순으로 구매 박스에 노출.
 const GRADE_ORDER: GradeKey[] = ["PSA10", "PSA9", "PSA8", "S", "A", "B", "RAW"];
+
+// grade-chart 보완 대상 후보 등급 — RAW(미등급)는 ListingGrade가 아니라 제외.
+const CHART_FALLBACK_GRADES: ListingGrade[] = ["PSA10", "PSA9", "PSA8", "S", "A", "B"];
+
+// card_prices는 카드에 따라 USD/JPY로 저장돼 있어 KRW 기준 차트에 그대로 못 섞는다.
+// 실시간 환율 API가 없어 고정 근사치로 환산 — card_prices 자체가 아직 목업/추정 데이터인 시기라 근사치로 충분.
+const FX_TO_KRW: Record<string, number> = { KRW: 1, USD: 1400, JPY: 9 };
+
+const CHART_PERIOD_DAYS: Record<ChartPeriod, number> = { "7d": 7, "30d": 30, "90d": 90, "180d": 180 };
+
+// 실거래가 이 개수 미만인 등급은 점/선이 너무 빈약해서(예: 1~2개) card_prices 추정치를 대신 쓴다.
+const MIN_REAL_POINTS_PER_GRADE = 6;
+
+// card_prices의 change_1d~180d_pct와 동일한 기준 시점(일) — "지금"까지 포함. 실거래가 충분히 많은
+// 등급도 이 시점들에 각각 가장 가까운 거래 1개씩만 뽑아 점을 찍는다 — 매일 거래돼도 점이
+// 365개로 늘어나지 않게, 그리고 등급마다 기준 시점이 정확히 같아서 마우스오버가 항상 정확하게 맞는다.
+const REFERENCE_OFFSET_DAYS = [180, 90, 30, 14, 7, 1, 0];
 
 const GRADE_LABELS: Record<GradeKey, string> = {
   PSA10: "PSA10",
@@ -354,9 +372,78 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     setChartLoadState("loading");
 
     fetchPriceChart(cardId, chartPeriod)
-      .then((res) => {
+      .then(async (res) => {
         if (cancelled) return;
-        setChartData(res);
+
+        const realTradesByGrade = new Map<ListingGrade, TradeSummaryResponse[]>();
+        for (const t of res) {
+          if (t.grade == null) continue;
+          const list = realTradesByGrade.get(t.grade);
+          if (list) list.push(t);
+          else realTradesByGrade.set(t.grade, [t]);
+        }
+        const rawTrades = res.filter((t) => t.grade == null);
+
+        // 실거래가 충분치 않은(5개 미만) 등급만 card_prices 추정치(grade-chart)를 받아온다.
+        const gradesNeedingEstimate = CHART_FALLBACK_GRADES.filter(
+          (g) => (realTradesByGrade.get(g)?.length ?? 0) < MIN_REAL_POINTS_PER_GRADE,
+        );
+        const estimateResults = await Promise.allSettled(
+          gradesNeedingEstimate.map((grade) => fetchGradeChart(cardId, grade)),
+        );
+        if (cancelled) return;
+
+        // 등급별 "원본 소스" 하나를 정한다 — 실거래가 충분하면 실거래, 부족하면 추정치로
+        // 덮어쓴다. 단, 추정치 요청이 실패/빈 배열이면 부족한 실거래라도 그대로 남겨서
+        // 해당 등급이 차트에서 통째로 사라지지 않게 한다.
+        const sourceByGrade = new Map<GradeKey, TradeSummaryResponse[]>();
+        for (const [grade, trades] of realTradesByGrade) {
+          sourceByGrade.set(grade, trades);
+        }
+        if (rawTrades.length > 0) sourceByGrade.set("RAW", rawTrades);
+        estimateResults.forEach((result, i) => {
+          if (result.status !== "fulfilled" || result.value.length === 0) return;
+          const grade = gradesNeedingEstimate[i];
+          sourceByGrade.set(
+            grade,
+            result.value.map((point) => ({
+              tradedAt: point.date,
+              price: Math.round(point.price * (FX_TO_KRW[point.currency] ?? 1)),
+              grade,
+            })),
+          );
+        });
+
+        // 등급마다, card_prices와 동일한 기준 시점(REFERENCE_OFFSET_DAYS)에 가장 가까운 포인트 1개씩만
+        // 뽑아 리샘플링한다 — 실거래가 아주 많아도 점이 무한히 늘어나지 않고, 모든 등급이 정확히 같은
+        // 시점 그리드를 공유해서 마우스오버가 항상 정확한 등급의 값을 보여준다.
+        const periodDays = CHART_PERIOD_DAYS[chartPeriod];
+        const relevantOffsets = REFERENCE_OFFSET_DAYS.filter((d) => d <= periodDays);
+        const now = Date.now();
+
+        const resampled: TradeSummaryResponse[] = [];
+        for (const [grade, source] of sourceByGrade) {
+          for (const offsetDays of relevantOffsets) {
+            const targetTime = now - offsetDays * 24 * 60 * 60 * 1000;
+            let nearest = source[0];
+            let nearestDiff = Math.abs(new Date(nearest.tradedAt).getTime() - targetTime);
+            for (const t of source) {
+              const diff = Math.abs(new Date(t.tradedAt).getTime() - targetTime);
+              if (diff < nearestDiff) {
+                nearest = t;
+                nearestDiff = diff;
+              }
+            }
+            resampled.push({
+              tradedAt: new Date(targetTime).toISOString(),
+              price: nearest.price,
+              grade: grade === "RAW" ? null : grade,
+            });
+          }
+        }
+
+        resampled.sort((a, b) => new Date(a.tradedAt).getTime() - new Date(b.tradedAt).getTime());
+        setChartData(resampled);
         setChartError(null);
         setChartLoadState("ready");
       })
