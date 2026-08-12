@@ -5,7 +5,7 @@ export function resolvePriceDisplay(
   summary?: CardPriceSummaryResponse,
 ): { label: string; price: string } | null {
   if (summary?.buyPrice != null) {
-    return { label: "S등급 매물가", price: `${summary.buyPrice.toLocaleString("ko-KR")}원` };
+    return { label: "S등급 상품가", price: `${summary.buyPrice.toLocaleString("ko-KR")}원` };
   }
   if (summary?.recentTradePrice != null) {
     return { label: "최근 체결가", price: `${summary.recentTradePrice.toLocaleString("ko-KR")}원` };
