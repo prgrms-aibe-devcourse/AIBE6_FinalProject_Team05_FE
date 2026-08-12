@@ -498,10 +498,13 @@ export default function SearchResultsView({
           >
             {cards.map((c) => {
               const priceDisplay = resolvePriceDisplay(priceSummaries.get(c.id));
+              // pickDisplayName이 받는 { name, nameKo } 형태로 원본 필드를 매핑한다 — 여기서
+              // name은 병합된 c.name이 아니라 원본 영문명(c.nameEn)이어야 검색어와 정확히 대조된다.
+              // Header.tsx는 CardResponse가 이미 이 형태라 그대로 넘기지만, CardSearchItem은
+              // name을 이미 병합해둔 형태라 여기서만 별도로 매핑해 넘긴다.
+              const rawNames = { name: c.nameEn, nameKo: c.nameKo };
               // alt와 화면 표시 텍스트가 항상 같은 언어를 가리키도록 한 번만 계산해 공유한다.
-              const displayName = q
-                ? pickDisplayName({ name: c.nameEn, nameKo: c.nameKo }, q)
-                : c.name;
+              const displayName = q ? pickDisplayName(rawNames, q) : c.name;
               return (
                 <Link
                   key={c.id}
