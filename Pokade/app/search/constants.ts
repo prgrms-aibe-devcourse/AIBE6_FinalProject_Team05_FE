@@ -12,8 +12,8 @@ export const SET_OPTIONS: { label: string; expansionId: string }[] = [
 ];
 
 // 타입/레어도 체크박스 값 — 실행 중인 BE(/api/cards)에서 집계한 실제 값·빈도 기준.
-// 등장 빈도 내림차순, 동률은 알파벳순. JA 카드 1건의 값(草/通常)은 영문 카드 기준이라 제외.
-export const TYPE_OPTIONS = ["Fire", "Water", "Lightning", "Fairy", "Fighting", "Psychic"];
+// 등장 빈도 내림차순, 동률은 알파벳순. BE #193에서 JA 카드(원본 type=草)도 Grass로 역매핑되어 포함.
+export const TYPE_OPTIONS = ["Fire", "Water", "Lightning", "Fairy", "Fighting", "Grass", "Psychic"];
 export const RARITY_OPTIONS = [
   "Double Rare",
   "Common",
