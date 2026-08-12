@@ -121,7 +121,14 @@ function ChatWidgetPanel() {
               aria-label="시세 챗봇 닫기"
               className="text-[#9A9AA2] hover:text-ink"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <path d="M18 6L6 18M6 6l12 12" />
               </svg>
             </button>
@@ -211,7 +218,14 @@ function ChatWidgetPanel() {
                 disabled={sending || rateLimited || (isLoggedIn && !draft.trim())}
                 className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border-2 border-primary-dark bg-primary text-white disabled:opacity-50"
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#fff"
+                  strokeWidth="2"
+                >
                   <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
                 </svg>
               </button>
