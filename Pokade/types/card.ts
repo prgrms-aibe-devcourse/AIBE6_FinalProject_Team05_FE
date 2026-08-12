@@ -20,6 +20,9 @@ export interface CardResponse {
 export interface CardSearchItem {
   id: number;
   name: string;
+  // 원본 name/nameKo — pickDisplayName이 검색어와 실제 매칭된 필드를 고르는 데 쓴다.
+  nameEn: string;
+  nameKo?: string | null;
   set: string;
   imageUrl: string;
   types: string[];
@@ -29,6 +32,8 @@ export function toCardSearchItem(card: CardResponse): CardSearchItem {
   return {
     id: card.id,
     name: card.nameKo ?? card.name,
+    nameEn: card.name,
+    nameKo: card.nameKo,
     set: `${card.setName} · ${card.rarity}`,
     imageUrl: card.imageMedium || card.imageSmall,
     types: card.types,

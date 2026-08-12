@@ -6,6 +6,7 @@ import { CardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
 import { CardSort } from "@/lib/cardApi";
 import { highlightMatch } from "@/lib/highlightMatch";
+import { pickDisplayName } from "@/lib/pickDisplayName";
 import { resolvePriceDisplay } from "@/lib/priceDisplay";
 import { PRICE_MAX, SET_OPTIONS, TYPE_OPTIONS, RARITY_OPTIONS } from "./constants";
 
@@ -508,7 +509,9 @@ export default function SearchResultsView({
                   </div>
                   <div className="flex flex-1 flex-col p-3">
                     <div className="text-[13.5px] font-bold">
-                      {q ? highlightMatch(c.name, q) : c.name}
+                      {q
+                        ? highlightMatch(pickDisplayName({ name: c.nameEn, nameKo: c.nameKo }, q), q)
+                        : c.name}
                     </div>
                     <div className="mt-0.5 text-[11.5px] text-[#9A9AA2]">{c.set}</div>
                     {c.types.length > 0 && (
