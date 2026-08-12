@@ -22,7 +22,7 @@ interface UserState {
   login: (email: string, password: string) => Promise<void>;
   loginWithToken: (accessToken: string) => Promise<void>;
   logout: () => Promise<void>;
-  restoreSession: () => Promise<boolean>;
+  restoreSession: (force?: boolean) => Promise<boolean>;
   markAllNotificationsRead: () => void;
   setNickname: (nickname: string) => void;
 }
@@ -107,8 +107,8 @@ export const useUserStore = create<UserState>((set, get) => ({
   },
 
   // 새로고침 복원: refresh 쿠키로 reissue → 프로필 → 상태 복원 (없으면 비로그인 유지)
-  restoreSession: async (): Promise<boolean> => {
-    if (typeof window !== "undefined" && !localStorage.getItem(SESSION_HINT_KEY)) {
+  restoreSession: async (force = false): Promise<boolean> => {
+    if (!force && typeof window !== "undefined" && !localStorage.getItem(SESSION_HINT_KEY)) {
       setAccessToken(null);
       set({
         isLoggedIn: false,
