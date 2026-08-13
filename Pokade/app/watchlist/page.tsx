@@ -78,7 +78,7 @@ export default function WatchlistPage() {
         // 카드 하나가 조회 실패해도 나머지 행은 정상 표시되도록 개별 catch로 null 처리.
         const [cards, priceMap] = await Promise.all([
           Promise.all(cardIds.map((id) => fetchCardDetail(id).catch(() => null))),
-          fetchPriceSummaries(cardIds),
+          fetchPriceSummaries(cardIds).catch(() => new Map<number, CardPriceSummaryResponse>()),
         ]);
         if (cancelled) return;
         const cardById = new Map(cardIds.map((id, i) => [id, cards[i]]));
