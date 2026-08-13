@@ -276,7 +276,7 @@ export default function WatchlistPage() {
                       <div className="text-right">
                         <button
                           type="button"
-                          aria-label="삭제"
+                          aria-label={`${displayName} 워치리스트에서 삭제`}
                           disabled={deletingId === row.item.id}
                           onClick={() => handleDelete(row.item.id)}
                           className="text-[#C7C7CE] hover:text-primary disabled:opacity-50"
