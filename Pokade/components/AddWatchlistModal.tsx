@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 import { ApiError } from "@/lib/apiClient";
@@ -38,6 +38,7 @@ export default function AddWatchlistModal({
   const [sellPrice, setSellPrice] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const buyPriceInputRef = useRef<HTMLInputElement>(null);
 
   const resetForm = useCallback(() => {
     setBuyPrice("");
@@ -59,6 +60,13 @@ export default function AddWatchlistModal({
       router.replace(loginUrlFor(pathname));
     }
   }, [isOpen, authStatus, onClose, pathname, router]);
+
+  // 모달이 열리면 첫 입력 필드(목표 구매가)로 포커스 이동 (키보드 사용자 편의).
+  useEffect(() => {
+    if (isOpen && authStatus === "authenticated") {
+      buyPriceInputRef.current?.focus();
+    }
+  }, [isOpen, authStatus]);
 
   const parsePrice = (value: string): number | undefined => {
     return value.trim() ? Number(value) : undefined;
@@ -131,6 +139,7 @@ export default function AddWatchlistModal({
           <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#4B4B52]">
             목표 구매가 (이 가격 이하로 내려가면 알림)
             <input
+              ref={buyPriceInputRef}
               type="number"
               min={MIN_TARGET_PRICE}
               value={buyPrice}
@@ -152,7 +161,11 @@ export default function AddWatchlistModal({
             />
           </label>
 
-          {error && <span className="text-[12.5px] font-semibold text-primary">{error}</span>}
+          {error && (
+            <span role="alert" className="text-[12.5px] font-semibold text-primary">
+              {error}
+            </span>
+          )}
 
           <button
             type="button"
