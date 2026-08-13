@@ -436,8 +436,8 @@ export default function SearchResultsView({
               aria-label="정렬 기준"
               className="cursor-pointer rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-2 text-[13px] outline-none"
             >
-              <option value="latest">최신순</option>
               <option value="popular">인기순</option>
+              <option value="latest">최신순</option>
               <option value="name">이름순</option>
             </select>
           )}
