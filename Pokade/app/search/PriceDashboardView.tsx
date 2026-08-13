@@ -14,7 +14,6 @@ const DASHBOARD_CARD = {
   name: "Charizard ex",
 };
 
-// /search의 "시세 대시보드" 탭 — 목업 데이터로만 구성된 정적 뷰(백엔드 연동 전).
 export default function PriceDashboardView() {
   const [watchlistModalOpen, setWatchlistModalOpen] = useState(false);
   const [watchlistAdded, setWatchlistAdded] = useState(false);
