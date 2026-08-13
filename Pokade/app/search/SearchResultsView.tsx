@@ -1,4 +1,4 @@
-import { Dispatch, SetStateAction, useEffect, useRef } from "react";
+import { Dispatch, SetStateAction, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { GRADE_DESCRIPTIONS } from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
@@ -168,6 +168,24 @@ export default function SearchResultsView({
     setPriceMax(Math.max(Math.min(value, PRICE_MAX), priceMin));
   };
 
+  // 직접 입력(number input) 전용 텍스트 상태 — 입력 중에는 클램핑 없이 자유롭게 두고,
+  // blur 시점에만 handleMinChange/handleMaxChange로 보정한다. 슬라이더 조작 등으로
+  // priceMin/priceMax가 바뀌면(타이핑 중이 아닌 한) 아래에서 표시 텍스트를 동기화한다.
+  // (렌더 중 조건부 setState — effect가 아니라 "prop 변경에 맞춰 state 조정하기" 패턴)
+  const [minInputText, setMinInputText] = useState(String(priceMin));
+  const [prevPriceMin, setPrevPriceMin] = useState(priceMin);
+  if (priceMin !== prevPriceMin) {
+    setPrevPriceMin(priceMin);
+    setMinInputText(String(priceMin));
+  }
+
+  const [maxInputText, setMaxInputText] = useState(String(priceMax));
+  const [prevPriceMax, setPrevPriceMax] = useState(priceMax);
+  if (priceMax !== prevPriceMax) {
+    setPrevPriceMax(priceMax);
+    setMaxInputText(String(priceMax));
+  }
+
   return (
     <div
       className={`grid items-start gap-6 ${q ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-[250px_1fr]"}`}
@@ -318,8 +336,9 @@ export default function SearchResultsView({
                   min={0}
                   max={priceMax}
                   step={10}
-                  value={priceMin}
-                  onChange={(e) => handleMinChange(Number(e.target.value))}
+                  value={minInputText}
+                  onChange={(e) => setMinInputText(e.target.value)}
+                  onBlur={(e) => handleMinChange(Number(e.target.value))}
                   className="w-full min-w-0 border-none p-0 text-right text-[12.5px] font-bold text-ink outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                 />
                 <span className="shrink-0 text-[11px] text-[#9A9AA2]">원</span>
@@ -336,8 +355,9 @@ export default function SearchResultsView({
                   min={priceMin}
                   max={PRICE_MAX}
                   step={10}
-                  value={priceMax}
-                  onChange={(e) => handleMaxChange(Number(e.target.value))}
+                  value={maxInputText}
+                  onChange={(e) => setMaxInputText(e.target.value)}
+                  onBlur={(e) => handleMaxChange(Number(e.target.value))}
                   className="w-full min-w-0 border-none p-0 text-right text-[12.5px] font-bold text-ink outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                 />
                 <span className="shrink-0 text-[11px] text-[#9A9AA2]">원</span>

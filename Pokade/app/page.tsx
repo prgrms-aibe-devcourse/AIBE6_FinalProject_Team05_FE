@@ -309,7 +309,7 @@ export default function HomePage() {
                     <button
                       onClick={() => setWatchlistCardId(c.id)}
                       aria-label="관심 등록"
-                      aria-pressed={!!liked[c.id]}
+                      aria-haspopup="dialog"
                       className="absolute bottom-3.5 right-3.5 flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#EDEDF0] bg-white hover:border-primary hover:bg-[#FFF5F5]"
                     >
                       <svg
