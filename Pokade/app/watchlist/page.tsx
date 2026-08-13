@@ -158,7 +158,10 @@ export default function WatchlistPage() {
         )}
 
         {loadState === "error" && (
-          <div className="rounded-2xl border border-[#F6C6C6] bg-[#FFF1F1] px-6 py-6 text-center text-[13.5px] text-[#C21414]">
+          <div
+            role="alert"
+            className="rounded-2xl border border-[#F6C6C6] bg-[#FFF1F1] px-6 py-6 text-center text-[13.5px] text-[#C21414]"
+          >
             {errorMessage}
           </div>
         )}
@@ -207,7 +210,10 @@ export default function WatchlistPage() {
             </div>
 
             {deleteError && (
-              <div className="mb-[14px] rounded-[12px] border border-[#F6C6C6] bg-[#FFF1F1] px-4 py-3 text-[13px] font-semibold text-[#C21414]">
+              <div
+                role="alert"
+                className="mb-[14px] rounded-[12px] border border-[#F6C6C6] bg-[#FFF1F1] px-4 py-3 text-[13px] font-semibold text-[#C21414]"
+              >
                 {deleteError}
               </div>
             )}
