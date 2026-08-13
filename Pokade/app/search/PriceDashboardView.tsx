@@ -1,8 +1,35 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
 import GradeBadge, { Grade } from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
+import AddWatchlistModal from "@/components/AddWatchlistModal";
+
+// /search의 "시세 대시보드" 탭 — 아직 단일 카드(리자몽 ex) 시연용 정적 뷰라 카드 목록/시세는
+// 여전히 목업이다. 워치리스트 버튼만 실제 등록이 되도록 화면에 표시된 카드("리자몽 ex", 151)의
+// 실제 cardId/variantId를 상수로 고정한다(BE GET /api/cards/4로 확인, primary variant=4).
+const MOCK_CARD_ID = 4;
+const MOCK_VARIANT_ID = 4;
 
 // /search의 "시세 대시보드" 탭 — 목업 데이터로만 구성된 정적 뷰(백엔드 연동 전).
 export default function PriceDashboardView() {
+  const [watchlistModalOpen, setWatchlistModalOpen] = useState(false);
+  const [watchlistAdded, setWatchlistAdded] = useState(false);
+  const watchlistAddedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (watchlistAddedTimeoutRef.current) clearTimeout(watchlistAddedTimeoutRef.current);
+    };
+  }, []);
+
+  // 카드 상세페이지(handleWatchlistAdded)와 동일한 "등록됨" 2초 표시 패턴.
+  const handleWatchlistAdded = () => {
+    setWatchlistAdded(true);
+    if (watchlistAddedTimeoutRef.current) clearTimeout(watchlistAddedTimeoutRef.current);
+    watchlistAddedTimeoutRef.current = setTimeout(() => setWatchlistAdded(false), 2000);
+  };
+
   return (
     <div className="grid grid-cols-1 items-start gap-[22px] lg:grid-cols-[60fr_40fr]">
       <div className="flex flex-col gap-5">
@@ -103,11 +130,22 @@ export default function PriceDashboardView() {
           </div>
           <button
             type="button"
-            disabled
-            className="mt-[18px] w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3 text-[14.5px] font-bold text-white shadow-tactile-sm active:translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={() => setWatchlistModalOpen(true)}
+            className="mt-[18px] w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3 text-[14.5px] font-bold text-white shadow-tactile-sm active:translate-y-0.5"
           >
-            워치리스트에 추가 (준비 중)
+            워치리스트에 추가
           </button>
+          {watchlistAdded && (
+            <div className="mt-2 text-center text-[12.5px] font-bold text-primary">등록됨</div>
+          )}
+
+          <AddWatchlistModal
+            isOpen={watchlistModalOpen}
+            onClose={() => setWatchlistModalOpen(false)}
+            cardId={MOCK_CARD_ID}
+            variantId={MOCK_VARIANT_ID}
+            onSuccess={handleWatchlistAdded}
+          />
         </div>
         <div className="rounded-2xl border border-[#EDEDF0] bg-white p-6">
           <h2 className="mb-3.5 mt-0 text-[15px] font-extrabold">추천 카드</h2>
