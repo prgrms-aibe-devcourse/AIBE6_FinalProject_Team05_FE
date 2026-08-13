@@ -72,11 +72,11 @@ function SearchDashboard() {
   );
   const [facets, setFacets] = useState<CardFacetsResponse>(EMPTY_FACETS);
   const [facetsLoading, setFacetsLoading] = useState(true);
-  // BE 화이트리스트에 없는 값은 latest로 취급 — /api/cards/search(키워드 검색)는
+  // BE 화이트리스트에 없는 값은 기본값(popular)으로 취급 — /api/cards/search(키워드 검색)는
   // sort를 지원하지 않으므로 q가 있을 때는 드롭다운 자체를 숨긴다.
   const [sort, setSort] = useState<CardSort>(() => {
     const s = searchParams.get("sort");
-    return s === "name" || s === "popular" ? s : "latest";
+    return s === "name" || s === "latest" ? s : "popular";
   });
   // 1-indexed(화면 표시용). BE 호출 시에만 0-indexed로 변환한다.
   const [page, setPage] = useState<number>(() => {
@@ -256,7 +256,7 @@ function SearchDashboard() {
     else params.delete("minPrice");
     if (debouncedPriceMax < PRICE_MAX) params.set("maxPrice", String(debouncedPriceMax));
     else params.delete("maxPrice");
-    if (sort !== "latest") params.set("sort", sort);
+    if (sort !== "popular") params.set("sort", sort);
     else params.delete("sort");
     if (page > 1) params.set("page", String(page));
     else params.delete("page");
@@ -296,7 +296,7 @@ function SearchDashboard() {
     setSelectedExpansionId(null);
     setSelectedTypes([]);
     setSelectedRarities([]);
-    setSort("latest");
+    setSort("popular");
     setPage(1);
     // 필터가 이미 초기값이면 위 세터들이 상태를 바꾸지 않아 카드 목록 effect가
     // 재실행되지 않는다 — reloadKey를 강제로 올려 항상 재요청되게 한다.
