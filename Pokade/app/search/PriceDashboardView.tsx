@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import GradeBadge, { Grade } from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
 import AddWatchlistModal from "@/components/AddWatchlistModal";
 import { fetchCardsByKeywordPage } from "@/lib/cardApi";
+import { useTimedFlag } from "@/hooks/useTimedFlag";
 
 // /search의 "시세 대시보드" 탭 — 아직 단일 카드(리자몽 ex) 시연용 정적 뷰라 카드 목록/시세는
 // 여전히 목업이다. 워치리스트 버튼만 실제 등록이 되도록, 화면에 표시된 카드("리자몽 ex")를
@@ -16,8 +17,7 @@ const DASHBOARD_CARD = {
 
 export default function PriceDashboardView() {
   const [watchlistModalOpen, setWatchlistModalOpen] = useState(false);
-  const [watchlistAdded, setWatchlistAdded] = useState(false);
-  const watchlistAddedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [watchlistAdded, triggerWatchlistAdded] = useTimedFlag(2000);
   const [cardId, setCardId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -37,19 +37,6 @@ export default function PriceDashboardView() {
       cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    return () => {
-      if (watchlistAddedTimeoutRef.current) clearTimeout(watchlistAddedTimeoutRef.current);
-    };
-  }, []);
-
-  // 카드 상세페이지(handleWatchlistAdded)와 동일한 "등록됨" 2초 표시 패턴.
-  const handleWatchlistAdded = () => {
-    setWatchlistAdded(true);
-    if (watchlistAddedTimeoutRef.current) clearTimeout(watchlistAddedTimeoutRef.current);
-    watchlistAddedTimeoutRef.current = setTimeout(() => setWatchlistAdded(false), 2000);
-  };
 
   return (
     <div className="grid grid-cols-1 items-start gap-[22px] lg:grid-cols-[60fr_40fr]">
@@ -166,7 +153,7 @@ export default function PriceDashboardView() {
               isOpen={watchlistModalOpen}
               onClose={() => setWatchlistModalOpen(false)}
               cardId={cardId}
-              onSuccess={handleWatchlistAdded}
+              onSuccess={triggerWatchlistAdded}
             />
           )}
         </div>

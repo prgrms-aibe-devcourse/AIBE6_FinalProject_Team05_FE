@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useParams, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import CardImage from "@/components/CardImage";
 import PriceChart from "@/components/PriceChart";
 import ImageLightbox from "@/components/ImageLightbox";
@@ -36,6 +36,7 @@ import { createTrade } from "@/lib/tradeApi";
 import { useUserStore } from "@/store/useUserStore";
 import { loginUrlFor } from "@/lib/authRedirect";
 import { toKrw } from "@/lib/currency";
+import { useTimedFlag } from "@/hooks/useTimedFlag";
 
 type LoadState = "loading" | "error" | "notfound" | "ready";
 type RelatedLoadState = "loading" | "ready";
@@ -101,12 +102,10 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   const [errorMessage, setErrorMessage] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
-  const [copied, setCopied] = useState(false);
-  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [copied, triggerCopied] = useTimedFlag(2000);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [watchlistModalOpen, setWatchlistModalOpen] = useState(false);
-  const [watchlistAdded, setWatchlistAdded] = useState(false);
-  const watchlistAddedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [watchlistAdded, triggerWatchlistAdded] = useTimedFlag(2000);
 
   const [relatedCards, setRelatedCards] = useState<CardSearchItem[]>([]);
   const [relatedLoadState, setRelatedLoadState] = useState<RelatedLoadState>("loading");
@@ -143,19 +142,10 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   const handleShare = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
+      triggerCopied();
     } catch {
       // 클립보드 접근이 차단된 환경(권한 거부 등)에서는 조용히 무시.
     }
-  };
-
-  // "복사됨"(handleShare)과 동일한 버튼 옆 텍스트 피드백 패턴 재사용.
-  const handleWatchlistAdded = () => {
-    setWatchlistAdded(true);
-    if (watchlistAddedTimeoutRef.current) clearTimeout(watchlistAddedTimeoutRef.current);
-    watchlistAddedTimeoutRef.current = setTimeout(() => setWatchlistAdded(false), 2000);
   };
 
   // 구매 실패(특히 매물 충돌) 후에도 등급 탭/상단 즉시구매가가 이미 팔린 매물 기준으로 남는 것을
@@ -211,13 +201,6 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   // 바닥으로 강제 클램프한다. 데이터 페칭 effect보다 먼저 실행되도록 맨 위에 둔다.
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-      if (watchlistAddedTimeoutRef.current) clearTimeout(watchlistAddedTimeoutRef.current);
-    };
   }, []);
 
   useEffect(() => {
@@ -876,7 +859,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                   onClose={() => setWatchlistModalOpen(false)}
                   cardId={cardId}
                   variantId={selectedVariantId}
-                  onSuccess={handleWatchlistAdded}
+                  onSuccess={triggerWatchlistAdded}
                 />
               </>
             );
