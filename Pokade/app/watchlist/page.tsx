@@ -39,9 +39,22 @@ function statusOf(item: WatchlistResponse): Status {
 }
 
 // targetBuyPrice/targetSellPrice 중 최소 하나는 항상 있다(둘 다 없으면 BE가 400).
-function formatTarget(item: WatchlistResponse): string {
-  const target = item.targetBuyPrice ?? item.targetSellPrice;
-  return target != null ? `${target.toLocaleString("ko-KR")}원` : "-";
+// 둘 다 등록된 경우 하나만 보여주면 다른 쪽 목표가가 화면에서 사라지므로, 있는 것을 모두 반환한다.
+function formatTargets(item: WatchlistResponse): { label: string; value: string }[] {
+  const targets: { label: string; value: string }[] = [];
+  if (item.targetBuyPrice != null) {
+    targets.push({
+      label: "목표 구매가",
+      value: `${item.targetBuyPrice.toLocaleString("ko-KR")}원`,
+    });
+  }
+  if (item.targetSellPrice != null) {
+    targets.push({
+      label: "목표 판매가",
+      value: `${item.targetSellPrice.toLocaleString("ko-KR")}원`,
+    });
+  }
+  return targets;
 }
 
 export default function WatchlistPage() {
@@ -217,6 +230,7 @@ export default function WatchlistPage() {
                   const displayName =
                     row.card?.nameKo ?? row.card?.name ?? "알 수 없는 카드";
                   const priceLabel = resolvePriceDisplay(row.priceSummary)?.price ?? "정보 없음";
+                  const targets = formatTargets(row.item);
                   const status = statusOf(row.item);
                   return (
                     <div
@@ -240,7 +254,17 @@ export default function WatchlistPage() {
                         </div>
                       </Link>
                       <div className="text-sm font-bold">{priceLabel}</div>
-                      <div className="text-sm text-[#4B4B52]">{formatTarget(row.item)}</div>
+                      <div className="text-sm text-[#4B4B52]">
+                        {targets.length > 0 ? (
+                          targets.map((t) => (
+                            <div key={t.label}>
+                              {t.label}: {t.value}
+                            </div>
+                          ))
+                        ) : (
+                          <div>-</div>
+                        )}
+                      </div>
                       <div className="text-[13.5px] font-bold text-[#9A9AA2]">-</div>
                       <div>
                         <span

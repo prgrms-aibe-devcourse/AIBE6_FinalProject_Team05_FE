@@ -124,13 +124,20 @@ function SearchDashboard() {
     fetchCardFacets()
       .then((data) => {
         if (cancelled) return;
-        setFacets(data);
+        // BE가 필드를 null로 내려줘도(예: 해당 세트/타입 데이터가 없는 경우) 렌더링이
+        // 죽지 않도록 빈 배열로 보정한 뒤 상태에 반영한다.
+        const safeData: CardFacetsResponse = {
+          types: data.types ?? [],
+          rarities: data.rarities ?? [],
+          expansions: data.expansions ?? [],
+        };
+        setFacets(safeData);
         // URL 직접 조작 등으로 들어온, facet에 실제로 없는 선택값만 걸러낸다.
         setSelectedExpansionId((id) =>
-          id && data.expansions.some((e) => e.id === id) ? id : null,
+          id && safeData.expansions.some((e) => e.id === id) ? id : null,
         );
-        setSelectedTypes((types) => types.filter((t) => data.types.includes(t)));
-        setSelectedRarities((rarities) => rarities.filter((r) => data.rarities.includes(r)));
+        setSelectedTypes((types) => types.filter((t) => safeData.types.includes(t)));
+        setSelectedRarities((rarities) => rarities.filter((r) => safeData.rarities.includes(r)));
       })
       .catch(() => {
         // 무시 — facets는 EMPTY_FACETS로 남고 필터 체크박스 목록만 비어 보인다.
