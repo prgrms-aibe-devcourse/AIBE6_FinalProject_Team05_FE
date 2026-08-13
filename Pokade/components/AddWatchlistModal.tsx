@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 import { ApiError } from "@/lib/apiClient";
@@ -39,7 +39,18 @@ export default function AddWatchlistModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEscapeAndScrollLock(isOpen, onClose);
+  const resetForm = useCallback(() => {
+    setBuyPrice("");
+    setSellPrice("");
+    setError(null);
+  }, []);
+
+  const handleClose = useCallback(() => {
+    resetForm();
+    onClose();
+  }, [resetForm, onClose]);
+
+  useEscapeAndScrollLock(isOpen, handleClose);
 
   // 비로그인 상태에서 모달을 열려고 하면 로그인 페이지로 유도 (useRequireAuth와 동일한 리다이렉트 방식).
   useEffect(() => {
@@ -48,17 +59,6 @@ export default function AddWatchlistModal({
       router.replace(loginUrlFor(pathname));
     }
   }, [isOpen, authStatus, onClose, pathname, router]);
-
-  const resetForm = () => {
-    setBuyPrice("");
-    setSellPrice("");
-    setError(null);
-  };
-
-  const handleClose = () => {
-    resetForm();
-    onClose();
-  };
 
   const parsePrice = (value: string): number | undefined => {
     return value.trim() ? Number(value) : undefined;
