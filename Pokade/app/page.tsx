@@ -7,6 +7,7 @@ import ConditionBar from "@/components/ConditionBar";
 import CardImage from "@/components/CardImage";
 import HeroTiltCard from "@/components/HeroTiltCard";
 import ImageLightbox from "@/components/ImageLightbox";
+import AddWatchlistModal from "@/components/AddWatchlistModal";
 import { CardSearchItem, toCardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
 import { fetchCards, fetchCardsByKeywordPage, fetchPriceSummaries } from "@/lib/cardApi";
@@ -62,7 +63,7 @@ type LoadState = "loading" | "error" | "ready";
 
 export default function HomePage() {
   const [liked, setLiked] = useState<Record<number, boolean>>({});
-  const toggle = (id: number) => setLiked((s) => ({ ...s, [id]: !s[id] }));
+  const [watchlistCardId, setWatchlistCardId] = useState<number | null>(null);
 
   const [popularCards, setPopularCards] = useState<CardSearchItem[]>([]);
   const [priceSummaries, setPriceSummaries] = useState<Map<number, CardPriceSummaryResponse>>(
@@ -192,6 +193,13 @@ export default function HomePage() {
         alt={HERO_CARD.alt}
       />
 
+      <AddWatchlistModal
+        isOpen={watchlistCardId != null}
+        onClose={() => setWatchlistCardId(null)}
+        cardId={watchlistCardId ?? 0}
+        onSuccess={(created) => setLiked((s) => ({ ...s, [created.cardId]: true }))}
+      />
+
       {/* TICKER */}
       <section className="bg-navy-800 px-10">
         <div className="mx-auto flex h-[52px] max-w-container items-stretch overflow-hidden">
@@ -299,7 +307,7 @@ export default function HomePage() {
                       </div>
                     </Link>
                     <button
-                      onClick={() => toggle(c.id)}
+                      onClick={() => setWatchlistCardId(c.id)}
                       aria-label="관심 등록"
                       aria-pressed={!!liked[c.id]}
                       className="absolute bottom-3.5 right-3.5 flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#EDEDF0] bg-white hover:border-primary hover:bg-[#FFF5F5]"
