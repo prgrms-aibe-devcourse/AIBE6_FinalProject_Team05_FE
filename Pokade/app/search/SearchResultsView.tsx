@@ -157,6 +157,17 @@ export default function SearchResultsView({
     prevFilterOpenRef.current = filterOpen;
   }, [filterOpen]);
 
+  // 슬라이더(range input)와 직접 입력(number input)이 공유하는 min/max 클램핑 로직 —
+  // 두 값이 서로를 앞지르지 않도록(min<=max) 여기서 한 번에 검증한다.
+  const handleMinChange = (value: number) => {
+    setActiveHandle("min");
+    setPriceMin(Math.min(Math.max(value, 0), priceMax));
+  };
+  const handleMaxChange = (value: number) => {
+    setActiveHandle("max");
+    setPriceMax(Math.max(Math.min(value, PRICE_MAX), priceMin));
+  };
+
   return (
     <div
       className={`grid items-start gap-6 ${q ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-[250px_1fr]"}`}
@@ -294,10 +305,43 @@ export default function SearchResultsView({
             </div>
             <div className="mb-[18px] h-px bg-[#F0F0F0]" />
             <div className="mb-3 text-[12.5px] font-bold text-[#4B4B52]">가격대</div>
-            <div className="mb-3 flex justify-between text-[12.5px] font-bold text-ink">
-              <span>{priceMin.toLocaleString("ko-KR")}원</span>
-              <span>~</span>
-              <span>{priceMax.toLocaleString("ko-KR")}원</span>
+            <div className="mb-3 flex flex-col gap-2">
+              <label
+                htmlFor="price-min-input"
+                className="flex items-center gap-1.5 rounded-[9px] border border-[#DDDDE3] px-2.5 py-2 focus-within:border-primary"
+              >
+                <span className="shrink-0 text-[11px] font-semibold text-[#9A9AA2]">최소</span>
+                <input
+                  id="price-min-input"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={priceMax}
+                  step={10}
+                  value={priceMin}
+                  onChange={(e) => handleMinChange(Number(e.target.value))}
+                  className="w-full min-w-0 border-none p-0 text-right text-[12.5px] font-bold text-ink outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                />
+                <span className="shrink-0 text-[11px] text-[#9A9AA2]">원</span>
+              </label>
+              <label
+                htmlFor="price-max-input"
+                className="flex items-center gap-1.5 rounded-[9px] border border-[#DDDDE3] px-2.5 py-2 focus-within:border-primary"
+              >
+                <span className="shrink-0 text-[11px] font-semibold text-[#9A9AA2]">최대</span>
+                <input
+                  id="price-max-input"
+                  type="number"
+                  inputMode="numeric"
+                  min={priceMin}
+                  max={PRICE_MAX}
+                  step={10}
+                  value={priceMax}
+                  onChange={(e) => handleMaxChange(Number(e.target.value))}
+                  className="w-full min-w-0 border-none p-0 text-right text-[12.5px] font-bold text-ink outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                />
+                <span className="shrink-0 text-[11px] text-[#9A9AA2]">원</span>
+              </label>
             </div>
             <div className="relative h-6">
               <div className="absolute left-0 right-0 top-[11px] h-1 rounded-sm bg-[#E7E7EB]" />
@@ -314,10 +358,7 @@ export default function SearchResultsView({
                 max={PRICE_MAX}
                 step={50000}
                 value={priceMin}
-                onChange={(e) => {
-                  setActiveHandle("min");
-                  setPriceMin(Math.min(+e.target.value, priceMax));
-                }}
+                onChange={(e) => handleMinChange(+e.target.value)}
                 aria-label="최소 가격"
                 aria-valuetext={`${priceMin.toLocaleString("ko-KR")}원`}
                 className={`dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent ${
@@ -330,10 +371,7 @@ export default function SearchResultsView({
                 max={PRICE_MAX}
                 step={50000}
                 value={priceMax}
-                onChange={(e) => {
-                  setActiveHandle("max");
-                  setPriceMax(Math.max(+e.target.value, priceMin));
-                }}
+                onChange={(e) => handleMaxChange(+e.target.value)}
                 aria-label="최대 가격"
                 aria-valuetext={`${priceMax.toLocaleString("ko-KR")}원`}
                 className={`dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent ${
