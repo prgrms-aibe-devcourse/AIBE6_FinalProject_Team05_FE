@@ -22,27 +22,42 @@ interface NotificationState {
 // start()를 동시에 불러도(Header, /notifications 페이지) 실제 fetch+interval은 하나만 존재한다.
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-// load() 진행 중 여부 — 폴링 tick과 retry()(드롭다운 재오픈)가 동시에 fetch를 쏘는 것을 막는다.
-// 응답이 늦게 오면 두 요청이 겹치고, 나중에 도착한 응답이 무조건 이기면서 화면이 순간적으로
-// 오래된 상태로 되돌아갈 수 있어 — 이미 진행 중이면 새 요청 없이 그 응답을 그대로 기다린다.
-let isLoading = false;
+// "세션 세대" 카운터 — stop()이 호출될 때마다 증가해, 그 이전에 나가있던 요청의 응답을 전부
+// 무효로 만든다(로그아웃 후 뒤늦게 도착한 응답이 다음 로그인 사용자의 상태를 덮어쓰는 것 방지).
+let generation = 0;
+
+// 현재 진행 중인 요청이 어느 세대 것인지 — null이면 진행 중인 요청 없음.
+// "같은 세대 안에서 폴링 tick과 retry()가 동시에 fetch를 쏘는 것"을 막는 가드(3번 항목)와
+// "stop() 이후 낡은 응답이 상태를 덮어쓰는 것"을 막는 가드(이번 항목)를 하나로 합친 것 —
+// 단순 isLoading 불리언이었다면, stop() 직후 재로그인한 새 세대의 fetch가 "아직 안 끝난
+// 이전 세대의 요청" 때문에 스킵되거나, 반대로 이전 세대 응답이 finally에서 새 세대의
+// 진행 상태를 조기에 지워버리는 문제가 생긴다 — 세대 번호로 "내 요청이 맞는지"를 확인해야
+// 두 문제가 동시에 해결된다.
+let inFlightGeneration: number | null = null;
 
 export const useNotificationStore = create<NotificationState>((set, get) => {
   // start()(폴링 등록)와 retry()(수동 1회 재조회)가 공유하는 조회 로직 — 폴링 주기/타이머
   // 관리 방식은 그대로 두고, "지금 한 번 더 불러오기"만 별도로 노출하기 위해 분리했다.
   const load = () => {
-    if (isLoading) return;
-    isLoading = true;
+    if (inFlightGeneration === generation) return; // 같은 세대에서 이미 진행 중이면 스킵
+    const myGeneration = generation;
+    inFlightGeneration = myGeneration;
     fetchNotifications()
-      .then((data) => set({ notifications: data, loadState: "ready" }))
+      .then((data) => {
+        if (myGeneration !== generation) return; // 그 사이 stop()으로 세대가 바뀜 — 낡은 응답 무시
+        set({ notifications: data, loadState: "ready" });
+      })
       .catch((err) => {
+        if (myGeneration !== generation) return;
         set({
           errorMessage: err instanceof ApiError ? err.message : "알림을 불러오지 못했습니다.",
           loadState: "error",
         });
       })
       .finally(() => {
-        isLoading = false;
+        // 내 요청이 여전히 "진행 중"으로 기록된 그 요청일 때만 해제 — 그 사이 stop()→start()로
+        // 새 세대의 요청이 이미 inFlightGeneration을 차지했다면 그건 건드리지 않는다.
+        if (inFlightGeneration === myGeneration) inFlightGeneration = null;
       });
   };
 
@@ -62,6 +77,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
     // 로그아웃 등으로 더 이상 폴링이 필요 없을 때 호출. 다음 로그인 사용자에게 이전 사용자의
     // 알림이 잠깐이라도 남아 보이지 않도록 상태도 초기값으로 되돌린다.
     stop: () => {
+      generation++; // 이 시점 이전에 나가있던 요청의 응답을 전부 무효화(낡은 응답이 set()하지 않음)
       if (pollTimer != null) {
         clearInterval(pollTimer);
         pollTimer = null;
