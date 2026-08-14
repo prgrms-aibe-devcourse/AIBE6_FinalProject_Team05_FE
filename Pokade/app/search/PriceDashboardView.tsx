@@ -1,8 +1,43 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import GradeBadge, { Grade } from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
+import AddWatchlistModal from "@/components/AddWatchlistModal";
+import { fetchCardsByKeywordPage } from "@/lib/cardApi";
+import { useTimedFlag } from "@/hooks/useTimedFlag";
 
-// /search의 "시세 대시보드" 탭 — 목업 데이터로만 구성된 정적 뷰(백엔드 연동 전).
+// /search의 "시세 대시보드" 탭 — 아직 단일 카드(리자몽 ex) 시연용 정적 뷰라 카드 목록/시세는
+// 여전히 목업이다. 워치리스트 버튼만 실제 등록이 되도록, 화면에 표시된 카드("리자몽 ex")를
+// app/page.tsx의 HERO_CARD와 동일한 방식(이름으로 검색 후 externalId로 확정)으로 조회한다.
+const DASHBOARD_CARD = {
+  externalId: "sv3pt5-6",
+  name: "Charizard ex",
+};
+
 export default function PriceDashboardView() {
+  const [watchlistModalOpen, setWatchlistModalOpen] = useState(false);
+  const [watchlistAdded, triggerWatchlistAdded] = useTimedFlag(2000);
+  const [cardId, setCardId] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchCardsByKeywordPage(DASHBOARD_CARD.name)
+      .then((page) => {
+        if (cancelled) return;
+        const match = page.content.find((c) => c.externalId === DASHBOARD_CARD.externalId);
+        if (match) setCardId(match.id);
+      })
+      .catch(() => {
+        // 조회 실패 시 cardId가 null로 남아 워치리스트 버튼이 비활성 상태를 유지한다.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div className="grid grid-cols-1 items-start gap-[22px] lg:grid-cols-[60fr_40fr]">
       <div className="flex flex-col gap-5">
@@ -103,11 +138,24 @@ export default function PriceDashboardView() {
           </div>
           <button
             type="button"
-            disabled
-            className="mt-[18px] w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3 text-[14.5px] font-bold text-white shadow-tactile-sm active:translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={() => setWatchlistModalOpen(true)}
+            disabled={cardId == null}
+            className="mt-[18px] w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3 text-[14.5px] font-bold text-white shadow-tactile-sm active:translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            워치리스트에 추가 (준비 중)
+            워치리스트에 추가
           </button>
+          {watchlistAdded && (
+            <div className="mt-2 text-center text-[12.5px] font-bold text-primary">등록됨</div>
+          )}
+
+          {cardId != null && (
+            <AddWatchlistModal
+              isOpen={watchlistModalOpen}
+              onClose={() => setWatchlistModalOpen(false)}
+              cardId={cardId}
+              onSuccess={triggerWatchlistAdded}
+            />
+          )}
         </div>
         <div className="rounded-2xl border border-[#EDEDF0] bg-white p-6">
           <h2 className="mb-3.5 mt-0 text-[15px] font-extrabold">추천 카드</h2>

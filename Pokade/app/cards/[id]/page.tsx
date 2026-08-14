@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname, useParams, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import CardImage from "@/components/CardImage";
 import PriceChart from "@/components/PriceChart";
 import ImageLightbox from "@/components/ImageLightbox";
+import AddWatchlistModal from "@/components/AddWatchlistModal";
 import {
   CardDetailResponse,
   CardSearchItem,
@@ -35,6 +36,7 @@ import { createTrade } from "@/lib/tradeApi";
 import { useUserStore } from "@/store/useUserStore";
 import { loginUrlFor } from "@/lib/authRedirect";
 import { toKrw } from "@/lib/currency";
+import { useTimedFlag } from "@/hooks/useTimedFlag";
 
 type LoadState = "loading" | "error" | "notfound" | "ready";
 type RelatedLoadState = "loading" | "ready";
@@ -100,9 +102,10 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   const [errorMessage, setErrorMessage] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
-  const [copied, setCopied] = useState(false);
-  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [copied, triggerCopied] = useTimedFlag(2000);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [watchlistModalOpen, setWatchlistModalOpen] = useState(false);
+  const [watchlistAdded, triggerWatchlistAdded] = useTimedFlag(2000);
 
   const [relatedCards, setRelatedCards] = useState<CardSearchItem[]>([]);
   const [relatedLoadState, setRelatedLoadState] = useState<RelatedLoadState>("loading");
@@ -139,9 +142,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   const handleShare = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
+      triggerCopied();
     } catch {
       // 클립보드 접근이 차단된 환경(권한 거부 등)에서는 조용히 무시.
     }
@@ -200,12 +201,6 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   // 바닥으로 강제 클램프한다. 데이터 페칭 effect보다 먼저 실행되도록 맨 위에 둔다.
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-    };
   }, []);
 
   useEffect(() => {
@@ -520,6 +515,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
 
         {loadState === "ready" &&
           card &&
+          cardId != null &&
           (() => {
             const selectedVariant = card.variants.find((v) => v.id === selectedVariantId) ?? null;
             const displayName = card.nameKo ?? card.name;
@@ -791,6 +787,22 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                             ? "구매하기"
                             : "등급을 선택하세요"}
                     </button>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setWatchlistModalOpen(true)}
+                        aria-label="관심 등록"
+                        className="w-full rounded-[11px] border-[1.5px] border-[#DDDDE3] bg-white py-2.5 text-[13.5px] font-bold text-[#4B4B52] transition hover:border-primary hover:text-primary"
+                      >
+                        관심 등록
+                      </button>
+                      {watchlistAdded && (
+                        <span className="whitespace-nowrap text-[12.5px] font-bold text-primary">
+                          등록됨
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -840,6 +852,14 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                   onClose={() => setLightboxOpen(false)}
                   imageSrc={mainImageSrc}
                   alt={displayName}
+                />
+
+                <AddWatchlistModal
+                  isOpen={watchlistModalOpen}
+                  onClose={() => setWatchlistModalOpen(false)}
+                  cardId={cardId}
+                  variantId={selectedVariantId}
+                  onSuccess={triggerWatchlistAdded}
                 />
               </>
             );

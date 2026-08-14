@@ -72,11 +72,11 @@ function SearchDashboard() {
   );
   const [facets, setFacets] = useState<CardFacetsResponse>(EMPTY_FACETS);
   const [facetsLoading, setFacetsLoading] = useState(true);
-  // BE 화이트리스트에 없는 값은 latest로 취급 — /api/cards/search(키워드 검색)는
+  // BE 화이트리스트에 없는 값은 기본값(popular)으로 취급 — /api/cards/search(키워드 검색)는
   // sort를 지원하지 않으므로 q가 있을 때는 드롭다운 자체를 숨긴다.
   const [sort, setSort] = useState<CardSort>(() => {
     const s = searchParams.get("sort");
-    return s === "name" || s === "popular" ? s : "latest";
+    return s === "name" || s === "latest" ? s : "popular";
   });
   // 1-indexed(화면 표시용). BE 호출 시에만 0-indexed로 변환한다.
   const [page, setPage] = useState<number>(() => {
@@ -124,13 +124,20 @@ function SearchDashboard() {
     fetchCardFacets()
       .then((data) => {
         if (cancelled) return;
-        setFacets(data);
+        // BE가 필드를 null로 내려줘도(예: 해당 세트/타입 데이터가 없는 경우) 렌더링이
+        // 죽지 않도록 빈 배열로 보정한 뒤 상태에 반영한다.
+        const safeData: CardFacetsResponse = {
+          types: data.types ?? [],
+          rarities: data.rarities ?? [],
+          expansions: data.expansions ?? [],
+        };
+        setFacets(safeData);
         // URL 직접 조작 등으로 들어온, facet에 실제로 없는 선택값만 걸러낸다.
         setSelectedExpansionId((id) =>
-          id && data.expansions.some((e) => e.id === id) ? id : null,
+          id && safeData.expansions.some((e) => e.id === id) ? id : null,
         );
-        setSelectedTypes((types) => types.filter((t) => data.types.includes(t)));
-        setSelectedRarities((rarities) => rarities.filter((r) => data.rarities.includes(r)));
+        setSelectedTypes((types) => types.filter((t) => safeData.types.includes(t)));
+        setSelectedRarities((rarities) => rarities.filter((r) => safeData.rarities.includes(r)));
       })
       .catch(() => {
         // 무시 — facets는 EMPTY_FACETS로 남고 필터 체크박스 목록만 비어 보인다.
@@ -249,7 +256,7 @@ function SearchDashboard() {
     else params.delete("minPrice");
     if (debouncedPriceMax < PRICE_MAX) params.set("maxPrice", String(debouncedPriceMax));
     else params.delete("maxPrice");
-    if (sort !== "latest") params.set("sort", sort);
+    if (sort !== "popular") params.set("sort", sort);
     else params.delete("sort");
     if (page > 1) params.set("page", String(page));
     else params.delete("page");
@@ -289,7 +296,7 @@ function SearchDashboard() {
     setSelectedExpansionId(null);
     setSelectedTypes([]);
     setSelectedRarities([]);
-    setSort("latest");
+    setSort("popular");
     setPage(1);
     // 필터가 이미 초기값이면 위 세터들이 상태를 바꾸지 않아 카드 목록 effect가
     // 재실행되지 않는다 — reloadKey를 강제로 올려 항상 재요청되게 한다.
