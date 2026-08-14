@@ -22,10 +22,17 @@ interface NotificationState {
 // start()를 동시에 불러도(Header, /notifications 페이지) 실제 fetch+interval은 하나만 존재한다.
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
+// load() 진행 중 여부 — 폴링 tick과 retry()(드롭다운 재오픈)가 동시에 fetch를 쏘는 것을 막는다.
+// 응답이 늦게 오면 두 요청이 겹치고, 나중에 도착한 응답이 무조건 이기면서 화면이 순간적으로
+// 오래된 상태로 되돌아갈 수 있어 — 이미 진행 중이면 새 요청 없이 그 응답을 그대로 기다린다.
+let isLoading = false;
+
 export const useNotificationStore = create<NotificationState>((set, get) => {
   // start()(폴링 등록)와 retry()(수동 1회 재조회)가 공유하는 조회 로직 — 폴링 주기/타이머
   // 관리 방식은 그대로 두고, "지금 한 번 더 불러오기"만 별도로 노출하기 위해 분리했다.
   const load = () => {
+    if (isLoading) return;
+    isLoading = true;
     fetchNotifications()
       .then((data) => set({ notifications: data, loadState: "ready" }))
       .catch((err) => {
@@ -33,6 +40,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
           errorMessage: err instanceof ApiError ? err.message : "알림을 불러오지 못했습니다.",
           loadState: "error",
         });
+      })
+      .finally(() => {
+        isLoading = false;
       });
   };
 
