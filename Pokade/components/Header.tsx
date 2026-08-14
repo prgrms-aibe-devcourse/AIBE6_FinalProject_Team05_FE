@@ -450,7 +450,7 @@ function LoggedInRight() {
       <SearchBar />
       <button
         onClick={() => toggle("notif")}
-        aria-label="알림"
+        aria-label={unreadCount > 0 ? `안 읽은 알림 ${unreadCount}개` : "알림"}
         aria-expanded={open === "notif"}
         aria-controls={notifId}
         className="relative flex h-10 w-10 items-center justify-center rounded-[9px] bg-neutral transition-colors hover:bg-[#ECECEF]"
@@ -462,6 +462,7 @@ function LoggedInRight() {
           fill="none"
           stroke="#4B4B52"
           strokeWidth="2"
+          aria-hidden="true"
         >
           <path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.7 21a2 2 0 01-3.4 0" />

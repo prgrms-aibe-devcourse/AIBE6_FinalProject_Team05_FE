@@ -171,6 +171,7 @@ export default function WatchlistPage() {
                 fill="none"
                 stroke="#C7C7CE"
                 strokeWidth="1.6"
+                aria-hidden="true"
               >
                 <path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 00-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 000-7.8z" />
               </svg>
@@ -294,7 +295,13 @@ export default function WatchlistPage() {
                           onClick={() => handleDelete(row.item.id)}
                           className="text-[#C7C7CE] hover:text-primary disabled:opacity-50"
                         >
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            aria-hidden="true"
+                          >
                             <path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
                           </svg>
                         </button>

@@ -15,6 +15,7 @@ export function notifStyle(type: NotificationType): { tint: string; icon: React.
             fill="none"
             stroke="#B8860B"
             strokeWidth="2"
+            aria-hidden="true"
           >
             <circle cx="12" cy="12" r="8" />
             <circle cx="12" cy="12" r="3" />
@@ -32,6 +33,7 @@ export function notifStyle(type: NotificationType): { tint: string; icon: React.
             fill="none"
             stroke="#3B4CCA"
             strokeWidth="2"
+            aria-hidden="true"
           >
             <path d="M3 8l9-5 9 5v8l-9 5-9-5z" />
             <path d="M3 8l9 5 9-5" />
@@ -49,6 +51,7 @@ export function notifStyle(type: NotificationType): { tint: string; icon: React.
             fill="none"
             stroke="#C2790A"
             strokeWidth="2"
+            aria-hidden="true"
           >
             <circle cx="12" cy="12" r="9" />
             <path d="M12 7v5l3 3" />
