@@ -238,6 +238,9 @@ export default function WatchlistPage() {
                   const priceLabel = resolvePriceDisplay(row.priceSummary)?.price ?? "정보 없음";
                   const targets = formatTargets(row.item);
                   const status = statusOf(row.item);
+                  const changeRate = row.item.changeRate;
+                  const isRise = changeRate != null && changeRate >= 0;
+                  const changeCls = isRise ? "text-primary" : "text-secondary";
                   return (
                     <div
                       key={row.item.id}
@@ -271,7 +274,15 @@ export default function WatchlistPage() {
                           <div>-</div>
                         )}
                       </div>
-                      <div className="text-[13.5px] font-bold text-[#9A9AA2]">-</div>
+                      <div
+                        className={`text-[13.5px] font-bold ${
+                          changeRate != null && changeRate !== 0 ? changeCls : "text-[#9A9AA2]"
+                        }`}
+                      >
+                        {changeRate != null && changeRate !== 0
+                          ? `${isRise ? "▲" : "▼"} ${Math.abs(changeRate).toFixed(2)}%`
+                          : "-"}
+                      </div>
                       <div>
                         <span
                           className={`rounded-full px-[11px] py-[5px] text-xs font-bold ${STATUS_CLS[status]}`}
