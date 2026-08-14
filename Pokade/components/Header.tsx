@@ -13,9 +13,9 @@ import {
   getRecentSearches,
   removeRecentSearch,
 } from "@/lib/recentSearches";
-import { fetchNotifications } from "@/lib/watchlistApi";
+import { fetchNotifications, markNotificationRead } from "@/lib/watchlistApi";
 import { CardResponse } from "@/types/card";
-import { NotificationResponse } from "@/types/notification";
+import { NotificationResponse, NotificationType } from "@/types/notification";
 import { useUserStore } from "@/store/useUserStore";
 
 // 자동완성 API 호출 최소 글자 수 — 1글자는 노이즈가 많아 2글자부터 호출한다.
@@ -401,15 +401,61 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
   );
 }
 
-// 타입별(PRICE_TARGET/TRADE_CONFIRMED/LISTING_STALE) 아이콘·색상 매핑은 다음 단계에서 처리 —
-// 지금은 모든 알림에 같은 아이콘/색을 쓰고 message 텍스트만 그대로 보여준다.
-const NOTIF_TINT = "#EEF0F2";
-const NOTIF_ICON = (
-  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2">
-    <path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-    <path d="M13.7 21a2 2 0 01-3.4 0" />
-  </svg>
-);
+function notifStyle(type: NotificationType): { tint: string; icon: React.ReactNode } {
+  switch (type) {
+    case "PRICE_TARGET":
+      return {
+        tint: "#FFF6DA",
+        icon: (
+          <svg
+            width="17"
+            height="17"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#B8860B"
+            strokeWidth="2"
+          >
+            <circle cx="12" cy="12" r="8" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+        ),
+      };
+    case "TRADE_CONFIRMED":
+      return {
+        tint: "#EEF0FA",
+        icon: (
+          <svg
+            width="17"
+            height="17"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#3B4CCA"
+            strokeWidth="2"
+          >
+            <path d="M3 8l9-5 9 5v8l-9 5-9-5z" />
+            <path d="M3 8l9 5 9-5" />
+          </svg>
+        ),
+      };
+    case "LISTING_STALE":
+      return {
+        tint: "#FFF3E0",
+        icon: (
+          <svg
+            width="17"
+            height="17"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#C2790A"
+            strokeWidth="2"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v5l3 3" />
+          </svg>
+        ),
+      };
+  }
+}
 
 function formatNotifTime(iso: string): string {
   return new Date(iso).toLocaleString("ko-KR", {
@@ -446,6 +492,26 @@ function LoggedInRight() {
       .catch(() => {});
   }, []);
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+  const handleNotifClick = (n: NotificationResponse) => {
+    if (n.isRead) return; // 이미 읽음 처리된 알림이면 BE가 400(NOTIFICATION_ALREADY_READ) 반환
+    markNotificationRead(n.id)
+      .then(() => {
+        setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, isRead: true } : x)));
+      })
+      .catch(() => {});
+  };
+
+  const handleMarkAllRead = () => {
+    const unread = notifications.filter((n) => !n.isRead);
+    if (unread.length === 0) return;
+    Promise.allSettled(unread.map((n) => markNotificationRead(n.id))).then((results) => {
+      const readIds = new Set(
+        unread.filter((_, i) => results[i].status === "fulfilled").map((n) => n.id),
+      );
+      setNotifications((prev) => prev.map((n) => (readIds.has(n.id) ? { ...n, isRead: true } : n)));
+    });
+  };
 
   return (
     <div className="relative flex items-center gap-4">
@@ -494,9 +560,13 @@ function LoggedInRight() {
         >
           <div className="flex items-center justify-between border-b border-[#F0F0F0] px-4 py-3.5">
             <span className="text-[14.5px] font-extrabold">알림</span>
-            <span className="cursor-pointer text-xs font-bold text-secondary hover:text-secondary-dark">
+            <button
+              type="button"
+              onClick={handleMarkAllRead}
+              className="cursor-pointer text-xs font-bold text-secondary hover:text-secondary-dark"
+            >
               모두 읽음 처리
-            </span>
+            </button>
           </div>
           <div className="max-h-[340px] overflow-y-auto">
             {notifications.length === 0 ? (
@@ -504,33 +574,37 @@ function LoggedInRight() {
                 새 알림이 없습니다.
               </div>
             ) : (
-              notifications.map((n) => (
-                <button
-                  key={n.id}
-                  type="button"
-                  className={`flex w-full cursor-pointer gap-[11px] border-b border-[#F5F5F7] px-4 py-[13px] text-left hover:bg-[#FAFAFB] ${!n.isRead ? "bg-[#FFF7F7]" : ""}`}
-                >
-                  <span
-                    className={`mt-[15px] h-[7px] w-[7px] flex-shrink-0 rounded-full ${!n.isRead ? "bg-primary" : "bg-transparent"}`}
-                  />
-                  <div
-                    className="flex h-[34px] w-[34px] flex-shrink-0 items-center justify-center rounded-[9px]"
-                    style={{ background: NOTIF_TINT }}
+              notifications.map((n) => {
+                const style = notifStyle(n.type);
+                return (
+                  <button
+                    key={n.id}
+                    type="button"
+                    onClick={() => handleNotifClick(n)}
+                    className={`flex w-full cursor-pointer gap-[11px] border-b border-[#F5F5F7] px-4 py-[13px] text-left hover:bg-[#FAFAFB] ${!n.isRead ? "bg-[#FFF7F7]" : ""}`}
                   >
-                    {NOTIF_ICON}
-                  </div>
-                  <div className="min-w-0 flex-1">
+                    <span
+                      className={`mt-[15px] h-[7px] w-[7px] flex-shrink-0 rounded-full ${!n.isRead ? "bg-primary" : "bg-transparent"}`}
+                    />
                     <div
-                      className={`text-[13px] leading-[1.4] text-ink ${!n.isRead ? "font-bold" : "font-semibold"}`}
+                      className="flex h-[34px] w-[34px] flex-shrink-0 items-center justify-center rounded-[9px]"
+                      style={{ background: style.tint }}
                     >
-                      {n.message}
+                      {style.icon}
                     </div>
-                    <div className="mt-[3px] text-[11px] text-[#B0B0B8]">
-                      {formatNotifTime(n.createdAt)}
+                    <div className="min-w-0 flex-1">
+                      <div
+                        className={`text-[13px] leading-[1.4] text-ink ${!n.isRead ? "font-bold" : "font-semibold"}`}
+                      >
+                        {n.message}
+                      </div>
+                      <div className="mt-[3px] text-[11px] text-[#B0B0B8]">
+                        {formatNotifTime(n.createdAt)}
+                      </div>
                     </div>
-                  </div>
-                </button>
-              ))
+                  </button>
+                );
+              })
             )}
           </div>
           <Link
