@@ -11,7 +11,10 @@ import { deleteWatchlistItem, fetchWatchlist } from "@/lib/watchlistApi";
 import { CardDetailResponse } from "@/types/card";
 import { WatchlistResponse } from "@/types/watchlist";
 
-// BE에는 isNotified(목표가 도달 여부)만 있고 "확인함"에 대응하는 필드가 없어 2단계로 축소.
+// BE에는 targetReached(현재 시점 목표가 범위 진입 여부)만 있고 "확인함"에 대응하는 필드가
+// 없어 2단계로 축소. isNotified(알림 발송 이력, 1회성 플래그)와 달리 targetReached는 매 조회
+// 시점 실시간 체결가 기준으로 재계산되는 값이라 — 알림이 이미 갔어도 그 뒤 가격이 범위를
+// 벗어나면 다시 false가 될 수 있다. 상태 배지는 "지금" 기준을 보여줘야 하므로 이 값을 쓴다.
 type Status = "대기중" | "목표도달";
 const STATUS_CLS: Record<Status, string> = {
   대기중: "bg-[#FFF3CE] text-[#8A6A00]",
@@ -33,7 +36,7 @@ const TABS: { key: Filter; label: string }[] = [
 ];
 
 function statusOf(item: WatchlistResponse): Status {
-  return item.isNotified ? "목표도달" : "대기중";
+  return item.targetReached ? "목표도달" : "대기중";
 }
 
 // targetBuyPrice/targetSellPrice 중 최소 하나는 항상 있다(둘 다 없으면 BE가 400).
@@ -101,13 +104,13 @@ export default function WatchlistPage() {
 
   const counts: Record<Filter, number> = {
     all: rows.length,
-    wait: rows.filter((r) => !r.item.isNotified).length,
-    reached: rows.filter((r) => r.item.isNotified).length,
+    wait: rows.filter((r) => !r.item.targetReached).length,
+    reached: rows.filter((r) => r.item.targetReached).length,
   };
 
   const filtered = rows.filter((r) => {
-    if (filter === "wait") return !r.item.isNotified;
-    if (filter === "reached") return r.item.isNotified;
+    if (filter === "wait") return !r.item.targetReached;
+    if (filter === "reached") return r.item.targetReached;
     return true;
   });
 
