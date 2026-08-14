@@ -13,9 +13,9 @@ import {
   getRecentSearches,
   removeRecentSearch,
 } from "@/lib/recentSearches";
-import { fetchNotifications, markNotificationRead } from "@/lib/watchlistApi";
+import { useNotifications } from "@/hooks/useNotifications";
+import { notifStyle, formatNotifTime } from "@/lib/notificationDisplay";
 import { CardResponse } from "@/types/card";
-import { NotificationResponse, NotificationType } from "@/types/notification";
 import { useUserStore } from "@/store/useUserStore";
 
 // 자동완성 API 호출 최소 글자 수 — 1글자는 노이즈가 많아 2글자부터 호출한다.
@@ -401,71 +401,6 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
   );
 }
 
-function notifStyle(type: NotificationType): { tint: string; icon: React.ReactNode } {
-  switch (type) {
-    case "PRICE_TARGET":
-      return {
-        tint: "#FFF6DA",
-        icon: (
-          <svg
-            width="17"
-            height="17"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#B8860B"
-            strokeWidth="2"
-          >
-            <circle cx="12" cy="12" r="8" />
-            <circle cx="12" cy="12" r="3" />
-          </svg>
-        ),
-      };
-    case "TRADE_CONFIRMED":
-      return {
-        tint: "#EEF0FA",
-        icon: (
-          <svg
-            width="17"
-            height="17"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#3B4CCA"
-            strokeWidth="2"
-          >
-            <path d="M3 8l9-5 9 5v8l-9 5-9-5z" />
-            <path d="M3 8l9 5 9-5" />
-          </svg>
-        ),
-      };
-    case "LISTING_STALE":
-      return {
-        tint: "#FFF3E0",
-        icon: (
-          <svg
-            width="17"
-            height="17"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#C2790A"
-            strokeWidth="2"
-          >
-            <circle cx="12" cy="12" r="9" />
-            <path d="M12 7v5l3 3" />
-          </svg>
-        ),
-      };
-  }
-}
-
-function formatNotifTime(iso: string): string {
-  return new Date(iso).toLocaleString("ko-KR", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 const PROFILE_MENU: { label: string; href: string }[] = [
   { label: "마이페이지", href: "/mypage" },
   { label: "내 상품 관리", href: "/listings/me" },
@@ -484,34 +419,9 @@ function LoggedInRight() {
   const email = useUserStore((s) => s.email);
   const logout = useUserStore((s) => s.logout);
 
-  const [notifications, setNotifications] = useState<NotificationResponse[]>([]);
-  // 로그인 시(Header 마운트 시) 한 번만 조회 — 열 때마다 재조회/폴링은 이번 스코프 아님.
-  useEffect(() => {
-    fetchNotifications()
-      .then(setNotifications)
-      .catch(() => {});
-  }, []);
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
-
-  const handleNotifClick = (n: NotificationResponse) => {
-    if (n.isRead) return; // 이미 읽음 처리된 알림이면 BE가 400(NOTIFICATION_ALREADY_READ) 반환
-    markNotificationRead(n.id)
-      .then(() => {
-        setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, isRead: true } : x)));
-      })
-      .catch(() => {});
-  };
-
-  const handleMarkAllRead = () => {
-    const unread = notifications.filter((n) => !n.isRead);
-    if (unread.length === 0) return;
-    Promise.allSettled(unread.map((n) => markNotificationRead(n.id))).then((results) => {
-      const readIds = new Set(
-        unread.filter((_, i) => results[i].status === "fulfilled").map((n) => n.id),
-      );
-      setNotifications((prev) => prev.map((n) => (readIds.has(n.id) ? { ...n, isRead: true } : n)));
-    });
-  };
+  // 로그인 중(Header 마운트 상태)인 동안 30초 간격으로 재조회 — 드롭다운이 닫혀 있어도
+  // 배지 숫자가 최신 상태를 반영하도록 폴링 대상은 열림 여부와 무관하게 항상 켜둔다.
+  const { notifications, unreadCount, markOneRead, markAllRead } = useNotifications(true);
 
   return (
     <div className="relative flex items-center gap-4">
@@ -562,7 +472,7 @@ function LoggedInRight() {
             <span className="text-[14.5px] font-extrabold">알림</span>
             <button
               type="button"
-              onClick={handleMarkAllRead}
+              onClick={markAllRead}
               className="cursor-pointer text-xs font-bold text-secondary hover:text-secondary-dark"
             >
               모두 읽음 처리
@@ -580,7 +490,7 @@ function LoggedInRight() {
                   <button
                     key={n.id}
                     type="button"
-                    onClick={() => handleNotifClick(n)}
+                    onClick={() => markOneRead(n)}
                     className={`flex w-full cursor-pointer gap-[11px] border-b border-[#F5F5F7] px-4 py-[13px] text-left hover:bg-[#FAFAFB] ${!n.isRead ? "bg-[#FFF7F7]" : ""}`}
                   >
                     <span
@@ -608,7 +518,8 @@ function LoggedInRight() {
             )}
           </div>
           <Link
-            href="#"
+            href="/notifications"
+            onClick={() => setOpen(null)}
             className="block border-t border-[#F0F0F0] px-4 py-[13px] text-center text-[13px] font-bold text-secondary hover:bg-[#FAFAFB]"
           >
             전체 알림 보기
