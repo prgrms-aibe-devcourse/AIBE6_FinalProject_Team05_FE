@@ -13,7 +13,9 @@ import {
   getRecentSearches,
   removeRecentSearch,
 } from "@/lib/recentSearches";
+import { fetchNotifications } from "@/lib/watchlistApi";
 import { CardResponse } from "@/types/card";
+import { NotificationResponse } from "@/types/notification";
 import { useUserStore } from "@/store/useUserStore";
 
 // 자동완성 API 호출 최소 글자 수 — 1글자는 노이즈가 많아 2글자부터 호출한다.
@@ -399,80 +401,24 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
   );
 }
 
-type Notif = {
-  tint: string;
-  icon: React.ReactNode;
-  unread: boolean;
-  text: string;
-  sub: string;
-  time: string;
-};
+// 타입별(PRICE_TARGET/TRADE_CONFIRMED/LISTING_STALE) 아이콘·색상 매핑은 다음 단계에서 처리 —
+// 지금은 모든 알림에 같은 아이콘/색을 쓰고 message 텍스트만 그대로 보여준다.
+const NOTIF_TINT = "#EEF0F2";
+const NOTIF_ICON = (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2">
+    <path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+    <path d="M13.7 21a2 2 0 01-3.4 0" />
+  </svg>
+);
 
-const NOTIFS: Notif[] = [
-  {
-    tint: "#FFF6DA",
-    icon: (
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#B8860B" strokeWidth="2">
-        <circle cx="12" cy="12" r="8" />
-        <circle cx="12" cy="12" r="3" />
-      </svg>
-    ),
-    unread: true,
-    text: "워치리스트 목표가 도달",
-    sub: "리자몽 ex · ₩150,000 도달",
-    time: "3분 전",
-  },
-  {
-    tint: "#EEF0FA",
-    icon: (
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#3B4CCA" strokeWidth="2">
-        <path d="M3 8l9-5 9 5v8l-9 5-9-5z" />
-        <path d="M3 8l9 5 9-5" />
-      </svg>
-    ),
-    unread: true,
-    text: "거래 상태 변경 · 검수 완료",
-    sub: "TX-20260720-4471",
-    time: "1시간 전",
-  },
-  {
-    tint: "#FDEDED",
-    icon: (
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#EE1515" strokeWidth="2">
-        <path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" />
-      </svg>
-    ),
-    unread: true,
-    text: "AI 진단 완료",
-    sub: "뮤츠 ex · 예상 등급 S",
-    time: "3시간 전",
-  },
-  {
-    tint: "#EEF0F2",
-    icon: (
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2">
-        <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-      </svg>
-    ),
-    unread: false,
-    text: "신규 메시지 도착",
-    sub: "불꽃컬렉터: 발송 완료했습니다",
-    time: "어제",
-  },
-  {
-    tint: "#E8F7EF",
-    icon: (
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2">
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 7v10M9 10h4.5a1.5 1.5 0 010 3H9" />
-      </svg>
-    ),
-    unread: false,
-    text: "포인트 충전 완료",
-    sub: "진단권 +30회 적립",
-    time: "2일 전",
-  },
-];
+function formatNotifTime(iso: string): string {
+  return new Date(iso).toLocaleString("ko-KR", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 const PROFILE_MENU: { label: string; href: string }[] = [
   { label: "마이페이지", href: "/mypage" },
@@ -491,6 +437,15 @@ function LoggedInRight() {
   const nickname = useUserStore((s) => s.nickname);
   const email = useUserStore((s) => s.email);
   const logout = useUserStore((s) => s.logout);
+
+  const [notifications, setNotifications] = useState<NotificationResponse[]>([]);
+  // 로그인 시(Header 마운트 시) 한 번만 조회 — 열 때마다 재조회/폴링은 이번 스코프 아님.
+  useEffect(() => {
+    fetchNotifications()
+      .then(setNotifications)
+      .catch(() => {});
+  }, []);
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   return (
     <div className="relative flex items-center gap-4">
@@ -513,7 +468,9 @@ function LoggedInRight() {
           <path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.7 21a2 2 0 01-3.4 0" />
         </svg>
-        <span className="absolute right-2 top-[7px] h-[7px] w-[7px] rounded-full border-[1.5px] border-neutral bg-primary" />
+        {unreadCount > 0 && (
+          <span className="absolute right-2 top-[7px] h-[7px] w-[7px] rounded-full border-[1.5px] border-neutral bg-primary" />
+        )}
       </button>
       <button
         onClick={() => toggle("profile")}
@@ -542,32 +499,39 @@ function LoggedInRight() {
             </span>
           </div>
           <div className="max-h-[340px] overflow-y-auto">
-            {NOTIFS.map((n, i) => (
-              <button
-                key={i}
-                type="button"
-                className={`flex w-full cursor-pointer gap-[11px] border-b border-[#F5F5F7] px-4 py-[13px] text-left hover:bg-[#FAFAFB] ${n.unread ? "bg-[#FFF7F7]" : ""}`}
-              >
-                <span
-                  className={`mt-[15px] h-[7px] w-[7px] flex-shrink-0 rounded-full ${n.unread ? "bg-primary" : "bg-transparent"}`}
-                />
-                <div
-                  className="flex h-[34px] w-[34px] flex-shrink-0 items-center justify-center rounded-[9px]"
-                  style={{ background: n.tint }}
+            {notifications.length === 0 ? (
+              <div className="px-4 py-8 text-center text-[13px] text-[#9A9AA2]">
+                새 알림이 없습니다.
+              </div>
+            ) : (
+              notifications.map((n) => (
+                <button
+                  key={n.id}
+                  type="button"
+                  className={`flex w-full cursor-pointer gap-[11px] border-b border-[#F5F5F7] px-4 py-[13px] text-left hover:bg-[#FAFAFB] ${!n.isRead ? "bg-[#FFF7F7]" : ""}`}
                 >
-                  {n.icon}
-                </div>
-                <div className="min-w-0 flex-1">
+                  <span
+                    className={`mt-[15px] h-[7px] w-[7px] flex-shrink-0 rounded-full ${!n.isRead ? "bg-primary" : "bg-transparent"}`}
+                  />
                   <div
-                    className={`text-[13px] leading-[1.4] text-ink ${n.unread ? "font-bold" : "font-semibold"}`}
+                    className="flex h-[34px] w-[34px] flex-shrink-0 items-center justify-center rounded-[9px]"
+                    style={{ background: NOTIF_TINT }}
                   >
-                    {n.text}
+                    {NOTIF_ICON}
                   </div>
-                  <div className="mt-px text-xs text-[#9A9AA2]">{n.sub}</div>
-                  <div className="mt-[3px] text-[11px] text-[#B0B0B8]">{n.time}</div>
-                </div>
-              </button>
-            ))}
+                  <div className="min-w-0 flex-1">
+                    <div
+                      className={`text-[13px] leading-[1.4] text-ink ${!n.isRead ? "font-bold" : "font-semibold"}`}
+                    >
+                      {n.message}
+                    </div>
+                    <div className="mt-[3px] text-[11px] text-[#B0B0B8]">
+                      {formatNotifTime(n.createdAt)}
+                    </div>
+                  </div>
+                </button>
+              ))
+            )}
           </div>
           <Link
             href="#"
