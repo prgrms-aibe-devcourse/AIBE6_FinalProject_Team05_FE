@@ -411,7 +411,6 @@ const PROFILE_MENU: { label: string; href: string }[] = [
 
 function LoggedInRight() {
   const [open, setOpen] = useState<null | "notif" | "profile">(null);
-  const toggle = (which: "notif" | "profile") => setOpen((o) => (o === which ? null : which));
   const notifId = useId();
   const profileId = useId();
   const router = useRouter();
@@ -423,8 +422,11 @@ function LoggedInRight() {
   // Header는 로그인 상태인 동안(마운트~언마운트) 그 생명주기를 관리하는 역할 — 마운트 시
   // start()(멱등)로 폴링을 켜고, 로그아웃으로 언마운트되면 stop()으로 정리한다.
   const notifications = useNotificationStore((s) => s.notifications);
+  const loadState = useNotificationStore((s) => s.loadState);
+  const errorMessage = useNotificationStore((s) => s.errorMessage);
   const startNotifications = useNotificationStore((s) => s.start);
   const stopNotifications = useNotificationStore((s) => s.stop);
+  const retryNotifications = useNotificationStore((s) => s.retry);
   const markOneRead = useNotificationStore((s) => s.markOneRead);
   const markAllRead = useNotificationStore((s) => s.markAllRead);
 
@@ -432,6 +434,14 @@ function LoggedInRight() {
     startNotifications();
     return () => stopNotifications();
   }, [startNotifications, stopNotifications]);
+
+  // 알림 드롭다운을 열 때, 직전 조회가 에러였다면 폴링 주기를 기다리지 않고 바로 재시도한다.
+  const toggle = (which: "notif" | "profile") =>
+    setOpen((o) => {
+      const next = o === which ? null : which;
+      if (next === "notif" && loadState === "error") retryNotifications();
+      return next;
+    });
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
@@ -491,11 +501,26 @@ function LoggedInRight() {
             </button>
           </div>
           <div className="max-h-[340px] overflow-y-auto">
-            {notifications.length === 0 ? (
+            {loadState === "loading" && (
+              <div className="px-4 py-8 text-center text-[13px] text-[#9A9AA2]">
+                불러오는 중...
+              </div>
+            )}
+            {loadState === "error" && (
+              <div
+                role="alert"
+                className="mx-4 my-3 rounded-[12px] border border-[#F6C6C6] bg-[#FFF1F1] px-4 py-3 text-center text-[13px] font-semibold text-[#C21414]"
+              >
+                {errorMessage}
+              </div>
+            )}
+            {loadState === "ready" && notifications.length === 0 && (
               <div className="px-4 py-8 text-center text-[13px] text-[#9A9AA2]">
                 새 알림이 없습니다.
               </div>
-            ) : (
+            )}
+            {loadState === "ready" &&
+              notifications.length > 0 &&
               notifications.map((n) => {
                 const style = notifStyle(n.type);
                 return (
@@ -526,8 +551,7 @@ function LoggedInRight() {
                     </div>
                   </button>
                 );
-              })
-            )}
+              })}
           </div>
           <Link
             href="/notifications"
