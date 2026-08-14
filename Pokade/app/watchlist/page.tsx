@@ -5,11 +5,10 @@ import Link from "next/link";
 import CardImage from "@/components/CardImage";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
-import { fetchCardDetail, fetchPriceSummaries } from "@/lib/cardApi";
+import { fetchCardDetail } from "@/lib/cardApi";
 import { resolvePriceDisplay } from "@/lib/priceDisplay";
 import { deleteWatchlistItem, fetchWatchlist } from "@/lib/watchlistApi";
 import { CardDetailResponse } from "@/types/card";
-import { CardPriceSummaryResponse } from "@/types/price";
 import { WatchlistResponse } from "@/types/watchlist";
 
 // BE에는 isNotified(목표가 도달 여부)만 있고 "확인함"에 대응하는 필드가 없어 2단계로 축소.
@@ -22,7 +21,6 @@ const STATUS_CLS: Record<Status, string> = {
 type WatchlistRow = {
   item: WatchlistResponse;
   card: CardDetailResponse | null;
-  priceSummary: CardPriceSummaryResponse | undefined;
 };
 
 type LoadState = "loading" | "error" | "ready";
@@ -74,19 +72,16 @@ export default function WatchlistPage() {
     fetchWatchlist()
       .then(async (items) => {
         const cardIds = Array.from(new Set(items.map((i) => i.cardId)));
-        // 카드 상세는 배치 조회 API가 없어 건당 호출 — WATCHLIST_LIMIT(20)로 상한이 있어 허용.
+        // 카드 상세는 배치 조회 API가 없어 건당 호출(nameKo 한글 매핑 표시용) — WATCHLIST_LIMIT(20)로
+        // 상한이 있어 허용. 시세는 BE가 워치리스트 응답에 currentPrice로 이미 내려주므로 별도 조회 불필요.
         // 카드 하나가 조회 실패해도 나머지 행은 정상 표시되도록 개별 catch로 null 처리.
-        const [cards, priceMap] = await Promise.all([
-          Promise.all(cardIds.map((id) => fetchCardDetail(id).catch(() => null))),
-          fetchPriceSummaries(cardIds).catch(() => new Map<number, CardPriceSummaryResponse>()),
-        ]);
+        const cards = await Promise.all(cardIds.map((id) => fetchCardDetail(id).catch(() => null)));
         if (cancelled) return;
         const cardById = new Map(cardIds.map((id, i) => [id, cards[i]]));
         setRows(
           items.map((item) => ({
             item,
             card: cardById.get(item.cardId) ?? null,
-            priceSummary: priceMap.get(item.cardId),
           })),
         );
         setLoadState("ready");
@@ -235,7 +230,8 @@ export default function WatchlistPage() {
                 {filtered.map((row, i) => {
                   const displayName =
                     row.card?.nameKo ?? row.card?.name ?? "알 수 없는 카드";
-                  const priceLabel = resolvePriceDisplay(row.priceSummary)?.price ?? "정보 없음";
+                  const priceLabel =
+                    resolvePriceDisplay(row.item.currentPrice ?? undefined)?.price ?? "정보 없음";
                   const targets = formatTargets(row.item);
                   const status = statusOf(row.item);
                   const changeRate = row.item.changeRate;
@@ -253,12 +249,12 @@ export default function WatchlistPage() {
                         className="flex items-center gap-3 hover:text-primary"
                       >
                         <div className="relative h-14 w-10 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
-                          <CardImage src={row.card?.imageMedium} alt={displayName} />
+                          <CardImage src={row.item.imageUrl ?? row.card?.imageMedium} alt={displayName} />
                         </div>
                         <div>
                           <div className="text-sm font-bold">{displayName}</div>
                           <div className="text-xs text-[#9A9AA2]">
-                            {row.card?.setName ?? "-"}
+                            {row.item.setName ?? row.card?.setName ?? "-"}
                           </div>
                         </div>
                       </Link>
