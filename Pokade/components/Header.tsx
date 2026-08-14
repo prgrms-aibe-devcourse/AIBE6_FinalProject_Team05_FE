@@ -13,10 +13,10 @@ import {
   getRecentSearches,
   removeRecentSearch,
 } from "@/lib/recentSearches";
-import { useNotifications } from "@/hooks/useNotifications";
 import { notifStyle, formatNotifTime } from "@/lib/notificationDisplay";
 import { CardResponse } from "@/types/card";
 import { useUserStore } from "@/store/useUserStore";
+import { useNotificationStore } from "@/store/useNotificationStore";
 
 // 자동완성 API 호출 최소 글자 수 — 1글자는 노이즈가 많아 2글자부터 호출한다.
 const MIN_QUERY_LENGTH = 2;
@@ -419,9 +419,21 @@ function LoggedInRight() {
   const email = useUserStore((s) => s.email);
   const logout = useUserStore((s) => s.logout);
 
-  // 로그인 중(Header 마운트 상태)인 동안 30초 간격으로 재조회 — 드롭다운이 닫혀 있어도
-  // 배지 숫자가 최신 상태를 반영하도록 폴링 대상은 열림 여부와 무관하게 항상 켜둔다.
-  const { notifications, unreadCount, markOneRead, markAllRead } = useNotifications(true);
+  // 알림 조회+30초 폴링은 useNotificationStore가 앱 전체에서 유일하게 소유한다.
+  // Header는 로그인 상태인 동안(마운트~언마운트) 그 생명주기를 관리하는 역할 — 마운트 시
+  // start()(멱등)로 폴링을 켜고, 로그아웃으로 언마운트되면 stop()으로 정리한다.
+  const notifications = useNotificationStore((s) => s.notifications);
+  const startNotifications = useNotificationStore((s) => s.start);
+  const stopNotifications = useNotificationStore((s) => s.stop);
+  const markOneRead = useNotificationStore((s) => s.markOneRead);
+  const markAllRead = useNotificationStore((s) => s.markAllRead);
+
+  useEffect(() => {
+    startNotifications();
+    return () => stopNotifications();
+  }, [startNotifications, stopNotifications]);
+
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   return (
     <div className="relative flex items-center gap-4">

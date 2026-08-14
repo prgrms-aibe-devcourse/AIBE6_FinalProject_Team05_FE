@@ -1,13 +1,27 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { useNotifications } from "@/hooks/useNotifications";
+import { useNotificationStore } from "@/store/useNotificationStore";
 import { notifStyle, formatNotifTime } from "@/lib/notificationDisplay";
 
 export default function NotificationsPage() {
   const authStatus = useRequireAuth();
-  const { notifications, unreadCount, loadState, errorMessage, markOneRead, markAllRead } =
-    useNotifications(authStatus === "authenticated");
+  const notifications = useNotificationStore((s) => s.notifications);
+  const loadState = useNotificationStore((s) => s.loadState);
+  const errorMessage = useNotificationStore((s) => s.errorMessage);
+  const start = useNotificationStore((s) => s.start);
+  const markOneRead = useNotificationStore((s) => s.markOneRead);
+  const markAllRead = useNotificationStore((s) => s.markAllRead);
+
+  // Header가 이미 폴링을 시작했을 것이므로 대부분 no-op이지만, 직접 진입 등 마운트 순서를
+  // 보장할 수 없는 경우를 대비한 방어 호출 — start()는 멱등이라 중복 호출해도 안전하다.
+  // 이 페이지는 소비만 하고 stop()은 호출하지 않는다(생명주기는 Header 전담).
+  useEffect(() => {
+    if (authStatus === "authenticated") start();
+  }, [authStatus, start]);
+
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   if (authStatus !== "authenticated") return null;
 
