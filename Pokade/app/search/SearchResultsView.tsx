@@ -40,7 +40,7 @@ interface SearchResultsViewProps {
   setSelectedTypes: Dispatch<SetStateAction<string[]>>;
   selectedRarities: string[];
   setSelectedRarities: Dispatch<SetStateAction<string[]>>;
-  setOptions: { label: string; expansionId: string }[];
+  setOptions: { label: string; expansionId: string; series: string }[];
   typeOptions: string[];
   rarityOptions: string[];
   facetsLoading: boolean;
@@ -199,6 +199,69 @@ export default function SearchResultsView({
       ? [selectedSetOption, ...matchedSetOptions]
       : matchedSetOptions;
 
+  // 검색어가 없을 때는 이름 모르는 사용자도 탐색할 수 있도록 series 기준 아코디언으로
+  // 묶어서 보여준다 — BE가 이미 series 그룹 최신순 → 그룹 내부 이름순으로 정렬해 내려주므로
+  // 여기서는 순서를 재정렬하지 않고 Map 삽입 순서(=setOptions 순서)만 그대로 유지한다.
+  const showSeriesGroups = setSearchQuery.trim() === "";
+  const seriesGroups = new Map<string, typeof setOptions>();
+  if (showSeriesGroups) {
+    for (const opt of setOptions) {
+      const group = seriesGroups.get(opt.series);
+      if (group) group.push(opt);
+      else seriesGroups.set(opt.series, [opt]);
+    }
+  }
+
+  // 펼쳐진 시리즈 그룹 — 선택된 세트가 속한 그룹은 "그룹 아코디언 뷰에 처음 진입하는
+  // 시점"(최초 마운트 또는 검색→빈 검색어 전환)에만 강제로 펼치고, 그 이후에는 사용자가
+  // 자유롭게 접고 펼 수 있게 둔다(강제로 계속 펼쳐두면 토글 자체가 막힌 것처럼 보인다).
+  const [expandedSeries, setExpandedSeries] = useState<Set<string>>(
+    () => new Set(selectedSetOption ? [selectedSetOption.series] : []),
+  );
+  const [prevShowSeriesGroups, setPrevShowSeriesGroups] = useState(showSeriesGroups);
+  if (showSeriesGroups && !prevShowSeriesGroups) {
+    setPrevShowSeriesGroups(true);
+    if (selectedSetOption && !expandedSeries.has(selectedSetOption.series)) {
+      const next = new Set(expandedSeries);
+      next.add(selectedSetOption.series);
+      setExpandedSeries(next);
+    }
+  } else if (!showSeriesGroups && prevShowSeriesGroups) {
+    setPrevShowSeriesGroups(false);
+  }
+
+  const toggleSeries = (series: string) => {
+    const next = new Set(expandedSeries);
+    if (next.has(series)) next.delete(series);
+    else next.add(series);
+    setExpandedSeries(next);
+  };
+
+  // 아코디언(그룹) 뷰와 검색 중 플랫 뷰가 세트 라디오 한 줄 렌더링을 그대로 공유한다.
+  const renderSetOption = (opt: (typeof setOptions)[number]) => (
+    <label
+      key={opt.expansionId}
+      className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
+    >
+      <input
+        type="radio"
+        name="expansion-filter"
+        checked={selectedExpansionId === opt.expansionId}
+        onClick={() => {
+          if (selectedExpansionId === opt.expansionId) {
+            setLoadState("loading");
+            setSelectedExpansionId(null);
+          }
+        }}
+        onChange={() => {
+          setLoadState("loading");
+          setSelectedExpansionId(opt.expansionId);
+        }}
+      />
+      {opt.label}
+    </label>
+  );
+
   return (
     <div
       className={`grid items-start gap-6 ${q ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-[250px_1fr]"}`}
@@ -271,35 +334,44 @@ export default function SearchResultsView({
                 className="w-full border-none bg-transparent p-0 text-[13px] text-ink outline-none placeholder:text-[#9A9AA2]"
               />
             </label>
-            <div className="mb-5 flex max-h-[260px] flex-col gap-[9px] overflow-y-auto">
+            <div className="mb-5 flex max-h-[260px] flex-col gap-1 overflow-y-auto">
               {facetsLoading ? (
                 <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
+              ) : showSeriesGroups ? (
+                [...seriesGroups.entries()].map(([series, options], i) => {
+                  const isExpanded = expandedSeries.has(series);
+                  const panelId = `set-series-panel-${i}`;
+                  return (
+                    <div key={series}>
+                      <button
+                        type="button"
+                        onClick={() => toggleSeries(series)}
+                        aria-expanded={isExpanded}
+                        aria-controls={panelId}
+                        className="flex w-full items-center justify-between rounded-md px-1 py-1.5 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F2F2F5]"
+                      >
+                        <span>{series}</span>
+                        <span
+                          aria-hidden="true"
+                          className={`text-[10px] text-[#9A9AA2] transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                        >
+                          ▸
+                        </span>
+                      </button>
+                      {isExpanded && (
+                        <div id={panelId} className="flex flex-col gap-[9px] py-1 pl-3">
+                          {options.map(renderSetOption)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
               ) : displayedSetOptions.length === 0 ? (
                 <span className="text-[12.5px] text-[#9A9AA2]">일치하는 세트가 없어요.</span>
               ) : (
-                displayedSetOptions.map((opt) => (
-                  <label
-                    key={opt.expansionId}
-                    className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
-                  >
-                    <input
-                      type="radio"
-                      name="expansion-filter"
-                      checked={selectedExpansionId === opt.expansionId}
-                      onClick={() => {
-                        if (selectedExpansionId === opt.expansionId) {
-                          setLoadState("loading");
-                          setSelectedExpansionId(null);
-                        }
-                      }}
-                      onChange={() => {
-                        setLoadState("loading");
-                        setSelectedExpansionId(opt.expansionId);
-                      }}
-                    />
-                    {opt.label}
-                  </label>
-                ))
+                <div className="flex flex-col gap-[9px]">
+                  {displayedSetOptions.map(renderSetOption)}
+                </div>
               )}
             </div>
             <div className="mb-[18px] h-px bg-[#F0F0F0]" />
