@@ -307,7 +307,13 @@ function SearchDashboard() {
 
   // 기존 SET_OPTIONS과 같은 모양({label, expansionId})으로 맞춰서, 이 값을 쓰는
   // SearchResultsView 쪽 JSX(옵션 렌더링/칩 라벨 조회)를 그대로 재사용한다.
-  const setOptions = facets.expansions.map((e) => ({ label: e.name, expansionId: e.id }));
+  // series는 BE가 null이면 "기타"로 고정해서 내려주지만, 위쪽 safeData 보정과 같은 이유로
+  // 한 번 더 방어해둔다.
+  const setOptions = facets.expansions.map((e) => ({
+    label: e.name,
+    expansionId: e.id,
+    series: e.series ?? "기타",
+  }));
 
   return (
     <main className="main-content bg-neutral px-4 pb-14 pt-8 sm:px-10">
