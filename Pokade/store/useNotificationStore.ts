@@ -115,7 +115,21 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
       onmessage(ev) {
         if (myGeneration !== generation) return;
         if (ev.event !== "notification") return; // connect 이벤트/하트비트는 무시
-        const payload = JSON.parse(ev.data) as NotificationResponse;
+
+        // 파싱/필드 검증 실패가 fetchEventSource로 전파되면 정상 연결인데도 에러로 취급돼
+        // 불필요한 재연결/폴백을 유발한다 — 여기서 끝까지 흡수하고 해당 이벤트만 무시한다.
+        let payload: NotificationResponse;
+        try {
+          payload = JSON.parse(ev.data) as NotificationResponse;
+        } catch (err) {
+          console.error("[SSE] 알림 이벤트 파싱 실패:", err, ev.data);
+          return;
+        }
+        if (typeof payload?.id !== "number") {
+          console.error("[SSE] 알림 이벤트에 유효한 id가 없음:", ev.data);
+          return;
+        }
+
         set((state) => {
           if (state.notifications.some((n) => n.id === payload.id)) return state; // 중복 수신 방지
           return { notifications: [payload, ...state.notifications], loadState: "ready" };
