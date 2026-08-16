@@ -186,6 +186,19 @@ export default function SearchResultsView({
     setMaxInputText(String(priceMax));
   }
 
+  // 세트 목록(1000개+)이 너무 많아 이름으로 좁혀 찾기 위한 검색어 — 네트워크 호출 없이
+  // 메모리에 있는 배열을 그냥 필터링하는 것뿐이라 debounce 없이 즉시 반영한다.
+  const [setSearchQuery, setSetSearchQuery] = useState("");
+  const matchedSetOptions = setOptions.filter((opt) =>
+    opt.label.toLowerCase().includes(setSearchQuery.trim().toLowerCase()),
+  );
+  // 검색어에 걸리지 않아도 이미 선택된 세트는 "내가 뭘 골랐었지" 헷갈리지 않도록 맨 위에 고정.
+  const selectedSetOption = setOptions.find((o) => o.expansionId === selectedExpansionId);
+  const displayedSetOptions =
+    selectedSetOption && !matchedSetOptions.some((o) => o.expansionId === selectedExpansionId)
+      ? [selectedSetOption, ...matchedSetOptions]
+      : matchedSetOptions;
+
   return (
     <div
       className={`grid items-start gap-6 ${q ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-[250px_1fr]"}`}
@@ -244,11 +257,27 @@ export default function SearchResultsView({
               </button>
             </div>
             <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">세트</div>
-            <div className="mb-5 flex flex-col gap-[9px]">
+            <label
+              htmlFor="set-search-input"
+              className="mb-2 flex items-center gap-1.5 rounded-[9px] border border-[#DDDDE3] px-2.5 py-2 focus-within:border-primary"
+            >
+              <input
+                id="set-search-input"
+                type="text"
+                value={setSearchQuery}
+                onChange={(e) => setSetSearchQuery(e.target.value)}
+                placeholder="세트 이름으로 검색"
+                aria-label="세트 이름으로 검색"
+                className="w-full border-none bg-transparent p-0 text-[13px] text-ink outline-none placeholder:text-[#9A9AA2]"
+              />
+            </label>
+            <div className="mb-5 flex max-h-[260px] flex-col gap-[9px] overflow-y-auto">
               {facetsLoading ? (
                 <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
+              ) : displayedSetOptions.length === 0 ? (
+                <span className="text-[12.5px] text-[#9A9AA2]">일치하는 세트가 없어요.</span>
               ) : (
-                setOptions.map((opt) => (
+                displayedSetOptions.map((opt) => (
                   <label
                     key={opt.expansionId}
                     className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
