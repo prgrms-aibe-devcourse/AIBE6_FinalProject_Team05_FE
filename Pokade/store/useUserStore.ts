@@ -18,12 +18,10 @@ interface UserState {
   nickname: string | null;
   email: string | null;
   role: "user" | "admin" | null;
-  unreadNotifications: number;
   login: (email: string, password: string) => Promise<void>;
   loginWithToken: (accessToken: string) => Promise<void>;
   logout: () => Promise<void>;
   restoreSession: (force?: boolean) => Promise<boolean>;
-  markAllNotificationsRead: () => void;
   setNickname: (nickname: string) => void;
 }
 
@@ -46,7 +44,6 @@ export const useUserStore = create<UserState>((set, get) => ({
   nickname: null,
   email: null,
   role: null,
-  unreadNotifications: 3,
 
   // 이미 발급된 accessToken으로 세션 확정: 토큰 저장 → 프로필 조회 → 상태 세팅 (소셜 가입·로그인 공용)
   loginWithToken: async (accessToken) => {
@@ -194,6 +191,5 @@ export const useUserStore = create<UserState>((set, get) => ({
     }
   },
 
-  markAllNotificationsRead: () => set({ unreadNotifications: 0 }),
   setNickname: (nickname) => set({ nickname }),
 }));

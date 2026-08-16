@@ -29,10 +29,11 @@ export interface CardSearchItem {
 }
 
 // GET /api/cards/facets 응답 — 검색 필터(세트/타입/레어도) 체크박스가 쓰는 옵션 목록.
+// expansions는 series 그룹 최신순 → 그룹 내부 이름순으로 이미 정렬돼 내려온다(FE 재정렬 금지).
 export interface CardFacetsResponse {
   types: string[];
   rarities: string[];
-  expansions: { id: string; name: string }[];
+  expansions: { id: string; name: string; series: string }[];
 }
 
 export function toCardSearchItem(card: CardResponse): CardSearchItem {
