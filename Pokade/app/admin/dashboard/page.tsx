@@ -34,6 +34,12 @@ const SERIES_COLORS: Record<string, string> = {
 // com.pokade.domain.admin.metrics.AdminMetricsPeriod와 짝 맞춤 (10m→1시간, 1h→6시간, 1d→7일 조회).
 const PERIODS: AdminMetricsPeriod[] = ["10m", "1h", "1d"];
 
+const GROUP_TITLES: Record<string, string> = {
+  activity: "이용 현황",
+  errorRate: "HTTP 5xx 에러율 추이",
+  latency: "평균 응답 지연 추이",
+};
+
 function formatSeriesValue(value: number, unit: string): string {
   if (unit === "%") return `${value.toFixed(2)}%`;
   return `${Math.round(value).toLocaleString("ko-KR")}${unit}`;
@@ -184,6 +190,9 @@ export default function AdminDashboardPage() {
 
             {seriesGroups.map(({ group, series, combined }) => (
               <div key={group} className="mt-3 rounded-2xl border border-[#EDEDF0] bg-white p-6">
+                <h2 className="mb-3 text-[15px] font-extrabold">
+                  {GROUP_TITLES[group] ?? series[0]?.label}
+                </h2>
                 {combined.points.length === 0 ? (
                   <div className="flex h-[300px] items-center justify-center text-[13.5px] text-[#9A9AA2]">
                     아직 데이터가 없습니다.
