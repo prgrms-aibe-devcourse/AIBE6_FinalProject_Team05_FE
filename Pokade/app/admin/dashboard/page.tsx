@@ -1,14 +1,91 @@
-import AdminSidebar from "@/components/AdminSidebar";
+"use client";
 
-// TODO: 지금은 전부 목업 값 — 실제 지표는 Grafana 패널 임베드로 연결 예정.
-const STATS: { label: string; value: string; sub?: string }[] = [
-  { label: "누적 방문자 수", value: "128,540명" },
-  { label: "오늘 방문자 수", value: "1,204명", sub: "+12.4%" },
-  { label: "오늘 거래량", value: "87건" },
-  { label: "누적 거래액", value: "₩1,204,500,000" },
-];
+import { useEffect, useMemo, useState } from "react";
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import AdminSidebar from "@/components/AdminSidebar";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { ApiError } from "@/lib/apiClient";
+import { fetchAdminDashboard } from "@/lib/adminApi";
+import { AdminDashboardResponse, AdminMetricSeriesResponse } from "@/types/adminMetrics";
+
+type LoadState = "loading" | "error" | "ready";
+
+const SERIES_COLORS: Record<string, string> = {
+  visits: "#FFCB05",
+  aiGrade: "#3B4CCA",
+  tradesConfirmed: "#16A34A",
+};
+
+function formatCardValue(value: number | null, unit: string): string {
+  if (value === null) return "데이터 없음";
+  if (unit === "%") return `${value.toFixed(2)}%`;
+  if (unit === "ms") return `${Math.round(value).toLocaleString("ko-KR")}ms`;
+  return `${Math.round(value).toLocaleString("ko-KR")}${unit}`;
+}
+
+function formatAxisTime(epochSeconds: number) {
+  const d = new Date(epochSeconds * 1000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// 시리즈별로 따로 오는 응답을 epochSeconds 기준 한 행으로 합쳐, 한 차트에 여러 Line을 겹쳐 그린다
+// (PriceChart.tsx가 등급별 응답을 날짜 기준으로 합치는 것과 같은 패턴).
+function buildCombinedSeries(series: AdminMetricSeriesResponse[]) {
+  const byTime = new Map<number, { epochSeconds: number; [key: string]: number }>();
+  for (const s of series) {
+    for (const p of s.points) {
+      const row = byTime.get(p.epochSeconds) ?? { epochSeconds: p.epochSeconds };
+      row[s.key] = p.value;
+      byTime.set(p.epochSeconds, row);
+    }
+  }
+  const points = Array.from(byTime.values()).sort((a, b) => a.epochSeconds - b.epochSeconds);
+  const unitByKey = new Map(series.map((s) => [s.key, s.unit]));
+  const labelByKey = new Map(series.map((s) => [s.key, s.label]));
+  return { points, unitByKey, labelByKey };
+}
 
 export default function AdminDashboardPage() {
+  useRequireAuth();
+  const [loadState, setLoadState] = useState<LoadState>("loading");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [dashboard, setDashboard] = useState<AdminDashboardResponse | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAdminDashboard()
+      .then((data) => {
+        if (cancelled) return;
+        setDashboard(data);
+        setLoadState("ready");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setErrorMessage(
+          err instanceof ApiError ? err.message : "지표를 불러오지 못했습니다.",
+        );
+        setLoadState("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const combined = useMemo(
+    () => (dashboard ? buildCombinedSeries(dashboard.series) : null),
+    [dashboard],
+  );
+
   return (
     <main className="main-content flex bg-neutral">
       <AdminSidebar />
@@ -16,29 +93,95 @@ export default function AdminDashboardPage() {
       <div className="min-w-0 flex-1 px-9 py-8">
         <h1 className="mb-1 mt-0 text-2xl font-extrabold tracking-[-0.5px]">운영 현황 대시보드</h1>
         <p className="mb-[22px] text-[13.5px] text-[#8A8A92]">
-          Grafana 지표를 기반으로 서비스 운영 현황을 확인합니다
+          서비스에 계측된 지표로 운영 현황을 확인합니다
         </p>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {STATS.map((s) => (
-            <div key={s.label} className="rounded-2xl border border-[#EDEDF0] bg-white p-6">
-              <div className="text-[13px] font-semibold text-[#8A8A92]">{s.label}</div>
-              <div className="mt-2 text-[26px] font-extrabold tracking-[-0.5px]">{s.value}</div>
-              {s.sub && (
-                <div className="mt-1 text-[12.5px] font-bold text-primary">{s.sub}</div>
+        {loadState === "loading" && (
+          <div className="flex h-[200px] items-center justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-[#E7E7EB] border-t-primary" />
+          </div>
+        )}
+
+        {loadState === "error" && (
+          <div className="rounded-2xl border border-[#F6C6C6] bg-[#FFF1F1] px-5 py-4 text-[13.5px] font-semibold text-[#C21414]">
+            {errorMessage}
+          </div>
+        )}
+
+        {loadState === "ready" && dashboard && combined && (
+          <>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {dashboard.cards.map((card) => (
+                <div key={card.key} className="rounded-2xl border border-[#EDEDF0] bg-white p-6">
+                  <div className="text-[13px] font-semibold text-[#8A8A92]">{card.label}</div>
+                  <div className="mt-2 text-[26px] font-extrabold tracking-[-0.5px]">
+                    {formatCardValue(card.value, card.unit)}
+                  </div>
+                  {card.subLabel && card.subValue !== null && (
+                    <div className="mt-1 text-[12.5px] font-bold text-primary">
+                      {card.subLabel} +{Math.round(card.subValue).toLocaleString("ko-KR")}
+                      {card.unit}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-[#EDEDF0] bg-white p-6">
+              <h2 className="mb-3 text-[15px] font-extrabold">최근 24시간 이용 현황</h2>
+              {combined.points.length === 0 ? (
+                <div className="flex h-[300px] items-center justify-center text-[13.5px] text-[#9A9AA2]">
+                  아직 데이터가 없습니다.
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={combined.points} margin={{ top: 8, right: 16, left: 4, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#EDEDF0" />
+                    <XAxis
+                      dataKey="epochSeconds"
+                      tickFormatter={formatAxisTime}
+                      tick={{ fontSize: 10.5, fill: "#8A8A92" }}
+                      axisLine={{ stroke: "#EDEDF0" }}
+                      tickLine={false}
+                      minTickGap={24}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 10.5, fill: "#8A8A92" }}
+                      axisLine={{ stroke: "#EDEDF0" }}
+                      tickLine={false}
+                      width={48}
+                      allowDecimals={false}
+                    />
+                    <Tooltip
+                      labelFormatter={(label) => formatAxisTime(Number(label))}
+                      formatter={(value, name) => [
+                        `${Math.round(Number(value)).toLocaleString("ko-KR")}${combined.unitByKey.get(String(name)) ?? ""}`,
+                        combined.labelByKey.get(String(name)) ?? String(name),
+                      ]}
+                      contentStyle={{ borderRadius: 12, border: "1px solid #EDEDF0", fontSize: 12.5 }}
+                    />
+                    <Legend
+                      formatter={(value: string) => combined.labelByKey.get(value) ?? value}
+                      wrapperStyle={{ fontSize: 12, fontWeight: 700 }}
+                    />
+                    {dashboard.series.map((s) => (
+                      <Line
+                        key={s.key}
+                        type="monotone"
+                        dataKey={s.key}
+                        name={s.key}
+                        stroke={SERIES_COLORS[s.key] ?? "#8A8A92"}
+                        strokeWidth={2}
+                        dot={false}
+                        connectNulls
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
               )}
             </div>
-          ))}
-        </div>
-
-        {/* Grafana 패널 임베드 자리 — 실제 연동 전까지는 안내 문구만 표시 */}
-        <div className="mt-5 flex min-h-[380px] flex-col items-center justify-center rounded-2xl border border-dashed border-[#DDDDE3] bg-white text-center">
-          <div className="text-sm font-bold text-[#4B4B52]">Grafana 대시보드 연동 예정</div>
-          <p className="mx-auto mt-2 max-w-[420px] text-[12.5px] leading-relaxed text-[#9A9AA2]">
-            누적 방문자 수, 일일 거래량 등 상세 지표는 이 영역에 Grafana 패널을 임베드해서
-            보여줄 예정입니다.
-          </p>
-        </div>
+          </>
+        )}
       </div>
     </main>
   );
