@@ -7,10 +7,11 @@ import CardImage from "@/components/CardImage";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useUserStore } from "@/store/useUserStore";
 import { ApiError } from "@/lib/apiClient";
-import { cancelTrade, confirmTrade, fetchTrade } from "@/lib/tradeApi";
+import { cancelTrade, confirmTrade, fetchTrade, shipTrade } from "@/lib/tradeApi";
 import { parseTradeId, TradeResponse } from "@/types/trade";
 
-const CANCELLABLE = new Set(["PENDING", "MATCHED"]);
+// COMPLETED/CANCELLED(종결 상태)를 제외한 나머지는 전부 취소 가능 — BE의 cancel() 가드와 동일하게.
+const CANCELLABLE = new Set(["PENDING", "SHIPPED_TO_PLATFORM", "INSPECTED", "DELIVERED"]);
 
 // "yyyy-MM-ddTHH:mm:ss" → "YYYY.MM.DD HH:mm" (app/cards/[id]/page.tsx의 formatTradedAt과 동일 규칙).
 function formatDateTime(iso: string) {
@@ -58,6 +59,20 @@ export default function TradeStatusPage() {
       cancelled = true;
     };
   }, [userStatus, tradeId]);
+
+  const handleShip = async () => {
+    if (!trade) return;
+    setActionSubmitting(true);
+    setActionError(null);
+    try {
+      const updated = await shipTrade(trade.id);
+      setTrade(updated);
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : "발송 처리에 실패했습니다.");
+    } finally {
+      setActionSubmitting(false);
+    }
+  };
 
   const handleConfirm = async () => {
     if (!trade) return;
@@ -108,6 +123,7 @@ export default function TradeStatusPage() {
   }
 
   const isBuyer = trade != null && userId != null && trade.buyerId === userId;
+  const isSeller = trade != null && userId != null && trade.sellerId === userId;
   const cancellable = trade != null && CANCELLABLE.has(trade.status);
 
   return (
@@ -152,10 +168,27 @@ export default function TradeStatusPage() {
                 취소된 거래입니다.
               </div>
             )}
-            {(trade.status === "PENDING" || trade.status === "MATCHED") && (
+            {trade.status === "PENDING" && (
+              <div className="rounded-2xl border border-[#F5E4A8] bg-[#FFF9E6] px-5 py-4 text-[13.5px] font-semibold text-[#8A6A00]">
+                {isSeller
+                  ? "구매가 접수되었습니다. 플랫폼으로 발송해 주세요."
+                  : "판매자의 발송을 기다리는 중입니다."}
+              </div>
+            )}
+            {trade.status === "SHIPPED_TO_PLATFORM" && (
+              <div className="rounded-2xl border border-[#F5E4A8] bg-[#FFF9E6] px-5 py-4 text-[13.5px] font-semibold text-[#8A6A00]">
+                플랫폼에서 매물을 검수 중입니다.
+              </div>
+            )}
+            {trade.status === "INSPECTED" && (
+              <div className="rounded-2xl border border-[#F5E4A8] bg-[#FFF9E6] px-5 py-4 text-[13.5px] font-semibold text-[#8A6A00]">
+                검수가 완료되어 배송 준비 중입니다.
+              </div>
+            )}
+            {trade.status === "DELIVERED" && (
               <div className="rounded-2xl border border-[#F5E4A8] bg-[#FFF9E6] px-5 py-4 text-[13.5px] font-semibold text-[#8A6A00]">
                 {isBuyer
-                  ? "구매가 접수되었습니다. 수령 후 구매를 확정해 주세요."
+                  ? "배송이 완료되었습니다. 수령 후 구매를 확정해 주세요."
                   : "구매자의 확정을 기다리는 중입니다."}
               </div>
             )}
@@ -189,6 +222,24 @@ export default function TradeStatusPage() {
                   <span className="text-[#8A8A92]">거래 요청일</span>
                   <span className="font-bold">{formatDateTime(trade.createdAt)}</span>
                 </div>
+                {trade.shippedAt && (
+                  <div className="flex justify-between">
+                    <span className="text-[#8A8A92]">발송일</span>
+                    <span className="font-bold">{formatDateTime(trade.shippedAt)}</span>
+                  </div>
+                )}
+                {trade.inspectedAt && (
+                  <div className="flex justify-between">
+                    <span className="text-[#8A8A92]">검수완료일</span>
+                    <span className="font-bold">{formatDateTime(trade.inspectedAt)}</span>
+                  </div>
+                )}
+                {trade.deliveredAt && (
+                  <div className="flex justify-between">
+                    <span className="text-[#8A8A92]">배송완료일</span>
+                    <span className="font-bold">{formatDateTime(trade.deliveredAt)}</span>
+                  </div>
+                )}
                 {trade.confirmedAt && (
                   <div className="flex justify-between">
                     <span className="text-[#8A8A92]">확정일</span>
@@ -206,7 +257,17 @@ export default function TradeStatusPage() {
 
             {cancellable && (
               <div className="flex flex-col gap-[11px]">
-                {isBuyer && (
+                {isSeller && trade.status === "PENDING" && (
+                  <button
+                    type="button"
+                    disabled={actionSubmitting}
+                    onClick={handleShip}
+                    className="w-full rounded-xl border-2 border-primary-dark bg-primary py-[15px] text-[15.5px] font-bold text-white shadow-tactile transition active:translate-y-0.5 active:shadow-tactile-active disabled:opacity-60"
+                  >
+                    {actionSubmitting ? "처리 중..." : "발송하기"}
+                  </button>
+                )}
+                {isBuyer && trade.status === "DELIVERED" && (
                   <button
                     type="button"
                     disabled={actionSubmitting}
