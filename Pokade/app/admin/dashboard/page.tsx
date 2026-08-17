@@ -15,7 +15,11 @@ import AdminSidebar from "@/components/AdminSidebar";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
 import { fetchAdminDashboard } from "@/lib/adminApi";
-import { AdminDashboardResponse, AdminMetricSeriesResponse } from "@/types/adminMetrics";
+import {
+  AdminDashboardResponse,
+  AdminMetricsPeriod,
+  AdminMetricSeriesResponse,
+} from "@/types/adminMetrics";
 
 type LoadState = "loading" | "error" | "ready";
 
@@ -28,10 +32,17 @@ const SERIES_COLORS: Record<string, string> = {
 };
 
 const GROUP_TITLES: Record<string, string> = {
-  activity: "최근 24시간 이용 현황",
-  errorRate: "최근 24시간 HTTP 5xx 에러율 추이",
-  latency: "최근 24시간 평균 응답 지연 추이",
+  activity: "이용 현황",
+  errorRate: "HTTP 5xx 에러율 추이",
+  latency: "평균 응답 지연 추이",
 };
+
+// com.pokade.domain.admin.metrics.AdminMetricsPeriod의 lookbackHours와 맞춰 표시용 문구를 둔다.
+const PERIODS: { value: AdminMetricsPeriod; label: string; rangeLabel: string }[] = [
+  { value: "10m", label: "10분", rangeLabel: "최근 3시간" },
+  { value: "1h", label: "1시간", rangeLabel: "최근 24시간" },
+  { value: "1d", label: "1일", rangeLabel: "최근 14일" },
+];
 
 function formatSeriesValue(value: number, unit: string): string {
   if (unit === "%") return `${value.toFixed(2)}%`;
@@ -45,8 +56,10 @@ function formatCardValue(value: number | null, unit: string): string {
   return `${Math.round(value).toLocaleString("ko-KR")}${unit}`;
 }
 
-function formatAxisTime(epochSeconds: number) {
+// 1일 단위는 시:분이 다 자정 근처라 의미가 없으므로 날짜(MM/DD)로, 나머지는 시:분으로 보여준다.
+function formatAxisTick(epochSeconds: number, period: AdminMetricsPeriod) {
   const d = new Date(epochSeconds * 1000);
+  if (period === "1d") return `${d.getMonth() + 1}/${d.getDate()}`;
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
@@ -81,13 +94,17 @@ function groupSeries(series: AdminMetricSeriesResponse[]) {
 
 export default function AdminDashboardPage() {
   useRequireAuth();
+  const [period, setPeriod] = useState<AdminMetricsPeriod>("1h");
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [dashboard, setDashboard] = useState<AdminDashboardResponse | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetchAdminDashboard()
+    // period 버튼을 바꿀 때마다 재조회 스피너를 다시 보여주기 위해 필요 — 의도적으로 유지.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoadState("loading");
+    fetchAdminDashboard(period)
       .then((data) => {
         if (cancelled) return;
         setDashboard(data);
@@ -103,7 +120,7 @@ export default function AdminDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [period]);
 
   const seriesGroups = useMemo(
     () =>
@@ -158,9 +175,27 @@ export default function AdminDashboardPage() {
               ))}
             </div>
 
+            <div className="mt-5 flex gap-1.5">
+              {PERIODS.map((p) => (
+                <button
+                  key={p.value}
+                  type="button"
+                  onClick={() => setPeriod(p.value)}
+                  className={`rounded-full px-3.5 py-1.5 text-[12.5px] font-bold transition ${
+                    period === p.value
+                      ? "bg-primary text-white"
+                      : "bg-white text-[#8A8A92] hover:text-primary"
+                  } border border-[#EDEDF0]`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
             {seriesGroups.map(({ group, series, combined }) => (
-              <div key={group} className="mt-5 rounded-2xl border border-[#EDEDF0] bg-white p-6">
+              <div key={group} className="mt-3 rounded-2xl border border-[#EDEDF0] bg-white p-6">
                 <h2 className="mb-3 text-[15px] font-extrabold">
+                  {PERIODS.find((p) => p.value === period)?.rangeLabel}{" "}
                   {GROUP_TITLES[group] ?? series[0]?.label}
                 </h2>
                 {combined.points.length === 0 ? (
@@ -173,7 +208,7 @@ export default function AdminDashboardPage() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#EDEDF0" />
                       <XAxis
                         dataKey="epochSeconds"
-                        tickFormatter={formatAxisTime}
+                        tickFormatter={(v) => formatAxisTick(v, period)}
                         tick={{ fontSize: 10.5, fill: "#8A8A92" }}
                         axisLine={{ stroke: "#EDEDF0" }}
                         tickLine={false}
@@ -187,7 +222,7 @@ export default function AdminDashboardPage() {
                         allowDecimals={false}
                       />
                       <Tooltip
-                        labelFormatter={(label) => formatAxisTime(Number(label))}
+                        labelFormatter={(label) => formatAxisTick(Number(label), period)}
                         formatter={(value, name) => [
                           formatSeriesValue(Number(value), combined.unitByKey.get(String(name)) ?? ""),
                           combined.labelByKey.get(String(name)) ?? String(name),
