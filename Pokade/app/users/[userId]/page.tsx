@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { getPublicProfile } from "@/lib/profileApi";
 import { ApiError } from "@/lib/apiClient";
@@ -21,6 +21,8 @@ export default function PublicProfilePage() {
   const params = useParams<{ userId: string }>();
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("loading");
+  // 가장 마지막으로 요청한 userId — 응답이 도착했을 때 아직 유효한 요청인지 판별한다.
+  const requestedIdRef = useRef<number | null>(null);
 
   const load = useCallback(async () => {
     const parsed = Number(params.userId);
@@ -29,11 +31,17 @@ export default function PublicProfilePage() {
       setLoadState("notfound");
       return;
     }
+    // 경로가 바뀌면 이전 요청의 늦은 응답을 버린다 — 안 그러면 /users/1 의 응답이
+    // /users/2 화면에 1번 사용자를 그려넣을 수 있다.
+    requestedIdRef.current = parsed;
     setLoadState("loading");
     try {
-      setProfile(await getPublicProfile(parsed));
+      const fetched = await getPublicProfile(parsed);
+      if (requestedIdRef.current !== parsed) return;
+      setProfile(fetched);
       setLoadState("ready");
     } catch (e) {
+      if (requestedIdRef.current !== parsed) return;
       setLoadState(e instanceof ApiError && e.status === 404 ? "notfound" : "error");
     }
   }, [params.userId]);
