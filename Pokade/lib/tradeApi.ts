@@ -11,6 +11,11 @@ export async function fetchTrade(tradeId: number): Promise<TradeResponse> {
   return apiGet<TradeResponse>(`/api/trades/${tradeId}`);
 }
 
+// PATCH /api/trades/{id}/ship — 판매자가 플랫폼으로 발송 처리(판매자만 가능).
+export async function shipTrade(tradeId: number): Promise<TradeResponse> {
+  return apiPatch<TradeResponse>(`/api/trades/${tradeId}/ship`);
+}
+
 // PATCH /api/trades/{id}/confirm — 거래 확정(구매자만 가능).
 export async function confirmTrade(tradeId: number): Promise<TradeResponse> {
   return apiPatch<TradeResponse>(`/api/trades/${tradeId}/confirm`);
