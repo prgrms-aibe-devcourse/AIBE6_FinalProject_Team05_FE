@@ -1,5 +1,11 @@
 // com.pokade.domain.trade.entity.TradeStatus 미러링.
-export type TradeStatus = "PENDING" | "MATCHED" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
+export type TradeStatus =
+  | "PENDING"
+  | "SHIPPED_TO_PLATFORM"
+  | "INSPECTED"
+  | "DELIVERED"
+  | "COMPLETED"
+  | "CANCELLED";
 
 // POST /api/trades 요청 바디 — com.pokade.domain.trade.dto.TradeCreateRequest 미러링.
 export interface TradeCreateRequest {
@@ -19,6 +25,8 @@ export interface TradeResponse {
   price: number;
   status: TradeStatus;
   shippedAt: string | null;
+  inspectedAt: string | null;
+  deliveredAt: string | null;
   confirmedAt: string | null;
   settledAt: string | null;
   createdAt: string;

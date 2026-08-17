@@ -13,8 +13,10 @@ import {
   getRecentSearches,
   removeRecentSearch,
 } from "@/lib/recentSearches";
+import { notifStyle, formatNotifTime } from "@/lib/notificationDisplay";
 import { CardResponse } from "@/types/card";
 import { useUserStore } from "@/store/useUserStore";
+import { useNotificationStore } from "@/store/useNotificationStore";
 
 // 자동완성 API 호출 최소 글자 수 — 1글자는 노이즈가 많아 2글자부터 호출한다.
 const MIN_QUERY_LENGTH = 2;
@@ -399,81 +401,6 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
   );
 }
 
-type Notif = {
-  tint: string;
-  icon: React.ReactNode;
-  unread: boolean;
-  text: string;
-  sub: string;
-  time: string;
-};
-
-const NOTIFS: Notif[] = [
-  {
-    tint: "#FFF6DA",
-    icon: (
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#B8860B" strokeWidth="2">
-        <circle cx="12" cy="12" r="8" />
-        <circle cx="12" cy="12" r="3" />
-      </svg>
-    ),
-    unread: true,
-    text: "워치리스트 목표가 도달",
-    sub: "리자몽 ex · ₩150,000 도달",
-    time: "3분 전",
-  },
-  {
-    tint: "#EEF0FA",
-    icon: (
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#3B4CCA" strokeWidth="2">
-        <path d="M3 8l9-5 9 5v8l-9 5-9-5z" />
-        <path d="M3 8l9 5 9-5" />
-      </svg>
-    ),
-    unread: true,
-    text: "거래 상태 변경 · 검수 완료",
-    sub: "TX-20260720-4471",
-    time: "1시간 전",
-  },
-  {
-    tint: "#FDEDED",
-    icon: (
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#EE1515" strokeWidth="2">
-        <path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" />
-      </svg>
-    ),
-    unread: true,
-    text: "AI 진단 완료",
-    sub: "뮤츠 ex · 예상 등급 S",
-    time: "3시간 전",
-  },
-  {
-    tint: "#EEF0F2",
-    icon: (
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2">
-        <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-      </svg>
-    ),
-    unread: false,
-    text: "신규 메시지 도착",
-    sub: "불꽃컬렉터: 발송 완료했습니다",
-    time: "어제",
-  },
-  {
-    tint: "#E8F7EF",
-    icon: (
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2">
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 7v10M9 10h4.5a1.5 1.5 0 010 3H9" />
-      </svg>
-    ),
-    unread: false,
-    text: "포인트 충전 완료",
-    sub: "진단권 +30회 적립",
-    time: "2일 전",
-  },
-];
-
 const PROFILE_MENU: { label: string; href: string }[] = [
   { label: "마이페이지", href: "/mypage" },
   { label: "내 상품 관리", href: "/listings/me" },
@@ -484,7 +411,6 @@ const PROFILE_MENU: { label: string; href: string }[] = [
 
 function LoggedInRight() {
   const [open, setOpen] = useState<null | "notif" | "profile">(null);
-  const toggle = (which: "notif" | "profile") => setOpen((o) => (o === which ? null : which));
   const notifId = useId();
   const profileId = useId();
   const router = useRouter();
@@ -492,12 +418,39 @@ function LoggedInRight() {
   const email = useUserStore((s) => s.email);
   const logout = useUserStore((s) => s.logout);
 
+  // 알림 조회+30초 폴링은 useNotificationStore가 앱 전체에서 유일하게 소유한다.
+  // Header는 로그인 상태인 동안(마운트~언마운트) 그 생명주기를 관리하는 역할 — 마운트 시
+  // start()(멱등)로 폴링을 켜고, 로그아웃으로 언마운트되면 stop()으로 정리한다.
+  const notifications = useNotificationStore((s) => s.notifications);
+  const loadState = useNotificationStore((s) => s.loadState);
+  const errorMessage = useNotificationStore((s) => s.errorMessage);
+  const startNotifications = useNotificationStore((s) => s.start);
+  const stopNotifications = useNotificationStore((s) => s.stop);
+  const retryNotifications = useNotificationStore((s) => s.retry);
+  const markOneRead = useNotificationStore((s) => s.markOneRead);
+  const markAllRead = useNotificationStore((s) => s.markAllRead);
+
+  useEffect(() => {
+    startNotifications();
+    return () => stopNotifications();
+  }, [startNotifications, stopNotifications]);
+
+  // 알림 드롭다운을 열 때, 직전 조회가 에러였다면 폴링 주기를 기다리지 않고 바로 재시도한다.
+  const toggle = (which: "notif" | "profile") =>
+    setOpen((o) => {
+      const next = o === which ? null : which;
+      if (next === "notif" && loadState === "error") retryNotifications();
+      return next;
+    });
+
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
+
   return (
     <div className="relative flex items-center gap-4">
       <SearchBar />
       <button
         onClick={() => toggle("notif")}
-        aria-label="알림"
+        aria-label={unreadCount > 0 ? `안 읽은 알림 ${unreadCount}개` : "알림"}
         aria-expanded={open === "notif"}
         aria-controls={notifId}
         className="relative flex h-10 w-10 items-center justify-center rounded-[9px] bg-neutral transition-colors hover:bg-[#ECECEF]"
@@ -509,11 +462,14 @@ function LoggedInRight() {
           fill="none"
           stroke="#4B4B52"
           strokeWidth="2"
+          aria-hidden="true"
         >
           <path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.7 21a2 2 0 01-3.4 0" />
         </svg>
-        <span className="absolute right-2 top-[7px] h-[7px] w-[7px] rounded-full border-[1.5px] border-neutral bg-primary" />
+        {unreadCount > 0 && (
+          <span className="absolute right-2 top-[7px] h-[7px] w-[7px] rounded-full border-[1.5px] border-neutral bg-primary" />
+        )}
       </button>
       <button
         onClick={() => toggle("profile")}
@@ -537,40 +493,70 @@ function LoggedInRight() {
         >
           <div className="flex items-center justify-between border-b border-[#F0F0F0] px-4 py-3.5">
             <span className="text-[14.5px] font-extrabold">알림</span>
-            <span className="cursor-pointer text-xs font-bold text-secondary hover:text-secondary-dark">
+            <button
+              type="button"
+              onClick={markAllRead}
+              className="cursor-pointer text-xs font-bold text-secondary hover:text-secondary-dark"
+            >
               모두 읽음 처리
-            </span>
+            </button>
           </div>
           <div className="max-h-[340px] overflow-y-auto">
-            {NOTIFS.map((n, i) => (
-              <button
-                key={i}
-                type="button"
-                className={`flex w-full cursor-pointer gap-[11px] border-b border-[#F5F5F7] px-4 py-[13px] text-left hover:bg-[#FAFAFB] ${n.unread ? "bg-[#FFF7F7]" : ""}`}
+            {loadState === "loading" && (
+              <div className="px-4 py-8 text-center text-[13px] text-[#9A9AA2]">
+                불러오는 중...
+              </div>
+            )}
+            {loadState === "error" && (
+              <div
+                role="alert"
+                className="mx-4 my-3 rounded-[12px] border border-[#F6C6C6] bg-[#FFF1F1] px-4 py-3 text-center text-[13px] font-semibold text-[#C21414]"
               >
-                <span
-                  className={`mt-[15px] h-[7px] w-[7px] flex-shrink-0 rounded-full ${n.unread ? "bg-primary" : "bg-transparent"}`}
-                />
-                <div
-                  className="flex h-[34px] w-[34px] flex-shrink-0 items-center justify-center rounded-[9px]"
-                  style={{ background: n.tint }}
-                >
-                  {n.icon}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div
-                    className={`text-[13px] leading-[1.4] text-ink ${n.unread ? "font-bold" : "font-semibold"}`}
+                {errorMessage}
+              </div>
+            )}
+            {loadState === "ready" && notifications.length === 0 && (
+              <div className="px-4 py-8 text-center text-[13px] text-[#9A9AA2]">
+                새 알림이 없습니다.
+              </div>
+            )}
+            {loadState === "ready" &&
+              notifications.length > 0 &&
+              notifications.map((n) => {
+                const style = notifStyle(n.type);
+                return (
+                  <button
+                    key={n.id}
+                    type="button"
+                    onClick={() => markOneRead(n)}
+                    className={`flex w-full cursor-pointer gap-[11px] border-b border-[#F5F5F7] px-4 py-[13px] text-left hover:bg-[#FAFAFB] ${!n.isRead ? "bg-[#FFF7F7]" : ""}`}
                   >
-                    {n.text}
-                  </div>
-                  <div className="mt-px text-xs text-[#9A9AA2]">{n.sub}</div>
-                  <div className="mt-[3px] text-[11px] text-[#B0B0B8]">{n.time}</div>
-                </div>
-              </button>
-            ))}
+                    <span
+                      className={`mt-[15px] h-[7px] w-[7px] flex-shrink-0 rounded-full ${!n.isRead ? "bg-primary" : "bg-transparent"}`}
+                    />
+                    <div
+                      className="flex h-[34px] w-[34px] flex-shrink-0 items-center justify-center rounded-[9px]"
+                      style={{ background: style.tint }}
+                    >
+                      {style.icon}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div
+                        className={`text-[13px] leading-[1.4] text-ink ${!n.isRead ? "font-bold" : "font-semibold"}`}
+                      >
+                        {n.message}
+                      </div>
+                      <div className="mt-[3px] text-[11px] text-[#B0B0B8]">
+                        {formatNotifTime(n.createdAt)}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
           </div>
           <Link
-            href="#"
+            href="/notifications"
+            onClick={() => setOpen(null)}
             className="block border-t border-[#F0F0F0] px-4 py-[13px] text-center text-[13px] font-bold text-secondary hover:bg-[#FAFAFB]"
           >
             전체 알림 보기

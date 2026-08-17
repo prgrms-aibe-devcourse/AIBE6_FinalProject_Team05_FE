@@ -5,14 +5,16 @@ import Link from "next/link";
 import CardImage from "@/components/CardImage";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
-import { fetchCardDetail, fetchPriceSummaries } from "@/lib/cardApi";
+import { fetchCardDetail } from "@/lib/cardApi";
 import { resolvePriceDisplay } from "@/lib/priceDisplay";
 import { deleteWatchlistItem, fetchWatchlist } from "@/lib/watchlistApi";
 import { CardDetailResponse } from "@/types/card";
-import { CardPriceSummaryResponse } from "@/types/price";
 import { WatchlistResponse } from "@/types/watchlist";
 
-// BE에는 isNotified(목표가 도달 여부)만 있고 "확인함"에 대응하는 필드가 없어 2단계로 축소.
+// BE에는 targetReached(현재 시점 목표가 범위 진입 여부)만 있고 "확인함"에 대응하는 필드가
+// 없어 2단계로 축소. isNotified(알림 발송 이력, 1회성 플래그)와 달리 targetReached는 매 조회
+// 시점 실시간 체결가 기준으로 재계산되는 값이라 — 알림이 이미 갔어도 그 뒤 가격이 범위를
+// 벗어나면 다시 false가 될 수 있다. 상태 배지는 "지금" 기준을 보여줘야 하므로 이 값을 쓴다.
 type Status = "대기중" | "목표도달";
 const STATUS_CLS: Record<Status, string> = {
   대기중: "bg-[#FFF3CE] text-[#8A6A00]",
@@ -22,7 +24,6 @@ const STATUS_CLS: Record<Status, string> = {
 type WatchlistRow = {
   item: WatchlistResponse;
   card: CardDetailResponse | null;
-  priceSummary: CardPriceSummaryResponse | undefined;
 };
 
 type LoadState = "loading" | "error" | "ready";
@@ -35,7 +36,7 @@ const TABS: { key: Filter; label: string }[] = [
 ];
 
 function statusOf(item: WatchlistResponse): Status {
-  return item.isNotified ? "목표도달" : "대기중";
+  return item.targetReached ? "목표도달" : "대기중";
 }
 
 // targetBuyPrice/targetSellPrice 중 최소 하나는 항상 있다(둘 다 없으면 BE가 400).
@@ -74,19 +75,16 @@ export default function WatchlistPage() {
     fetchWatchlist()
       .then(async (items) => {
         const cardIds = Array.from(new Set(items.map((i) => i.cardId)));
-        // 카드 상세는 배치 조회 API가 없어 건당 호출 — WATCHLIST_LIMIT(20)로 상한이 있어 허용.
+        // 카드 상세는 배치 조회 API가 없어 건당 호출(nameKo 한글 매핑 표시용) — WATCHLIST_LIMIT(20)로
+        // 상한이 있어 허용. 시세는 BE가 워치리스트 응답에 currentPrice로 이미 내려주므로 별도 조회 불필요.
         // 카드 하나가 조회 실패해도 나머지 행은 정상 표시되도록 개별 catch로 null 처리.
-        const [cards, priceMap] = await Promise.all([
-          Promise.all(cardIds.map((id) => fetchCardDetail(id).catch(() => null))),
-          fetchPriceSummaries(cardIds).catch(() => new Map<number, CardPriceSummaryResponse>()),
-        ]);
+        const cards = await Promise.all(cardIds.map((id) => fetchCardDetail(id).catch(() => null)));
         if (cancelled) return;
         const cardById = new Map(cardIds.map((id, i) => [id, cards[i]]));
         setRows(
           items.map((item) => ({
             item,
             card: cardById.get(item.cardId) ?? null,
-            priceSummary: priceMap.get(item.cardId),
           })),
         );
         setLoadState("ready");
@@ -106,13 +104,13 @@ export default function WatchlistPage() {
 
   const counts: Record<Filter, number> = {
     all: rows.length,
-    wait: rows.filter((r) => !r.item.isNotified).length,
-    reached: rows.filter((r) => r.item.isNotified).length,
+    wait: rows.filter((r) => !r.item.targetReached).length,
+    reached: rows.filter((r) => r.item.targetReached).length,
   };
 
   const filtered = rows.filter((r) => {
-    if (filter === "wait") return !r.item.isNotified;
-    if (filter === "reached") return r.item.isNotified;
+    if (filter === "wait") return !r.item.targetReached;
+    if (filter === "reached") return r.item.targetReached;
     return true;
   });
 
@@ -176,6 +174,7 @@ export default function WatchlistPage() {
                 fill="none"
                 stroke="#C7C7CE"
                 strokeWidth="1.6"
+                aria-hidden="true"
               >
                 <path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 00-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 000-7.8z" />
               </svg>
@@ -235,7 +234,8 @@ export default function WatchlistPage() {
                 {filtered.map((row, i) => {
                   const displayName =
                     row.card?.nameKo ?? row.card?.name ?? "알 수 없는 카드";
-                  const priceLabel = resolvePriceDisplay(row.priceSummary)?.price ?? "정보 없음";
+                  const priceLabel =
+                    resolvePriceDisplay(row.item.currentPrice ?? undefined)?.price ?? "정보 없음";
                   const targets = formatTargets(row.item);
                   const status = statusOf(row.item);
                   const changeRate = row.item.changeRate;
@@ -253,12 +253,12 @@ export default function WatchlistPage() {
                         className="flex items-center gap-3 hover:text-primary"
                       >
                         <div className="relative h-14 w-10 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
-                          <CardImage src={row.card?.imageMedium} alt={displayName} />
+                          <CardImage src={row.item.imageUrl ?? row.card?.imageMedium} alt={displayName} />
                         </div>
                         <div>
                           <div className="text-sm font-bold">{displayName}</div>
                           <div className="text-xs text-[#9A9AA2]">
-                            {row.card?.setName ?? "-"}
+                            {row.item.setName ?? row.card?.setName ?? "-"}
                           </div>
                         </div>
                       </Link>
@@ -298,7 +298,13 @@ export default function WatchlistPage() {
                           onClick={() => handleDelete(row.item.id)}
                           className="text-[#C7C7CE] hover:text-primary disabled:opacity-50"
                         >
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            aria-hidden="true"
+                          >
                             <path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
                           </svg>
                         </button>
