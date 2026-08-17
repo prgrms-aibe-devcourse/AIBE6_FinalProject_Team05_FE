@@ -31,18 +31,8 @@ const SERIES_COLORS: Record<string, string> = {
   avgLatency: "#8B5CF6",
 };
 
-const GROUP_TITLES: Record<string, string> = {
-  activity: "이용 현황",
-  errorRate: "HTTP 5xx 에러율 추이",
-  latency: "평균 응답 지연 추이",
-};
-
-// com.pokade.domain.admin.metrics.AdminMetricsPeriod의 lookbackHours와 맞춰 표시용 문구를 둔다.
-const PERIODS: { value: AdminMetricsPeriod; label: string; rangeLabel: string }[] = [
-  { value: "10m", label: "10분", rangeLabel: "최근 3시간" },
-  { value: "1h", label: "1시간", rangeLabel: "최근 24시간" },
-  { value: "1d", label: "1일", rangeLabel: "최근 14일" },
-];
+// com.pokade.domain.admin.metrics.AdminMetricsPeriod와 짝 맞춤 (10m→1시간, 1h→6시간, 1d→7일 조회).
+const PERIODS: AdminMetricsPeriod[] = ["10m", "1h", "1d"];
 
 function formatSeriesValue(value: number, unit: string): string {
   if (unit === "%") return `${value.toFixed(2)}%`;
@@ -178,26 +168,22 @@ export default function AdminDashboardPage() {
             <div className="mt-5 flex gap-1.5">
               {PERIODS.map((p) => (
                 <button
-                  key={p.value}
+                  key={p}
                   type="button"
-                  onClick={() => setPeriod(p.value)}
+                  onClick={() => setPeriod(p)}
                   className={`rounded-full px-3.5 py-1.5 text-[12.5px] font-bold transition ${
-                    period === p.value
+                    period === p
                       ? "bg-primary text-white"
                       : "bg-white text-[#8A8A92] hover:text-primary"
                   } border border-[#EDEDF0]`}
                 >
-                  {p.label}
+                  {p}
                 </button>
               ))}
             </div>
 
             {seriesGroups.map(({ group, series, combined }) => (
               <div key={group} className="mt-3 rounded-2xl border border-[#EDEDF0] bg-white p-6">
-                <h2 className="mb-3 text-[15px] font-extrabold">
-                  {PERIODS.find((p) => p.value === period)?.rangeLabel}{" "}
-                  {GROUP_TITLES[group] ?? series[0]?.label}
-                </h2>
                 {combined.points.length === 0 ? (
                   <div className="flex h-[300px] items-center justify-center text-[13.5px] text-[#9A9AA2]">
                     아직 데이터가 없습니다.
