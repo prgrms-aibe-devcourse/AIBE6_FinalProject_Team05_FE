@@ -21,7 +21,6 @@ export default function PublicProfilePage() {
   const params = useParams<{ userId: string }>();
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("loading");
-  const [opponent, setOpponent] = useState<PublicProfile | null>(null);
 
   const load = useCallback(async () => {
     const parsed = Number(params.userId);

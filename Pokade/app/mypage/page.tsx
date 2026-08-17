@@ -47,15 +47,18 @@ export default function MyPage() {
   const load = useCallback(async () => {
     setLoadError(false);
     setInfo(null);
+    setProfile(null);
     try {
       setInfo(await getMyInfo());
     } catch {
       setLoadError(true);
+      return; // 기본 정보가 없으면 에러 화면이므로 상세는 요청하지 않는다
     }
+    // 상세는 부가 정보라 실패해도 마이페이지 렌더를 막지 않는다 (해당 줄만 비워둠).
     try {
       setProfile(await getMyProfile());
     } catch {
-      setLoadError(true);
+      setProfile(null);
     }
   }, []);
 
