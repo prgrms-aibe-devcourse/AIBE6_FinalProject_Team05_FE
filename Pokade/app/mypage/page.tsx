@@ -7,11 +7,33 @@ import { useUserStore } from "@/store/useUserStore";
 import { getMyInfo, updateNickname, cancelWithdrawal } from "@/lib/authApi";
 import { authErrorMessage } from "@/lib/authErrorMessages";
 import { MyInfo } from "@/types/auth";
+import { getMyProfile } from "@/lib/profileApi";
+import { MyProfile } from "@/types/profile";
+
+const PROVIDER_LABELS: Record<MyProfile["provider"], string> = {
+  LOCAL: "이메일",
+  GOOGLE: "구글",
+  KAKAO: "카카오",
+};
+
+function providerLabel(provider: MyProfile["provider"]): string {
+  return PROVIDER_LABELS[provider];
+}
+
+// LocalDateTime 문자열("2026-08-17T11:22:33")을 YYYY. MM. DD. 로 표시
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
 
 export default function MyPage() {
   const authStatus = useRequireAuth();
   const setNickname = useUserStore((s) => s.setNickname);
 
+  const [profile, setProfile] = useState<MyProfile | null>(null);
   const [info, setInfo] = useState<MyInfo | null>(null);
   const [loadError, setLoadError] = useState(false);
 
@@ -27,6 +49,11 @@ export default function MyPage() {
     setInfo(null);
     try {
       setInfo(await getMyInfo());
+    } catch {
+      setLoadError(true);
+    }
+    try {
+      setProfile(await getMyProfile());
     } catch {
       setLoadError(true);
     }
@@ -225,6 +252,29 @@ export default function MyPage() {
                     </p>
                   )}
                 </div>
+
+                {profile && (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#8A8A92]">연락처</span>
+                      <span className="font-semibold">
+                        {profile.phoneNumber ?? "등록되지 않음"}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#8A8A92]">가입 경로</span>
+                      <span className="font-semibold">
+                        {profile.socialLinked ? providerLabel(profile.provider) : "이메일"}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-[#8A8A92]">가입일</span>
+                      <span className="font-semibold">{formatDate(profile.joinedAt)}</span>
+                    </div>
+                  </>
+                )}
 
                 <div className="flex items-center justify-between">
                   <span className="text-[#8A8A92]">포인트</span>
