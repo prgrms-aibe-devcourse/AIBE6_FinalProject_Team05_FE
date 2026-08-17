@@ -23,7 +23,20 @@ const SERIES_COLORS: Record<string, string> = {
   visits: "#FFCB05",
   aiGrade: "#3B4CCA",
   tradesConfirmed: "#16A34A",
+  httpErrorRate: "#EE1515",
+  avgLatency: "#8B5CF6",
 };
+
+const GROUP_TITLES: Record<string, string> = {
+  activity: "최근 24시간 이용 현황",
+  errorRate: "최근 24시간 HTTP 5xx 에러율 추이",
+  latency: "최근 24시간 평균 응답 지연 추이",
+};
+
+function formatSeriesValue(value: number, unit: string): string {
+  if (unit === "%") return `${value.toFixed(2)}%`;
+  return `${Math.round(value).toLocaleString("ko-KR")}${unit}`;
+}
 
 function formatCardValue(value: number | null, unit: string): string {
   if (value === null) return "데이터 없음";
@@ -55,6 +68,17 @@ function buildCombinedSeries(series: AdminMetricSeriesResponse[]) {
   return { points, unitByKey, labelByKey };
 }
 
+// group별로 시리즈를 묶는다 - 같은 group끼리만 스케일이 맞아 한 차트에 겹쳐 그릴 수 있다(BE가 정함).
+function groupSeries(series: AdminMetricSeriesResponse[]) {
+  const byGroup = new Map<string, AdminMetricSeriesResponse[]>();
+  for (const s of series) {
+    const list = byGroup.get(s.group) ?? [];
+    list.push(s);
+    byGroup.set(s.group, list);
+  }
+  return Array.from(byGroup.entries());
+}
+
 export default function AdminDashboardPage() {
   useRequireAuth();
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -81,8 +105,15 @@ export default function AdminDashboardPage() {
     };
   }, []);
 
-  const combined = useMemo(
-    () => (dashboard ? buildCombinedSeries(dashboard.series) : null),
+  const seriesGroups = useMemo(
+    () =>
+      dashboard
+        ? groupSeries(dashboard.series).map(([group, series]) => ({
+            group,
+            series,
+            combined: buildCombinedSeries(series),
+          }))
+        : [],
     [dashboard],
   );
 
@@ -108,7 +139,7 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {loadState === "ready" && dashboard && combined && (
+        {loadState === "ready" && dashboard && (
           <>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {dashboard.cards.map((card) => (
@@ -127,59 +158,65 @@ export default function AdminDashboardPage() {
               ))}
             </div>
 
-            <div className="mt-5 rounded-2xl border border-[#EDEDF0] bg-white p-6">
-              <h2 className="mb-3 text-[15px] font-extrabold">최근 24시간 이용 현황</h2>
-              {combined.points.length === 0 ? (
-                <div className="flex h-[300px] items-center justify-center text-[13.5px] text-[#9A9AA2]">
-                  아직 데이터가 없습니다.
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={combined.points} margin={{ top: 8, right: 16, left: 4, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#EDEDF0" />
-                    <XAxis
-                      dataKey="epochSeconds"
-                      tickFormatter={formatAxisTime}
-                      tick={{ fontSize: 10.5, fill: "#8A8A92" }}
-                      axisLine={{ stroke: "#EDEDF0" }}
-                      tickLine={false}
-                      minTickGap={24}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 10.5, fill: "#8A8A92" }}
-                      axisLine={{ stroke: "#EDEDF0" }}
-                      tickLine={false}
-                      width={48}
-                      allowDecimals={false}
-                    />
-                    <Tooltip
-                      labelFormatter={(label) => formatAxisTime(Number(label))}
-                      formatter={(value, name) => [
-                        `${Math.round(Number(value)).toLocaleString("ko-KR")}${combined.unitByKey.get(String(name)) ?? ""}`,
-                        combined.labelByKey.get(String(name)) ?? String(name),
-                      ]}
-                      contentStyle={{ borderRadius: 12, border: "1px solid #EDEDF0", fontSize: 12.5 }}
-                    />
-                    <Legend
-                      formatter={(value: string) => combined.labelByKey.get(value) ?? value}
-                      wrapperStyle={{ fontSize: 12, fontWeight: 700 }}
-                    />
-                    {dashboard.series.map((s) => (
-                      <Line
-                        key={s.key}
-                        type="monotone"
-                        dataKey={s.key}
-                        name={s.key}
-                        stroke={SERIES_COLORS[s.key] ?? "#8A8A92"}
-                        strokeWidth={2}
-                        dot={false}
-                        connectNulls
+            {seriesGroups.map(({ group, series, combined }) => (
+              <div key={group} className="mt-5 rounded-2xl border border-[#EDEDF0] bg-white p-6">
+                <h2 className="mb-3 text-[15px] font-extrabold">
+                  {GROUP_TITLES[group] ?? series[0]?.label}
+                </h2>
+                {combined.points.length === 0 ? (
+                  <div className="flex h-[300px] items-center justify-center text-[13.5px] text-[#9A9AA2]">
+                    아직 데이터가 없습니다.
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={combined.points} margin={{ top: 8, right: 16, left: 4, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#EDEDF0" />
+                      <XAxis
+                        dataKey="epochSeconds"
+                        tickFormatter={formatAxisTime}
+                        tick={{ fontSize: 10.5, fill: "#8A8A92" }}
+                        axisLine={{ stroke: "#EDEDF0" }}
+                        tickLine={false}
+                        minTickGap={24}
                       />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-            </div>
+                      <YAxis
+                        tick={{ fontSize: 10.5, fill: "#8A8A92" }}
+                        axisLine={{ stroke: "#EDEDF0" }}
+                        tickLine={false}
+                        width={48}
+                        allowDecimals={false}
+                      />
+                      <Tooltip
+                        labelFormatter={(label) => formatAxisTime(Number(label))}
+                        formatter={(value, name) => [
+                          formatSeriesValue(Number(value), combined.unitByKey.get(String(name)) ?? ""),
+                          combined.labelByKey.get(String(name)) ?? String(name),
+                        ]}
+                        contentStyle={{ borderRadius: 12, border: "1px solid #EDEDF0", fontSize: 12.5 }}
+                      />
+                      {series.length > 1 && (
+                        <Legend
+                          formatter={(value: string) => combined.labelByKey.get(value) ?? value}
+                          wrapperStyle={{ fontSize: 12, fontWeight: 700 }}
+                        />
+                      )}
+                      {series.map((s) => (
+                        <Line
+                          key={s.key}
+                          type="monotone"
+                          dataKey={s.key}
+                          name={s.key}
+                          stroke={SERIES_COLORS[s.key] ?? "#8A8A92"}
+                          strokeWidth={2}
+                          dot={false}
+                          connectNulls
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            ))}
           </>
         )}
       </div>

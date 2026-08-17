@@ -14,10 +14,12 @@ export interface AdminMetricSeriesPoint {
   value: number;
 }
 
+// group: 같은 group끼리는 스케일이 맞아 한 차트에 겹쳐 그릴 수 있다(BE가 정해서 내려줌).
 export interface AdminMetricSeriesResponse {
   key: string;
   label: string;
   unit: string;
+  group: string;
   points: AdminMetricSeriesPoint[];
 }
 
