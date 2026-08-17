@@ -16,12 +16,14 @@ import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
 import { fetchAdminDashboard } from "@/lib/adminApi";
 import {
-  AdminDashboardResponse,
+  AdminMetricCardResponse,
   AdminMetricsPeriod,
   AdminMetricSeriesResponse,
 } from "@/types/adminMetrics";
 
-type LoadState = "loading" | "error" | "ready";
+type PageState = "loading" | "error" | "ready";
+
+const DEFAULT_PERIOD: AdminMetricsPeriod = "1h";
 
 const SERIES_COLORS: Record<string, string> = {
   visits: "#FFCB05",
@@ -85,49 +87,78 @@ function groupSeries(series: AdminMetricSeriesResponse[]) {
     list.push(s);
     byGroup.set(s.group, list);
   }
-  return Array.from(byGroup.entries());
+  return Array.from(byGroup.keys());
 }
 
 export default function AdminDashboardPage() {
   useRequireAuth();
-  const [period, setPeriod] = useState<AdminMetricsPeriod>("1h");
-  const [loadState, setLoadState] = useState<LoadState>("loading");
+  const [pageState, setPageState] = useState<PageState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
-  const [dashboard, setDashboard] = useState<AdminDashboardResponse | null>(null);
+  const [cards, setCards] = useState<AdminMetricCardResponse[]>([]);
+  const [groups, setGroups] = useState<string[]>([]);
+
+  // 차트(그룹)별로 독립된 조회 단위 — 같은 페이지 안에서도 차트마다 다른 기간을 볼 수 있다.
+  const [periodByGroup, setPeriodByGroup] = useState<Record<string, AdminMetricsPeriod>>({});
+  // period별 시리즈 응답 캐시 — 이미 불러온 period면 재요청 없이 그대로 재사용한다(카드는 period와 무관해서
+  // 최초 1회 응답의 것만 쓰고, 이후 캐시는 시리즈 갱신 용도로만 채워진다).
+  const [seriesCache, setSeriesCache] = useState<
+    Partial<Record<AdminMetricsPeriod, AdminMetricSeriesResponse[]>>
+  >({});
+  // 지금 막 불러오는 중인 "그룹:period" 조합 - 그 차트에만 로딩 표시를 하기 위함.
+  const [loadingKeys, setLoadingKeys] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
-    // period 버튼을 바꿀 때마다 재조회 스피너를 다시 보여주기 위해 필요 — 의도적으로 유지.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLoadState("loading");
-    fetchAdminDashboard(period)
+    fetchAdminDashboard(DEFAULT_PERIOD)
       .then((data) => {
         if (cancelled) return;
-        setDashboard(data);
-        setLoadState("ready");
+        setCards(data.cards);
+        const discoveredGroups = groupSeries(data.series);
+        setGroups(discoveredGroups);
+        setPeriodByGroup(Object.fromEntries(discoveredGroups.map((g) => [g, DEFAULT_PERIOD])));
+        setSeriesCache({ [DEFAULT_PERIOD]: data.series });
+        setPageState("ready");
       })
       .catch((err) => {
         if (cancelled) return;
-        setErrorMessage(
-          err instanceof ApiError ? err.message : "지표를 불러오지 못했습니다.",
-        );
-        setLoadState("error");
+        setErrorMessage(err instanceof ApiError ? err.message : "지표를 불러오지 못함.");
+        setPageState("error");
       });
     return () => {
       cancelled = true;
     };
-  }, [period]);
+  }, []);
 
-  const seriesGroups = useMemo(
+  function handlePeriodChange(group: string, period: AdminMetricsPeriod) {
+    setPeriodByGroup((prev) => ({ ...prev, [group]: period }));
+    if (seriesCache[period]) return; // 이미 불러온 기간이면 재요청 안 함
+
+    const key = `${group}:${period}`;
+    setLoadingKeys((prev) => new Set(prev).add(key));
+    fetchAdminDashboard(period)
+      .then((data) => {
+        setSeriesCache((prev) => ({ ...prev, [period]: data.series }));
+      })
+      .catch(() => {
+        // 카드까지 에러 상태로 만들 필요는 없음 - 이 차트만 "데이터 없음"으로 남는다.
+      })
+      .finally(() => {
+        setLoadingKeys((prev) => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+      });
+  }
+
+  const chartsByGroup = useMemo(
     () =>
-      dashboard
-        ? groupSeries(dashboard.series).map(([group, series]) => ({
-            group,
-            series,
-            combined: buildCombinedSeries(series),
-          }))
-        : [],
-    [dashboard],
+      groups.map((group) => {
+        const period = periodByGroup[group] ?? DEFAULT_PERIOD;
+        const series = (seriesCache[period] ?? []).filter((s) => s.group === group);
+        return { group, period, series, combined: buildCombinedSeries(series) };
+      }),
+    [groups, periodByGroup, seriesCache],
   );
 
   return (
@@ -137,25 +168,25 @@ export default function AdminDashboardPage() {
       <div className="min-w-0 flex-1 px-9 py-8">
         <h1 className="mb-1 mt-0 text-2xl font-extrabold tracking-[-0.5px]">운영 현황 대시보드</h1>
         <p className="mb-[22px] text-[13.5px] text-[#8A8A92]">
-          서비스에 계측된 지표로 운영 현황을 확인합니다
+          서비스에 계측된 지표로 운영 현황을 확인함
         </p>
 
-        {loadState === "loading" && (
+        {pageState === "loading" && (
           <div className="flex h-[200px] items-center justify-center">
             <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-[#E7E7EB] border-t-primary" />
           </div>
         )}
 
-        {loadState === "error" && (
+        {pageState === "error" && (
           <div className="rounded-2xl border border-[#F6C6C6] bg-[#FFF1F1] px-5 py-4 text-[13.5px] font-semibold text-[#C21414]">
             {errorMessage}
           </div>
         )}
 
-        {loadState === "ready" && dashboard && (
+        {pageState === "ready" && (
           <>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {dashboard.cards.map((card) => (
+              {cards.map((card) => (
                 <div key={card.key} className="rounded-2xl border border-[#EDEDF0] bg-white p-6">
                   <div className="text-[13px] font-semibold text-[#8A8A92]">{card.label}</div>
                   <div className="mt-2 text-[26px] font-extrabold tracking-[-0.5px]">
@@ -171,82 +202,91 @@ export default function AdminDashboardPage() {
               ))}
             </div>
 
-            <div className="mt-5 flex gap-1.5">
-              {PERIODS.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setPeriod(p)}
-                  className={`rounded-full px-3.5 py-1.5 text-[12.5px] font-bold transition ${
-                    period === p
-                      ? "bg-primary text-white"
-                      : "bg-white text-[#8A8A92] hover:text-primary"
-                  } border border-[#EDEDF0]`}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-
-            {seriesGroups.map(({ group, series, combined }) => (
-              <div key={group} className="mt-3 rounded-2xl border border-[#EDEDF0] bg-white p-6">
-                <h2 className="mb-3 text-[15px] font-extrabold">
-                  {GROUP_TITLES[group] ?? series[0]?.label}
-                </h2>
-                {combined.points.length === 0 ? (
-                  <div className="flex h-[300px] items-center justify-center text-[13.5px] text-[#9A9AA2]">
-                    아직 데이터가 없습니다.
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={combined.points} margin={{ top: 8, right: 16, left: 4, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#EDEDF0" />
-                      <XAxis
-                        dataKey="epochSeconds"
-                        tickFormatter={(v) => formatAxisTick(v, period)}
-                        tick={{ fontSize: 10.5, fill: "#8A8A92" }}
-                        axisLine={{ stroke: "#EDEDF0" }}
-                        tickLine={false}
-                        minTickGap={24}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 10.5, fill: "#8A8A92" }}
-                        axisLine={{ stroke: "#EDEDF0" }}
-                        tickLine={false}
-                        width={48}
-                        allowDecimals={false}
-                      />
-                      <Tooltip
-                        labelFormatter={(label) => formatAxisTick(Number(label), period)}
-                        formatter={(value, name) => [
-                          formatSeriesValue(Number(value), combined.unitByKey.get(String(name)) ?? ""),
-                          combined.labelByKey.get(String(name)) ?? String(name),
-                        ]}
-                        contentStyle={{ borderRadius: 12, border: "1px solid #EDEDF0", fontSize: 12.5 }}
-                      />
-                      {series.length > 1 && (
-                        <Legend
-                          formatter={(value: string) => combined.labelByKey.get(value) ?? value}
-                          wrapperStyle={{ fontSize: 12, fontWeight: 700 }}
-                        />
-                      )}
-                      {series.map((s) => (
-                        <Line
-                          key={s.key}
-                          type="monotone"
-                          dataKey={s.key}
-                          name={s.key}
-                          stroke={SERIES_COLORS[s.key] ?? "#8A8A92"}
-                          strokeWidth={2}
-                          dot={false}
-                          connectNulls
-                        />
+            {chartsByGroup.map(({ group, period, series, combined }) => {
+              const isLoading = loadingKeys.has(`${group}:${period}`);
+              return (
+                <div key={group} className="mt-3 rounded-2xl border border-[#EDEDF0] bg-white p-6">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h2 className="text-[15px] font-extrabold">
+                      {GROUP_TITLES[group] ?? series[0]?.label}
+                    </h2>
+                    <div className="flex gap-1.5">
+                      {PERIODS.map((p) => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => handlePeriodChange(group, p)}
+                          className={`rounded-full px-3 py-1 text-[11.5px] font-bold transition ${
+                            period === p
+                              ? "bg-primary text-white"
+                              : "bg-white text-[#8A8A92] hover:text-primary"
+                          } border border-[#EDEDF0]`}
+                        >
+                          {p}
+                        </button>
                       ))}
-                    </LineChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            ))}
+                    </div>
+                  </div>
+
+                  {isLoading ? (
+                    <div className="flex h-[300px] items-center justify-center">
+                      <div className="h-6 w-6 animate-spin rounded-full border-[3px] border-[#E7E7EB] border-t-primary" />
+                    </div>
+                  ) : combined.points.length === 0 ? (
+                    <div className="flex h-[300px] items-center justify-center text-[13.5px] text-[#9A9AA2]">
+                      아직 데이터 없음.
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={combined.points} margin={{ top: 8, right: 16, left: 4, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#EDEDF0" />
+                        <XAxis
+                          dataKey="epochSeconds"
+                          tickFormatter={(v) => formatAxisTick(v, period)}
+                          tick={{ fontSize: 10.5, fill: "#8A8A92" }}
+                          axisLine={{ stroke: "#EDEDF0" }}
+                          tickLine={false}
+                          minTickGap={24}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 10.5, fill: "#8A8A92" }}
+                          axisLine={{ stroke: "#EDEDF0" }}
+                          tickLine={false}
+                          width={48}
+                          allowDecimals={false}
+                        />
+                        <Tooltip
+                          labelFormatter={(label) => formatAxisTick(Number(label), period)}
+                          formatter={(value, name) => [
+                            formatSeriesValue(Number(value), combined.unitByKey.get(String(name)) ?? ""),
+                            combined.labelByKey.get(String(name)) ?? String(name),
+                          ]}
+                          contentStyle={{ borderRadius: 12, border: "1px solid #EDEDF0", fontSize: 12.5 }}
+                        />
+                        {series.length > 1 && (
+                          <Legend
+                            formatter={(value: string) => combined.labelByKey.get(value) ?? value}
+                            wrapperStyle={{ fontSize: 12, fontWeight: 700 }}
+                          />
+                        )}
+                        {series.map((s) => (
+                          <Line
+                            key={s.key}
+                            type="monotone"
+                            dataKey={s.key}
+                            name={s.key}
+                            stroke={SERIES_COLORS[s.key] ?? "#8A8A92"}
+                            strokeWidth={2}
+                            dot={false}
+                            connectNulls
+                          />
+                        ))}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              );
+            })}
           </>
         )}
       </div>
