@@ -186,6 +186,18 @@ export default function TradeStatusPage() {
                   <span className="font-bold">#{trade.id}</span>
                 </div>
                 <div className="flex justify-between">
+                  <span className="text-[#8A8A92]">{isBuyer ? "판매자" : "구매자"}</span>
+                  <Link
+                    href={`/users/${isBuyer ? trade.sellerId : trade.buyerId}`}
+                    className="font-bold hover:text-primary"
+                  >
+                    프로필 보기
+                    <span aria-hidden="true" className="ml-1 text-[#B0B0B8]">
+                      ›
+                    </span>
+                  </Link>
+                </div>
+                <div className="flex justify-between">
                   <span className="text-[#8A8A92]">거래 요청일</span>
                   <span className="font-bold">{formatDateTime(trade.createdAt)}</span>
                 </div>
