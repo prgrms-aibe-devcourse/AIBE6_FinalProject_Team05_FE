@@ -32,8 +32,12 @@ export interface WatchlistCreateRequest {
 }
 
 // PATCH /api/watchlist/{id} 요청 바디 — com.pokade.domain.watchlist.dto.WatchlistUpdateRequest 미러링.
-// targetBuyPrice/targetSellPrice 둘 다 없으면 BE가 400(TARGET_PRICE_REQUIRED) 반환.
+// targetBuyPrice/targetSellPrice 둘 다 없으면 BE가 400(TARGET_PRICE_REQUIRED) 반환 —
+// 단 resendNotification=true면 이 검증을 건너뛴다(가격 없이 재알림 리셋만 요청 가능).
 export interface WatchlistUpdateRequest {
   targetBuyPrice?: number;
   targetSellPrice?: number;
+  // true면 가격 검증 없이 isNotified만 false로 리셋한다. 생략(undefined)/false는
+  // "재알림 요청 없음"으로 기존 동작과 동일.
+  resendNotification?: boolean;
 }

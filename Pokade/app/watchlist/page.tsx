@@ -7,7 +7,7 @@ import CardImage from "@/components/CardImage";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
 import { resolvePriceDisplay } from "@/lib/priceDisplay";
-import { deleteWatchlistItem, fetchWatchlist } from "@/lib/watchlistApi";
+import { deleteWatchlistItem, fetchWatchlist, updateWatchlist } from "@/lib/watchlistApi";
 import { WatchlistResponse } from "@/types/watchlist";
 
 // BE에는 targetReached(현재 시점 목표가 범위 진입 여부)만 있고 "확인함"에 대응하는 필드가
@@ -62,6 +62,8 @@ export default function WatchlistPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<WatchlistResponse | null>(null);
+  const [resendingId, setResendingId] = useState<number | null>(null);
+  const [resendError, setResendError] = useState<string | null>(null);
 
   useEffect(() => {
     if (authStatus !== "authenticated") return;
@@ -121,8 +123,11 @@ export default function WatchlistPage() {
 
   // PATCH 응답(WatchlistResponse.of)은 cardName/setName/imageUrl/currentPrice/changeRate/targetReached가
   // 전부 비워져서 온다 — 통째로 교체하면 목록에 이미 표시 중인 시세·등락률·상태 배지가 사라지므로
-  // targetBuyPrice/targetSellPrice만 반영하고 나머지 필드는 기존 값을 유지한다.
-  const handleUpdateSuccess = (updated: WatchlistResponse) => {
+  // targetBuyPrice/targetSellPrice/isNotified만 반영하고 나머지 필드는 기존 값을 유지한다.
+  // isNotified도 반영하는 이유: 목표가가 실제로 바뀐 수정에서도 BE가 isNotified를 함께 리셋하고,
+  // 재알림 요청(resendNotification)에서도 이 값이 false로 바뀌어 오기 때문 — 두 호출부(수정 모달의
+  // onSuccess, 재알림 버튼)가 이 함수를 공유한다.
+  const applyWatchlistUpdate = (updated: WatchlistResponse) => {
     setRows((prev) =>
       prev.map((r) =>
         r.id === updated.id
@@ -130,11 +135,31 @@ export default function WatchlistPage() {
               ...r,
               targetBuyPrice: updated.targetBuyPrice,
               targetSellPrice: updated.targetSellPrice,
+              isNotified: updated.isNotified,
             }
           : r,
       ),
     );
+  };
+
+  const handleUpdateSuccess = (updated: WatchlistResponse) => {
+    applyWatchlistUpdate(updated);
     setEditingItem(null);
+  };
+
+  // 삭제와 달리 되돌리기 쉬운 액션(알림 재수신 상태만 리셋, 목표가/워치리스트 자체는 그대로)이라
+  // window.confirm() 없이 바로 실행한다.
+  const handleResendNotification = async (id: number) => {
+    setResendingId(id);
+    setResendError(null);
+    try {
+      const updated = await updateWatchlist(id, { resendNotification: true });
+      applyWatchlistUpdate(updated);
+    } catch (err) {
+      setResendError(err instanceof ApiError ? err.message : "재알림 설정에 실패했습니다.");
+    } finally {
+      setResendingId(null);
+    }
   };
 
   if (authStatus !== "authenticated") return null;
@@ -216,6 +241,15 @@ export default function WatchlistPage() {
                 className="mb-[14px] rounded-[12px] border border-[#F6C6C6] bg-[#FFF1F1] px-4 py-3 text-[13px] font-semibold text-[#C21414]"
               >
                 {deleteError}
+              </div>
+            )}
+
+            {resendError && (
+              <div
+                role="alert"
+                className="mb-[14px] rounded-[12px] border border-[#F6C6C6] bg-[#FFF1F1] px-4 py-3 text-[13px] font-semibold text-[#C21414]"
+              >
+                {resendError}
               </div>
             )}
 
@@ -311,6 +345,30 @@ export default function WatchlistPage() {
                             <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z" />
                           </svg>
                         </button>
+                        {row.isNotified && (
+                          <button
+                            type="button"
+                            aria-label={`${displayName} 알림 다시 받기`}
+                            disabled={resendingId === row.id}
+                            onClick={() => handleResendNotification(row.id)}
+                            className="text-[#C7C7CE] hover:text-primary disabled:opacity-50"
+                          >
+                            <svg
+                              width="17"
+                              height="17"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden="true"
+                            >
+                              <path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                              <path d="M13.73 21a2 2 0 01-3.46 0" />
+                            </svg>
+                          </button>
+                        )}
                         <button
                           type="button"
                           aria-label={`${displayName} 워치리스트에서 삭제`}
