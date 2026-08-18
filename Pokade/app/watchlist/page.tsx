@@ -133,12 +133,15 @@ export default function WatchlistPage() {
     }
   };
 
-  // PATCH 응답(WatchlistResponse.of)은 cardName/setName/imageUrl/currentPrice/changeRate/targetReached가
-  // 전부 비워져서 온다 — 통째로 교체하면 목록에 이미 표시 중인 시세·등락률·상태 배지가 사라지므로
-  // targetBuyPrice/targetSellPrice/isNotified만 반영하고 나머지 필드는 기존 값을 유지한다.
-  // isNotified도 반영하는 이유: 목표가가 실제로 바뀐 수정에서도 BE가 isNotified를 함께 리셋하고,
-  // 재알림 요청(resendNotification)에서도 이 값이 false로 바뀌어 오기 때문 — 두 호출부(수정 모달의
-  // onSuccess, 재알림 버튼)가 이 함수를 공유한다.
+  // PATCH 응답(WatchlistResponse.of)은 cardName/setName/imageUrl/currentPrice/changeRate가
+  // 전부 비워져서 온다 — 통째로 교체하면 목록에 이미 표시 중인 시세·등락률 배지가 사라지므로
+  // targetBuyPrice/targetSellPrice/isNotified/targetReached만 반영하고 나머지 필드는 기존
+  // 값을 유지한다. isNotified를 반영하는 이유: 목표가가 실제로 바뀐 수정에서도 BE가
+  // isNotified를 함께 리셋하고, 재알림 요청(resendNotification)에서도 이 값이 false로
+  // 바뀌어 오기 때문 — 두 호출부(수정 모달의 onSuccess, 재알림 버튼)가 이 함수를 공유한다.
+  // targetReached는 BE #250부터 실제 계산값이 온다(과거엔 항상 false 하드코딩이라 반영해도
+  // 의미가 없어 제외했었음) — 이제 반영하지 않으면 목표가 수정 직후 "대기중/목표도달" 배지가
+  // 새로고침 전까지 낡은 값으로 남는다.
   const applyWatchlistUpdate = (updated: WatchlistResponse) => {
     setRows((prev) =>
       prev.map((r) =>
@@ -148,6 +151,7 @@ export default function WatchlistPage() {
               targetBuyPrice: updated.targetBuyPrice,
               targetSellPrice: updated.targetSellPrice,
               isNotified: updated.isNotified,
+              targetReached: updated.targetReached,
             }
           : r,
       ),

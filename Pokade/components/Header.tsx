@@ -29,6 +29,12 @@ const NAV: { label: string; href: string }[] = [
   { label: "상품 등록", href: "/listings/new" },
 ];
 
+// 헤더에서 동시에 하나만 열릴 수 있는 오버레이 — 알림/프로필 드롭다운과 모바일 메뉴 드로어가
+// 각자 독립된 state였을 때, 하나가 열린 채로 다른 트리거를 누르면 그 백드롭이 클릭을 가로채
+// "열려던 것 대신 지금 열린 것만 닫히는" 문제가 있었다. 하나의 값으로 합쳐 상호배타를 타입
+// 레벨에서 보장한다 — Header(단, LoggedInRight에 props로 전달)가 유일하게 소유한다.
+type HeaderPanel = "notif" | "profile" | "menu" | null;
+
 function SearchBar({ width = "w-60" }: { width?: string }) {
   // useSearchParams는 Suspense 경계가 필요 — Header는 모든 페이지에 걸쳐있으므로
   // 이 부분만 분리해 나머지 정적 페이지의 prerender를 막지 않는다.
@@ -410,8 +416,13 @@ const PROFILE_MENU: { label: string; href: string }[] = [
   { label: "설정", href: "#" },
 ];
 
-function LoggedInRight() {
-  const [open, setOpen] = useState<null | "notif" | "profile">(null);
+function LoggedInRight({
+  open,
+  setOpen,
+}: {
+  open: HeaderPanel;
+  setOpen: (value: HeaderPanel | ((prev: HeaderPanel) => HeaderPanel)) => void;
+}) {
   const notifId = useId();
   const profileId = useId();
   const router = useRouter();
@@ -501,8 +512,15 @@ function LoggedInRight() {
         {nickname?.charAt(0) ?? "U"}
       </button>
 
-      {open && (
-        <div onClick={() => setOpen(null)} aria-hidden="true" className="fixed inset-0 z-[80]" />
+      {(open === "notif" || open === "profile") && (
+        <div
+          onClick={() => setOpen(null)}
+          aria-hidden="true"
+          // top-16(헤더 높이 h-16)부터만 덮어서 헤더 자체(다른 트리거 버튼들)는 항상 클릭
+          // 가능하게 남겨둔다 — inset-0로 헤더까지 덮으면 다른 트리거를 눌러도 이 백드롭이
+          // 클릭을 가로채 "지금 열린 것만 닫히고 원하는 패널은 안 열리는" 문제가 생긴다.
+          className="fixed inset-x-0 bottom-0 top-16 z-[80]"
+        />
       )}
 
       {open === "notif" && (
@@ -643,14 +661,19 @@ export default function Header() {
           : "in";
 
   const mobileMenuId = useId();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  useEscapeAndScrollLock(mobileMenuOpen, () => setMobileMenuOpen(false));
+  // 알림/프로필 드롭다운(LoggedInRight)과 모바일 메뉴 드로어가 이 값 하나를 공유한다 —
+  // 동시에 하나만 열릴 수 있어서, 하나가 열린 채로 다른 트리거를 눌러도 백드롭끼리
+  // 클릭을 가로채는 충돌이 타입 레벨에서 아예 발생하지 않는다.
+  const [open, setOpen] = useState<HeaderPanel>(null);
+  // ESC/스크롤락은 모바일 메뉴에만 좁게 적용 — 알림/프로필 드롭다운은 이 state 통합 이전과
+  // 동일하게 이 동작이 없던 상태를 그대로 유지한다(의도적으로 범위를 넓히지 않음).
+  useEscapeAndScrollLock(open === "menu", () => setOpen(null));
 
   // 페이지 이동(네비 링크 클릭 외의 경로 — 뒤로가기 등) 시에도 열려있던 모바일 메뉴를 닫는다.
   const [prevPathname, setPrevPathname] = useState(pathname);
   if (pathname !== prevPathname) {
     setPrevPathname(pathname);
-    if (mobileMenuOpen) setMobileMenuOpen(false);
+    if (open === "menu") setOpen(null);
   }
 
   return (
@@ -703,7 +726,7 @@ export default function Header() {
           </>
         )}
 
-        {variant === "in" && <LoggedInRight />}
+        {variant === "in" && <LoggedInRight open={open} setOpen={setOpen} />}
 
         {variant === "admin" && (
           <>
@@ -735,13 +758,13 @@ export default function Header() {
 
         <button
           type="button"
-          aria-label={mobileMenuOpen ? "메뉴 닫기" : "메뉴 열기"}
-          aria-expanded={mobileMenuOpen}
+          aria-label={open === "menu" ? "메뉴 닫기" : "메뉴 열기"}
+          aria-expanded={open === "menu"}
           aria-controls={mobileMenuId}
-          onClick={() => setMobileMenuOpen((v) => !v)}
+          onClick={() => setOpen((o) => (o === "menu" ? null : "menu"))}
           className="flex h-10 w-10 items-center justify-center rounded-[9px] bg-neutral transition-colors hover:bg-[#ECECEF] md:hidden"
         >
-          {mobileMenuOpen ? (
+          {open === "menu" ? (
             <svg
               width="20"
               height="20"
@@ -773,15 +796,17 @@ export default function Header() {
         </button>
       </div>
 
-      {mobileMenuOpen && (
+      {open === "menu" && (
         <>
           <div
-            onClick={() => setMobileMenuOpen(false)}
+            onClick={() => setOpen(null)}
             aria-hidden="true"
-            className="fixed inset-0 z-[80] md:hidden"
+            // top-16(헤더 높이)부터만 덮음 — 알림/프로필 백드롭과 같은 이유(헤더 자체는 항상 클릭 가능해야 함).
+            className="fixed inset-x-0 bottom-0 top-16 z-[80] md:hidden"
           />
           <div
             id={mobileMenuId}
+            aria-label="메뉴"
             className="absolute left-0 right-0 top-full z-[90] border-b border-[#EDEDF0] bg-white p-4 shadow-[0_14px_38px_rgba(20,26,52,0.18)] md:hidden"
           >
             {(variant === "out" || variant === "in") && (
@@ -797,7 +822,7 @@ export default function Header() {
                   <Link
                     key={n.label}
                     href={n.href}
-                    onClick={() => setMobileMenuOpen(false)}
+                    onClick={() => setOpen(null)}
                     className={
                       isActive
                         ? "rounded-[9px] bg-[#FFF5F5] px-3 py-2.5 text-[14.5px] font-bold text-primary"
