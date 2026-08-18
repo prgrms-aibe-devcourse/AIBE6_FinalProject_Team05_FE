@@ -4,6 +4,7 @@ import { Suspense, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CardImage from "@/components/CardImage";
+import Avatar from "./Avatar";
 import { fetchCardsByKeywordPage } from "@/lib/cardApi";
 import { highlightMatch } from "@/lib/highlightMatch";
 import { pickDisplayName } from "@/lib/pickDisplayName";
@@ -415,6 +416,7 @@ function LoggedInRight() {
   const profileId = useId();
   const router = useRouter();
   const nickname = useUserStore((s) => s.nickname);
+  const profileImageUrl = useUserStore((s) => s.profileImageUrl);
   const email = useUserStore((s) => s.email);
   const logout = useUserStore((s) => s.logout);
 
@@ -497,7 +499,7 @@ function LoggedInRight() {
         aria-controls={profileId}
         className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-[14px] font-bold text-white"
       >
-        {nickname?.charAt(0) ?? "U"}
+        <Avatar path={profileImageUrl} nickname={nickname} size={40} />
       </button>
 
       {open && (
@@ -522,9 +524,7 @@ function LoggedInRight() {
           </div>
           <div className="max-h-[340px] overflow-y-auto">
             {loadState === "loading" && (
-              <div className="px-4 py-8 text-center text-[13px] text-[#9A9AA2]">
-                불러오는 중...
-              </div>
+              <div className="px-4 py-8 text-center text-[13px] text-[#9A9AA2]">불러오는 중...</div>
             )}
             {loadState === "error" && (
               <div
@@ -591,7 +591,7 @@ function LoggedInRight() {
         >
           <div className="flex items-center gap-3 px-4 py-[18px]">
             <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-secondary text-base font-extrabold text-white">
-              {nickname?.charAt(0) ?? "U"}
+              <Avatar path={profileImageUrl} nickname={nickname} size={44} />
             </div>
             <div className="min-w-0">
               <div className="text-[14.5px] font-extrabold">{nickname ?? "사용자"}</div>
