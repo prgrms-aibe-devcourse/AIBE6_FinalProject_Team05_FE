@@ -59,7 +59,7 @@ export default function MyPage() {
     setProfile(null);
     try {
       const me = await getMyInfo();
-      setInfo(await getMyInfo());
+      setInfo(me);
       setProfileImageUrl(me.profileImageUrl);
     } catch {
       setLoadError(true);
