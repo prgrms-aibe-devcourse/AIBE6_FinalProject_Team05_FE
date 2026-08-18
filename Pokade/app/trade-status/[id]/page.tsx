@@ -218,6 +218,23 @@ export default function TradeStatusPage() {
                   <span className="text-[#8A8A92]">거래 번호</span>
                   <span className="font-bold">#{trade.id}</span>
                 </div>
+                {/* userId 복원이 실패로 끝나면(authenticated + userIdRestoring=false + userId=null)
+                    isBuyer가 false로 떨어져 실제 구매자에게 자기 자신을 상대방으로 안내하게 된다.
+                    userId를 신뢰할 수 있을 때만 상대방 줄을 노출한다. */}
+                {userId != null && (
+                  <div className="flex justify-between">
+                    <span className="text-[#8A8A92]">{isBuyer ? "판매자" : "구매자"}</span>
+                    <Link
+                      href={`/users/${isBuyer ? trade.sellerId : trade.buyerId}`}
+                      className="font-bold hover:text-primary"
+                    >
+                      프로필 보기
+                      <span aria-hidden="true" className="ml-1 text-[#B0B0B8]">
+                        ›
+                      </span>
+                    </Link>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-[#8A8A92]">거래 요청일</span>
                   <span className="font-bold">{formatDateTime(trade.createdAt)}</span>
