@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CardImage from "@/components/CardImage";
+import Avatar from "@/components/Avatar";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 import { fetchCardsByKeywordPage } from "@/lib/cardApi";
 import { highlightMatch } from "@/lib/highlightMatch";
@@ -428,6 +429,7 @@ function LoggedInRight({
   const profileId = useId();
   const router = useRouter();
   const nickname = useUserStore((s) => s.nickname);
+  const profileImageUrl = useUserStore((s) => s.profileImageUrl);
   const email = useUserStore((s) => s.email);
   const logout = useUserStore((s) => s.logout);
 
@@ -510,7 +512,7 @@ function LoggedInRight({
         aria-controls={profileId}
         className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-[14px] font-bold text-white"
       >
-        {nickname?.charAt(0) ?? "U"}
+        <Avatar path={profileImageUrl} nickname={nickname} size={40} />
       </button>
 
       {/* 알림/프로필 패널(및 백드롭)은 <header>(sticky+z-50)가 만드는 스태킹 컨텍스트에 갇히면
@@ -622,7 +624,7 @@ function LoggedInRight({
             >
               <div className="flex items-center gap-3 px-4 py-[18px]">
                 <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-secondary text-base font-extrabold text-white">
-                  {nickname?.charAt(0) ?? "U"}
+                  <Avatar path={profileImageUrl} nickname={nickname} size={44} />
                 </div>
                 <div className="min-w-0">
                   <div className="text-[14.5px] font-extrabold">{nickname ?? "사용자"}</div>

@@ -17,12 +17,14 @@ interface UserState {
   userIdRestoring: boolean;
   nickname: string | null;
   email: string | null;
+  profileImageUrl: string | null; // 서버 상대 경로, 이미지 없으면 null
   role: "user" | "admin" | null;
   login: (email: string, password: string) => Promise<void>;
   loginWithToken: (accessToken: string) => Promise<void>;
   logout: () => Promise<void>;
   restoreSession: (force?: boolean) => Promise<boolean>;
   setNickname: (nickname: string) => void;
+  setProfileImageUrl: (profileImageUrl: string | null) => void;
 }
 
 const SESSION_HINT_KEY = "pokade_has_session"; // 세션이 있었음을 기억하는 로컬스토리지 키 (로그인 후 새로고침 시 restoreSession 호출 여부 판단용)
@@ -43,6 +45,7 @@ export const useUserStore = create<UserState>((set, get) => ({
   userIdRestoring: false,
   nickname: null,
   email: null,
+  profileImageUrl: null,
   role: null,
 
   // 이미 발급된 accessToken으로 세션 확정: 토큰 저장 → 프로필 조회 → 상태 세팅 (소셜 가입·로그인 공용)
@@ -58,6 +61,7 @@ export const useUserStore = create<UserState>((set, get) => ({
         userIdRestoring: false,
         nickname: me.nickname,
         email: me.email,
+        profileImageUrl: me.profileImageUrl,
         role: toStoreRole(me.role),
       });
     } catch (err) {
@@ -71,6 +75,7 @@ export const useUserStore = create<UserState>((set, get) => ({
         userIdRestoring: false,
         nickname: null,
         email: null,
+        profileImageUrl: null,
         role: null,
       });
       throw err; // 화면에서 에러 처리하도록 재throw
@@ -98,6 +103,7 @@ export const useUserStore = create<UserState>((set, get) => ({
       userId: null,
       userIdRestoring: false,
       nickname: null,
+      profileImageUrl: null,
       email: null,
       role: null,
     });
@@ -114,6 +120,7 @@ export const useUserStore = create<UserState>((set, get) => ({
         userIdRestoring: false,
         nickname: null,
         email: null,
+        profileImageUrl: null,
         role: null,
       });
       return false;
@@ -135,6 +142,7 @@ export const useUserStore = create<UserState>((set, get) => ({
         userIdRestoring: false,
         nickname: null,
         email: null,
+        profileImageUrl: null,
         role: null,
       });
       return false;
@@ -151,6 +159,7 @@ export const useUserStore = create<UserState>((set, get) => ({
         userIdRestoring: false,
         nickname: me.nickname,
         email: me.email,
+        profileImageUrl: me.profileImageUrl,
         role: toStoreRole(me.role),
       });
       return true;
@@ -166,6 +175,7 @@ export const useUserStore = create<UserState>((set, get) => ({
           userIdRestoring: false,
           nickname: null,
           email: null,
+          profileImageUrl: null,
           role: null,
         });
         return false;
@@ -181,6 +191,7 @@ export const useUserStore = create<UserState>((set, get) => ({
         userIdRestoring: false,
         nickname: me.nickname,
         email: me.email,
+        profileImageUrl: me.profileImageUrl,
         role: toStoreRole(me.role),
       });
       return true;
@@ -192,4 +203,5 @@ export const useUserStore = create<UserState>((set, get) => ({
   },
 
   setNickname: (nickname) => set({ nickname }),
+  setProfileImageUrl: (profileImageUrl) => set({ profileImageUrl }),
 }));

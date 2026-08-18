@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { getPublicProfile } from "@/lib/profileApi";
 import { ApiError } from "@/lib/apiClient";
 import type { PublicProfile } from "@/types/profile";
+import Avatar from "@/components/Avatar";
 
 type LoadState = "loading" | "ready" | "notfound" | "error";
 
@@ -85,9 +86,12 @@ export default function PublicProfilePage() {
         {loadState === "ready" && profile && (
           <section className="rounded-[18px] border border-[#EDEDF0] bg-white px-8 py-7 shadow-card">
             <div className="flex items-center gap-4">
-              <div className="flex h-[64px] w-[64px] items-center justify-center rounded-full bg-[#F2F2F5] text-[24px] font-extrabold text-[#B0B0B8]">
-                {profile.nickname.slice(0, 1)}
-              </div>
+              <Avatar
+                path={profile.profileImageUrl}
+                nickname={profile.nickname}
+                size={64}
+                className="bg-[#F2F2F5] text-[24px] font-extrabold text-[#B0B0B8]"
+              />
               <div>
                 <p className="text-[19px] font-extrabold">{profile.nickname}</p>
                 <p className="mt-1 text-[13px] text-[#8A8A92]">

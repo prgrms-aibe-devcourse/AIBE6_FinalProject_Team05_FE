@@ -1,14 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import Link from "next/link";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useUserStore } from "@/store/useUserStore";
 import { getMyInfo, updateNickname, cancelWithdrawal } from "@/lib/authApi";
 import { authErrorMessage } from "@/lib/authErrorMessages";
 import { MyInfo } from "@/types/auth";
-import { getMyProfile } from "@/lib/profileApi";
 import { MyProfile } from "@/types/profile";
+import { deleteProfileImage, uploadProfileImage, getMyProfile } from "@/lib/profileApi";
+import { withCacheBuster } from "@/lib/profileImage";
+import Avatar from "@/components/Avatar";
 
 const PROVIDER_LABELS: Record<MyProfile["provider"], string> = {
   LOCAL: "이메일",
@@ -19,6 +21,8 @@ const PROVIDER_LABELS: Record<MyProfile["provider"], string> = {
 function providerLabel(provider: MyProfile["provider"]): string {
   return PROVIDER_LABELS[provider];
 }
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // BE 제한과 동일 — 초과분을 굳이 올려 413을 받지 않는다
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png"];
 
 // LocalDateTime 문자열("2026-08-17T11:22:33")을 YYYY. MM. DD. 로 표시
 function formatDate(iso: string): string {
@@ -32,6 +36,8 @@ function formatDate(iso: string): string {
 export default function MyPage() {
   const authStatus = useRequireAuth();
   const setNickname = useUserStore((s) => s.setNickname);
+  const profileImageUrl = useUserStore((s) => s.profileImageUrl);
+  const setProfileImageUrl = useUserStore((s) => s.setProfileImageUrl);
 
   const [profile, setProfile] = useState<MyProfile | null>(null);
   const [info, setInfo] = useState<MyInfo | null>(null);
@@ -43,13 +49,18 @@ export default function MyPage() {
   const [nickError, setNickError] = useState<string | null>(null);
   const [canceling, setCanceling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [imageSaving, setImageSaving] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoadError(false);
     setInfo(null);
     setProfile(null);
     try {
-      setInfo(await getMyInfo());
+      const me = await getMyInfo();
+      setInfo(me);
+      setProfileImageUrl(me.profileImageUrl);
     } catch {
       setLoadError(true);
       return; // 기본 정보가 없으면 에러 화면이므로 상세는 요청하지 않는다
@@ -60,7 +71,7 @@ export default function MyPage() {
     } catch {
       setProfile(null);
     }
-  }, []);
+  }, [setProfileImageUrl]);
 
   useEffect(() => {
     if (authStatus !== "authenticated") return;
@@ -101,6 +112,50 @@ export default function MyPage() {
       setNickError(authErrorMessage(e, "닉네임 변경에 실패했습니다."));
     } finally {
       setNickSaving(false);
+    }
+  }
+
+  async function handleImageSelect(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // 같은 파일을 다시 골라도 change가 발생하도록 비운다
+    if (!file) return;
+
+    setImageError(null);
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setImageError("jpg 또는 png 이미지만 올릴 수 있습니다.");
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setImageError("5MB 이하 이미지만 올릴 수 있습니다.");
+      return;
+    }
+
+    setImageSaving(true);
+    try {
+      await uploadProfileImage(file);
+      const me = await getMyInfo();
+      setInfo(me);
+      // 경로는 서버가 준 값을 그대로 쓰고 버전만 덧붙인다 — 경로 조립은 BE 몫이다
+      setProfileImageUrl(me.profileImageUrl ? withCacheBuster(me.profileImageUrl) : null);
+    } catch (err) {
+      setImageError(authErrorMessage(err, "이미지 업로드에 실패했습니다."));
+    } finally {
+      setImageSaving(false);
+    }
+  }
+
+  async function handleImageDelete() {
+    if (imageSaving) return;
+    setImageError(null);
+    setImageSaving(true);
+    try {
+      await deleteProfileImage();
+      setProfileImageUrl(null);
+      setInfo((prev) => (prev ? { ...prev, profileImageUrl: null } : prev));
+    } catch (err) {
+      setImageError(authErrorMessage(err, "이미지 삭제에 실패했습니다."));
+    } finally {
+      setImageSaving(false);
     }
   }
 
@@ -198,6 +253,48 @@ export default function MyPage() {
           <>
             <section className="rounded-[18px] border border-[#EDEDF0] bg-white px-8 py-7 shadow-card">
               <h2 className="text-[17px] font-extrabold">내 정보</h2>
+              <div className="mt-5 flex items-center gap-4">
+                <Avatar
+                  path={profileImageUrl}
+                  nickname={info.nickname}
+                  size={72}
+                  className="bg-[#F2F2F5] text-[26px] font-extrabold text-[#B0B0B8]"
+                />
+                <div className="flex flex-col gap-2">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={imageSaving}
+                      className={smallBtn("primary")}
+                    >
+                      {imageSaving ? "처리 중…" : profileImageUrl ? "사진 변경" : "사진 등록"}
+                    </button>
+                    {profileImageUrl && (
+                      <button
+                        onClick={handleImageDelete}
+                        disabled={imageSaving}
+                        className={smallBtn("ghost")}
+                      >
+                        삭제
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[12px] text-[#8A8A92]">jpg·png, 5MB 이하</p>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                  aria-label="프로필 이미지 선택"
+                />
+              </div>
+              {imageError && (
+                <p role="alert" className="mt-2 text-[12.5px] font-semibold text-[#C21414]">
+                  {imageError}
+                </p>
+              )}
               <div className="mt-4 space-y-4 text-[14px]">
                 <div className="flex items-center justify-between">
                   <span className="text-[#8A8A92]">이메일</span>
