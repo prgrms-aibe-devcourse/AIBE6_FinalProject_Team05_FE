@@ -28,3 +28,10 @@ export interface WatchlistCreateRequest {
   targetBuyPrice?: number;
   targetSellPrice?: number;
 }
+
+// PATCH /api/watchlist/{id} 요청 바디 — com.pokade.domain.watchlist.dto.WatchlistUpdateRequest 미러링.
+// targetBuyPrice/targetSellPrice 둘 다 없으면 BE가 400(TARGET_PRICE_REQUIRED) 반환.
+export interface WatchlistUpdateRequest {
+  targetBuyPrice?: number;
+  targetSellPrice?: number;
+}

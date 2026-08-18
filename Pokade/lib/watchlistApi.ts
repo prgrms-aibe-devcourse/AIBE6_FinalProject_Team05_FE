@@ -1,6 +1,10 @@
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/apiClient";
 import { NotificationResponse } from "@/types/notification";
-import { WatchlistCreateRequest, WatchlistResponse } from "@/types/watchlist";
+import {
+  WatchlistCreateRequest,
+  WatchlistResponse,
+  WatchlistUpdateRequest,
+} from "@/types/watchlist";
 
 // GET /api/watchlist — 로그인한 유저의 워치리스트 목록. 페이지네이션 없음(전체 배열), 인증 필요(401 가능).
 export async function fetchWatchlist(): Promise<WatchlistResponse[]> {
@@ -11,6 +15,17 @@ export async function fetchWatchlist(): Promise<WatchlistResponse[]> {
 // 이미 등록된 카드면 409(DUPLICATE_WATCHLIST), 유저당 20개 초과 시 409(WATCHLIST_LIMIT_EXCEEDED).
 export async function addWatchlist(request: WatchlistCreateRequest): Promise<WatchlistResponse> {
   return apiPost<WatchlistResponse>("/api/watchlist", request);
+}
+
+// PATCH /api/watchlist/{id} — targetBuyPrice/targetSellPrice 둘 다 없으면 400(TARGET_PRICE_REQUIRED),
+// 본인 소유가 아니거나 없는 id면 404(WATCHLIST_NOT_FOUND). 응답은 WatchlistResponse.of()로 만들어져
+// cardName/setName/imageUrl/currentPrice/changeRate/targetReached가 전부 null/false로 온다 —
+// 호출부에서 통째로 덮어쓰지 말고 targetBuyPrice/targetSellPrice만 반영해야 한다.
+export async function updateWatchlist(
+  id: number,
+  request: WatchlistUpdateRequest,
+): Promise<WatchlistResponse> {
+  return apiPatch<WatchlistResponse>(`/api/watchlist/${id}`, request);
 }
 
 // DELETE /api/watchlist/{id} — 본인 소유가 아니거나 없는 id면 404(WATCHLIST_NOT_FOUND).

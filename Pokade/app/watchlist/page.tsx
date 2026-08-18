@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import AddWatchlistModal from "@/components/AddWatchlistModal";
 import CardImage from "@/components/CardImage";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
@@ -67,6 +68,7 @@ export default function WatchlistPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [editingItem, setEditingItem] = useState<WatchlistResponse | null>(null);
 
   useEffect(() => {
     if (authStatus !== "authenticated") return;
@@ -133,6 +135,27 @@ export default function WatchlistPage() {
     } finally {
       setDeletingId(null);
     }
+  };
+
+  // PATCH 응답(WatchlistResponse.of)은 cardName/setName/imageUrl/currentPrice/changeRate/targetReached가
+  // 전부 비워져서 온다 — 통째로 교체하면 목록에 이미 표시 중인 시세·등락률·상태 배지가 사라지므로
+  // targetBuyPrice/targetSellPrice만 반영하고 나머지 필드는 기존 값을 유지한다.
+  const handleUpdateSuccess = (updated: WatchlistResponse) => {
+    setRows((prev) =>
+      prev.map((r) =>
+        r.item.id === updated.id
+          ? {
+              ...r,
+              item: {
+                ...r.item,
+                targetBuyPrice: updated.targetBuyPrice,
+                targetSellPrice: updated.targetSellPrice,
+              },
+            }
+          : r,
+      ),
+    );
+    setEditingItem(null);
   };
 
   if (authStatus !== "authenticated") return null;
@@ -290,7 +313,28 @@ export default function WatchlistPage() {
                           {status}
                         </span>
                       </div>
-                      <div className="text-right">
+                      <div className="flex items-center justify-end gap-3">
+                        <button
+                          type="button"
+                          aria-label={`${displayName} 목표가 수정`}
+                          onClick={() => setEditingItem(row.item)}
+                          className="text-[#C7C7CE] hover:text-primary"
+                        >
+                          <svg
+                            width="17"
+                            height="17"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M12 20h9" />
+                            <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z" />
+                          </svg>
+                        </button>
                         <button
                           type="button"
                           aria-label={`${displayName} 워치리스트에서 삭제`}
@@ -317,6 +361,16 @@ export default function WatchlistPage() {
           </>
         )}
       </div>
+
+      <AddWatchlistModal
+        isOpen={editingItem != null}
+        onClose={() => setEditingItem(null)}
+        mode="edit"
+        watchlistId={editingItem?.id}
+        initialTargetBuyPrice={editingItem?.targetBuyPrice}
+        initialTargetSellPrice={editingItem?.targetSellPrice}
+        onSuccess={handleUpdateSuccess}
+      />
     </main>
   );
 }
