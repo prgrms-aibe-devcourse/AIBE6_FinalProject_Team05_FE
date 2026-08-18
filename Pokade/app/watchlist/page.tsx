@@ -22,11 +22,19 @@ const STATUS_CLS: Record<Status, string> = {
 
 type LoadState = "loading" | "error" | "ready";
 type Filter = "all" | "wait" | "reached";
+type Sort = "oldest" | "latest";
 
 const TABS: { key: Filter; label: string }[] = [
   { key: "all", label: "전체" },
   { key: "wait", label: "대기중" },
   { key: "reached", label: "목표도달" },
+];
+
+// 현재 BE(findByUserId, OrderBy 없음)가 사실상 등록 오래된순으로 내려주므로 이를 기본값으로 둔다.
+// 재정렬은 순수 클라이언트 처리 — 최대 20개(WATCHLIST_LIMIT)라 재요청 없이 바로 정렬 가능.
+const SORT_OPTIONS: { key: Sort; label: string }[] = [
+  { key: "oldest", label: "등록 오래된순" },
+  { key: "latest", label: "등록 최신순" },
 ];
 
 function statusOf(item: WatchlistResponse): Status {
@@ -59,6 +67,7 @@ export default function WatchlistPage() {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  const [sort, setSort] = useState<Sort>("oldest");
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<WatchlistResponse | null>(null);
@@ -98,6 +107,11 @@ export default function WatchlistPage() {
     if (filter === "wait") return !r.targetReached;
     if (filter === "reached") return r.targetReached;
     return true;
+  });
+
+  const sorted = [...filtered].sort((a, b) => {
+    const diff = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    return sort === "oldest" ? diff : -diff;
   });
 
   const tabCls = (active: boolean) =>
@@ -223,16 +237,30 @@ export default function WatchlistPage() {
 
         {loadState === "ready" && rows.length > 0 && (
           <>
-            <div className="mb-[18px] flex gap-2">
-              {TABS.map(({ key, label }) => (
-                <button
-                  key={key}
-                  className={tabCls(filter === key)}
-                  onClick={() => setFilter(key)}
-                >
-                  {label} {counts[key]}
-                </button>
-              ))}
+            <div className="mb-[18px] flex items-center justify-between">
+              <div className="flex gap-2">
+                {TABS.map(({ key, label }) => (
+                  <button
+                    key={key}
+                    className={tabCls(filter === key)}
+                    onClick={() => setFilter(key)}
+                  >
+                    {label} {counts[key]}
+                  </button>
+                ))}
+              </div>
+              <select
+                aria-label="정렬"
+                value={sort}
+                onChange={(e) => setSort(e.target.value as Sort)}
+                className="rounded-[10px] border-[1.5px] border-[#E4E4E9] bg-white px-[15px] py-2 text-[13.5px] font-semibold text-[#7A7A82] outline-none focus:border-primary"
+              >
+                {SORT_OPTIONS.map(({ key, label }) => (
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {deleteError && (
@@ -253,7 +281,7 @@ export default function WatchlistPage() {
               </div>
             )}
 
-            {filtered.length === 0 ? (
+            {sorted.length === 0 ? (
               <div className="rounded-2xl border border-[#EDEDF0] bg-white px-6 py-14 text-center text-[13.5px] text-[#8A8A92]">
                 해당 상태의 카드가 없습니다.
               </div>
@@ -267,7 +295,7 @@ export default function WatchlistPage() {
                   <div>상태</div>
                   <div />
                 </div>
-                {filtered.map((row, i) => {
+                {sorted.map((row, i) => {
                   const displayName = row.cardNameKo ?? row.cardName ?? "알 수 없는 카드";
                   const priceLabel =
                     resolvePriceDisplay(row.currentPrice ?? undefined)?.price ?? "정보 없음";
@@ -280,7 +308,7 @@ export default function WatchlistPage() {
                     <div
                       key={row.id}
                       className={`grid grid-cols-[2.4fr_1fr_1fr_1fr_1fr_0.6fr] items-center gap-4 px-[22px] py-4 hover:bg-[#FAFAFB] ${
-                        i < filtered.length - 1 ? "border-b border-[#F2F2F5]" : ""
+                        i < sorted.length - 1 ? "border-b border-[#F2F2F5]" : ""
                       }`}
                     >
                       <Link
