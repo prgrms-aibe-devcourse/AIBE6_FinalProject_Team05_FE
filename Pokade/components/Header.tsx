@@ -4,6 +4,7 @@ import { Suspense, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CardImage from "@/components/CardImage";
+import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 import { fetchCardsByKeywordPage } from "@/lib/cardApi";
 import { highlightMatch } from "@/lib/highlightMatch";
 import { pickDisplayName } from "@/lib/pickDisplayName";
@@ -456,7 +457,7 @@ function LoggedInRight() {
 
   return (
     <div className="relative flex items-center gap-4">
-      <SearchBar />
+      <SearchBar width="hidden w-60 md:block" />
       <button
         onClick={() => toggle("notif")}
         aria-label={notifLabel}
@@ -522,9 +523,7 @@ function LoggedInRight() {
           </div>
           <div className="max-h-[340px] overflow-y-auto">
             {loadState === "loading" && (
-              <div className="px-4 py-8 text-center text-[13px] text-[#9A9AA2]">
-                불러오는 중...
-              </div>
+              <div className="px-4 py-8 text-center text-[13px] text-[#9A9AA2]">불러오는 중...</div>
             )}
             {loadState === "error" && (
               <div
@@ -643,8 +642,19 @@ export default function Header() {
           ? "admin"
           : "in";
 
+  const mobileMenuId = useId();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  useEscapeAndScrollLock(mobileMenuOpen, () => setMobileMenuOpen(false));
+
+  // 페이지 이동(네비 링크 클릭 외의 경로 — 뒤로가기 등) 시에도 열려있던 모바일 메뉴를 닫는다.
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
+    if (mobileMenuOpen) setMobileMenuOpen(false);
+  }
+
   return (
-    <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-b border-[#F0F0F0] bg-white px-10">
+    <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-b border-[#F0F0F0] bg-white px-4 sm:px-10">
       <div className="flex items-center gap-11">
         <Link
           href="/"
@@ -652,7 +662,7 @@ export default function Header() {
         >
           POCKET TRADE
         </Link>
-        <nav className="flex items-center gap-[30px] text-[15px] font-semibold">
+        <nav className="hidden items-center gap-[30px] text-[15px] font-semibold md:flex">
           {NAV.map((n) => {
             const isActive =
               n.href !== "#" && (pathname === n.href || pathname.startsWith(n.href + "/"));
@@ -677,7 +687,7 @@ export default function Header() {
         {variant === "loading" && <div className="h-10 w-10 rounded-full bg-neutral" />}
         {variant === "out" && (
           <>
-            <SearchBar width="w-56" />
+            <SearchBar width="hidden w-56 md:block" />
             <Link
               href="/login"
               className="whitespace-nowrap px-1.5 py-2 text-[14.5px] font-bold text-[#4B4B52] hover:text-primary"
@@ -722,7 +732,86 @@ export default function Header() {
             </div>
           </>
         )}
+
+        <button
+          type="button"
+          aria-label={mobileMenuOpen ? "메뉴 닫기" : "메뉴 열기"}
+          aria-expanded={mobileMenuOpen}
+          aria-controls={mobileMenuId}
+          onClick={() => setMobileMenuOpen((v) => !v)}
+          className="flex h-10 w-10 items-center justify-center rounded-[9px] bg-neutral transition-colors hover:bg-[#ECECEF] md:hidden"
+        >
+          {mobileMenuOpen ? (
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#4B4B52"
+              strokeWidth="2"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          ) : (
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#4B4B52"
+              strokeWidth="2"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M4 6h16" />
+              <path d="M4 12h16" />
+              <path d="M4 18h16" />
+            </svg>
+          )}
+        </button>
       </div>
+
+      {mobileMenuOpen && (
+        <>
+          <div
+            onClick={() => setMobileMenuOpen(false)}
+            aria-hidden="true"
+            className="fixed inset-0 z-[80] md:hidden"
+          />
+          <div
+            id={mobileMenuId}
+            className="absolute left-0 right-0 top-full z-[90] border-b border-[#EDEDF0] bg-white p-4 shadow-[0_14px_38px_rgba(20,26,52,0.18)] md:hidden"
+          >
+            {(variant === "out" || variant === "in") && (
+              <div className="mb-3">
+                <SearchBar width="w-full" />
+              </div>
+            )}
+            <nav className="flex flex-col gap-1">
+              {NAV.map((n) => {
+                const isActive =
+                  n.href !== "#" && (pathname === n.href || pathname.startsWith(n.href + "/"));
+                return (
+                  <Link
+                    key={n.label}
+                    href={n.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={
+                      isActive
+                        ? "rounded-[9px] bg-[#FFF5F5] px-3 py-2.5 text-[14.5px] font-bold text-primary"
+                        : "rounded-[9px] px-3 py-2.5 text-[14.5px] font-semibold text-[#3A3A42] hover:bg-[#F5F5F7]"
+                    }
+                  >
+                    {n.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+        </>
+      )}
     </header>
   );
 }
