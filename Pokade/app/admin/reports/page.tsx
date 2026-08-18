@@ -1,16 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-
-const MENU = [
-  ["대시보드", false],
-  ["신고/제재 관리", true],
-  ["회원 관리", false],
-  ["거래 관리", false],
-  ["정산 관리", false],
-  ["공지 관리", false],
-] as const;
+import AdminSidebar from "@/components/AdminSidebar";
 
 const ROWS = [
   {
@@ -60,28 +51,7 @@ export default function ReportManagementPage() {
   return (
     <>
       <main className="main-content flex bg-neutral">
-        {/* admin sidebar */}
-        <aside className="flex w-[230px] flex-shrink-0 flex-col gap-1 bg-navy px-4 py-[26px]">
-          <div className="px-3 pb-3 text-[11px] font-extrabold tracking-[1px] text-[#6B7290]">
-            관리자 콘솔
-          </div>
-          {MENU.map(([label, active]) => (
-            <Link
-              key={label}
-              href="#"
-              className={`flex items-center gap-[11px] rounded-[10px] px-[13px] py-[11px] text-sm ${
-                active
-                  ? "bg-primary font-bold text-white hover:text-white"
-                  : "font-semibold text-[#A7ADC4] hover:bg-white/[0.06] hover:text-white"
-              }`}
-            >
-              <span
-                className={`h-[7px] w-[7px] rounded-sm ${active ? "bg-white" : "bg-[#4B5478]"}`}
-              />
-              {label}
-            </Link>
-          ))}
-        </aside>
+        <AdminSidebar />
 
         {/* content */}
         <div className="min-w-0 flex-1 px-9 py-8">
