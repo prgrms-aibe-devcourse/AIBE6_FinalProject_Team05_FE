@@ -206,6 +206,24 @@ export default function PriceChart({
     return ((last - first) / first) * 100;
   }, [isSingleGrade, singlePoints]);
 
+  // 등급 탭에 방향 화살표를 붙이기 위해, 선택 여부와 무관하게 등급별 등락률을 전부 미리 계산한다
+  // (계산 방식은 changeRate와 동일 - data는 이미 오래된순이라 필터링만으로 첫/마지막 포인트를 구한다).
+  const changeRateByGrade = useMemo(() => {
+    const byGrade = new Map<string, number[]>();
+    for (const t of data) {
+      const g = t.grade ?? "RAW";
+      const list = byGrade.get(g) ?? [];
+      list.push(t.price);
+      byGrade.set(g, list);
+    }
+    const result: Record<string, number> = {};
+    for (const [grade, prices] of byGrade) {
+      if (prices.length < 2 || prices[0] === 0) continue;
+      result[grade] = ((prices[prices.length - 1] - prices[0]) / prices[0]) * 100;
+    }
+    return result;
+  }, [data]);
+
   const chartData = isSingleGrade ? singlePoints : points;
   const isEmpty = chartData.length === 0;
 
@@ -244,23 +262,36 @@ export default function PriceChart({
           >
             전체
           </button>
-          {grades.map((grade) => (
-            <button
-              key={grade}
-              type="button"
-              onClick={() => setSelectedGrade(grade)}
-              className={`rounded-full px-2.5 py-1 text-[11.5px] font-bold transition ${
-                activeGrade === grade
-                  ? grade === "S"
-                    ? "text-grade-s-ink"
-                    : "text-white"
-                  : "bg-neutral text-[#8A8A92] hover:text-ink"
-              }`}
-              style={activeGrade === grade ? { backgroundColor: GRADE_COLORS[grade] } : undefined}
-            >
-              {GRADE_LABELS[grade] ?? grade}
-            </button>
-          ))}
+          {grades.map((grade) => {
+            const isActive = activeGrade === grade;
+            const rate = changeRateByGrade[grade];
+            return (
+              <button
+                key={grade}
+                type="button"
+                onClick={() => setSelectedGrade(grade)}
+                className={`rounded-full px-2.5 py-1 text-[11.5px] font-bold transition ${
+                  isActive
+                    ? grade === "S"
+                      ? "text-grade-s-ink"
+                      : "text-white"
+                    : "bg-neutral text-[#8A8A92] hover:text-ink"
+                }`}
+                style={isActive ? { backgroundColor: GRADE_COLORS[grade] } : undefined}
+              >
+                {GRADE_LABELS[grade] ?? grade}
+                {rate !== undefined && (
+                  <span
+                    className={`ml-1 ${
+                      isActive ? "" : rate > 0 ? "text-[#EE1515]" : rate < 0 ? "text-[#2D5BFF]" : ""
+                    }`}
+                  >
+                    {rate > 0 ? "▲" : rate < 0 ? "▼" : ""}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
 
