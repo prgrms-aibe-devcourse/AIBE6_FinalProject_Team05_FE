@@ -10,13 +10,20 @@ const SSE_URL = `${API_BASE_URL}/api/notifications/subscribe`;
 // 이 횟수만큼 SSE 재연결을 시도하다 실패하면 폴링으로 완전히 넘어간다 — 네트워크 일시
 // 오류는 몇 번 더 시도해볼 가치가 있지만, 무한 재시도는 폴링 없이 알림이 멎는 상태를 만든다.
 const SSE_MAX_RETRIES = 3;
+// 폴링으로 넘어간 뒤에도 이 주기로 SSE 재연결을 다시 시도한다 — 네트워크가 회복돼도
+// 세션이 끝날 때까지 폴링에 갇혀 있지 않도록.
+const SSE_POLL_RETRY_INTERVAL_MS = 5 * 60_000;
 
 type LoadState = "loading" | "error" | "ready";
+// SSE로 실시간 수신 중인지, 폴링으로 대체 중인지 — Header 알림 벨의 상태 인디케이터가 구독한다.
+// pollTimer 등 다른 모듈 변수와 달리 이 값은 UI가 반응해야 해서 store state로 둔다.
+type ConnectionMode = "sse" | "polling";
 
 interface NotificationState {
   notifications: NotificationResponse[];
   loadState: LoadState;
   errorMessage: string;
+  connectionMode: ConnectionMode;
   start: () => void;
   stop: () => void;
   retry: () => void;
@@ -31,6 +38,10 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 // SSE 연결도 마찬가지로 이 모듈이 유일하게 소유 — start() 중복 호출에도 연결은 하나만 유지.
 let sseAbortController: AbortController | null = null;
 let sseRetryCount = 0;
+
+// 폴링 중 SSE 재도전 타이머 — 이것도 이 모듈이 유일하게 소유. stopPolling()과 생명주기를
+// 함께해서(둘 다 SSE가 다시 붙거나 stop()이 호출되면 정리) 별도로 챙기지 않아도 되게 한다.
+let sseReconnectTimer: ReturnType<typeof setInterval> | null = null;
 
 // "세션 세대" 카운터 — stop()이 호출될 때마다 증가해, 그 이전 세션(폴링 응답이든 SSE
 // 콜백이든)이 새 세션의 상태를 건드리지 못하게 막는다(로그아웃 후 뒤늦게 도착한 응답/이벤트가
@@ -78,16 +89,29 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
 
   // SSE와 폴링이 동시에 돌지 않도록 폴링 쪽 시작/정지를 별도 함수로 분리 — SSE 연결 성공 시
   // stopPolling(), SSE가 완전히 포기했을 때 startPolling()을 각각 명시적으로 호출한다.
-  const startPolling = () => {
+  const startPolling = (myGeneration: number) => {
     if (pollTimer != null) return;
+    set({ connectionMode: "polling" });
     load();
     pollTimer = setInterval(load, POLL_INTERVAL_MS);
+
+    // 폴링에 들어간 시점(=SSE를 포기한 시점)에만 예약 — 이미 폴링 중이면 위에서 이미 return돼
+    // 중복 예약되지 않는다.
+    sseReconnectTimer = setInterval(() => {
+      if (myGeneration !== generation) return; // stop() 이후 낡은 타이머 — stopPolling에서 이미 정리되지만 방어적으로 한 번 더 확인
+      sseRetryCount = 0; // 새 재도전이니 이전 실패 횟수를 리셋해 다시 3회 백오프 기회를 준다
+      connectSse(myGeneration);
+    }, SSE_POLL_RETRY_INTERVAL_MS);
   };
 
   const stopPolling = () => {
     if (pollTimer != null) {
       clearInterval(pollTimer);
       pollTimer = null;
+    }
+    if (sseReconnectTimer != null) {
+      clearInterval(sseReconnectTimer);
+      sseReconnectTimer = null;
     }
   };
 
@@ -105,6 +129,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
         if (myGeneration !== generation) return;
         if (response.ok) {
           sseRetryCount = 0;
+          set({ connectionMode: "sse" });
           stopPolling(); // SSE로 연결됐으면 폴링은 필요 없다
           return;
         }
@@ -146,13 +171,13 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
         if (myGeneration !== generation) throw err; // 이미 종료된 세션 — 재시도하지 않음
 
         if (err instanceof SseAuthError) {
-          startPolling(); // 인증 실패는 재시도해도 소용없으니 즉시 폴링으로 전환
+          startPolling(myGeneration); // 인증 실패는 재시도해도 소용없으니 즉시 폴링으로 전환
           throw err; // 재시도 중단
         }
 
         sseRetryCount++;
         if (sseRetryCount > SSE_MAX_RETRIES) {
-          startPolling(); // 몇 차례 재시도해도 안 되면 폴링으로 넘어가고 SSE는 포기
+          startPolling(myGeneration); // 몇 차례 재시도해도 안 되면 폴링으로 넘어가고 SSE는 포기
           throw err; // 재시도 중단
         }
         return sseRetryCount * 1000; // 1초, 2초, 3초 순으로 늘려가며 재시도
@@ -166,6 +191,8 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
     notifications: [],
     loadState: "loading",
     errorMessage: "",
+    // onopen에서 SSE 확정 전까지는 성급하게 "실시간 연결됨"으로 보여주지 않도록 보수적으로 시작.
+    connectionMode: "polling",
 
     // 조회+구독의 유일한 시작점. 이미 시작돼 있으면 즉시 반환(멱등) — 여러 컴포넌트가 각자
     // 마운트 시점에 호출해도 안전하다. 초기 목록을 한 번 불러온 뒤 SSE 연결을 시도하고,
@@ -185,7 +212,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
       sseAbortController = null;
       sseRetryCount = 0;
       stopPolling();
-      set({ notifications: [], loadState: "loading", errorMessage: "" });
+      set({ notifications: [], loadState: "loading", errorMessage: "", connectionMode: "polling" });
     },
 
     // 폴링 주기와 무관하게 지금 한 번 더 조회 — 에러 상태에서 드롭다운을 닫았다 다시 열 때 등

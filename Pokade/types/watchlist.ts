@@ -1,12 +1,14 @@
 import { CardPriceSummaryResponse } from "@/types/price";
 
 // GET /api/watchlist 응답 — com.pokade.domain.watchlist.dto.WatchlistResponse 미러링.
-// cardName은 card.getName() 원본(영문/원어)만 오고 nameKo 한글 매핑이 없어, 카드명 표시는
-// 여전히 fetchCardDetail(카드 상세)의 nameKo를 써야 한다 — 그래서 이 타입엔 넣지 않는다.
 export interface WatchlistResponse {
   id: number;
   cardId: number;
   variantId: number | null;
+  cardName: string | null;
+  // CardNameKoResolver가 채움 — 도감번호가 없는 카드(트레이너/에너지)나 한글 매핑 자체가
+  // 없으면 null(어설픈 오번역보다 안전하다는 BE 쪽 설계). 표시할 땐 cardNameKo ?? cardName.
+  cardNameKo: string | null;
   setName: string | null;
   imageUrl: string | null;
   targetBuyPrice: number | null;
@@ -27,4 +29,15 @@ export interface WatchlistCreateRequest {
   variantId?: number;
   targetBuyPrice?: number;
   targetSellPrice?: number;
+}
+
+// PATCH /api/watchlist/{id} 요청 바디 — com.pokade.domain.watchlist.dto.WatchlistUpdateRequest 미러링.
+// targetBuyPrice/targetSellPrice 둘 다 없으면 BE가 400(TARGET_PRICE_REQUIRED) 반환 —
+// 단 resendNotification=true면 이 검증을 건너뛴다(가격 없이 재알림 리셋만 요청 가능).
+export interface WatchlistUpdateRequest {
+  targetBuyPrice?: number;
+  targetSellPrice?: number;
+  // true면 가격 검증 없이 isNotified만 false로 리셋한다. 생략(undefined)/false는
+  // "재알림 요청 없음"으로 기존 동작과 동일.
+  resendNotification?: boolean;
 }
