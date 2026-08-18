@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
 import { fetchMyInquiries } from "@/lib/inquiryApi";
-import { INQUIRY_CATEGORY_LABELS, InquiryResponse } from "@/types/inquiry";
+import { INQUIRY_CATEGORY_LABELS, INQUIRY_STATUS_LABELS, InquiryResponse } from "@/types/inquiry";
 
 type LoadState = "loading" | "ready" | "error";
 
@@ -14,6 +14,10 @@ function formatDateTime(iso: string) {
   if (Number.isNaN(d.getTime())) return iso;
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function statusBadgeCls(status: InquiryResponse["status"]) {
+  return status === "HANDLED" ? "bg-[#E8F7EF] text-[#059669]" : "bg-[#FFF1F1] text-[#C21414]";
 }
 
 export default function MyInquiriesPage() {
@@ -79,17 +83,18 @@ export default function MyInquiriesPage() {
 
           {loadState === "ready" && inquiries.length > 0 && (
             <div className="overflow-hidden rounded-[14px] border border-[#EDEDF0] bg-white">
-              <div className="grid grid-cols-[0.5fr_0.8fr_2.2fr_1fr] gap-3.5 border-b border-[#EDEDF0] bg-[#FAFAFB] px-[22px] py-[13px] text-xs font-bold text-[#9A9AA2]">
+              <div className="grid grid-cols-[0.5fr_0.8fr_1.8fr_0.8fr_1fr] gap-3.5 border-b border-[#EDEDF0] bg-[#FAFAFB] px-[22px] py-[13px] text-xs font-bold text-[#9A9AA2]">
                 <div>번호</div>
                 <div>유형</div>
                 <div>제목</div>
+                <div>상태</div>
                 <div>접수</div>
               </div>
               {inquiries.map((inquiry) => (
                 <div
                   key={inquiry.id}
                   onClick={() => setSelected(inquiry)}
-                  className="grid cursor-pointer grid-cols-[0.5fr_0.8fr_2.2fr_1fr] items-center gap-3.5 border-b border-[#F2F2F5] px-[22px] py-[15px] text-[13.5px] last:border-b-0 hover:bg-[#FAFAFB]"
+                  className="grid cursor-pointer grid-cols-[0.5fr_0.8fr_1.8fr_0.8fr_1fr] items-center gap-3.5 border-b border-[#F2F2F5] px-[22px] py-[15px] text-[13.5px] last:border-b-0 hover:bg-[#FAFAFB]"
                 >
                   <div className="font-bold text-secondary">#{inquiry.id}</div>
                   <div>
@@ -106,6 +111,11 @@ export default function MyInquiriesPage() {
                         <path d="M21 15l-5-5L5 21" />
                       </svg>
                     )}
+                  </div>
+                  <div>
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${statusBadgeCls(inquiry.status)}`}>
+                      {INQUIRY_STATUS_LABELS[inquiry.status]}
+                    </span>
                   </div>
                   <div className="text-[#9A9AA2]">{formatDateTime(inquiry.createdAt)}</div>
                 </div>
@@ -142,10 +152,12 @@ export default function MyInquiriesPage() {
               </button>
             </div>
             <div className="flex flex-col gap-5 p-6">
-              <div>
-                <div className="mb-1.5 text-xs font-bold text-[#9A9AA2]">유형</div>
+              <div className="flex items-center gap-2">
                 <span className="inline-block rounded-full bg-[#F2F2F5] px-2.5 py-1 text-[11.5px] font-bold text-[#5A5A62]">
                   {INQUIRY_CATEGORY_LABELS[selected.category]}
+                </span>
+                <span className={`inline-block rounded-full px-2.5 py-1 text-[11.5px] font-bold ${statusBadgeCls(selected.status)}`}>
+                  {INQUIRY_STATUS_LABELS[selected.status]}
                 </span>
               </div>
               <div>

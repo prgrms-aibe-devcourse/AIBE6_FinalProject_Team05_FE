@@ -3,11 +3,18 @@
 import { useEffect, useState } from "react";
 import AdminSidebar from "@/components/AdminSidebar";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { fetchInquiries } from "@/lib/adminApi";
+import { fetchInquiries, updateInquiryStatus } from "@/lib/adminApi";
 import { ApiError } from "@/lib/apiClient";
-import { INQUIRY_CATEGORY_LABELS, InquiryResponse } from "@/types/inquiry";
+import {
+  INQUIRY_CATEGORIES,
+  INQUIRY_CATEGORY_LABELS,
+  INQUIRY_STATUS_LABELS,
+  InquiryCategory,
+  InquiryResponse,
+} from "@/types/inquiry";
 
 type LoadState = "loading" | "ready" | "error";
+const PAGE_SIZE = 20;
 
 // "yyyy-MM-ddTHH:mm:ss" → "YYYY.MM.DD HH:mm" (다른 어드민 화면들과 동일한 표시 규칙).
 function formatDateTime(iso: string) {
@@ -17,6 +24,12 @@ function formatDateTime(iso: string) {
   return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+function statusBadgeCls(status: InquiryResponse["status"]) {
+  return status === "HANDLED"
+    ? "bg-[#E8F7EF] text-[#059669]"
+    : "bg-[#FFF1F1] text-[#C21414]";
+}
+
 export default function AdminInquiriesPage() {
   useRequireAuth();
   const [inquiries, setInquiries] = useState<InquiryResponse[]>([]);
@@ -24,12 +37,21 @@ export default function AdminInquiriesPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [selected, setSelected] = useState<InquiryResponse | null>(null);
 
+  const [category, setCategory] = useState<InquiryCategory | null>(null);
+  const [page, setPage] = useState(1); // 1-based (UI) — API 호출 시 -1
+  const [totalPages, setTotalPages] = useState(1);
+  const [statusUpdating, setStatusUpdating] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
-    fetchInquiries()
+    // 필터/페이지 변경 시마다 로딩 상태로 재설정 후 재조회 - 의도적으로 유지.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoadState("loading");
+    fetchInquiries({ category: category ?? undefined, page: page - 1, size: PAGE_SIZE })
       .then((data) => {
         if (cancelled) return;
-        setInquiries(data);
+        setInquiries(data.content);
+        setTotalPages(Math.max(1, data.totalPages));
         setLoadState("ready");
       })
       .catch((err) => {
@@ -40,7 +62,31 @@ export default function AdminInquiriesPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [category, page]);
+
+  const handleSelectCategory = (next: InquiryCategory | null) => {
+    setCategory(next);
+    setPage(1);
+  };
+
+  const applyStatus = (id: number, updated: InquiryResponse) => {
+    setInquiries((prev) => prev.map((inq) => (inq.id === id ? updated : inq)));
+    setSelected((prev) => (prev && prev.id === id ? updated : prev));
+  };
+
+  const handleToggleStatus = async () => {
+    if (!selected || statusUpdating) return;
+    const nextStatus = selected.status === "HANDLED" ? "UNHANDLED" : "HANDLED";
+    setStatusUpdating(true);
+    try {
+      const updated = await updateInquiryStatus(selected.id, nextStatus);
+      applyStatus(selected.id, updated);
+    } catch {
+      // 토글 실패는 조용히 무시 - 상세 패널은 그대로 열려 있으니 재시도 가능
+    } finally {
+      setStatusUpdating(false);
+    }
+  };
 
   return (
     <>
@@ -49,9 +95,37 @@ export default function AdminInquiriesPage() {
 
         <div className="min-w-0 flex-1 px-9 py-8">
           <h1 className="mb-1 mt-0 text-2xl font-extrabold tracking-[-0.5px]">1:1 문의 관리</h1>
-          <p className="mb-[22px] text-[13.5px] text-[#8A8A92]">
+          <p className="mb-[18px] text-[13.5px] text-[#8A8A92]">
             사용자가 접수한 1:1 문의를 확인합니다
           </p>
+
+          <div className="mb-4 flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => handleSelectCategory(null)}
+              className={`rounded-full border px-3.5 py-1.5 text-[12.5px] font-bold transition ${
+                category === null
+                  ? "border-primary bg-primary text-white"
+                  : "border-[#DDDDE3] bg-white text-[#4B4B52] hover:border-primary hover:text-primary"
+              }`}
+            >
+              전체
+            </button>
+            {INQUIRY_CATEGORIES.map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => handleSelectCategory(value)}
+                className={`rounded-full border px-3.5 py-1.5 text-[12.5px] font-bold transition ${
+                  category === value
+                    ? "border-primary bg-primary text-white"
+                    : "border-[#DDDDE3] bg-white text-[#4B4B52] hover:border-primary hover:text-primary"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
 
           {loadState === "loading" && (
             <div className="rounded-[14px] border border-[#EDEDF0] bg-white px-6 py-14 text-center text-[13.5px] text-[#8A8A92]">
@@ -72,41 +146,73 @@ export default function AdminInquiriesPage() {
           )}
 
           {loadState === "ready" && inquiries.length > 0 && (
-            <div className="overflow-hidden rounded-[14px] border border-[#EDEDF0] bg-white">
-              <div className="grid grid-cols-[0.5fr_0.7fr_1.6fr_0.7fr_1fr] gap-3.5 border-b border-[#EDEDF0] bg-[#FAFAFB] px-[22px] py-[13px] text-xs font-bold text-[#9A9AA2]">
-                <div>번호</div>
-                <div>유형</div>
-                <div>제목</div>
-                <div>작성자</div>
-                <div>접수</div>
-              </div>
-              {inquiries.map((inquiry) => (
-                <div
-                  key={inquiry.id}
-                  onClick={() => setSelected(inquiry)}
-                  className="grid cursor-pointer grid-cols-[0.5fr_0.7fr_1.6fr_0.7fr_1fr] items-center gap-3.5 border-b border-[#F2F2F5] px-[22px] py-[15px] text-[13.5px] last:border-b-0 hover:bg-[#FAFAFB]"
-                >
-                  <div className="font-bold text-secondary">#{inquiry.id}</div>
-                  <div>
-                    <span className="rounded-full bg-[#F2F2F5] px-2.5 py-1 text-[11px] font-bold text-[#5A5A62]">
-                      {INQUIRY_CATEGORY_LABELS[inquiry.category]}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 truncate">
-                    {inquiry.title}
-                    {inquiry.imageUrls.length > 0 && (
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#B4B4BC" strokeWidth="2" className="flex-shrink-0">
-                        <rect x="3" y="3" width="18" height="18" rx="2" />
-                        <circle cx="8.5" cy="8.5" r="1.5" />
-                        <path d="M21 15l-5-5L5 21" />
-                      </svg>
-                    )}
-                  </div>
-                  <div className="text-[#5A5A62]">#{inquiry.userId}</div>
-                  <div className="text-[#9A9AA2]">{formatDateTime(inquiry.createdAt)}</div>
+            <>
+              <div className="overflow-hidden rounded-[14px] border border-[#EDEDF0] bg-white">
+                <div className="grid grid-cols-[0.5fr_0.7fr_1.4fr_0.7fr_0.8fr_1fr] gap-3.5 border-b border-[#EDEDF0] bg-[#FAFAFB] px-[22px] py-[13px] text-xs font-bold text-[#9A9AA2]">
+                  <div>번호</div>
+                  <div>유형</div>
+                  <div>제목</div>
+                  <div>작성자</div>
+                  <div>상태</div>
+                  <div>접수</div>
                 </div>
-              ))}
-            </div>
+                {inquiries.map((inquiry) => (
+                  <div
+                    key={inquiry.id}
+                    onClick={() => setSelected(inquiry)}
+                    className="grid cursor-pointer grid-cols-[0.5fr_0.7fr_1.4fr_0.7fr_0.8fr_1fr] items-center gap-3.5 border-b border-[#F2F2F5] px-[22px] py-[15px] text-[13.5px] last:border-b-0 hover:bg-[#FAFAFB]"
+                  >
+                    <div className="font-bold text-secondary">#{inquiry.id}</div>
+                    <div>
+                      <span className="rounded-full bg-[#F2F2F5] px-2.5 py-1 text-[11px] font-bold text-[#5A5A62]">
+                        {INQUIRY_CATEGORY_LABELS[inquiry.category]}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 truncate">
+                      {inquiry.title}
+                      {inquiry.imageUrls.length > 0 && (
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#B4B4BC" strokeWidth="2" className="flex-shrink-0">
+                          <rect x="3" y="3" width="18" height="18" rx="2" />
+                          <circle cx="8.5" cy="8.5" r="1.5" />
+                          <path d="M21 15l-5-5L5 21" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="text-[#5A5A62]">#{inquiry.userId}</div>
+                    <div>
+                      <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${statusBadgeCls(inquiry.status)}`}>
+                        {INQUIRY_STATUS_LABELS[inquiry.status]}
+                      </span>
+                    </div>
+                    <div className="text-[#9A9AA2]">{formatDateTime(inquiry.createdAt)}</div>
+                  </div>
+                ))}
+              </div>
+
+              {totalPages > 1 && (
+                <div className="mt-5 flex items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                    className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#DDDDE3] bg-white text-[13px] font-bold text-[#4B4B52] enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    &lt;
+                  </button>
+                  <span className="text-[13px] font-semibold text-[#5A5A62]">
+                    {page} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages}
+                    className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#DDDDE3] bg-white text-[13px] font-bold text-[#4B4B52] enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    &gt;
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </main>
@@ -138,10 +244,12 @@ export default function AdminInquiriesPage() {
               </button>
             </div>
             <div className="flex flex-col gap-5 p-6">
-              <div>
-                <div className="mb-1.5 text-xs font-bold text-[#9A9AA2]">유형</div>
+              <div className="flex items-center gap-2">
                 <span className="inline-block rounded-full bg-[#F2F2F5] px-2.5 py-1 text-[11.5px] font-bold text-[#5A5A62]">
                   {INQUIRY_CATEGORY_LABELS[selected.category]}
+                </span>
+                <span className={`inline-block rounded-full px-2.5 py-1 text-[11.5px] font-bold ${statusBadgeCls(selected.status)}`}>
+                  {INQUIRY_STATUS_LABELS[selected.status]}
                 </span>
               </div>
               <div>
@@ -177,6 +285,22 @@ export default function AdminInquiriesPage() {
                   </div>
                 </div>
               )}
+              <button
+                type="button"
+                onClick={handleToggleStatus}
+                disabled={statusUpdating}
+                className={`mt-1 w-full rounded-[11px] border-2 py-3 text-[14px] font-bold transition disabled:opacity-60 ${
+                  selected.status === "HANDLED"
+                    ? "border-[#DDDDE3] bg-white text-[#4B4B52] hover:bg-[#F4F4F6]"
+                    : "border-primary-dark bg-primary text-white shadow-tactile-sm"
+                }`}
+              >
+                {statusUpdating
+                  ? "처리 중..."
+                  : selected.status === "HANDLED"
+                    ? "미확인으로 되돌리기"
+                    : "처리 완료로 표시"}
+              </button>
             </div>
           </>
         )}

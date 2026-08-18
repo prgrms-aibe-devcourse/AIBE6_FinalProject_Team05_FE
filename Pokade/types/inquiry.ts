@@ -15,11 +15,20 @@ export const INQUIRY_CATEGORY_LABELS: Record<InquiryCategory, string> = {
   ETC: "기타",
 };
 
+// com.pokade.domain.inquiry.entity.InquiryStatus 미러링.
+export type InquiryStatus = "UNHANDLED" | "HANDLED";
+
+export const INQUIRY_STATUS_LABELS: Record<InquiryStatus, string> = {
+  UNHANDLED: "미확인",
+  HANDLED: "처리완료",
+};
+
 // com.pokade.domain.inquiry.dto.response.InquiryResponse 미러링.
 export interface InquiryResponse {
   id: number;
   userId: number;
   category: InquiryCategory;
+  status: InquiryStatus;
   title: string;
   content: string;
   imageUrls: string[];
