@@ -13,7 +13,7 @@ export interface MyInfo {
   nickname: string;
   role: "USER" | "ADMIN";
   status: "PENDING" | "ACTIVE" | "WITHDRAWAL_PENDING" | "SUSPENDED" | "DELETED";
-  profileImageUrl: string | null;
+  profileImageUrl: string | null; // 서버 상대 경로 — profileImageSrc()로 변환해서 사용
   pointBalance: number;
   provider: "LOCAL" | "GOOGLE" | "KAKAO";
   withdrawalRequestedAt: string | null;
