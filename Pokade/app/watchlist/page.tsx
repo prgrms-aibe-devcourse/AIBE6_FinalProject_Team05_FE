@@ -362,15 +362,17 @@ export default function WatchlistPage() {
         )}
       </div>
 
-      <AddWatchlistModal
-        isOpen={editingItem != null}
-        onClose={() => setEditingItem(null)}
-        mode="edit"
-        watchlistId={editingItem?.id}
-        initialTargetBuyPrice={editingItem?.targetBuyPrice}
-        initialTargetSellPrice={editingItem?.targetSellPrice}
-        onSuccess={handleUpdateSuccess}
-      />
+      {editingItem && (
+        <AddWatchlistModal
+          isOpen
+          onClose={() => setEditingItem(null)}
+          mode="edit"
+          watchlistId={editingItem.id}
+          initialTargetBuyPrice={editingItem.targetBuyPrice}
+          initialTargetSellPrice={editingItem.targetSellPrice}
+          onSuccess={handleUpdateSuccess}
+        />
+      )}
     </main>
   );
 }

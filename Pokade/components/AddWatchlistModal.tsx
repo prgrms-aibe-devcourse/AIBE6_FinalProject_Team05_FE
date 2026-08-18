@@ -13,31 +13,32 @@ import { WatchlistResponse } from "@/types/watchlist";
 // 막기 위해 FE에서 더 엄격한 최소값을 둔다. BE 요구사항이 바뀐 게 아니라 UX상의 선제 검증.
 const MIN_TARGET_PRICE = 100;
 
-interface AddWatchlistModalProps {
+type AddWatchlistModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  mode?: "create" | "edit";
-  cardId?: number; // create 모드 필수
-  variantId?: number | null;
-  watchlistId?: number; // edit 모드 필수
-  initialTargetBuyPrice?: number | null;
-  initialTargetSellPrice?: number | null;
   onSuccess?: (result: WatchlistResponse) => void;
-}
+} & (
+  | {
+      mode?: "create";
+      cardId: number;
+      variantId?: number | null;
+    }
+  | {
+      mode: "edit";
+      watchlistId: number;
+      initialTargetBuyPrice?: number | null;
+      initialTargetSellPrice?: number | null;
+    }
+);
 
 // 카드 상세/마켓 등 여러 화면에서 재사용할 워치리스트 등록·수정 겸용 모달.
 // 목표 구매가/판매가 중 최소 하나 입력 필요(BE 검증과 동일 규칙을 클라이언트에서도 선제 검사).
-export default function AddWatchlistModal({
-  isOpen,
-  onClose,
-  mode = "create",
-  cardId,
-  variantId,
-  watchlistId,
-  initialTargetBuyPrice,
-  initialTargetSellPrice,
-  onSuccess,
-}: AddWatchlistModalProps) {
+export default function AddWatchlistModal(props: AddWatchlistModalProps) {
+  const { isOpen, onClose, onSuccess } = props;
+  const mode = props.mode ?? "create";
+  const initialTargetBuyPrice = props.mode === "edit" ? props.initialTargetBuyPrice : undefined;
+  const initialTargetSellPrice = props.mode === "edit" ? props.initialTargetSellPrice : undefined;
+
   const authStatus = useUserStore((s) => s.status);
   const router = useRouter();
   const pathname = usePathname();
@@ -116,11 +117,11 @@ export default function AddWatchlistModal({
     setError(null);
     try {
       const result =
-        mode === "edit"
-          ? await updateWatchlist(watchlistId!, { targetBuyPrice: buy, targetSellPrice: sell })
+        props.mode === "edit"
+          ? await updateWatchlist(props.watchlistId, { targetBuyPrice: buy, targetSellPrice: sell })
           : await addWatchlist({
-              cardId: cardId!,
-              variantId: variantId ?? undefined,
+              cardId: props.cardId,
+              variantId: props.variantId ?? undefined,
               targetBuyPrice: buy,
               targetSellPrice: sell,
             });
