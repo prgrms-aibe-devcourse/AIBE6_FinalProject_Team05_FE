@@ -175,6 +175,14 @@ export async function apiPostFormRaw<T>(path: string, formData: FormData): Promi
   return (await res.json()) as T;
 }
 
+// 멀티파트 업로드 + ApiResponse<T> 래퍼 응답용 (예: POST /api/inquiries). Content-Type을 강제하지
+// 않아야 브라우저가 FormData의 boundary를 포함한 multipart/form-data를 자동으로 설정한다.
+export async function apiPostForm<T>(path: string, formData: FormData): Promise<T> {
+  const res = await request(path, { method: "POST", body: formData }, true, UPLOAD_TIMEOUT_MS);
+  const body = (await res.json()) as ApiEnvelope<T>;
+  return body.data;
+}
+
 // ApiResponse 래퍼 없이 raw body를 그대로 내려주는 POST 엔드포인트용 (예: POST /api/chat/query).
 export async function apiPostRaw<T>(path: string, body?: unknown): Promise<T> {
   const res = await request(path, {

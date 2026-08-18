@@ -1,9 +1,15 @@
-import { apiGet, apiPost } from "@/lib/apiClient";
+import { apiGet, apiPostForm } from "@/lib/apiClient";
 import { InquiryCreateRequest, InquiryResponse } from "@/types/inquiry";
 
-// POST /api/inquiries — 로그인 필요(401 가능).
-export async function createInquiry(request: InquiryCreateRequest): Promise<InquiryResponse> {
-  return apiPost<InquiryResponse>("/api/inquiries", request);
+// POST /api/inquiries — 로그인 필요(401 가능). 첨부 이미지는 최대 3장.
+export async function createInquiry(
+  request: InquiryCreateRequest,
+  images: File[],
+): Promise<InquiryResponse> {
+  const formData = new FormData();
+  formData.append("request", new Blob([JSON.stringify(request)], { type: "application/json" }));
+  images.forEach((file) => formData.append("images", file));
+  return apiPostForm<InquiryResponse>("/api/inquiries", formData);
 }
 
 // GET /api/inquiries/me — 본인이 작성한 문의 목록, 최신순.
