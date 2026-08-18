@@ -7,6 +7,7 @@ const MENU: { label: string; href: string }[] = [
   { label: "대시보드", href: "/admin/dashboard" },
   { label: "신고/제재 관리", href: "/admin/reports" },
   { label: "매물 관리", href: "/admin/listings" },
+  { label: "문의 관리", href: "/admin/inquiries" },
   { label: "회원 관리", href: "#" },
   { label: "거래 관리", href: "#" },
   { label: "정산 관리", href: "#" },
