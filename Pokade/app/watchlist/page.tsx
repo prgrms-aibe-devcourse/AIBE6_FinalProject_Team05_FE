@@ -6,10 +6,8 @@ import AddWatchlistModal from "@/components/AddWatchlistModal";
 import CardImage from "@/components/CardImage";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
-import { fetchCardDetail } from "@/lib/cardApi";
 import { resolvePriceDisplay } from "@/lib/priceDisplay";
 import { deleteWatchlistItem, fetchWatchlist } from "@/lib/watchlistApi";
-import { CardDetailResponse } from "@/types/card";
 import { WatchlistResponse } from "@/types/watchlist";
 
 // BE에는 targetReached(현재 시점 목표가 범위 진입 여부)만 있고 "확인함"에 대응하는 필드가
@@ -20,11 +18,6 @@ type Status = "대기중" | "목표도달";
 const STATUS_CLS: Record<Status, string> = {
   대기중: "bg-[#FFF3CE] text-[#8A6A00]",
   목표도달: "bg-[#E8F7EF] text-[#087a4e]",
-};
-
-type WatchlistRow = {
-  item: WatchlistResponse;
-  card: CardDetailResponse | null;
 };
 
 type LoadState = "loading" | "error" | "ready";
@@ -62,7 +55,7 @@ function formatTargets(item: WatchlistResponse): { label: string; value: string 
 export default function WatchlistPage() {
   const authStatus = useRequireAuth();
 
-  const [rows, setRows] = useState<WatchlistRow[]>([]);
+  const [rows, setRows] = useState<WatchlistResponse[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
@@ -75,20 +68,9 @@ export default function WatchlistPage() {
     let cancelled = false;
 
     fetchWatchlist()
-      .then(async (items) => {
-        const cardIds = Array.from(new Set(items.map((i) => i.cardId)));
-        // 카드 상세는 배치 조회 API가 없어 건당 호출(nameKo 한글 매핑 표시용) — WATCHLIST_LIMIT(20)로
-        // 상한이 있어 허용. 시세는 BE가 워치리스트 응답에 currentPrice로 이미 내려주므로 별도 조회 불필요.
-        // 카드 하나가 조회 실패해도 나머지 행은 정상 표시되도록 개별 catch로 null 처리.
-        const cards = await Promise.all(cardIds.map((id) => fetchCardDetail(id).catch(() => null)));
+      .then((items) => {
         if (cancelled) return;
-        const cardById = new Map(cardIds.map((id, i) => [id, cards[i]]));
-        setRows(
-          items.map((item) => ({
-            item,
-            card: cardById.get(item.cardId) ?? null,
-          })),
-        );
+        setRows(items);
         setLoadState("ready");
       })
       .catch((err) => {
@@ -106,13 +88,13 @@ export default function WatchlistPage() {
 
   const counts: Record<Filter, number> = {
     all: rows.length,
-    wait: rows.filter((r) => !r.item.targetReached).length,
-    reached: rows.filter((r) => r.item.targetReached).length,
+    wait: rows.filter((r) => !r.targetReached).length,
+    reached: rows.filter((r) => r.targetReached).length,
   };
 
   const filtered = rows.filter((r) => {
-    if (filter === "wait") return !r.item.targetReached;
-    if (filter === "reached") return r.item.targetReached;
+    if (filter === "wait") return !r.targetReached;
+    if (filter === "reached") return r.targetReached;
     return true;
   });
 
@@ -129,7 +111,7 @@ export default function WatchlistPage() {
     setDeleteError(null);
     try {
       await deleteWatchlistItem(id);
-      setRows((prev) => prev.filter((r) => r.item.id !== id));
+      setRows((prev) => prev.filter((r) => r.id !== id));
     } catch (err) {
       setDeleteError(err instanceof ApiError ? err.message : "삭제에 실패했습니다.");
     } finally {
@@ -143,14 +125,11 @@ export default function WatchlistPage() {
   const handleUpdateSuccess = (updated: WatchlistResponse) => {
     setRows((prev) =>
       prev.map((r) =>
-        r.item.id === updated.id
+        r.id === updated.id
           ? {
               ...r,
-              item: {
-                ...r.item,
-                targetBuyPrice: updated.targetBuyPrice,
-                targetSellPrice: updated.targetSellPrice,
-              },
+              targetBuyPrice: updated.targetBuyPrice,
+              targetSellPrice: updated.targetSellPrice,
             }
           : r,
       ),
@@ -255,34 +234,31 @@ export default function WatchlistPage() {
                   <div />
                 </div>
                 {filtered.map((row, i) => {
-                  const displayName =
-                    row.card?.nameKo ?? row.card?.name ?? "알 수 없는 카드";
+                  const displayName = row.cardNameKo ?? row.cardName ?? "알 수 없는 카드";
                   const priceLabel =
-                    resolvePriceDisplay(row.item.currentPrice ?? undefined)?.price ?? "정보 없음";
-                  const targets = formatTargets(row.item);
-                  const status = statusOf(row.item);
-                  const changeRate = row.item.changeRate;
+                    resolvePriceDisplay(row.currentPrice ?? undefined)?.price ?? "정보 없음";
+                  const targets = formatTargets(row);
+                  const status = statusOf(row);
+                  const changeRate = row.changeRate;
                   const isRise = changeRate != null && changeRate >= 0;
                   const changeCls = isRise ? "text-primary" : "text-secondary";
                   return (
                     <div
-                      key={row.item.id}
+                      key={row.id}
                       className={`grid grid-cols-[2.4fr_1fr_1fr_1fr_1fr_0.6fr] items-center gap-4 px-[22px] py-4 hover:bg-[#FAFAFB] ${
                         i < filtered.length - 1 ? "border-b border-[#F2F2F5]" : ""
                       }`}
                     >
                       <Link
-                        href={`/cards/${row.item.cardId}`}
+                        href={`/cards/${row.cardId}`}
                         className="flex items-center gap-3 hover:text-primary"
                       >
                         <div className="relative h-14 w-10 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
-                          <CardImage src={row.item.imageUrl ?? row.card?.imageMedium} alt={displayName} />
+                          <CardImage src={row.imageUrl ?? undefined} alt={displayName} />
                         </div>
                         <div>
                           <div className="text-sm font-bold">{displayName}</div>
-                          <div className="text-xs text-[#9A9AA2]">
-                            {row.item.setName ?? row.card?.setName ?? "-"}
-                          </div>
+                          <div className="text-xs text-[#9A9AA2]">{row.setName ?? "-"}</div>
                         </div>
                       </Link>
                       <div className="text-sm font-bold">{priceLabel}</div>
@@ -317,7 +293,7 @@ export default function WatchlistPage() {
                         <button
                           type="button"
                           aria-label={`${displayName} 목표가 수정`}
-                          onClick={() => setEditingItem(row.item)}
+                          onClick={() => setEditingItem(row)}
                           className="text-[#C7C7CE] hover:text-primary"
                         >
                           <svg
@@ -338,8 +314,8 @@ export default function WatchlistPage() {
                         <button
                           type="button"
                           aria-label={`${displayName} 워치리스트에서 삭제`}
-                          disabled={deletingId === row.item.id}
-                          onClick={() => handleDelete(row.item.id)}
+                          disabled={deletingId === row.id}
+                          onClick={() => handleDelete(row.id)}
                           className="text-[#C7C7CE] hover:text-primary disabled:opacity-50"
                         >
                           <svg

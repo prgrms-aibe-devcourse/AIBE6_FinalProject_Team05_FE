@@ -1,12 +1,14 @@
 import { CardPriceSummaryResponse } from "@/types/price";
 
 // GET /api/watchlist 응답 — com.pokade.domain.watchlist.dto.WatchlistResponse 미러링.
-// cardName은 card.getName() 원본(영문/원어)만 오고 nameKo 한글 매핑이 없어, 카드명 표시는
-// 여전히 fetchCardDetail(카드 상세)의 nameKo를 써야 한다 — 그래서 이 타입엔 넣지 않는다.
 export interface WatchlistResponse {
   id: number;
   cardId: number;
   variantId: number | null;
+  cardName: string | null;
+  // CardNameKoResolver가 채움 — 도감번호가 없는 카드(트레이너/에너지)나 한글 매핑 자체가
+  // 없으면 null(어설픈 오번역보다 안전하다는 BE 쪽 설계). 표시할 땐 cardNameKo ?? cardName.
+  cardNameKo: string | null;
   setName: string | null;
   imageUrl: string | null;
   targetBuyPrice: number | null;
