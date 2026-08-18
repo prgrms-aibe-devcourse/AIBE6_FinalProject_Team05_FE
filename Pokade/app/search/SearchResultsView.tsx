@@ -272,7 +272,10 @@ export default function SearchResultsView({
         <div
           className={
             filterOpen
-              ? "fixed inset-0 z-50 flex flex-col justify-end bg-black/40 lg:static lg:z-auto lg:block lg:bg-transparent"
+              ? // top-16(헤더 높이)부터만 덮어 헤더 자체(알림/메뉴 트리거 등)는 항상 클릭 가능하게
+                // 남겨둔다 — inset-0로 헤더까지 덮으면 필터가 열린 채 헤더 버튼을 눌러도 이 백드롭이
+                // 클릭을 가로챈다(Header.tsx의 top-16 백드롭과 동일한 이유).
+                "fixed inset-x-0 bottom-0 top-16 z-50 flex flex-col justify-end bg-black/40 lg:static lg:z-auto lg:block lg:bg-transparent"
               : "hidden lg:block"
           }
           onClick={filterOpen ? () => setFilterOpen(false) : undefined}
