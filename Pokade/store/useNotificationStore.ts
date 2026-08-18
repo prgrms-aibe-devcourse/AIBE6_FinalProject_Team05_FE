@@ -15,11 +15,15 @@ const SSE_MAX_RETRIES = 3;
 const SSE_POLL_RETRY_INTERVAL_MS = 5 * 60_000;
 
 type LoadState = "loading" | "error" | "ready";
+// SSE로 실시간 수신 중인지, 폴링으로 대체 중인지 — Header 알림 벨의 상태 인디케이터가 구독한다.
+// pollTimer 등 다른 모듈 변수와 달리 이 값은 UI가 반응해야 해서 store state로 둔다.
+type ConnectionMode = "sse" | "polling";
 
 interface NotificationState {
   notifications: NotificationResponse[];
   loadState: LoadState;
   errorMessage: string;
+  connectionMode: ConnectionMode;
   start: () => void;
   stop: () => void;
   retry: () => void;
@@ -87,6 +91,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
   // stopPolling(), SSE가 완전히 포기했을 때 startPolling()을 각각 명시적으로 호출한다.
   const startPolling = (myGeneration: number) => {
     if (pollTimer != null) return;
+    set({ connectionMode: "polling" });
     load();
     pollTimer = setInterval(load, POLL_INTERVAL_MS);
 
@@ -124,6 +129,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
         if (myGeneration !== generation) return;
         if (response.ok) {
           sseRetryCount = 0;
+          set({ connectionMode: "sse" });
           stopPolling(); // SSE로 연결됐으면 폴링은 필요 없다
           return;
         }
@@ -185,6 +191,8 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
     notifications: [],
     loadState: "loading",
     errorMessage: "",
+    // onopen에서 SSE 확정 전까지는 성급하게 "실시간 연결됨"으로 보여주지 않도록 보수적으로 시작.
+    connectionMode: "polling",
 
     // 조회+구독의 유일한 시작점. 이미 시작돼 있으면 즉시 반환(멱등) — 여러 컴포넌트가 각자
     // 마운트 시점에 호출해도 안전하다. 초기 목록을 한 번 불러온 뒤 SSE 연결을 시도하고,
@@ -204,7 +212,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
       sseAbortController = null;
       sseRetryCount = 0;
       stopPolling();
-      set({ notifications: [], loadState: "loading", errorMessage: "" });
+      set({ notifications: [], loadState: "loading", errorMessage: "", connectionMode: "polling" });
     },
 
     // 폴링 주기와 무관하게 지금 한 번 더 조회 — 에러 상태에서 드롭다운을 닫았다 다시 열 때 등
