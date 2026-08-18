@@ -196,6 +196,16 @@ export default function PriceChart({
     return computeNiceAxis(values, isSingleGrade ? 0.15 : 0.08);
   }, [isSingleGrade, singlePoints, points, grades]);
 
+  // 단일 등급 보기에서만 의미가 있다 - singlePoints는 이미 오래된순으로 오므로 첫/마지막 포인트로
+  // "선택 기간 동안" 등락률을 구한다(전체 보기는 등급마다 가격대가 달라 하나의 등락률로 뭉뚱그릴 수 없다).
+  const changeRate = useMemo(() => {
+    if (!isSingleGrade || singlePoints.length < 2) return null;
+    const first = singlePoints[0].price;
+    const last = singlePoints[singlePoints.length - 1].price;
+    if (first === 0) return null;
+    return ((last - first) / first) * 100;
+  }, [isSingleGrade, singlePoints]);
+
   const chartData = isSingleGrade ? singlePoints : points;
   const isEmpty = chartData.length === 0;
 
@@ -251,6 +261,25 @@ export default function PriceChart({
               {GRADE_LABELS[grade] ?? grade}
             </button>
           ))}
+        </div>
+      )}
+
+      {!loading && !locked && isSingleGrade && changeRate !== null && (
+        <div className="mb-4 -mt-1.5 flex items-center gap-1.5">
+          <span className="text-[11.5px] font-semibold text-[#9A9AA2]">
+            {PERIODS.find((p) => p.value === period)?.label} 등락률
+          </span>
+          <span
+            className={`rounded-full px-2.5 py-1 text-[12px] font-bold ${
+              changeRate > 0
+                ? "bg-[#FFF1F1] text-[#EE1515]"
+                : changeRate < 0
+                  ? "bg-[#EEF3FF] text-[#2D5BFF]"
+                  : "bg-neutral text-[#8A8A92]"
+            }`}
+          >
+            {changeRate > 0 ? "▲" : changeRate < 0 ? "▼" : "-"} {Math.abs(changeRate).toFixed(2)}%
+          </span>
         </div>
       )}
 
