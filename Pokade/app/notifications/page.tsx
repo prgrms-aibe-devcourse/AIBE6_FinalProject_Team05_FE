@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import { ApiError, PageResponse } from "@/lib/apiClient";
-import { fetchNotifications, markNotificationRead } from "@/lib/watchlistApi";
+import { deleteNotification, fetchNotifications, markNotificationRead } from "@/lib/watchlistApi";
 import { notifStyle, formatNotifTime } from "@/lib/notificationDisplay";
 import { NotificationResponse } from "@/types/notification";
 
@@ -42,6 +42,13 @@ export default function NotificationsPage() {
     setLoadState("loading");
     fetchNotifications({ page, size: PAGE_SIZE })
       .then((res) => {
+        // 삭제(개별/전체보기 마지막 항목) 또는 BE 배치가 알림을 지워 이 페이지가 비게 된 경우 —
+        // 프론트에서 totalPages를 직접 추측하지 않고, 서버가 다시 알려주는 대로 이전 페이지로
+        // 물러난다. 0페이지가 비면 그냥 "새 알림이 없습니다" 빈 상태로 둔다.
+        if (res.content.length === 0 && page > 0) {
+          setPage((p) => p - 1);
+          return;
+        }
         setData(res);
         setLoadState("ready");
       })
@@ -68,6 +75,18 @@ export default function NotificationsPage() {
   const markOneRead = (n: NotificationResponse) => {
     if (n.isRead) return;
     markNotificationRead(n.id)
+      .then(() => {
+        load();
+        retryFeed();
+      })
+      .catch(() => {});
+  };
+
+  // 확인창 없이 즉시 삭제(결정된 방향) — 삭제한 알림이 안읽음이었어도 신경 쓰지 않고 항상
+  // load()+retryFeed()로 재조회한다(markOneRead와 같은 이유: 이 화면 상태와 헤더 store가
+  // 서로 다른 fetch 결과라 낙관적으로 손으로 맞추기보다 다시 불러오는 쪽이 항상 정확하다).
+  const handleDelete = (id: number) => {
+    deleteNotification(id)
       .then(() => {
         load();
         retryFeed();
@@ -151,34 +170,62 @@ export default function NotificationsPage() {
               {notifications.map((n, i) => {
                 const style = notifStyle(n.type);
                 return (
-                  <button
+                  // 행 전체가 버튼 하나였다가, 삭제 버튼을 형제로 추가하면서 div로 바꿨다 —
+                  // button 안에 button을 넣으면(중첩 인터랙티브 엘리먼트) 무효한 HTML이고
+                  // 클릭 버블링으로 삭제가 읽음 처리까지 같이 발동하는 문제가 생긴다. 형제로
+                  // 두면 그런 문제 없이 각자 독립적으로 클릭된다(stopPropagation 불필요).
+                  <div
                     key={n.id}
-                    type="button"
-                    onClick={() => markOneRead(n)}
-                    className={`flex w-full items-center gap-[13px] px-5 py-4 text-left hover:bg-[#FAFAFB] ${
+                    className={`group flex w-full items-center gap-[13px] px-5 py-4 hover:bg-[#FAFAFB] ${
                       i < notifications.length - 1 ? "border-b border-[#F5F5F7]" : ""
                     } ${!n.isRead ? "bg-[#FFF7F7]" : ""}`}
                   >
-                    <span
-                      className={`h-[7px] w-[7px] flex-shrink-0 rounded-full ${!n.isRead ? "bg-primary" : "bg-transparent"}`}
-                    />
-                    <div
-                      className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[10px]"
-                      style={{ background: style.tint }}
+                    <button
+                      type="button"
+                      onClick={() => markOneRead(n)}
+                      className="flex min-w-0 flex-1 items-center gap-[13px] text-left"
                     >
-                      {style.icon}
-                    </div>
-                    <div className="min-w-0 flex-1">
+                      <span
+                        className={`h-[7px] w-[7px] flex-shrink-0 rounded-full ${!n.isRead ? "bg-primary" : "bg-transparent"}`}
+                      />
                       <div
-                        className={`text-[14px] leading-[1.4] text-ink ${!n.isRead ? "font-bold" : "font-semibold"}`}
+                        className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[10px]"
+                        style={{ background: style.tint }}
                       >
-                        {n.message}
+                        {style.icon}
                       </div>
-                      <div className="mt-1 text-[12px] text-[#B0B0B8]">
-                        {formatNotifTime(n.createdAt)}
+                      <div className="min-w-0 flex-1">
+                        <div
+                          className={`text-[14px] leading-[1.4] text-ink ${!n.isRead ? "font-bold" : "font-semibold"}`}
+                        >
+                          {n.message}
+                        </div>
+                        <div className="mt-1 text-[12px] text-[#B0B0B8]">
+                          {formatNotifTime(n.createdAt)}
+                        </div>
                       </div>
-                    </div>
-                  </button>
+                    </button>
+                    {/* hover-reveal 삭제 — app/search/SearchFilterSidebar.tsx의 등급 툴팁과 동일한
+                        group/opacity 패턴, 아이콘·색은 app/watchlist/page.tsx 삭제 버튼과 통일.
+                        group-focus-within도 같이 둬서 Tab으로 포커스했을 때도 보이게 한다(마우스
+                        hover가 없는 키보드 사용자 접근성 — 모바일 터치 대응은 이번 범위 밖). */}
+                    <button
+                      type="button"
+                      aria-label="알림 삭제"
+                      onClick={() => handleDelete(n.id)}
+                      className="-m-3.5 ml-1 shrink-0 p-3.5 text-[#C7C7CE] opacity-0 transition-opacity hover:text-primary group-focus-within:opacity-100 group-hover:opacity-100"
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                      </svg>
+                    </button>
+                  </div>
                 );
               })}
             </div>

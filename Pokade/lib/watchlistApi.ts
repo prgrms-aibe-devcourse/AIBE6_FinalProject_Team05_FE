@@ -67,3 +67,9 @@ export async function fetchNotifications(
 export async function markNotificationRead(id: number): Promise<void> {
   return apiPatch<void>(`/api/notifications/${id}/read`);
 }
+
+// DELETE /api/notifications/{id} — 본인 소유가 아니거나 없는 id면 404(NOTIFICATION_NOT_FOUND),
+// 소유 여부를 구분해 노출하지 않는다(BE가 조건부 원자적 DELETE로 처리).
+export async function deleteNotification(id: number): Promise<void> {
+  return apiDelete(`/api/notifications/${id}`);
+}
