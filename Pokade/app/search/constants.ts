@@ -16,3 +16,10 @@ export type UiSort = CardSort | "priceAsc" | "priceDesc";
 
 export const isPriceSort = (s: UiSort): s is "priceAsc" | "priceDesc" =>
   s === "priceAsc" || s === "priceDesc";
+
+// 언어(국가판) 필터 — 실제 존재 값은 EN/JA뿐(#263 확인). SearchFilterSidebar(체크박스 목록)와
+// SearchResultsView(선택된 언어 필터 칩의 라벨 조회)가 함께 참조해서 여기 공유 상수로 둔다.
+export const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
+  { value: "EN", label: "영문판(EN)" },
+  { value: "JA", label: "일본판(JA)" },
+];
