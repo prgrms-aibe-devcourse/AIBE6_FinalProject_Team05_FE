@@ -485,7 +485,9 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
 
         {loadState === "error" && (
           <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[#EDEDF0] bg-white py-24">
-            <span className="text-[13.5px] font-bold text-[#D14343]">{errorMessage}</span>
+            <span role="alert" className="text-[13.5px] font-bold text-[#D14343]">
+              {errorMessage}
+            </span>
             <button
               onClick={() => {
                 setLoadState("loading");
@@ -526,6 +528,9 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
               card.imageMedium;
             const gradeSummary = computeGradeSummary(activeListings);
             const selectedOffer = selectedGrade ? gradeSummary[selectedGrade] : undefined;
+            // 등급을 선택했으면 그 등급의 실제 최저 매물가를 우선 보여준다 — 선택 전(또는 방금
+            // 선택한 등급에 매물이 없어진 방어적 상황)에는 기존처럼 전체 등급 통틀어 최저가로 폴백.
+            const displayBuyPrice = selectedOffer?.price ?? priceSummary?.buyPrice ?? null;
 
             return (
               <>
@@ -685,8 +690,8 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                           <span className="text-[14px] font-semibold text-[#9A9AA2]">
                             불러오는 중...
                           </span>
-                        ) : priceSummary?.buyPrice != null ? (
-                          `${priceSummary.buyPrice.toLocaleString("ko-KR")}원`
+                        ) : displayBuyPrice != null ? (
+                          `${displayBuyPrice.toLocaleString("ko-KR")}원`
                         ) : (
                           <span className="text-[14px] font-semibold text-[#9A9AA2]">
                             상품 없음

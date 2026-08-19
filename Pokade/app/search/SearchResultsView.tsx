@@ -1,19 +1,27 @@
-import { Dispatch, SetStateAction, useEffect, useRef, useState } from "react";
+import { Dispatch, SetStateAction, useEffect, useRef } from "react";
 import Link from "next/link";
-import { GRADE_DESCRIPTIONS } from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
-import { CardSearchItem } from "@/types/card";
+import { CardFacetOption, CardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
-import { CardSort } from "@/lib/cardApi";
 import { highlightMatch } from "@/lib/highlightMatch";
 import { pickDisplayName } from "@/lib/pickDisplayName";
-import { resolvePriceDisplay } from "@/lib/priceDisplay";
-import { PRICE_MAX } from "./constants";
+import { PriceBasis, resolvePriceDisplay, resolveSortablePrice } from "@/lib/priceDisplay";
+import { isPriceSort, LANGUAGE_OPTIONS, PRICE_MAX, UiSort } from "./constants";
+import SearchFilterSidebar from "./SearchFilterSidebar";
 
 type LoadState = "loading" | "error" | "ready";
 
 // size 파라미터를 넘기지 않을 때 BE 기본 페이지 size(cardApi.ts 주석 참고)와 맞춘 스켈레톤 칸 수.
 const SEARCH_SKELETON_COUNT = 20;
+
+// 검색 타일 가격 아래 보조텍스트 — resolvePriceDisplay의 label(문장형, "S등급 상품가" 등)과
+// 별도로 짧게 줄인 배지 문구. 홈/워치리스트 등 다른 화면은 여전히 기존 label을 그대로 쓰므로
+// 그쪽 표시는 이 매핑과 무관하다.
+const BASIS_BADGE_LABEL: Record<PriceBasis, string> = {
+  sGrade: "S등급",
+  recentTrade: "최근 체결가",
+  market: "참고시세",
+};
 
 function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
@@ -40,9 +48,11 @@ interface SearchResultsViewProps {
   setSelectedTypes: Dispatch<SetStateAction<string[]>>;
   selectedRarities: string[];
   setSelectedRarities: Dispatch<SetStateAction<string[]>>;
-  setOptions: { label: string; expansionId: string; series: string }[];
-  typeOptions: string[];
-  rarityOptions: string[];
+  selectedLanguages: string[];
+  setSelectedLanguages: Dispatch<SetStateAction<string[]>>;
+  setOptions: { label: string; expansionId: string; series: string; count: number }[];
+  typeOptions: CardFacetOption[];
+  rarityOptions: CardFacetOption[];
   facetsLoading: boolean;
   priceMin: number;
   setPriceMin: Dispatch<SetStateAction<number>>;
@@ -51,8 +61,8 @@ interface SearchResultsViewProps {
   setPriceRangeNow: (min: number, max: number) => void;
   activeHandle: "min" | "max" | null;
   setActiveHandle: Dispatch<SetStateAction<"min" | "max" | null>>;
-  sort: CardSort;
-  setSort: Dispatch<SetStateAction<CardSort>>;
+  sort: UiSort;
+  setSort: Dispatch<SetStateAction<UiSort>>;
   setLoadState: Dispatch<SetStateAction<LoadState>>;
   loadState: LoadState;
   errorMessage: string;
@@ -65,9 +75,6 @@ interface SearchResultsViewProps {
   resetFilters: () => void;
   setReloadKey: Dispatch<SetStateAction<number>>;
 }
-
-const toggleValue = (list: string[], value: string) =>
-  list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 
 // 페이지네이션 윈도우 — 전체 페이지를 다 그리지 않고 현재 페이지 주변 + 처음/끝만 노출,
 // 나머지는 "..."로 생략한다. (siblingCount=1: 현재 페이지 양옆 1개씩)
@@ -119,6 +126,8 @@ export default function SearchResultsView({
   setSelectedTypes,
   selectedRarities,
   setSelectedRarities,
+  selectedLanguages,
+  setSelectedLanguages,
   setOptions,
   typeOptions,
   rarityOptions,
@@ -157,371 +166,53 @@ export default function SearchResultsView({
     prevFilterOpenRef.current = filterOpen;
   }, [filterOpen]);
 
-  // 슬라이더(range input)와 직접 입력(number input)이 공유하는 min/max 클램핑 로직 —
-  // 두 값이 서로를 앞지르지 않도록(min<=max) 여기서 한 번에 검증한다.
-  const handleMinChange = (value: number) => {
-    setActiveHandle("min");
-    setPriceMin(Math.min(Math.max(value, 0), priceMax));
-  };
-  const handleMaxChange = (value: number) => {
-    setActiveHandle("max");
-    setPriceMax(Math.max(Math.min(value, PRICE_MAX), priceMin));
-  };
-
-  // 직접 입력(number input) 전용 텍스트 상태 — 입력 중에는 클램핑 없이 자유롭게 두고,
-  // blur 시점에만 handleMinChange/handleMaxChange로 보정한다. 슬라이더 조작 등으로
-  // priceMin/priceMax가 바뀌면(타이핑 중이 아닌 한) 아래에서 표시 텍스트를 동기화한다.
-  // (렌더 중 조건부 setState — effect가 아니라 "prop 변경에 맞춰 state 조정하기" 패턴)
-  const [minInputText, setMinInputText] = useState(String(priceMin));
-  const [prevPriceMin, setPrevPriceMin] = useState(priceMin);
-  if (priceMin !== prevPriceMin) {
-    setPrevPriceMin(priceMin);
-    setMinInputText(String(priceMin));
-  }
-
-  const [maxInputText, setMaxInputText] = useState(String(priceMax));
-  const [prevPriceMax, setPrevPriceMax] = useState(priceMax);
-  if (priceMax !== prevPriceMax) {
-    setPrevPriceMax(priceMax);
-    setMaxInputText(String(priceMax));
-  }
-
-  // 세트 목록(1000개+)이 너무 많아 이름으로 좁혀 찾기 위한 검색어 — 네트워크 호출 없이
-  // 메모리에 있는 배열을 그냥 필터링하는 것뿐이라 debounce 없이 즉시 반영한다.
-  const [setSearchQuery, setSetSearchQuery] = useState("");
-  const matchedSetOptions = setOptions.filter((opt) =>
-    opt.label.toLowerCase().includes(setSearchQuery.trim().toLowerCase()),
-  );
-  // 검색어에 걸리지 않아도 이미 선택된 세트는 "내가 뭘 골랐었지" 헷갈리지 않도록 맨 위에 고정.
-  const selectedSetOption = setOptions.find((o) => o.expansionId === selectedExpansionId);
-  const displayedSetOptions =
-    selectedSetOption && !matchedSetOptions.some((o) => o.expansionId === selectedExpansionId)
-      ? [selectedSetOption, ...matchedSetOptions]
-      : matchedSetOptions;
-
-  // 검색어가 없을 때는 이름 모르는 사용자도 탐색할 수 있도록 series 기준 아코디언으로
-  // 묶어서 보여준다 — BE가 이미 series 그룹 최신순 → 그룹 내부 이름순으로 정렬해 내려주므로
-  // 여기서는 순서를 재정렬하지 않고 Map 삽입 순서(=setOptions 순서)만 그대로 유지한다.
-  const showSeriesGroups = setSearchQuery.trim() === "";
-  const seriesGroups = new Map<string, typeof setOptions>();
-  if (showSeriesGroups) {
-    for (const opt of setOptions) {
-      const group = seriesGroups.get(opt.series);
-      if (group) group.push(opt);
-      else seriesGroups.set(opt.series, [opt]);
-    }
-  }
-
-  // 펼쳐진 시리즈 그룹 — 선택된 세트가 속한 그룹은 "그룹 아코디언 뷰에 처음 진입하는
-  // 시점"(최초 마운트 또는 검색→빈 검색어 전환)에만 강제로 펼치고, 그 이후에는 사용자가
-  // 자유롭게 접고 펼 수 있게 둔다(강제로 계속 펼쳐두면 토글 자체가 막힌 것처럼 보인다).
-  const [expandedSeries, setExpandedSeries] = useState<Set<string>>(
-    () => new Set(selectedSetOption ? [selectedSetOption.series] : []),
-  );
-  const [prevShowSeriesGroups, setPrevShowSeriesGroups] = useState(showSeriesGroups);
-  if (showSeriesGroups && !prevShowSeriesGroups) {
-    setPrevShowSeriesGroups(true);
-    if (selectedSetOption && !expandedSeries.has(selectedSetOption.series)) {
-      const next = new Set(expandedSeries);
-      next.add(selectedSetOption.series);
-      setExpandedSeries(next);
-    }
-  } else if (!showSeriesGroups && prevShowSeriesGroups) {
-    setPrevShowSeriesGroups(false);
-  }
-
-  const toggleSeries = (series: string) => {
-    const next = new Set(expandedSeries);
-    if (next.has(series)) next.delete(series);
-    else next.add(series);
-    setExpandedSeries(next);
-  };
-
-  // 아코디언(그룹) 뷰와 검색 중 플랫 뷰가 세트 라디오 한 줄 렌더링을 그대로 공유한다.
-  const renderSetOption = (opt: (typeof setOptions)[number]) => (
-    <label
-      key={opt.expansionId}
-      className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
-    >
-      <input
-        type="radio"
-        name="expansion-filter"
-        checked={selectedExpansionId === opt.expansionId}
-        onClick={() => {
-          if (selectedExpansionId === opt.expansionId) {
-            setLoadState("loading");
-            setSelectedExpansionId(null);
-          }
-        }}
-        onChange={() => {
-          setLoadState("loading");
-          setSelectedExpansionId(opt.expansionId);
-        }}
-      />
-      {opt.label}
-    </label>
-  );
+  // 가격순 — BE 화이트리스트에 없어(constants.ts의 UiSort 주석 참고) 서버 정렬 대신 이미 로드된
+  // 현재 페이지 카드만 여기서 재정렬한다. 가격 정보가 없는 카드(priceDisplay가 null인 경우)는
+  // 오름차순/내림차순 모두에서 항상 맨 뒤로 보낸다 — 가격이 없다는 사실 자체는 정렬 방향과 무관.
+  const displayCards = isPriceSort(sort)
+    ? [...cards].sort((a, b) => {
+        const priceA = resolveSortablePrice(priceSummaries.get(a.id));
+        const priceB = resolveSortablePrice(priceSummaries.get(b.id));
+        if (priceA == null && priceB == null) return 0;
+        if (priceA == null) return 1;
+        if (priceB == null) return -1;
+        return sort === "priceAsc" ? priceA - priceB : priceB - priceA;
+      })
+    : cards;
 
   return (
     <div
       className={`grid items-start gap-6 ${q ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-[250px_1fr]"}`}
     >
       {/* filter sidebar — 키워드 검색 중에는 세트 필터와 동시 적용하지 않으므로 숨김.
-          lg 미만에서는 사이드바 대신 "필터" 버튼으로 여는 바텀시트/드로어로 표시. */}
+          lg 미만에서는 사이드바 대신 "필터" 버튼으로 여는 바텀시트/드로어로 표시.
+          세트/타입/레어도/언어/가격대 필터 전체는 SearchFilterSidebar로 분리돼 있다(#142). */}
       {!q && (
-        <div
-          className={
-            filterOpen
-              ? // top-16(헤더 높이)부터만 덮어 헤더 자체(알림/메뉴 트리거 등)는 항상 클릭 가능하게
-                // 남겨둔다 — inset-0로 헤더까지 덮으면 필터가 열린 채 헤더 버튼을 눌러도 이 백드롭이
-                // 클릭을 가로챈다(Header.tsx의 top-16 백드롭과 동일한 이유).
-                "fixed inset-x-0 bottom-0 top-16 z-50 flex flex-col justify-end bg-black/40 lg:static lg:z-auto lg:block lg:bg-transparent"
-              : "hidden lg:block"
-          }
-          onClick={filterOpen ? () => setFilterOpen(false) : undefined}
-          role={filterOpen ? "dialog" : undefined}
-          aria-modal={filterOpen ? true : undefined}
-          aria-labelledby={filterOpen ? "filter-drawer-title" : undefined}
-        >
-          <div
-            ref={filterPanelRef}
-            tabIndex={-1}
-            className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl border border-[#EDEDF0] bg-white p-[22px] outline-none lg:sticky lg:top-[88px] lg:max-h-none lg:w-auto lg:overflow-visible lg:rounded-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-4 flex items-center justify-between lg:relative">
-              <span className="flex items-center gap-1.5 text-[15px] font-extrabold">
-                <span id="filter-drawer-title">필터</span>
-                <span
-                  tabIndex={0}
-                  className="group relative inline-flex h-3.5 w-3.5 shrink-0 cursor-help items-center justify-center rounded-full bg-black/10 text-[8px] font-bold leading-none text-[#6B6B72] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#6B6B72] lg:static"
-                >
-                  ?
-                  <span
-                    role="tooltip"
-                    className="pointer-events-none absolute left-0 top-[calc(100%+6px)] z-20 w-max max-w-[calc(100vw-80px)] break-keep rounded-md bg-[#1A1A1E] px-2.5 py-1.5 text-[11px] font-medium leading-relaxed text-white opacity-0 shadow-lift transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100 lg:left-1/2 lg:max-w-[190px] lg:-translate-x-1/2"
-                  >
-                    <span className="mb-1 block">
-                      <b>S</b>: {GRADE_DESCRIPTIONS.S}
-                    </span>
-                    <span className="mb-1 block">
-                      <b>A</b>: {GRADE_DESCRIPTIONS.A}
-                    </span>
-                    <span className="block">
-                      <b>B</b>: {GRADE_DESCRIPTIONS.B}
-                    </span>
-                  </span>
-                </span>
-              </span>
-              <button
-                type="button"
-                onClick={() => setFilterOpen(false)}
-                aria-label="필터 닫기"
-                className="flex h-6 w-6 items-center justify-center rounded-full text-[#9A9AA2] hover:bg-[#F2F2F5] hover:text-ink lg:hidden"
-              >
-                ×
-              </button>
-            </div>
-            <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">세트</div>
-            <label
-              htmlFor="set-search-input"
-              className="mb-2 flex items-center gap-1.5 rounded-[9px] border border-[#DDDDE3] px-2.5 py-2 focus-within:border-primary"
-            >
-              <input
-                id="set-search-input"
-                type="text"
-                value={setSearchQuery}
-                onChange={(e) => setSetSearchQuery(e.target.value)}
-                placeholder="세트 이름으로 검색"
-                aria-label="세트 이름으로 검색"
-                className="w-full border-none bg-transparent p-0 text-[13px] text-ink outline-none placeholder:text-[#9A9AA2]"
-              />
-            </label>
-            <div className="mb-5 flex max-h-[260px] flex-col gap-1 overflow-y-auto">
-              {facetsLoading ? (
-                <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
-              ) : showSeriesGroups ? (
-                [...seriesGroups.entries()].map(([series, options], i) => {
-                  const isExpanded = expandedSeries.has(series);
-                  const panelId = `set-series-panel-${i}`;
-                  return (
-                    <div key={series}>
-                      <button
-                        type="button"
-                        onClick={() => toggleSeries(series)}
-                        aria-expanded={isExpanded}
-                        aria-controls={panelId}
-                        className="flex w-full items-center justify-between rounded-md px-1 py-1.5 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F2F2F5]"
-                      >
-                        <span>{series}</span>
-                        <span
-                          aria-hidden="true"
-                          className={`text-[10px] text-[#9A9AA2] transition-transform ${isExpanded ? "rotate-90" : ""}`}
-                        >
-                          ▸
-                        </span>
-                      </button>
-                      {isExpanded && (
-                        <div id={panelId} className="flex flex-col gap-[9px] py-1 pl-3">
-                          {options.map(renderSetOption)}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              ) : displayedSetOptions.length === 0 ? (
-                <span className="text-[12.5px] text-[#9A9AA2]">일치하는 세트가 없어요.</span>
-              ) : (
-                <div className="flex flex-col gap-[9px]">
-                  {displayedSetOptions.map(renderSetOption)}
-                </div>
-              )}
-            </div>
-            <div className="mb-[18px] h-px bg-[#F0F0F0]" />
-            <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">타입</div>
-            <div className="mb-5 flex flex-col gap-[9px]">
-              {facetsLoading ? (
-                <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
-              ) : (
-                typeOptions.map((t) => (
-                  <label
-                    key={t}
-                    className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedTypes.includes(t)}
-                      onChange={() => {
-                        setLoadState("loading");
-                        setSelectedTypes(toggleValue(selectedTypes, t));
-                      }}
-                    />
-                    {t}
-                  </label>
-                ))
-              )}
-            </div>
-            <div className="mb-[18px] h-px bg-[#F0F0F0]" />
-            <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">레어도</div>
-            <div className="mb-5 flex flex-col gap-[9px]">
-              {facetsLoading ? (
-                <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
-              ) : (
-                rarityOptions.map((r) => (
-                  <label
-                    key={r}
-                    className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedRarities.includes(r)}
-                      onChange={() => {
-                        setLoadState("loading");
-                        setSelectedRarities(toggleValue(selectedRarities, r));
-                      }}
-                    />
-                    {r}
-                  </label>
-                ))
-              )}
-            </div>
-            <div className="mb-[18px] h-px bg-[#F0F0F0]" />
-            <div className="mb-3 text-[12.5px] font-bold text-[#4B4B52]">가격대</div>
-            <div className="mb-3 flex flex-col gap-2">
-              <label
-                htmlFor="price-min-input"
-                className="flex items-center gap-1.5 rounded-[9px] border border-[#DDDDE3] px-2.5 py-2 focus-within:border-primary"
-              >
-                <span className="shrink-0 text-[11px] font-semibold text-[#9A9AA2]">최소</span>
-                <input
-                  id="price-min-input"
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  max={priceMax}
-                  step={10}
-                  value={minInputText}
-                  onChange={(e) => setMinInputText(e.target.value)}
-                  onBlur={(e) => handleMinChange(Number(e.target.value))}
-                  className="w-full min-w-0 border-none p-0 text-right text-[12.5px] font-bold text-ink outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                />
-                <span className="shrink-0 text-[11px] text-[#9A9AA2]">원</span>
-              </label>
-              <label
-                htmlFor="price-max-input"
-                className="flex items-center gap-1.5 rounded-[9px] border border-[#DDDDE3] px-2.5 py-2 focus-within:border-primary"
-              >
-                <span className="shrink-0 text-[11px] font-semibold text-[#9A9AA2]">최대</span>
-                <input
-                  id="price-max-input"
-                  type="number"
-                  inputMode="numeric"
-                  min={priceMin}
-                  max={PRICE_MAX}
-                  step={10}
-                  value={maxInputText}
-                  onChange={(e) => setMaxInputText(e.target.value)}
-                  onBlur={(e) => handleMaxChange(Number(e.target.value))}
-                  className="w-full min-w-0 border-none p-0 text-right text-[12.5px] font-bold text-ink outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                />
-                <span className="shrink-0 text-[11px] text-[#9A9AA2]">원</span>
-              </label>
-            </div>
-            <div className="relative h-6">
-              <div className="absolute left-0 right-0 top-[11px] h-1 rounded-sm bg-[#E7E7EB]" />
-              <div
-                className="absolute top-[11px] h-1 rounded-sm bg-primary"
-                style={{
-                  left: `${(priceMin / PRICE_MAX) * 100}%`,
-                  right: `${100 - (priceMax / PRICE_MAX) * 100}%`,
-                }}
-              />
-              <input
-                type="range"
-                min={0}
-                max={PRICE_MAX}
-                step={50000}
-                value={priceMin}
-                onChange={(e) => handleMinChange(+e.target.value)}
-                aria-label="최소 가격"
-                aria-valuetext={`${priceMin.toLocaleString("ko-KR")}원`}
-                className={`dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent ${
-                  activeHandle === "min" ? "z-20" : "z-10"
-                }`}
-              />
-              <input
-                type="range"
-                min={0}
-                max={PRICE_MAX}
-                step={50000}
-                value={priceMax}
-                onChange={(e) => handleMaxChange(+e.target.value)}
-                aria-label="최대 가격"
-                aria-valuetext={`${priceMax.toLocaleString("ko-KR")}원`}
-                className={`dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent ${
-                  activeHandle === "min" ? "z-10" : "z-20"
-                }`}
-              />
-            </div>
-            <div className="mt-1.5 flex justify-between text-xs text-[#9A9AA2]">
-              <span>0원</span>
-              <span>{PRICE_MAX.toLocaleString("ko-KR")}원</span>
-            </div>
-            <button
-              onClick={resetFilters}
-              className="mt-[22px] w-full rounded-[10px] border-[1.5px] border-[#DDDDE3] bg-white py-2.5 text-[13.5px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary"
-            >
-              필터 초기화
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterOpen(false)}
-              className="mt-2.5 w-full rounded-[10px] bg-primary py-2.5 text-[13.5px] font-bold text-white lg:hidden"
-            >
-              필터 적용하기
-            </button>
-          </div>
-        </div>
+        <SearchFilterSidebar
+          filterOpen={filterOpen}
+          setFilterOpen={setFilterOpen}
+          filterPanelRef={filterPanelRef}
+          selectedExpansionId={selectedExpansionId}
+          setSelectedExpansionId={setSelectedExpansionId}
+          selectedTypes={selectedTypes}
+          setSelectedTypes={setSelectedTypes}
+          selectedRarities={selectedRarities}
+          setSelectedRarities={setSelectedRarities}
+          selectedLanguages={selectedLanguages}
+          setSelectedLanguages={setSelectedLanguages}
+          setOptions={setOptions}
+          typeOptions={typeOptions}
+          rarityOptions={rarityOptions}
+          facetsLoading={facetsLoading}
+          priceMin={priceMin}
+          setPriceMin={setPriceMin}
+          priceMax={priceMax}
+          setPriceMax={setPriceMax}
+          activeHandle={activeHandle}
+          setActiveHandle={setActiveHandle}
+          setLoadState={setLoadState}
+          resetFilters={resetFilters}
+        />
       )}
 
       {/* results grid */}
@@ -554,8 +245,15 @@ export default function SearchResultsView({
             <select
               value={sort}
               onChange={(e) => {
-                setLoadState("loading");
-                setSort(e.target.value as CardSort);
+                const next = e.target.value as UiSort;
+                // priceAsc/priceDesc는 BE에 안 보내는 FE 전용 값이라 실제로는 둘 다 기본 정렬
+                // (popular)로 조회한 뒤 클라이언트에서 재정렬만 한다 — popular↔priceAsc/priceDesc
+                // 간 전환처럼 BE 요청이 실제로 바뀌지 않을 때 setLoadState("loading")을 부르면
+                // 재요청이 없어 "ready"로 되돌아오지 못하고 로딩 상태에 그대로 갇힌다.
+                const apiSortChanged = (isPriceSort(sort) ? "popular" : sort) !==
+                  (isPriceSort(next) ? "popular" : next);
+                if (apiSortChanged) setLoadState("loading");
+                setSort(next);
               }}
               aria-label="정렬 기준"
               className="cursor-pointer rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-2 text-[13px] outline-none"
@@ -563,6 +261,8 @@ export default function SearchResultsView({
               <option value="popular">인기순</option>
               <option value="latest">최신순</option>
               <option value="name">이름순</option>
+              <option value="priceAsc">가격 낮은순</option>
+              <option value="priceDesc">가격 높은순</option>
             </select>
           )}
         </div>
@@ -571,6 +271,7 @@ export default function SearchResultsView({
           (selectedExpansionId ||
             selectedTypes.length > 0 ||
             selectedRarities.length > 0 ||
+            selectedLanguages.length > 0 ||
             priceMin > 0 ||
             priceMax < PRICE_MAX) && (
             <div className="mb-4 flex flex-wrap gap-2">
@@ -606,6 +307,16 @@ export default function SearchResultsView({
                   }}
                 />
               ))}
+              {selectedLanguages.map((l) => (
+                <FilterChip
+                  key={`language-${l}`}
+                  label={LANGUAGE_OPTIONS.find((opt) => opt.value === l)?.label ?? l}
+                  onRemove={() => {
+                    setLoadState("loading");
+                    setSelectedLanguages(selectedLanguages.filter((v) => v !== l));
+                  }}
+                />
+              ))}
               {(priceMin > 0 || priceMax < PRICE_MAX) && (
                 <FilterChip
                   label={`${priceMin.toLocaleString("ko-KR")}원~${priceMax.toLocaleString("ko-KR")}원`}
@@ -635,7 +346,9 @@ export default function SearchResultsView({
 
         {loadState === "error" && (
           <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[#EDEDF0] bg-white py-24">
-            <span className="text-[13.5px] font-bold text-[#D14343]">{errorMessage}</span>
+            <span role="alert" className="text-[13.5px] font-bold text-[#D14343]">
+              {errorMessage}
+            </span>
             <button
               onClick={() => {
                 setLoadState("loading");
@@ -678,8 +391,17 @@ export default function SearchResultsView({
               loadState === "loading" ? "pointer-events-none opacity-50" : "opacity-100"
             }`}
           >
-            {cards.map((c) => {
+            {displayCards.map((c) => {
               const priceDisplay = resolvePriceDisplay(priceSummaries.get(c.id));
+              // "다른 등급도 있음" 힌트 개수 — S등급 상품가가 기준이면 S를 뺀 나머지 활성 매물
+              // 등급만 "다른 등급"이고, 최근 체결가/참고시세가 기준이면(=활성 S등급 매물이 없다는
+              // 뜻) 활성 매물이 있는 등급 전부가 화면에 보이는 값과는 다른 등급이다.
+              const otherGradesCount = priceDisplay
+                ? (priceDisplay.basis === "sGrade"
+                    ? c.grades.filter((g) => g !== "S")
+                    : c.grades
+                  ).length
+                : 0;
               // pickDisplayName이 받는 { name, nameKo } 형태로 원본 필드를 매핑한다 — 여기서
               // name은 병합된 c.name이 아니라 원본 영문명(c.nameEn)이어야 검색어와 정확히 대조된다.
               // Header.tsx는 CardResponse가 이미 이 형태라 그대로 넘기지만, CardSearchItem은
@@ -701,6 +423,14 @@ export default function SearchResultsView({
                       {q ? highlightMatch(displayName, q) : displayName}
                     </div>
                     <div className="mt-0.5 text-[11.5px] text-[#9A9AA2]">{c.set}</div>
+                    {/* EN(기본값)이 절대다수라 EN은 배지를 생략하고, 눈에 띄어야 하는 예외
+                        (JA 등 비영어판)만 표시한다 — 대다수 카드에 불필요한 배지를 매번
+                        노출하지 않으면서도 국가판이 다른 경우만 부각한다. */}
+                    {c.languageCode !== "EN" && (
+                      <span className="mt-1 inline-flex w-fit items-center rounded-full border border-[#DDDDE3] bg-white px-2 py-0.5 text-[10px] font-bold text-[#4B4B52]">
+                        {c.languageCode}
+                      </span>
+                    )}
                     {c.types.length > 0 && (
                       <div className="mt-1.5 flex flex-wrap gap-1">
                         {c.types.map((t) => (
@@ -716,7 +446,10 @@ export default function SearchResultsView({
                     <div className="mt-auto pt-2.5">
                       {priceDisplay ? (
                         <>
-                          <div className="text-[11px] text-[#9A9AA2]">{priceDisplay.label}</div>
+                          <div className="text-[11px] text-[#9A9AA2]">
+                            {BASIS_BADGE_LABEL[priceDisplay.basis]}
+                            {otherGradesCount > 0 && ` · 외 ${otherGradesCount}개 등급`}
+                          </div>
                           <div className="text-[15px] font-extrabold text-ink">
                             {priceDisplay.price}
                           </div>
