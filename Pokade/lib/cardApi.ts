@@ -22,6 +22,9 @@ export interface CardSearchFilters {
   expansionId?: string;
   types?: string[];
   rarity?: string[];
+  // 언어(국가판) 코드 — 실제 존재 값은 EN/JA뿐(#263). types/rarity와 동일하게 값 화이트리스트
+  // 없이 BE가 그대로 IN절로 필터링하므로 FE도 별도 검증 없이 그대로 넘긴다.
+  languages?: string[];
   minPrice?: number;
   maxPrice?: number; // minPrice > maxPrice면 BE가 400(INVALID_INPUT) 반환.
   sort?: CardSort;
@@ -42,6 +45,7 @@ export async function fetchCardsPage(
   if (filters.expansionId) query.set("expansionId", filters.expansionId);
   if (filters.types?.length) query.set("types", filters.types.join(","));
   if (filters.rarity?.length) query.set("rarity", filters.rarity.join(","));
+  if (filters.languages?.length) query.set("languages", filters.languages.join(","));
   if (filters.minPrice != null) query.set("minPrice", String(filters.minPrice));
   if (filters.maxPrice != null) query.set("maxPrice", String(filters.maxPrice));
   if (filters.sort) query.set("sort", filters.sort);

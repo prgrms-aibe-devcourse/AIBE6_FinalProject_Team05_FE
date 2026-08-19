@@ -23,6 +23,13 @@ const BASIS_BADGE_LABEL: Record<PriceBasis, string> = {
   market: "참고시세",
 };
 
+// 언어(국가판) 필터 — 실제 존재 값은 EN/JA뿐(#263 확인). 타입 필터처럼 그룹 없는 플랫
+// 체크박스 목록이라 facets API 연동 없이 여기서 고정 목록으로 둔다(개수 배지도 없음).
+const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
+  { value: "EN", label: "영문판(EN)" },
+  { value: "JA", label: "일본판(JA)" },
+];
+
 function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
     <span className="flex items-center gap-1.5 rounded-full border border-[#DDDDE3] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#4B4B52]">
@@ -48,6 +55,8 @@ interface SearchResultsViewProps {
   setSelectedTypes: Dispatch<SetStateAction<string[]>>;
   selectedRarities: string[];
   setSelectedRarities: Dispatch<SetStateAction<string[]>>;
+  selectedLanguages: string[];
+  setSelectedLanguages: Dispatch<SetStateAction<string[]>>;
   setOptions: { label: string; expansionId: string; series: string; count: number }[];
   typeOptions: CardFacetOption[];
   rarityOptions: CardFacetOption[];
@@ -197,6 +206,8 @@ export default function SearchResultsView({
   setSelectedTypes,
   selectedRarities,
   setSelectedRarities,
+  selectedLanguages,
+  setSelectedLanguages,
   setOptions,
   typeOptions,
   rarityOptions,
@@ -530,6 +541,26 @@ export default function SearchResultsView({
               )}
             </div>
             <div className="mb-[18px] h-px bg-[#F0F0F0]" />
+            <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">언어</div>
+            <div className="mb-5 flex flex-col gap-[9px]">
+              {LANGUAGE_OPTIONS.map((opt) => (
+                <label
+                  key={opt.value}
+                  className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedLanguages.includes(opt.value)}
+                    onChange={() => {
+                      setLoadState("loading");
+                      setSelectedLanguages(toggleValue(selectedLanguages, opt.value));
+                    }}
+                  />
+                  {opt.label}
+                </label>
+              ))}
+            </div>
+            <div className="mb-[18px] h-px bg-[#F0F0F0]" />
             <div className="mb-3 text-[12.5px] font-bold text-[#4B4B52]">가격대</div>
             <div className="mb-3 flex flex-col gap-2">
               <label
@@ -684,6 +715,7 @@ export default function SearchResultsView({
           (selectedExpansionId ||
             selectedTypes.length > 0 ||
             selectedRarities.length > 0 ||
+            selectedLanguages.length > 0 ||
             priceMin > 0 ||
             priceMax < PRICE_MAX) && (
             <div className="mb-4 flex flex-wrap gap-2">
@@ -716,6 +748,16 @@ export default function SearchResultsView({
                   onRemove={() => {
                     setLoadState("loading");
                     setSelectedRarities(selectedRarities.filter((v) => v !== r));
+                  }}
+                />
+              ))}
+              {selectedLanguages.map((l) => (
+                <FilterChip
+                  key={`language-${l}`}
+                  label={LANGUAGE_OPTIONS.find((opt) => opt.value === l)?.label ?? l}
+                  onRemove={() => {
+                    setLoadState("loading");
+                    setSelectedLanguages(selectedLanguages.filter((v) => v !== l));
                   }}
                 />
               ))}
@@ -823,6 +865,14 @@ export default function SearchResultsView({
                       {q ? highlightMatch(displayName, q) : displayName}
                     </div>
                     <div className="mt-0.5 text-[11.5px] text-[#9A9AA2]">{c.set}</div>
+                    {/* EN(기본값)이 절대다수라 EN은 배지를 생략하고, 눈에 띄어야 하는 예외
+                        (JA 등 비영어판)만 표시한다 — 대다수 카드에 불필요한 배지를 매번
+                        노출하지 않으면서도 국가판이 다른 경우만 부각한다. */}
+                    {c.languageCode !== "EN" && (
+                      <span className="mt-1 inline-flex w-fit items-center rounded-full border border-[#DDDDE3] bg-white px-2 py-0.5 text-[10px] font-bold text-[#4B4B52]">
+                        {c.languageCode}
+                      </span>
+                    )}
                     {c.types.length > 0 && (
                       <div className="mt-1.5 flex flex-wrap gap-1">
                         {c.types.map((t) => (

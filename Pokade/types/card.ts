@@ -4,6 +4,8 @@ export interface CardResponse {
   externalId: string;
   name: string;
   nameKo?: string | null;
+  // 언어(국가판) 코드 — 실제 존재 값은 EN/JA뿐(#263, 다른 값 없음 확인됨).
+  languageCode: string;
   setName: string;
   rarity: string;
   supertype: string;
@@ -28,6 +30,8 @@ export interface CardSearchItem {
   types: string[];
   // CardResponse.grades 그대로 — 검색 타일이 "다른 등급도 있음" 힌트를 보여줄 때 쓴다.
   grades: string[];
+  // CardResponse.languageCode 그대로 — 검색 타일 언어 배지에 쓴다.
+  languageCode: string;
 }
 
 // #263 — 타입/레어도 옵션 하나에 딸린 결과 개수. count는 전체 기준 고정 집계로,
@@ -56,6 +60,7 @@ export function toCardSearchItem(card: CardResponse): CardSearchItem {
     imageUrl: card.imageMedium || card.imageSmall,
     types: card.types,
     grades: card.grades,
+    languageCode: card.languageCode,
   };
 }
 

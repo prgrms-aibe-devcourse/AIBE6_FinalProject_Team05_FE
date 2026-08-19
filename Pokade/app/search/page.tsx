@@ -70,6 +70,12 @@ function SearchDashboard() {
   const [selectedRarities, setSelectedRarities] = useState<string[]>(
     () => searchParams.get("rarity")?.split(",").filter(Boolean) ?? [],
   );
+  // 언어(국가판) 필터 — 세트/타입/레어도와 달리 facets API에 옵션 목록이 없어(#263 범위 밖) 값
+  // 화이트리스트 보정을 하지 않는다. 체크박스 자체가 EN/JA로만 고정돼 있어(SearchResultsView의
+  // LANGUAGE_OPTIONS) 화면에서 다른 값이 선택될 수 없고, BE도 어차피 그대로 IN절로 필터링한다.
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(
+    () => searchParams.get("languages")?.split(",").filter(Boolean) ?? [],
+  );
   const [facets, setFacets] = useState<CardFacetsResponse>(EMPTY_FACETS);
   const [facetsLoading, setFacetsLoading] = useState(true);
   // BE 화이트리스트에 없는 값은 기본값(popular)으로 취급 — /api/cards/search(키워드 검색)는
@@ -114,7 +120,7 @@ function SearchDashboard() {
   // 가격대는 debounced 값 기준 — 드래그 중간값으로 매번 1페이지/로딩 상태가 흔들리지 않도록 함.
   // (다른 필터는 각 onChange에서 이미 setLoadState("loading")을 즉시 호출하므로 여기서 또
   // 호출해도 중복일 뿐 해가 없고, debounced 가격 변경은 이 지점이 유일한 트리거가 된다.)
-  const filterKey = `${selectedExpansionId}|${selectedTypes.join(",")}|${selectedRarities.join(",")}|${apiSort}|${debouncedPriceMin}|${debouncedPriceMax}`;
+  const filterKey = `${selectedExpansionId}|${selectedTypes.join(",")}|${selectedRarities.join(",")}|${selectedLanguages.join(",")}|${apiSort}|${debouncedPriceMin}|${debouncedPriceMax}`;
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
@@ -179,6 +185,7 @@ function SearchDashboard() {
           expansionId: selectedExpansionId ?? undefined,
           types: selectedTypes,
           rarity: selectedRarities,
+          languages: selectedLanguages,
           minPrice: debouncedPriceMin > 0 ? debouncedPriceMin : undefined,
           maxPrice: debouncedPriceMax < PRICE_MAX ? debouncedPriceMax : undefined,
           sort: apiSort,
@@ -207,6 +214,7 @@ function SearchDashboard() {
     selectedExpansionId,
     selectedTypes,
     selectedRarities,
+    selectedLanguages,
     debouncedPriceMin,
     debouncedPriceMax,
     apiSort,
@@ -262,6 +270,8 @@ function SearchDashboard() {
     else params.delete("types");
     if (selectedRarities.length) params.set("rarity", selectedRarities.join(","));
     else params.delete("rarity");
+    if (selectedLanguages.length) params.set("languages", selectedLanguages.join(","));
+    else params.delete("languages");
     if (debouncedPriceMin > 0) params.set("minPrice", String(debouncedPriceMin));
     else params.delete("minPrice");
     if (debouncedPriceMax < PRICE_MAX) params.set("maxPrice", String(debouncedPriceMax));
@@ -277,6 +287,7 @@ function SearchDashboard() {
     selectedExpansionId,
     selectedTypes,
     selectedRarities,
+    selectedLanguages,
     debouncedPriceMin,
     debouncedPriceMax,
     sort,
@@ -306,6 +317,7 @@ function SearchDashboard() {
     setSelectedExpansionId(null);
     setSelectedTypes([]);
     setSelectedRarities([]);
+    setSelectedLanguages([]);
     setSort("popular");
     setPage(1);
     // 필터가 이미 초기값이면 위 세터들이 상태를 바꾸지 않아 카드 목록 effect가
@@ -356,6 +368,8 @@ function SearchDashboard() {
             setSelectedTypes={setSelectedTypes}
             selectedRarities={selectedRarities}
             setSelectedRarities={setSelectedRarities}
+            selectedLanguages={selectedLanguages}
+            setSelectedLanguages={setSelectedLanguages}
             setOptions={setOptions}
             typeOptions={facets.types}
             rarityOptions={facets.rarities}
