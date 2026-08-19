@@ -12,7 +12,6 @@ import {
   YAxis,
 } from "recharts";
 import AdminSidebar from "@/components/AdminSidebar";
-import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
 import { fetchAdminDashboard } from "@/lib/adminApi";
 import {
@@ -91,7 +90,6 @@ function groupSeries(series: AdminMetricSeriesResponse[]) {
 }
 
 export default function AdminDashboardPage() {
-  useRequireAuth();
   const [pageState, setPageState] = useState<PageState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [cards, setCards] = useState<AdminMetricCardResponse[]>([]);

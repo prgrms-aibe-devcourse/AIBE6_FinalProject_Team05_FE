@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import AdminSidebar from "@/components/AdminSidebar";
-import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { answerInquiry, fetchInquiries, updateInquiryStatus } from "@/lib/adminApi";
 import { ApiError } from "@/lib/apiClient";
 import {
@@ -31,7 +30,6 @@ function statusBadgeCls(status: InquiryResponse["status"]) {
 }
 
 export default function AdminInquiriesPage() {
-  useRequireAuth();
   const [inquiries, setInquiries] = useState<InquiryResponse[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
