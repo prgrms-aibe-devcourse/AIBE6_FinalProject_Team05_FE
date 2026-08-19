@@ -416,7 +416,7 @@ const PROFILE_MENU: { label: string; href?: string }[] = [
   { label: "내 상품 관리", href: "/listings/me" },
   { label: "워치리스트", href: "/watchlist" },
   { label: "포인트 충전" },
-  { label: "설정" },
+  { label: "설정", href: "/settings" },
 ];
 
 // 관리자에게만 붙는 항목. role이 확정되기 전에는 null이라 자연히 숨겨진다.
