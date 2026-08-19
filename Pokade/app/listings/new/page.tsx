@@ -7,7 +7,7 @@ import CardImage from "@/components/CardImage";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
 import { createListing } from "@/lib/listingApi";
-import { fetchCardDetail, fetchCardsByKeywordPage } from "@/lib/cardApi";
+import { fetchCardDetail, fetchCardsByKeywordPage, fetchPriceSummary } from "@/lib/cardApi";
 import {
   CardDetailResponse,
   CardResponse,
@@ -15,7 +15,7 @@ import {
   VariantSummary,
   variantLabel,
 } from "@/types/card";
-import { ListingGrade } from "@/types/price";
+import { ListingGrade, PriceSummaryResponse } from "@/types/price";
 
 const MIN_QUERY_LENGTH = 2;
 const GRADE_OPTIONS: ListingGrade[] = ["S", "A", "B", "PSA10", "PSA9", "PSA8"];
@@ -70,6 +70,9 @@ function NewListingForm() {
   const [price, setPrice] = useState("");
   const [grade, setGrade] = useState<ListingGrade | "">("");
 
+  const [priceSummary, setPriceSummary] = useState<PriceSummaryResponse | null>(null);
+  const [priceSummaryLoading, setPriceSummaryLoading] = useState(false);
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -88,6 +91,7 @@ function NewListingForm() {
         const primary = card.variants.find((v) => v.primary) ?? card.variants[0];
         setSelectedVariantId(primary?.id ?? null);
         setError(null);
+        setPriceSummaryLoading(true);
       })
       .catch(() => {
         if (selectRequestIdRef.current !== requestId) return;
@@ -103,6 +107,25 @@ function NewListingForm() {
     if (cardId == null) return;
     selectCardById(cardId);
   }, [searchParams]);
+
+  // 선택된 카드/판본의 현재 시세 조회 — 가격 입력 시 참고용으로만 노출, 실패해도 등록 흐름은 막지 않는다.
+  useEffect(() => {
+    if (!selectedCard) return;
+    let cancelled = false;
+    fetchPriceSummary(selectedCard.id, selectedVariantId ?? undefined)
+      .then((summary) => {
+        if (!cancelled) setPriceSummary(summary);
+      })
+      .catch(() => {
+        if (!cancelled) setPriceSummary(null);
+      })
+      .finally(() => {
+        if (!cancelled) setPriceSummaryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCard, selectedVariantId]);
 
   // 카드 검색 자동완성 (디바운스)
   useEffect(() => {
@@ -187,6 +210,7 @@ function NewListingForm() {
                 onClick={() => {
                   setSelectedCard(null);
                   setSelectedVariantId(null);
+                  setPriceSummary(null);
                 }}
                 className="flex-shrink-0 text-[12.5px] font-semibold text-[#8A8A92] hover:text-primary"
               >
@@ -258,7 +282,10 @@ function NewListingForm() {
                   <button
                     key={v.id}
                     type="button"
-                    onClick={() => setSelectedVariantId(v.id)}
+                    onClick={() => {
+                      setSelectedVariantId(v.id);
+                      setPriceSummaryLoading(true);
+                    }}
                     className={`rounded-full border px-3 py-1.5 text-[12.5px] font-bold transition ${
                       selectedVariantId === v.id
                         ? "border-primary bg-primary text-white"
@@ -275,9 +302,20 @@ function NewListingForm() {
           <div className="h-4" />
 
           {/* 가격 */}
-          <label htmlFor="price" className="mb-[7px] block text-[13px] font-bold text-[#4B4B52]">
-            가격
-          </label>
+          <div className="mb-[7px] flex items-center justify-between">
+            <label htmlFor="price" className="block text-[13px] font-bold text-[#4B4B52]">
+              가격
+            </label>
+            {selectedCard && (
+              <span className="text-[12px] font-semibold text-[#8A8A92]">
+                {priceSummaryLoading
+                  ? "시세 조회 중..."
+                  : priceSummary?.buyPrice != null
+                    ? `현재 최저 시세 ${priceSummary.buyPrice.toLocaleString("ko-KR")}원`
+                    : "시세 정보 없음"}
+              </span>
+            )}
+          </div>
           <input
             id="price"
             type="number"
