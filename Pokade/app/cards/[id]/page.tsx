@@ -485,7 +485,9 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
 
         {loadState === "error" && (
           <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-[#EDEDF0] bg-white py-24">
-            <span className="text-[13.5px] font-bold text-[#D14343]">{errorMessage}</span>
+            <span role="alert" className="text-[13.5px] font-bold text-[#D14343]">
+              {errorMessage}
+            </span>
             <button
               onClick={() => {
                 setLoadState("loading");
