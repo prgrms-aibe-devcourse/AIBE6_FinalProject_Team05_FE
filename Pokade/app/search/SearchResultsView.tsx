@@ -2,17 +2,26 @@ import { Dispatch, SetStateAction, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { GRADE_DESCRIPTIONS } from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
-import { CardSearchItem } from "@/types/card";
+import { CardFacetOption, CardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
 import { highlightMatch } from "@/lib/highlightMatch";
 import { pickDisplayName } from "@/lib/pickDisplayName";
-import { resolvePriceDisplay, resolveSortablePrice } from "@/lib/priceDisplay";
+import { PriceBasis, resolvePriceDisplay, resolveSortablePrice } from "@/lib/priceDisplay";
 import { isPriceSort, PRICE_MAX, UiSort } from "./constants";
 
 type LoadState = "loading" | "error" | "ready";
 
 // size 파라미터를 넘기지 않을 때 BE 기본 페이지 size(cardApi.ts 주석 참고)와 맞춘 스켈레톤 칸 수.
 const SEARCH_SKELETON_COUNT = 20;
+
+// 검색 타일 가격 아래 보조텍스트 — resolvePriceDisplay의 label(문장형, "S등급 상품가" 등)과
+// 별도로 짧게 줄인 배지 문구. 홈/워치리스트 등 다른 화면은 여전히 기존 label을 그대로 쓰므로
+// 그쪽 표시는 이 매핑과 무관하다.
+const BASIS_BADGE_LABEL: Record<PriceBasis, string> = {
+  sGrade: "S등급",
+  recentTrade: "최근 체결가",
+  market: "참고시세",
+};
 
 function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
@@ -39,9 +48,9 @@ interface SearchResultsViewProps {
   setSelectedTypes: Dispatch<SetStateAction<string[]>>;
   selectedRarities: string[];
   setSelectedRarities: Dispatch<SetStateAction<string[]>>;
-  setOptions: { label: string; expansionId: string; series: string }[];
-  typeOptions: string[];
-  rarityOptions: string[];
+  setOptions: { label: string; expansionId: string; series: string; count: number }[];
+  typeOptions: CardFacetOption[];
+  rarityOptions: CardFacetOption[];
   facetsLoading: boolean;
   priceMin: number;
   setPriceMin: Dispatch<SetStateAction<number>>;
@@ -302,18 +311,23 @@ export default function SearchResultsView({
         }}
       />
       {opt.label}
+      <span className="text-[#9A9AA2]">({opt.count.toLocaleString("ko-KR")})</span>
     </label>
   );
 
   // 레어도도 세트의 series 그룹과 동일한 패턴 — API에 실제로 존재하는 값만 그룹 순서
   // (RARITY_GROUPS 정의 순서)대로 채우고, 매핑표에 없는 새 값은 "기타"로 모은다.
-  const rarityOptionSet = new Set(rarityOptions);
+  // 그룹/렌더링은 계속 레어도 값(string) 목록으로 다루고, 개수 배지는 이 lookup으로 따로 조회한다.
+  const rarityCountByValue = new Map(rarityOptions.map((opt) => [opt.value, opt.count]));
+  const rarityOptionSet = new Set(rarityOptions.map((opt) => opt.value));
   const rarityGroups = new Map<string, string[]>();
   for (const group of RARITY_GROUPS) {
     const present = group.rarities.filter((r) => rarityOptionSet.has(r));
     if (present.length > 0) rarityGroups.set(group.name, present);
   }
-  const otherRarities = rarityOptions.filter((r) => !RARITY_TO_GROUP.has(r));
+  const otherRarities = rarityOptions
+    .filter((opt) => !RARITY_TO_GROUP.has(opt.value))
+    .map((opt) => opt.value);
   if (otherRarities.length > 0) rarityGroups.set(OTHER_RARITY_GROUP_NAME, otherRarities);
 
   // 펼쳐진 레어도 그룹 — 세트의 expandedSeries와 동일하게, 이미 선택된 레어도가 있으면
@@ -341,6 +355,7 @@ export default function SearchResultsView({
         }}
       />
       {r}
+      <span className="text-[#9A9AA2]">({(rarityCountByValue.get(r) ?? 0).toLocaleString("ko-KR")})</span>
     </label>
   );
 
@@ -459,20 +474,21 @@ export default function SearchResultsView({
               {facetsLoading ? (
                 <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
               ) : (
-                typeOptions.map((t) => (
+                typeOptions.map((opt) => (
                   <label
-                    key={t}
+                    key={opt.value}
                     className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
                   >
                     <input
                       type="checkbox"
-                      checked={selectedTypes.includes(t)}
+                      checked={selectedTypes.includes(opt.value)}
                       onChange={() => {
                         setLoadState("loading");
-                        setSelectedTypes(toggleValue(selectedTypes, t));
+                        setSelectedTypes(toggleValue(selectedTypes, opt.value));
                       }}
                     />
-                    {t}
+                    {opt.value}
+                    <span className="text-[#9A9AA2]">({opt.count.toLocaleString("ko-KR")})</span>
                   </label>
                 ))
               )}
@@ -777,6 +793,15 @@ export default function SearchResultsView({
           >
             {displayCards.map((c) => {
               const priceDisplay = resolvePriceDisplay(priceSummaries.get(c.id));
+              // "다른 등급도 있음" 힌트 개수 — S등급 상품가가 기준이면 S를 뺀 나머지 활성 매물
+              // 등급만 "다른 등급"이고, 최근 체결가/참고시세가 기준이면(=활성 S등급 매물이 없다는
+              // 뜻) 활성 매물이 있는 등급 전부가 화면에 보이는 값과는 다른 등급이다.
+              const otherGradesCount = priceDisplay
+                ? (priceDisplay.basis === "sGrade"
+                    ? c.grades.filter((g) => g !== "S")
+                    : c.grades
+                  ).length
+                : 0;
               // pickDisplayName이 받는 { name, nameKo } 형태로 원본 필드를 매핑한다 — 여기서
               // name은 병합된 c.name이 아니라 원본 영문명(c.nameEn)이어야 검색어와 정확히 대조된다.
               // Header.tsx는 CardResponse가 이미 이 형태라 그대로 넘기지만, CardSearchItem은
@@ -813,7 +838,10 @@ export default function SearchResultsView({
                     <div className="mt-auto pt-2.5">
                       {priceDisplay ? (
                         <>
-                          <div className="text-[11px] text-[#9A9AA2]">{priceDisplay.label}</div>
+                          <div className="text-[11px] text-[#9A9AA2]">
+                            {BASIS_BADGE_LABEL[priceDisplay.basis]}
+                            {otherGradesCount > 0 && ` · 외 ${otherGradesCount}개 등급`}
+                          </div>
                           <div className="text-[15px] font-extrabold text-ink">
                             {priceDisplay.price}
                           </div>

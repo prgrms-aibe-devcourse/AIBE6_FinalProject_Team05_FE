@@ -142,8 +142,12 @@ function SearchDashboard() {
         setSelectedExpansionId((id) =>
           id && safeData.expansions.some((e) => e.id === id) ? id : null,
         );
-        setSelectedTypes((types) => types.filter((t) => safeData.types.includes(t)));
-        setSelectedRarities((rarities) => rarities.filter((r) => safeData.rarities.includes(r)));
+        setSelectedTypes((types) =>
+          types.filter((t) => safeData.types.some((opt) => opt.value === t)),
+        );
+        setSelectedRarities((rarities) =>
+          rarities.filter((r) => safeData.rarities.some((opt) => opt.value === r)),
+        );
       })
       .catch(() => {
         // 무시 — facets는 EMPTY_FACETS로 남고 필터 체크박스 목록만 비어 보인다.
@@ -314,11 +318,12 @@ function SearchDashboard() {
   // 기존 SET_OPTIONS과 같은 모양({label, expansionId})으로 맞춰서, 이 값을 쓰는
   // SearchResultsView 쪽 JSX(옵션 렌더링/칩 라벨 조회)를 그대로 재사용한다.
   // series는 BE가 null이면 "기타"로 고정해서 내려주지만, 위쪽 safeData 보정과 같은 이유로
-  // 한 번 더 방어해둔다.
+  // 한 번 더 방어해둔다. count(#263)는 그대로 실어 날라서 옵션 라벨 옆 개수 배지에 쓴다.
   const setOptions = facets.expansions.map((e) => ({
     label: e.name,
     expansionId: e.id,
     series: e.series ?? "기타",
+    count: e.count,
   }));
 
   return (

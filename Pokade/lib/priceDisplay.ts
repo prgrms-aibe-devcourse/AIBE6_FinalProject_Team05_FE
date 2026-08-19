@@ -1,6 +1,10 @@
 import { CardPriceSummaryResponse } from "@/types/price";
 import { toKrw } from "@/lib/currency";
 
+// resolvePriceDisplay가 실제로 어떤 값을 근거로 가격을 골랐는지 — 검색 타일처럼 "이 숫자가
+// 무슨 기준인지" 배지로 보여줘야 하는 화면이 label(문장형 문구)과 별도로 분기 처리할 때 쓴다.
+export type PriceBasis = "sGrade" | "recentTrade" | "market";
+
 // buyPrice(S등급 매물가) → recentTradePrice(S등급 최근 체결가) → marketPrice(card_prices 비등급 시세) 순으로
 // 우선순위를 정한다. 앞의 둘은 우리 플랫폼에서 실제 거래된 카드에만 있어서, 거래 이력이 없는
 // 대다수 카드는 marketPrice(Scrydex 동기화 참고 시세)까지 내려가야 값이 있다 — 셋 다 없으면 null.
@@ -8,18 +12,18 @@ import { toKrw } from "@/lib/currency";
 // 같은 우선순위를 공유해야 "표시된 가격"과 "정렬 기준 가격"이 어긋나지 않으므로 여기서 한 번만 정한다.
 function pickPrice(
   summary?: CardPriceSummaryResponse,
-): { label: string; value: number } | null {
+): { label: string; value: number; basis: PriceBasis } | null {
   if (summary?.buyPrice != null) {
-    return { label: "S등급 상품가", value: summary.buyPrice };
+    return { label: "S등급 상품가", value: summary.buyPrice, basis: "sGrade" };
   }
   if (summary?.recentTradePrice != null) {
-    return { label: "최근 체결가", value: summary.recentTradePrice };
+    return { label: "최근 체결가", value: summary.recentTradePrice, basis: "recentTrade" };
   }
   if (summary?.marketPrice != null && summary.marketPriceCurrency != null) {
     const krw = toKrw(summary.marketPrice, summary.marketPriceCurrency);
     // 지원하지 않는 통화면 잘못된 환율로 추정치를 보여주는 대신 그냥 표시하지 않는다.
     if (krw != null) {
-      return { label: "참고 시세", value: krw };
+      return { label: "참고 시세", value: krw, basis: "market" };
     }
   }
   return null;
@@ -27,10 +31,14 @@ function pickPrice(
 
 export function resolvePriceDisplay(
   summary?: CardPriceSummaryResponse,
-): { label: string; price: string } | null {
+): { label: string; price: string; basis: PriceBasis } | null {
   const picked = pickPrice(summary);
   if (!picked) return null;
-  return { label: picked.label, price: `${picked.value.toLocaleString("ko-KR")}원` };
+  return {
+    label: picked.label,
+    price: `${picked.value.toLocaleString("ko-KR")}원`,
+    basis: picked.basis,
+  };
 }
 
 // 가격순 정렬 전용 — 화면에 보이는 가격(resolvePriceDisplay와 동일한 우선순위)을 숫자로 반환.
