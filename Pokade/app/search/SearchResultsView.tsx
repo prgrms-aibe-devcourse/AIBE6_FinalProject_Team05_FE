@@ -107,6 +107,76 @@ function getPaginationRange(current: number, total: number): PaginationItem[] {
   return [1, "ellipsis", ...middleRange, "ellipsis", total];
 }
 
+// #142 레어도 중분류 — 배포 사이트(pokade.store)에서 실제 렌더링된 39개 레어도 값을 기준으로
+// 확정된 정적 매핑(하드코딩, 임의 변경 금지). 그룹 순서가 곧 화면에 표시되는 그룹 순서다.
+const RARITY_GROUPS: { name: string; rarities: string[] }[] = [
+  { name: "기본", rarities: ["Common", "Uncommon", "Rare"] },
+  {
+    name: "홀로",
+    rarities: [
+      "Rare Holo",
+      "Rare Holo EX",
+      "Rare Holo GX",
+      "Rare Holo Star",
+      "Rare Holo V",
+      "Rare Holo VMAX",
+      "Rare Holo VSTAR",
+      "Trainer Gallery Rare Holo",
+    ],
+  },
+  {
+    name: "울트라/일러스트",
+    rarities: [
+      "Ultra Rare",
+      "Illustration Rare",
+      "Special Illustration Rare",
+      "Amazing Rare",
+      "Double Rare",
+      "Radiant Rare",
+    ],
+  },
+  {
+    name: "시크릿/샤이니",
+    rarities: [
+      "Rare Secret",
+      "Rare Rainbow",
+      "Rare Shining",
+      "Rare Shiny",
+      "Rare Shiny GX",
+      "Rare Ultra",
+      "Shiny Rare",
+      "Shiny Ultra Rare",
+      "Hyper Rare",
+    ],
+  },
+  {
+    name: "레거시 스페셜",
+    rarities: [
+      "Rare ACE",
+      "ACE SPEC Rare",
+      "Rare BREAK",
+      "Rare Prime",
+      "Rare Prism Star",
+      "LEGEND",
+      "Mega Attack Rare",
+      "Mega Hyper Rare",
+    ],
+  },
+  {
+    name: "프로모/기타",
+    rarities: ["Promo", "Classic Collection", "Black White Rare", "None", "H"],
+  },
+];
+
+// 매핑표에 없는 신규/미분류 레어도 값을 위한 방어적 폴백 그룹 — API가 매핑표 확정 이후
+// 새 레어도를 내려줘도 화면이 죽지 않고 여기로 모인다.
+const OTHER_RARITY_GROUP_NAME = "기타";
+
+const RARITY_TO_GROUP = new Map<string, string>();
+for (const group of RARITY_GROUPS) {
+  for (const rarity of group.rarities) RARITY_TO_GROUP.set(rarity, group.name);
+}
+
 // /search의 "카드 검색" 탭 — 필터 사이드바/드로어 + 검색 결과 그리드 + 페이지네이션.
 export default function SearchResultsView({
   q,
@@ -242,6 +312,45 @@ export default function SearchResultsView({
         }}
       />
       {opt.label}
+    </label>
+  );
+
+  // 레어도도 세트의 series 그룹과 동일한 패턴 — API에 실제로 존재하는 값만 그룹 순서
+  // (RARITY_GROUPS 정의 순서)대로 채우고, 매핑표에 없는 새 값은 "기타"로 모은다.
+  const rarityOptionSet = new Set(rarityOptions);
+  const rarityGroups = new Map<string, string[]>();
+  for (const group of RARITY_GROUPS) {
+    const present = group.rarities.filter((r) => rarityOptionSet.has(r));
+    if (present.length > 0) rarityGroups.set(group.name, present);
+  }
+  const otherRarities = rarityOptions.filter((r) => !RARITY_TO_GROUP.has(r));
+  if (otherRarities.length > 0) rarityGroups.set(OTHER_RARITY_GROUP_NAME, otherRarities);
+
+  // 펼쳐진 레어도 그룹 — 세트의 expandedSeries와 동일하게, 이미 선택된 레어도가 있으면
+  // 처음부터 그 값이 속한 그룹(들)을 펼쳐서 "필터를 펼쳤는데 내가 고른 값이 안 보이는"
+  // 상황을 피한다. 레어도는 다중 선택이라 selectedRarities 전부의 그룹을 펼친다.
+  const [expandedRarityGroups, setExpandedRarityGroups] = useState<Set<string>>(
+    () => new Set(selectedRarities.map((r) => RARITY_TO_GROUP.get(r) ?? OTHER_RARITY_GROUP_NAME)),
+  );
+
+  const toggleRarityGroup = (name: string) => {
+    const next = new Set(expandedRarityGroups);
+    if (next.has(name)) next.delete(name);
+    else next.add(name);
+    setExpandedRarityGroups(next);
+  };
+
+  const renderRarityOption = (r: string) => (
+    <label key={r} className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]">
+      <input
+        type="checkbox"
+        checked={selectedRarities.includes(r)}
+        onChange={() => {
+          setLoadState("loading");
+          setSelectedRarities(toggleValue(selectedRarities, r));
+        }}
+      />
+      {r}
     </label>
   );
 
@@ -432,27 +541,39 @@ export default function SearchResultsView({
             {raritySectionOpen && (
               <div
                 id={rarityPanelId}
-                className="mb-5 flex max-h-[260px] flex-col gap-[9px] overflow-y-auto"
+                className="mb-5 flex max-h-[260px] flex-col gap-1 overflow-y-auto"
               >
                 {facetsLoading ? (
                   <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
                 ) : (
-                  rarityOptions.map((r) => (
-                    <label
-                      key={r}
-                      className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedRarities.includes(r)}
-                        onChange={() => {
-                          setLoadState("loading");
-                          setSelectedRarities(toggleValue(selectedRarities, r));
-                        }}
-                      />
-                      {r}
-                    </label>
-                  ))
+                  [...rarityGroups.entries()].map(([groupName, rarities], i) => {
+                    const isExpanded = expandedRarityGroups.has(groupName);
+                    const panelId = `rarity-group-panel-${i}`;
+                    return (
+                      <div key={groupName}>
+                        <button
+                          type="button"
+                          onClick={() => toggleRarityGroup(groupName)}
+                          aria-expanded={isExpanded}
+                          aria-controls={panelId}
+                          className="flex w-full items-center justify-between rounded-md px-1 py-1.5 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F2F2F5]"
+                        >
+                          <span>{groupName}</span>
+                          <span
+                            aria-hidden="true"
+                            className={`text-[10px] text-[#9A9AA2] transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                          >
+                            ▸
+                          </span>
+                        </button>
+                        {isExpanded && (
+                          <div id={panelId} className="flex flex-col gap-[9px] py-1 pl-3">
+                            {rarities.map(renderRarityOption)}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
                 )}
               </div>
             )}
