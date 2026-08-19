@@ -12,7 +12,13 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
   if (status !== "authenticated") {
     return (
       <main className="main-content flex items-center justify-center bg-neutral">
-        <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-[#E7E7EB] border-t-primary" />
+        <div role="status">
+          <span
+            aria-hidden="true"
+            className="block h-8 w-8 animate-spin rounded-full border-[3px] border-[#E7E7EB] border-t-primary"
+          />
+          <span className="sr-only">권한을 확인하는 중</span>
+        </div>
       </main>
     );
   }
