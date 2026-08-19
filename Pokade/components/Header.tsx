@@ -419,6 +419,11 @@ const PROFILE_MENU: { label: string; href?: string }[] = [
   { label: "설정" },
 ];
 
+// 관리자에게만 붙는 항목. role이 확정되기 전에는 null이라 자연히 숨겨진다.
+const ADMIN_MENU: { label: string; href?: string }[] = [
+  { label: "관리자 콘솔", href: "/admin/dashboard" },
+];
+
 function LoggedInRight({
   open,
   setOpen,
@@ -432,6 +437,7 @@ function LoggedInRight({
   const nickname = useUserStore((s) => s.nickname);
   const profileImageUrl = useUserStore((s) => s.profileImageUrl);
   const email = useUserStore((s) => s.email);
+  const role = useUserStore((s) => s.role);
   const logout = useUserStore((s) => s.logout);
 
   // 알림 조회+30초 폴링은 useNotificationStore가 앱 전체에서 유일하게 소유한다.
@@ -634,7 +640,7 @@ function LoggedInRight({
               </div>
               <div className="h-px bg-[#F0F0F0]" />
               <div className="p-2">
-                {PROFILE_MENU.map((m) =>
+                {(role === "admin" ? [...ADMIN_MENU, ...PROFILE_MENU] : PROFILE_MENU).map((m) =>
                   m.href ? (
                     <Link
                       key={m.label}
