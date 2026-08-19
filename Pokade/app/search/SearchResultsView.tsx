@@ -185,12 +185,14 @@ export default function SearchResultsView({
     setMaxInputText(String(priceMax));
   }
 
-  // 세트/레어도 필터 섹션 아코디언 — 기본 접힘(TCGplayer류 마켓플레이스 참고, #142).
-  // 체크/선택 상태(selectedExpansionId, selectedRarities)는 부모(page.tsx)가 소유해 이
-  // UI 전용 접힘 상태와 완전히 분리돼 있으므로, 접었다 펴도 선택 값은 그대로 유지된다.
-  const [setSectionOpen, setSetSectionOpen] = useState(false);
-  const [raritySectionOpen, setRaritySectionOpen] = useState(false);
+  // 세트/타입/레어도 필터 섹션 아코디언 — 기본 펼침, 서로 독립적으로 접고 펼 수 있다(#142).
+  // 체크/선택 상태(selectedExpansionId, selectedTypes, selectedRarities)는 부모(page.tsx)가
+  // 소유해 이 UI 전용 펼침 상태와 완전히 분리돼 있으므로, 접었다 펴도 선택 값은 그대로 유지된다.
+  const [setSectionOpen, setSetSectionOpen] = useState(true);
+  const [typeSectionOpen, setTypeSectionOpen] = useState(true);
+  const [raritySectionOpen, setRaritySectionOpen] = useState(true);
   const setPanelId = useId();
+  const typePanelId = useId();
   const rarityPanelId = useId();
 
   // 세트는 항상 series 기준 아코디언으로 묶어서 보여준다 — BE가 이미 series 그룹
@@ -372,29 +374,45 @@ export default function SearchResultsView({
               </div>
             )}
             <div className="mb-[18px] h-px bg-[#F0F0F0]" />
-            <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">타입</div>
-            <div className="mb-5 flex flex-col gap-[9px]">
-              {facetsLoading ? (
-                <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
-              ) : (
-                typeOptions.map((t) => (
-                  <label
-                    key={t}
-                    className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedTypes.includes(t)}
-                      onChange={() => {
-                        setLoadState("loading");
-                        setSelectedTypes(toggleValue(selectedTypes, t));
-                      }}
-                    />
-                    {t}
-                  </label>
-                ))
-              )}
-            </div>
+            <button
+              type="button"
+              onClick={() => setTypeSectionOpen((v) => !v)}
+              aria-expanded={typeSectionOpen}
+              aria-controls={typePanelId}
+              className="mb-[9px] flex w-full items-center justify-between rounded-md px-1 py-1 text-[12.5px] font-bold text-[#4B4B52] hover:bg-[#F2F2F5]"
+            >
+              <span>타입</span>
+              <span
+                aria-hidden="true"
+                className={`text-[10px] text-[#9A9AA2] transition-transform ${typeSectionOpen ? "rotate-90" : ""}`}
+              >
+                ▸
+              </span>
+            </button>
+            {typeSectionOpen && (
+              <div id={typePanelId} className="mb-5 flex flex-col gap-[9px]">
+                {facetsLoading ? (
+                  <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
+                ) : (
+                  typeOptions.map((t) => (
+                    <label
+                      key={t}
+                      className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedTypes.includes(t)}
+                        onChange={() => {
+                          setLoadState("loading");
+                          setSelectedTypes(toggleValue(selectedTypes, t));
+                        }}
+                      />
+                      {t}
+                    </label>
+                  ))
+                )}
+              </div>
+            )}
             <div className="mb-[18px] h-px bg-[#F0F0F0]" />
             <button
               type="button"
