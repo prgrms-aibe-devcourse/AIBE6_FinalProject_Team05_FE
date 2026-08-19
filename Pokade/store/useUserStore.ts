@@ -19,6 +19,8 @@ interface UserState {
   email: string | null;
   profileImageUrl: string | null; // 서버 상대 경로, 이미지 없으면 null
   role: "user" | "admin" | null;
+  accountStatus: MyInfo["status"] | null;
+  provider: MyInfo["provider"] | null;
   login: (email: string, password: string) => Promise<void>;
   loginWithToken: (accessToken: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -47,6 +49,8 @@ export const useUserStore = create<UserState>((set, get) => ({
   email: null,
   profileImageUrl: null,
   role: null,
+  accountStatus: null,
+  provider: null,
 
   // 이미 발급된 accessToken으로 세션 확정: 토큰 저장 → 프로필 조회 → 상태 세팅 (소셜 가입·로그인 공용)
   loginWithToken: async (accessToken) => {
@@ -63,6 +67,8 @@ export const useUserStore = create<UserState>((set, get) => ({
         email: me.email,
         profileImageUrl: me.profileImageUrl,
         role: toStoreRole(me.role),
+        accountStatus: me.status,
+        provider: me.provider,
       });
     } catch (err) {
       // 프로필 조회 실패 → 토큰 + 인증 상태를 함께 롤백(부분 상태 불일치 방지)
@@ -77,6 +83,8 @@ export const useUserStore = create<UserState>((set, get) => ({
         email: null,
         profileImageUrl: null,
         role: null,
+        accountStatus: null,
+        provider: null,
       });
       throw err; // 화면에서 에러 처리하도록 재throw
     }
@@ -106,6 +114,8 @@ export const useUserStore = create<UserState>((set, get) => ({
       profileImageUrl: null,
       email: null,
       role: null,
+      accountStatus: null,
+      provider: null,
     });
   },
 
@@ -122,6 +132,8 @@ export const useUserStore = create<UserState>((set, get) => ({
         email: null,
         profileImageUrl: null,
         role: null,
+        accountStatus: null,
+        provider: null,
       });
       return false;
     }
@@ -144,6 +156,8 @@ export const useUserStore = create<UserState>((set, get) => ({
         email: null,
         profileImageUrl: null,
         role: null,
+        accountStatus: null,
+        provider: null,
       });
       return false;
     }
@@ -161,6 +175,8 @@ export const useUserStore = create<UserState>((set, get) => ({
         email: me.email,
         profileImageUrl: me.profileImageUrl,
         role: toStoreRole(me.role),
+        accountStatus: me.status,
+        provider: me.provider,
       });
       return true;
     } catch (err) {
@@ -177,6 +193,8 @@ export const useUserStore = create<UserState>((set, get) => ({
           email: null,
           profileImageUrl: null,
           role: null,
+          accountStatus: null,
+          provider: null,
         });
         return false;
       }
@@ -193,6 +211,8 @@ export const useUserStore = create<UserState>((set, get) => ({
         email: me.email,
         profileImageUrl: me.profileImageUrl,
         role: toStoreRole(me.role),
+        accountStatus: me.status,
+        provider: me.provider,
       });
       return true;
     } catch {
