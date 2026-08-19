@@ -115,7 +115,9 @@ export default function MyPage() {
           </div>
         ) : (
           <>
-            <section className="mb-3 flex items-center gap-4 rounded-[18px] border border-[#EDEDF0] bg-white px-8 py-6 shadow-card">
+            {/* flex-wrap이 없으면 좁은 화면에서 링크 영역(flex-shrink-0)이 자리를 지키느라
+                닉네임·포인트 영역이 너비 0으로 짜부라져 글자가 세로로 쪼개진다. */}
+            <section className="mb-3 flex flex-wrap items-center gap-4 rounded-[18px] border border-[#EDEDF0] bg-white px-8 py-6 shadow-card">
               <Avatar
                 path={info.profileImageUrl}
                 nickname={info.nickname}
