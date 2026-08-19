@@ -639,6 +639,8 @@ function LoggedInRight({
                     <Link
                       key={m.label}
                       href={m.href}
+                      // 이동해도 드롭다운이 새 페이지 위에 남는다 — pathname 변화 감지는 모바일 메뉴만 닫는다.
+                      onClick={() => setOpen(null)}
                       className="flex items-center gap-2.5 rounded-[9px] px-3 py-2.5 text-[13.5px] font-semibold text-[#3A3A42] hover:bg-[#F5F5F7] hover:text-ink"
                     >
                       {m.label}
