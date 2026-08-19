@@ -7,6 +7,7 @@ import { getMyInfo, cancelWithdrawal } from "@/lib/authApi";
 import { authErrorMessage } from "@/lib/authErrorMessages";
 import { MyInfo } from "@/types/auth";
 import MyTradesSection from "./MyTradesSection";
+import Avatar from "@/components/Avatar";
 
 export default function MyPage() {
   const authStatus = useRequireAuth();
@@ -114,7 +115,61 @@ export default function MyPage() {
           </div>
         ) : (
           <>
+            {/* flex-wrap이 없으면 좁은 화면에서 링크 영역(flex-shrink-0)이 자리를 지키느라
+                닉네임·포인트 영역이 너비 0으로 짜부라져 글자가 세로로 쪼개진다. */}
+            <section className="mb-3 flex flex-wrap items-center gap-4 rounded-[18px] border border-[#EDEDF0] bg-white px-8 py-6 shadow-card">
+              <Avatar
+                path={info.profileImageUrl}
+                nickname={info.nickname}
+                size={56}
+                className="bg-[#F2F2F5] text-[20px] font-extrabold text-[#B0B0B8]"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[17px] font-extrabold">{info.nickname}</p>
+                <p className="mt-0.5 text-[13px] text-[#8A8A92]">
+                  보유 포인트 {info.pointBalance.toLocaleString("ko-KR")} P
+                </p>
+              </div>
+              {/* 공개 프로필은 남에게 내가 어떻게 보이는지 확인하는 통로, 설정은 계정 영역으로 가는
+                  통로다. 계정 설정이 /settings로 빠지면서 마이페이지에서 갈 길이 없어져 함께 둔다.
+                  userId는 스토어가 아니라 이 화면이 직접 조회한 info에서 가져오므로
+                  세션 복원 상태를 신경 쓸 필요가 없다. */}
+              <div className="flex flex-shrink-0 gap-2">
+                <Link
+                  href={`/users/${info.userId}`}
+                  className="rounded-[9px] border border-[#DDDDE3] px-3 py-2 text-[13px] font-bold text-[#6E6E76] hover:bg-[#F4F4F6] hover:text-ink"
+                >
+                  공개 프로필 보기
+                </Link>
+                <Link
+                  href="/settings"
+                  className="rounded-[9px] border border-[#DDDDE3] px-3 py-2 text-[13px] font-bold text-[#6E6E76] hover:bg-[#F4F4F6] hover:text-ink"
+                >
+                  설정
+                </Link>
+              </div>
+            </section>
+
             <MyTradesSection />
+
+            <Link
+              href="/listings/me"
+              className="mt-3 flex items-center justify-between rounded-[18px] border border-[#EDEDF0] bg-white px-8 py-6 shadow-card transition hover:bg-[#FAFAFB]"
+            >
+              <span className="text-[15px] font-bold">내 매물</span>
+              <span aria-hidden="true" className="text-[18px] leading-none text-[#B0B0B8]">
+                ›
+              </span>
+            </Link>
+            <Link
+              href="/watchlist"
+              className="mt-3 flex items-center justify-between rounded-[18px] border border-[#EDEDF0] bg-white px-8 py-6 shadow-card transition hover:bg-[#FAFAFB]"
+            >
+              <span className="text-[15px] font-bold">워치리스트</span>
+              <span aria-hidden="true" className="text-[18px] leading-none text-[#B0B0B8]">
+                ›
+              </span>
+            </Link>
 
             <Link
               href="/mypage/inquiries"
