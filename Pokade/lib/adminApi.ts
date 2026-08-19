@@ -1,4 +1,4 @@
-import { apiGet, apiPatch } from "@/lib/apiClient";
+import { apiGet, apiPatch, PageResponse } from "@/lib/apiClient";
 import { AdminDashboardResponse, AdminMetricsPeriod } from "@/types/adminMetrics";
 import { ReportResponse } from "@/types/adminReport";
 import { TradeResponse } from "@/types/trade";
@@ -58,4 +58,9 @@ export async function fetchInquiry(id: number): Promise<InquiryResponse> {
 // PATCH /api/admin/inquiries/{id}/status — 처리 상태 변경 (ADMIN 권한 필요). 없으면 404.
 export async function updateInquiryStatus(id: number, status: InquiryStatus): Promise<InquiryResponse> {
   return apiPatch<InquiryResponse>(`/api/admin/inquiries/${id}/status`, { status });
+}
+
+// PATCH /api/admin/inquiries/{id}/answer — 답변 등록/수정 (ADMIN 권한 필요). 성공 시 상태가 HANDLED로 자동 전환된다. 없으면 404.
+export async function answerInquiry(id: number, content: string): Promise<InquiryResponse> {
+  return apiPatch<InquiryResponse>(`/api/admin/inquiries/${id}/answer`, { content });
 }

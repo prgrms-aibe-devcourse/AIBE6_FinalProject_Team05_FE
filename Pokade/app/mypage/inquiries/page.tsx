@@ -191,6 +191,26 @@ export default function MyInquiriesPage() {
                   </div>
                 </div>
               )}
+
+              <div className="border-t border-[#EDEDF0] pt-5">
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#9A9AA2]">답변</span>
+                  {selected.answeredAt && (
+                    <span className="text-[11.5px] text-[#B4B4BC]">
+                      {formatDateTime(selected.answeredAt)} 답변
+                    </span>
+                  )}
+                </div>
+                {selected.answerContent ? (
+                  <p className="m-0 whitespace-pre-wrap rounded-[10px] bg-[#FAFAFB] px-3.5 py-3 text-[13.5px] leading-[1.6] text-[#2B2B31]">
+                    {selected.answerContent}
+                  </p>
+                ) : (
+                  <p className="m-0 rounded-[10px] bg-[#FAFAFB] px-3.5 py-3 text-[13.5px] text-[#9A9AA2]">
+                    아직 답변이 등록되지 않았습니다.
+                  </p>
+                )}
+              </div>
             </div>
           </>
         )}

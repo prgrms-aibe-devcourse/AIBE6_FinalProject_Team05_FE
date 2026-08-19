@@ -33,6 +33,8 @@ export interface InquiryResponse {
   content: string;
   imageUrls: string[];
   createdAt: string;
+  answerContent: string | null;
+  answeredAt: string | null;
 }
 
 // POST /api/inquiries의 "request" 파트 — com.pokade.domain.inquiry.dto.request.InquiryCreateRequest 미러링.

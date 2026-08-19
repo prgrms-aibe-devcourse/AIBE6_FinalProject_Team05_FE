@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import AdminSidebar from "@/components/AdminSidebar";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { fetchInquiries, updateInquiryStatus } from "@/lib/adminApi";
+import { answerInquiry, fetchInquiries, updateInquiryStatus } from "@/lib/adminApi";
 import { ApiError } from "@/lib/apiClient";
 import {
   INQUIRY_CATEGORIES,
@@ -41,6 +41,17 @@ export default function AdminInquiriesPage() {
   const [page, setPage] = useState(1); // 1-based (UI) — API 호출 시 -1
   const [totalPages, setTotalPages] = useState(1);
   const [statusUpdating, setStatusUpdating] = useState(false);
+
+  const [answerDraft, setAnswerDraft] = useState("");
+  const [answerSubmitting, setAnswerSubmitting] = useState(false);
+  const [answerError, setAnswerError] = useState("");
+
+  // 상세 패널에서 다른 문의로 선택이 바뀌면 답변 초안도 그 문의의 기존 답변으로 리셋한다.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAnswerDraft(selected?.answerContent ?? "");
+    setAnswerError("");
+  }, [selected?.id, selected?.answerContent]);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,6 +96,21 @@ export default function AdminInquiriesPage() {
       // 토글 실패는 조용히 무시 - 상세 패널은 그대로 열려 있으니 재시도 가능
     } finally {
       setStatusUpdating(false);
+    }
+  };
+
+  const handleSubmitAnswer = async () => {
+    if (!selected || answerSubmitting || !answerDraft.trim()) return;
+    setAnswerSubmitting(true);
+    setAnswerError("");
+    try {
+      const updated = await answerInquiry(selected.id, answerDraft.trim());
+      applyStatus(selected.id, updated);
+    } catch (err) {
+      // 답변은 사용자가 직접 작성한 내용이라 상태 토글과 달리 실패를 조용히 무시하지 않는다 - 재시도할 수 있게 에러를 보여준다
+      setAnswerError(err instanceof ApiError ? err.message : "답변 등록에 실패했습니다.");
+    } finally {
+      setAnswerSubmitting(false);
     }
   };
 
@@ -285,6 +311,36 @@ export default function AdminInquiriesPage() {
                   </div>
                 </div>
               )}
+
+              <div className="border-t border-[#EDEDF0] pt-5">
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#9A9AA2]">답변</span>
+                  {selected.answeredAt && (
+                    <span className="text-[11.5px] text-[#B4B4BC]">
+                      {formatDateTime(selected.answeredAt)} 답변
+                    </span>
+                  )}
+                </div>
+                <textarea
+                  value={answerDraft}
+                  onChange={(e) => setAnswerDraft(e.target.value)}
+                  placeholder="사용자에게 전달할 답변을 입력하세요"
+                  rows={5}
+                  className="w-full resize-none rounded-[10px] border border-[#DDDDE3] px-3.5 py-3 text-[13.5px] leading-[1.6] text-[#2B2B31] outline-none focus:border-primary"
+                />
+                {answerError && (
+                  <p className="mt-1.5 text-[12.5px] text-[#C21414]">{answerError}</p>
+                )}
+                <button
+                  type="button"
+                  onClick={handleSubmitAnswer}
+                  disabled={answerSubmitting || !answerDraft.trim()}
+                  className="mt-2.5 w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3 text-[14px] font-bold text-white shadow-tactile-sm transition disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {answerSubmitting ? "등록 중..." : selected.answerContent ? "답변 수정" : "답변 등록"}
+                </button>
+              </div>
+
               <button
                 type="button"
                 onClick={handleToggleStatus}
