@@ -4,11 +4,10 @@ import { GRADE_DESCRIPTIONS } from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
 import { CardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
-import { CardSort } from "@/lib/cardApi";
 import { highlightMatch } from "@/lib/highlightMatch";
 import { pickDisplayName } from "@/lib/pickDisplayName";
-import { resolvePriceDisplay } from "@/lib/priceDisplay";
-import { PRICE_MAX } from "./constants";
+import { resolvePriceDisplay, resolveSortablePrice } from "@/lib/priceDisplay";
+import { isPriceSort, PRICE_MAX, UiSort } from "./constants";
 
 type LoadState = "loading" | "error" | "ready";
 
@@ -51,8 +50,8 @@ interface SearchResultsViewProps {
   setPriceRangeNow: (min: number, max: number) => void;
   activeHandle: "min" | "max" | null;
   setActiveHandle: Dispatch<SetStateAction<"min" | "max" | null>>;
-  sort: CardSort;
-  setSort: Dispatch<SetStateAction<CardSort>>;
+  sort: UiSort;
+  setSort: Dispatch<SetStateAction<UiSort>>;
   setLoadState: Dispatch<SetStateAction<LoadState>>;
   loadState: LoadState;
   errorMessage: string;
@@ -199,6 +198,13 @@ export default function SearchResultsView({
       ? [selectedSetOption, ...matchedSetOptions]
       : matchedSetOptions;
 
+  // 레어도 목록(26개+)도 세트와 같은 이유로 검색으로 좁혀 찾는다 — 같은 패턴(로컬 배열
+  // 필터링, debounce 없음) 재사용.
+  const [raritySearchQuery, setRaritySearchQuery] = useState("");
+  const matchedRarityOptions = rarityOptions.filter((r) =>
+    r.toLowerCase().includes(raritySearchQuery.trim().toLowerCase()),
+  );
+
   // 검색어가 없을 때는 이름 모르는 사용자도 탐색할 수 있도록 series 기준 아코디언으로
   // 묶어서 보여준다 — BE가 이미 series 그룹 최신순 → 그룹 내부 이름순으로 정렬해 내려주므로
   // 여기서는 순서를 재정렬하지 않고 Map 삽입 순서(=setOptions 순서)만 그대로 유지한다.
@@ -261,6 +267,20 @@ export default function SearchResultsView({
       {opt.label}
     </label>
   );
+
+  // 가격순 — BE 화이트리스트에 없어(constants.ts의 UiSort 주석 참고) 서버 정렬 대신 이미 로드된
+  // 현재 페이지 카드만 여기서 재정렬한다. 가격 정보가 없는 카드(priceDisplay가 null인 경우)는
+  // 오름차순/내림차순 모두에서 항상 맨 뒤로 보낸다 — 가격이 없다는 사실 자체는 정렬 방향과 무관.
+  const displayCards = isPriceSort(sort)
+    ? [...cards].sort((a, b) => {
+        const priceA = resolveSortablePrice(priceSummaries.get(a.id));
+        const priceB = resolveSortablePrice(priceSummaries.get(b.id));
+        if (priceA == null && priceB == null) return 0;
+        if (priceA == null) return 1;
+        if (priceB == null) return -1;
+        return sort === "priceAsc" ? priceA - priceB : priceB - priceA;
+      })
+    : cards;
 
   return (
     <div
@@ -403,11 +423,27 @@ export default function SearchResultsView({
             </div>
             <div className="mb-[18px] h-px bg-[#F0F0F0]" />
             <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">레어도</div>
-            <div className="mb-5 flex flex-col gap-[9px]">
+            <label
+              htmlFor="rarity-search-input"
+              className="mb-2 flex items-center gap-1.5 rounded-[9px] border border-[#DDDDE3] px-2.5 py-2 focus-within:border-primary"
+            >
+              <input
+                id="rarity-search-input"
+                type="text"
+                value={raritySearchQuery}
+                onChange={(e) => setRaritySearchQuery(e.target.value)}
+                placeholder="레어도 이름으로 검색"
+                aria-label="레어도 이름으로 검색"
+                className="w-full border-none bg-transparent p-0 text-[13px] text-ink outline-none placeholder:text-[#9A9AA2]"
+              />
+            </label>
+            <div className="mb-5 flex max-h-[260px] flex-col gap-[9px] overflow-y-auto">
               {facetsLoading ? (
                 <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
+              ) : matchedRarityOptions.length === 0 ? (
+                <span className="text-[12.5px] text-[#9A9AA2]">일치하는 레어도가 없어요.</span>
               ) : (
-                rarityOptions.map((r) => (
+                matchedRarityOptions.map((r) => (
                   <label
                     key={r}
                     className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
@@ -554,8 +590,15 @@ export default function SearchResultsView({
             <select
               value={sort}
               onChange={(e) => {
-                setLoadState("loading");
-                setSort(e.target.value as CardSort);
+                const next = e.target.value as UiSort;
+                // priceAsc/priceDesc는 BE에 안 보내는 FE 전용 값이라 실제로는 둘 다 기본 정렬
+                // (popular)로 조회한 뒤 클라이언트에서 재정렬만 한다 — popular↔priceAsc/priceDesc
+                // 간 전환처럼 BE 요청이 실제로 바뀌지 않을 때 setLoadState("loading")을 부르면
+                // 재요청이 없어 "ready"로 되돌아오지 못하고 로딩 상태에 그대로 갇힌다.
+                const apiSortChanged = (isPriceSort(sort) ? "popular" : sort) !==
+                  (isPriceSort(next) ? "popular" : next);
+                if (apiSortChanged) setLoadState("loading");
+                setSort(next);
               }}
               aria-label="정렬 기준"
               className="cursor-pointer rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-2 text-[13px] outline-none"
@@ -563,6 +606,8 @@ export default function SearchResultsView({
               <option value="popular">인기순</option>
               <option value="latest">최신순</option>
               <option value="name">이름순</option>
+              <option value="priceAsc">가격 낮은순</option>
+              <option value="priceDesc">가격 높은순</option>
             </select>
           )}
         </div>
@@ -678,7 +723,7 @@ export default function SearchResultsView({
               loadState === "loading" ? "pointer-events-none opacity-50" : "opacity-100"
             }`}
           >
-            {cards.map((c) => {
+            {displayCards.map((c) => {
               const priceDisplay = resolvePriceDisplay(priceSummaries.get(c.id));
               // pickDisplayName이 받는 { name, nameKo } 형태로 원본 필드를 매핑한다 — 여기서
               // name은 병합된 c.name이 아니라 원본 영문명(c.nameEn)이어야 검색어와 정확히 대조된다.

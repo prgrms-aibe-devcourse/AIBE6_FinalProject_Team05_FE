@@ -13,7 +13,7 @@ import {
 } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
-import { PRICE_MAX } from "./constants";
+import { isPriceSort, PRICE_MAX, UiSort } from "./constants";
 import SearchResultsView from "./SearchResultsView";
 import PriceDashboardView from "./PriceDashboardView";
 
@@ -74,10 +74,16 @@ function SearchDashboard() {
   const [facetsLoading, setFacetsLoading] = useState(true);
   // BE 화이트리스트에 없는 값은 기본값(popular)으로 취급 — /api/cards/search(키워드 검색)는
   // sort를 지원하지 않으므로 q가 있을 때는 드롭다운 자체를 숨긴다.
-  const [sort, setSort] = useState<CardSort>(() => {
+  // priceAsc/priceDesc는 BE 화이트리스트에 없는 FE 전용 값(constants.ts의 UiSort 참고) — URL
+  // 복원 시에도 그대로 인식해야 새로고침 후에도 가격순 선택이 유지된다.
+  const [sort, setSort] = useState<UiSort>(() => {
     const s = searchParams.get("sort");
-    return s === "name" || s === "latest" ? s : "popular";
+    return s === "name" || s === "latest" || s === "priceAsc" || s === "priceDesc" ? s : "popular";
   });
+  // BE에 실제로 보내는 정렬값 — 가격순은 BE 화이트리스트에 없어(위 import의 isPriceSort 참고)
+  // 그대로 보내면 조용히 latest로 폴백돼 "선택했는데 안 바뀐" 것처럼 보인다. 대신 기본 정렬(popular)로
+  // 받아온 페이지를 SearchResultsView가 클라이언트에서 가격 기준으로 다시 정렬한다.
+  const apiSort: CardSort = isPriceSort(sort) ? "popular" : sort;
   // 1-indexed(화면 표시용). BE 호출 시에만 0-indexed로 변환한다.
   const [page, setPage] = useState<number>(() => {
     const p = Number(searchParams.get("page"));
@@ -108,7 +114,7 @@ function SearchDashboard() {
   // 가격대는 debounced 값 기준 — 드래그 중간값으로 매번 1페이지/로딩 상태가 흔들리지 않도록 함.
   // (다른 필터는 각 onChange에서 이미 setLoadState("loading")을 즉시 호출하므로 여기서 또
   // 호출해도 중복일 뿐 해가 없고, debounced 가격 변경은 이 지점이 유일한 트리거가 된다.)
-  const filterKey = `${selectedExpansionId}|${selectedTypes.join(",")}|${selectedRarities.join(",")}|${sort}|${debouncedPriceMin}|${debouncedPriceMax}`;
+  const filterKey = `${selectedExpansionId}|${selectedTypes.join(",")}|${selectedRarities.join(",")}|${apiSort}|${debouncedPriceMin}|${debouncedPriceMax}`;
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
@@ -171,7 +177,7 @@ function SearchDashboard() {
           rarity: selectedRarities,
           minPrice: debouncedPriceMin > 0 ? debouncedPriceMin : undefined,
           maxPrice: debouncedPriceMax < PRICE_MAX ? debouncedPriceMax : undefined,
-          sort,
+          sort: apiSort,
           page: page - 1,
         });
 
@@ -199,7 +205,7 @@ function SearchDashboard() {
     selectedRarities,
     debouncedPriceMin,
     debouncedPriceMax,
-    sort,
+    apiSort,
     page,
     q,
   ]);
