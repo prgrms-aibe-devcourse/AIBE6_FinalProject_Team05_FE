@@ -1,83 +1,104 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useNotificationStore } from "@/store/useNotificationStore";
+import { ApiError, PageResponse } from "@/lib/apiClient";
+import { fetchNotifications, markNotificationRead } from "@/lib/watchlistApi";
 import { notifStyle, formatNotifTime } from "@/lib/notificationDisplay";
+import { NotificationResponse } from "@/types/notification";
 
-// 한 페이지에 보여줄 알림 수 — 배치로 계속 쌓이는 구조라 전체 목록이 무한정 길어지는 것을 막는다.
-// BE(GET /api/notifications)가 페이지 파라미터 없이 항상 전체 목록을 내려주므로, 지금은 이미 받아온
-// 배열을 화면에서만 나눠 보여주는 클라이언트 사이드 페이지네이션이다 — payload 자체가 커지는 문제는
-// 이걸로 해결되지 않는다(#162, BE 페이지네이션은 별도 작업으로 분리).
-const PAGE_SIZE = 10;
+// BE #162 페이지네이션 기본값(size=20)과 맞춘다 — app/mypage/MyTradesSection.tsx와 동일하게
+// 서버가 잘라준 Page를 그대로 신뢰하고, 클라이언트에서 다시 자르지 않는다.
+const PAGE_SIZE = 20;
 
-// app/search/SearchResultsView.tsx의 getPaginationRange와 동일한 로직 — 이번 작업 범위상
-// SearchResultsView.tsx 리팩터 없이 이 화면에 그대로 복사해 둔다.
-type PaginationItem = number | "ellipsis";
+type LoadState = "loading" | "error" | "ready";
 
-function getPaginationRange(current: number, total: number): PaginationItem[] {
-  const siblingCount = 1;
-  const totalVisible = siblingCount * 2 + 5;
-
-  if (totalVisible >= total) {
-    return Array.from({ length: total }, (_, i) => i + 1);
-  }
-
-  const leftSibling = Math.max(current - siblingCount, 1);
-  const rightSibling = Math.min(current + siblingCount, total);
-  const showLeftEllipsis = leftSibling > 2;
-  const showRightEllipsis = rightSibling < total - 1;
-
-  if (!showLeftEllipsis && showRightEllipsis) {
-    const leftItemCount = 3 + siblingCount * 2;
-    const leftRange = Array.from({ length: leftItemCount }, (_, i) => i + 1);
-    return [...leftRange, "ellipsis", total];
-  }
-
-  if (showLeftEllipsis && !showRightEllipsis) {
-    const rightItemCount = 3 + siblingCount * 2;
-    const rightRange = Array.from(
-      { length: rightItemCount },
-      (_, i) => total - rightItemCount + i + 1,
-    );
-    return [1, "ellipsis", ...rightRange];
-  }
-
-  const middleRange = Array.from(
-    { length: rightSibling - leftSibling + 1 },
-    (_, i) => leftSibling + i,
-  );
-  return [1, "ellipsis", ...middleRange, "ellipsis", total];
-}
-
+// 이 페이지는 useNotificationStore(헤더 알림 벨의 "최근 알림 피드")와 별개로, 자체 상태로
+// 페이지 단위 조회를 한다 — 전체보기는 store가 들고 있지 않은 과거 페이지까지 봐야 하므로
+// store의 배열을 그대로 슬라이싱하는 방식으로는 애초에 해결이 안 된다(MyTradesSection과 같은 이유로
+// 전역 store 대신 화면 자체 상태를 쓴다). 다만 읽음 처리 시 헤더 배지/드롭다운도 함께 최신화되도록
+// store의 retry()만 가져와 쓴다(마크 자체는 이 화면이 직접 호출).
 export default function NotificationsPage() {
   const authStatus = useRequireAuth();
-  const notifications = useNotificationStore((s) => s.notifications);
-  const loadState = useNotificationStore((s) => s.loadState);
-  const errorMessage = useNotificationStore((s) => s.errorMessage);
-  const start = useNotificationStore((s) => s.start);
-  const markOneRead = useNotificationStore((s) => s.markOneRead);
-  const markAllRead = useNotificationStore((s) => s.markAllRead);
-  const [page, setPage] = useState(1);
+  const startFeed = useNotificationStore((s) => s.start);
+  const retryFeed = useNotificationStore((s) => s.retry);
 
-  // Header가 이미 폴링을 시작했을 것이므로 대부분 no-op이지만, 직접 진입 등 마운트 순서를
+  const [page, setPage] = useState(0); // BE와 동일하게 0-based로 들고 다닌다.
+  const [data, setData] = useState<PageResponse<NotificationResponse> | null>(null);
+  const [loadState, setLoadState] = useState<LoadState>("loading");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [markingAll, setMarkingAll] = useState(false);
+
+  // Header가 이미 폴링/SSE를 시작했을 것이므로 대부분 no-op이지만, 직접 진입 등 마운트 순서를
   // 보장할 수 없는 경우를 대비한 방어 호출 — start()는 멱등이라 중복 호출해도 안전하다.
   // 이 페이지는 소비만 하고 stop()은 호출하지 않는다(생명주기는 Header 전담).
   useEffect(() => {
-    if (authStatus === "authenticated") start();
-  }, [authStatus, start]);
+    if (authStatus === "authenticated") startFeed();
+  }, [authStatus, startFeed]);
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
-  const totalPages = Math.max(1, Math.ceil(notifications.length / PAGE_SIZE));
+  const load = useCallback(() => {
+    if (authStatus !== "authenticated") return;
+    setLoadState("loading");
+    fetchNotifications({ page, size: PAGE_SIZE })
+      .then((res) => {
+        setData(res);
+        setLoadState("ready");
+      })
+      .catch((err) => {
+        setErrorMessage(err instanceof ApiError ? err.message : "알림을 불러오지 못했습니다.");
+        setLoadState("error");
+      });
+  }, [authStatus, page]);
 
-  // 알림이 삭제(개별 삭제는 아직 없지만 목록이 줄어드는 경우 전반에 대비)되어 현재 페이지가
-  // 더는 존재하지 않게 되면 마지막 유효 페이지로 되돌린다. 새 알림이 도착해 총 페이지 수가
-  // "늘어나는" 경우에는 건드리지 않아 사용자가 보던 페이지가 임의로 바뀌지 않게 한다.
   useEffect(() => {
-    setPage((p) => Math.min(p, totalPages));
-  }, [totalPages]);
+    load();
+  }, [load]);
 
-  const pageItems = notifications.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const notifications = data?.content ?? [];
+  // "모두 읽음 처리" 버튼 노출 여부는 여전히 이 페이지 기준이다 — BE에 안읽음 개수만 알려주는
+  // API가 없어 페이지 단위로 판단할 수밖에 없다(다른 페이지에만 안읽음이 남아있는데 지금 페이지가
+  // 전부 읽음 처리된 극단적인 경우 버튼이 숨는 사각지대는 남지만, 눌렀을 때 실제로 처리되는 범위
+  // 자체는 markAllRead가 이제 전체 페이지를 훑으므로 항상 맞다).
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+  // 읽음 처리 후에는 항상 "이 페이지를 다시 불러오기 + 헤더 피드도 갱신"으로 정확성을 보장한다
+  // (낙관적으로 로컬 배열만 patch하지 않는 이유: 이 화면의 data와 헤더 store의 notifications가
+  // 서로 다른 fetch 결과라 낙관적 갱신을 두 군데 다 손으로 맞추면 어긋나기 쉽다).
+  const markOneRead = (n: NotificationResponse) => {
+    if (n.isRead) return;
+    markNotificationRead(n.id)
+      .then(() => {
+        load();
+        retryFeed();
+      })
+      .catch(() => {});
+  };
+
+  // BE에 일괄 읽음 처리 엔드포인트가 없어(PATCH /{id}/read만 있음, NotificationController 확인됨)
+  // "모두"의 범위를 이 화면 자체에서 만들어야 한다 — 지금 로드된 페이지만이 아니라 전체 페이지를
+  // 다시 훑어 안읽은 알림을 모두 모은 뒤 각각 PATCH한다. 페이지 수만큼 + 안읽은 개수만큼 요청이
+  // 나가 시간이 걸릴 수 있어 markingAll로 처리 중임을 표시하고 버튼을 잠근다.
+  const markAllRead = async () => {
+    if (!data || markingAll) return;
+    setMarkingAll(true);
+    try {
+      const pageNumbers = Array.from({ length: data.totalPages }, (_, i) => i);
+      const pages = await Promise.all(
+        pageNumbers.map((p) =>
+          p === page ? data : fetchNotifications({ page: p, size: PAGE_SIZE }),
+        ),
+      );
+      const unreadIds = pages.flatMap((pg) => pg.content.filter((n) => !n.isRead).map((n) => n.id));
+      if (unreadIds.length > 0) {
+        await Promise.allSettled(unreadIds.map((id) => markNotificationRead(id)));
+      }
+    } finally {
+      setMarkingAll(false);
+      load();
+      retryFeed();
+    }
+  };
 
   if (authStatus !== "authenticated") return null;
 
@@ -95,9 +116,10 @@ export default function NotificationsPage() {
             <button
               type="button"
               onClick={markAllRead}
-              className="text-xs font-bold text-secondary hover:text-secondary-dark"
+              disabled={markingAll}
+              className="text-xs font-bold text-secondary hover:text-secondary-dark disabled:cursor-not-allowed disabled:text-[#C9C9CF] disabled:hover:text-[#C9C9CF]"
             >
-              모두 읽음 처리
+              {markingAll ? "처리 중..." : "모두 읽음 처리"}
             </button>
           )}
         </div>
@@ -126,7 +148,7 @@ export default function NotificationsPage() {
         {loadState === "ready" && notifications.length > 0 && (
           <>
             <div className="overflow-hidden rounded-2xl border border-[#EDEDF0] bg-white">
-              {pageItems.map((n, i) => {
+              {notifications.map((n, i) => {
                 const style = notifStyle(n.type);
                 return (
                   <button
@@ -134,7 +156,7 @@ export default function NotificationsPage() {
                     type="button"
                     onClick={() => markOneRead(n)}
                     className={`flex w-full items-center gap-[13px] px-5 py-4 text-left hover:bg-[#FAFAFB] ${
-                      i < pageItems.length - 1 ? "border-b border-[#F5F5F7]" : ""
+                      i < notifications.length - 1 ? "border-b border-[#F5F5F7]" : ""
                     } ${!n.isRead ? "bg-[#FFF7F7]" : ""}`}
                   >
                     <span
@@ -161,46 +183,26 @@ export default function NotificationsPage() {
               })}
             </div>
 
-            {totalPages > 1 && (
-              <div className="mt-6 flex items-center justify-center gap-1.5">
+            {data && data.totalPages > 1 && (
+              <div className="mt-6 flex items-center justify-center gap-5 text-[13px]">
                 <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page <= 1}
-                  aria-label="이전 페이지"
-                  className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#DDDDE3] bg-white text-[13px] font-bold text-[#4B4B52] enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={data.first}
+                  className="text-[#4B4B52] disabled:text-[#C9C9CF]"
                 >
-                  &lt;
+                  ‹ 이전
                 </button>
-                {getPaginationRange(page, totalPages).map((p, i) =>
-                  p === "ellipsis" ? (
-                    <span
-                      key={`ellipsis-${i}`}
-                      className="flex h-9 w-9 items-center justify-center text-[13px] text-[#9A9AA2]"
-                    >
-                      ...
-                    </span>
-                  ) : (
-                    <button
-                      key={p}
-                      onClick={() => setPage(p)}
-                      aria-current={p === page ? "page" : undefined}
-                      className={`h-9 w-9 rounded-[9px] text-[13px] font-bold ${
-                        p === page
-                          ? "bg-primary text-white"
-                          : "border border-[#DDDDE3] bg-white text-[#4B4B52] hover:border-primary hover:text-primary"
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  ),
-                )}
+                <span className="font-bold">
+                  {data.number + 1} / {data.totalPages}
+                </span>
                 <button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages}
-                  aria-label="다음 페이지"
-                  className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#DDDDE3] bg-white text-[13px] font-bold text-[#4B4B52] enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                  type="button"
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={data.last}
+                  className="text-[#4B4B52] disabled:text-[#C9C9CF]"
                 >
-                  &gt;
+                  다음 ›
                 </button>
               </div>
             )}

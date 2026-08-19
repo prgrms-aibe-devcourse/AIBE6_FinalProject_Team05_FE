@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/apiClient";
+import { apiDelete, apiGet, apiPatch, apiPost, PageResponse } from "@/lib/apiClient";
 import { NotificationResponse } from "@/types/notification";
 import {
   WatchlistCreateRequest,
@@ -35,9 +35,32 @@ export async function deleteWatchlistItem(id: number): Promise<void> {
   return apiDelete(`/api/watchlist/${id}`);
 }
 
-// GET /api/notifications — 로그인한 유저의 알림 목록. 페이지네이션 없음(전체 배열), 인증 필요(401 가능).
-export async function fetchNotifications(): Promise<NotificationResponse[]> {
-  return apiGet<NotificationResponse[]>("/api/notifications");
+// GET /api/notifications — 로그인한 유저의 알림 목록. #162부터 Pageable을 받아 Page<NotificationResponse>를
+// 돌려준다(파라미터 없으면 BE @PageableDefault(size=20, sort=createdAt desc) 적용). 인증 필요(401 가능).
+// 하위 호환: 배포 과도기 등으로 BE가 아직 예전 버전(배열 그대로)을 내려주는 경우에도 죽지 않도록,
+// 배열이면 "전체가 한 페이지"인 PageResponse로 감싸 반환한다 — 호출부는 항상 PageResponse만 다루면 된다.
+export async function fetchNotifications(
+  params: { page?: number; size?: number } = {},
+): Promise<PageResponse<NotificationResponse>> {
+  const query = new URLSearchParams();
+  if (params.page != null) query.set("page", String(params.page));
+  if (params.size != null) query.set("size", String(params.size));
+  const qs = query.toString();
+  const data = await apiGet<PageResponse<NotificationResponse> | NotificationResponse[]>(
+    `/api/notifications${qs ? `?${qs}` : ""}`,
+  );
+  if (Array.isArray(data)) {
+    return {
+      content: data,
+      totalElements: data.length,
+      totalPages: 1,
+      number: 0,
+      size: data.length,
+      first: true,
+      last: true,
+    };
+  }
+  return data;
 }
 
 // PATCH /api/notifications/{id}/read — 이미 읽음 처리된 알림이면 400(NOTIFICATION_ALREADY_READ).
