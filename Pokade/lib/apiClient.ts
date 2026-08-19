@@ -2,6 +2,7 @@ import { getAccessToken, setAccessToken } from "@/lib/authToken";
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 const REQUEST_TIMEOUT_MS = 10000; // 10초 — 일반 CRUD 기준
+const PROFILE_UPLOAD_TIMEOUT_MS = 30_000; // 5MB 이미지 1장 + S3 업로드 — AI 진단(3분)과 달리 추론이 없다
 
 // AI 등급 진단(POST /api/ai/grade)은 이미지 6장 업로드 후 S3 업로드 6회 + 서버측 품질검사 +
 // Vision 모델 호출이 동기로 실행돼 수십 초~2분이 걸린다. 기본 10초로는 브라우저가 먼저
@@ -175,12 +176,18 @@ export async function apiPostFormRaw<T>(path: string, formData: FormData): Promi
   return (await res.json()) as T;
 }
 
-// 멀티파트 업로드 + ApiResponse<T> 래퍼 응답용 (예: POST /api/inquiries). Content-Type을 강제하지
-// 않아야 브라우저가 FormData의 boundary를 포함한 multipart/form-data를 자동으로 설정한다.
 export async function apiPostForm<T>(path: string, formData: FormData): Promise<T> {
-  const res = await request(path, { method: "POST", body: formData }, true, UPLOAD_TIMEOUT_MS);
-  const body = (await res.json()) as ApiEnvelope<T>;
-  return body.data;
+  const res = await request(
+    path,
+    {
+      method: "POST",
+      body: formData,
+    },
+    true,
+    PROFILE_UPLOAD_TIMEOUT_MS, // 5MB 이미지 1장 + S3 업로드
+  );
+  const text = await res.text();
+  return text ? (JSON.parse(text) as ApiEnvelope<T>).data : (undefined as T);
 }
 
 // ApiResponse 래퍼 없이 raw body를 그대로 내려주는 POST 엔드포인트용 (예: POST /api/chat/query).

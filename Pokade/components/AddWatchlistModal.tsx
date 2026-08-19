@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 import { ApiError } from "@/lib/apiClient";
 import { loginUrlFor } from "@/lib/authRedirect";
-import { addWatchlist } from "@/lib/watchlistApi";
+import { addWatchlist, updateWatchlist } from "@/lib/watchlistApi";
 import { useUserStore } from "@/store/useUserStore";
 import { WatchlistResponse } from "@/types/watchlist";
 
@@ -13,23 +13,32 @@ import { WatchlistResponse } from "@/types/watchlist";
 // 막기 위해 FE에서 더 엄격한 최소값을 둔다. BE 요구사항이 바뀐 게 아니라 UX상의 선제 검증.
 const MIN_TARGET_PRICE = 100;
 
-interface AddWatchlistModalProps {
+type AddWatchlistModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  cardId: number;
-  variantId?: number | null;
-  onSuccess?: (created: WatchlistResponse) => void;
-}
+  onSuccess?: (result: WatchlistResponse) => void;
+} & (
+  | {
+      mode?: "create";
+      cardId: number;
+      variantId?: number | null;
+    }
+  | {
+      mode: "edit";
+      watchlistId: number;
+      initialTargetBuyPrice?: number | null;
+      initialTargetSellPrice?: number | null;
+    }
+);
 
-// 카드 상세/마켓 등 여러 화면에서 재사용할 워치리스트 등록 모달.
+// 카드 상세/마켓 등 여러 화면에서 재사용할 워치리스트 등록·수정 겸용 모달.
 // 목표 구매가/판매가 중 최소 하나 입력 필요(BE 검증과 동일 규칙을 클라이언트에서도 선제 검사).
-export default function AddWatchlistModal({
-  isOpen,
-  onClose,
-  cardId,
-  variantId,
-  onSuccess,
-}: AddWatchlistModalProps) {
+export default function AddWatchlistModal(props: AddWatchlistModalProps) {
+  const { isOpen, onClose, onSuccess } = props;
+  const mode = props.mode ?? "create";
+  const initialTargetBuyPrice = props.mode === "edit" ? props.initialTargetBuyPrice : undefined;
+  const initialTargetSellPrice = props.mode === "edit" ? props.initialTargetSellPrice : undefined;
+
   const authStatus = useUserStore((s) => s.status);
   const router = useRouter();
   const pathname = usePathname();
@@ -40,9 +49,10 @@ export default function AddWatchlistModal({
   const [error, setError] = useState<string | null>(null);
   const buyPriceInputRef = useRef<HTMLInputElement>(null);
 
-  const resetForm = useCallback(() => {
-    setBuyPrice("");
-    setSellPrice("");
+  // buy/sell 기본값은 빈 문자열(등록 모드). 수정 모드 오픈 시 아래 useEffect가 기존 값으로 덮어쓴다.
+  const resetForm = useCallback((buy = "", sell = "") => {
+    setBuyPrice(buy);
+    setSellPrice(sell);
     setError(null);
   }, []);
 
@@ -60,6 +70,21 @@ export default function AddWatchlistModal({
       router.replace(loginUrlFor(pathname));
     }
   }, [isOpen, authStatus, onClose, pathname, router]);
+
+  // 모달이 열릴 때마다 폼을 초기화한다: 수정 모드면 기존 목표가로, 등록 모드면 빈 값으로.
+  // (등록 모드에서 이 effect가 없으면 직전 수정 모달에 남아있던 값이 다음 등록 오픈 때 보일 수 있다.)
+  useEffect(() => {
+    if (!isOpen) return;
+    if (mode === "edit") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 모달 오픈 시 기존 목표가로 1회 채움
+      resetForm(
+        initialTargetBuyPrice != null ? String(initialTargetBuyPrice) : "",
+        initialTargetSellPrice != null ? String(initialTargetSellPrice) : "",
+      );
+    } else {
+      resetForm();
+    }
+  }, [isOpen, mode, initialTargetBuyPrice, initialTargetSellPrice, resetForm]);
 
   // 모달이 열리면 첫 입력 필드(목표 구매가)로 포커스 이동 (키보드 사용자 편의).
   useEffect(() => {
@@ -91,19 +116,27 @@ export default function AddWatchlistModal({
     setSubmitting(true);
     setError(null);
     try {
-      const created = await addWatchlist({
-        cardId,
-        variantId: variantId ?? undefined,
-        targetBuyPrice: buy,
-        targetSellPrice: sell,
-      });
-      resetForm();
-      onSuccess?.(created);
+      const result =
+        props.mode === "edit"
+          ? await updateWatchlist(props.watchlistId, { targetBuyPrice: buy, targetSellPrice: sell })
+          : await addWatchlist({
+              cardId: props.cardId,
+              variantId: props.variantId ?? undefined,
+              targetBuyPrice: buy,
+              targetSellPrice: sell,
+            });
+      onSuccess?.(result);
       onClose();
     } catch (err) {
-      // DUPLICATE_WATCHLIST/WATCHLIST_LIMIT_EXCEEDED/TARGET_PRICE_REQUIRED 모두
+      // DUPLICATE_WATCHLIST/WATCHLIST_LIMIT_EXCEEDED/TARGET_PRICE_REQUIRED/WATCHLIST_NOT_FOUND 모두
       // BE가 내려주는 msg를 그대로 사용자에게 보여준다(이미 사용자 친화적인 문구).
-      setError(err instanceof ApiError ? err.message : "워치리스트 등록에 실패했습니다.");
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : mode === "edit"
+            ? "목표가 수정에 실패했습니다."
+            : "워치리스트 등록에 실패했습니다.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -111,20 +144,22 @@ export default function AddWatchlistModal({
 
   if (!isOpen || authStatus !== "authenticated") return null;
 
+  const title = mode === "edit" ? "목표가 수정" : "워치리스트 등록";
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       onClick={handleClose}
       role="dialog"
       aria-modal="true"
-      aria-label="워치리스트 등록"
+      aria-label={title}
     >
       <div
         className="w-full max-w-[380px] rounded-2xl bg-white p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-[16px] font-extrabold">워치리스트 등록</h2>
+          <h2 className="text-[16px] font-extrabold">{title}</h2>
           <button
             type="button"
             onClick={handleClose}
@@ -173,7 +208,13 @@ export default function AddWatchlistModal({
             onClick={handleSubmit}
             className="mt-1 w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3 text-[14.5px] font-bold text-white shadow-tactile-sm active:translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {submitting ? "등록 중..." : "등록"}
+            {submitting
+              ? mode === "edit"
+                ? "저장 중..."
+                : "등록 중..."
+              : mode === "edit"
+                ? "저장"
+                : "등록"}
           </button>
         </div>
       </div>

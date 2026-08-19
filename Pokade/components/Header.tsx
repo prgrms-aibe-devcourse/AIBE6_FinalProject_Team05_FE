@@ -1,9 +1,12 @@
 "use client";
 
 import { Suspense, useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CardImage from "@/components/CardImage";
+import Avatar from "@/components/Avatar";
+import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 import { fetchCardsByKeywordPage } from "@/lib/cardApi";
 import { highlightMatch } from "@/lib/highlightMatch";
 import { pickDisplayName } from "@/lib/pickDisplayName";
@@ -27,6 +30,12 @@ const NAV: { label: string; href: string }[] = [
   { label: "AI 등급진단", href: "/ai-diagnosis" },
   { label: "상품 등록", href: "/listings/new" },
 ];
+
+// 헤더에서 동시에 하나만 열릴 수 있는 오버레이 — 알림/프로필 드롭다운과 모바일 메뉴 드로어가
+// 각자 독립된 state였을 때, 하나가 열린 채로 다른 트리거를 누르면 그 백드롭이 클릭을 가로채
+// "열려던 것 대신 지금 열린 것만 닫히는" 문제가 있었다. 하나의 값으로 합쳐 상호배타를 타입
+// 레벨에서 보장한다 — Header(단, LoggedInRight에 props로 전달)가 유일하게 소유한다.
+type HeaderPanel = "notif" | "profile" | "menu" | null;
 
 function SearchBar({ width = "w-60" }: { width?: string }) {
   // useSearchParams는 Suspense 경계가 필요 — Header는 모든 페이지에 걸쳐있으므로
@@ -409,12 +418,18 @@ const PROFILE_MENU: { label: string; href: string }[] = [
   { label: "설정", href: "#" },
 ];
 
-function LoggedInRight() {
-  const [open, setOpen] = useState<null | "notif" | "profile">(null);
+function LoggedInRight({
+  open,
+  setOpen,
+}: {
+  open: HeaderPanel;
+  setOpen: (value: HeaderPanel | ((prev: HeaderPanel) => HeaderPanel)) => void;
+}) {
   const notifId = useId();
   const profileId = useId();
   const router = useRouter();
   const nickname = useUserStore((s) => s.nickname);
+  const profileImageUrl = useUserStore((s) => s.profileImageUrl);
   const email = useUserStore((s) => s.email);
   const logout = useUserStore((s) => s.logout);
 
@@ -424,6 +439,7 @@ function LoggedInRight() {
   const notifications = useNotificationStore((s) => s.notifications);
   const loadState = useNotificationStore((s) => s.loadState);
   const errorMessage = useNotificationStore((s) => s.errorMessage);
+  const connectionMode = useNotificationStore((s) => s.connectionMode);
   const startNotifications = useNotificationStore((s) => s.start);
   const stopNotifications = useNotificationStore((s) => s.stop);
   const retryNotifications = useNotificationStore((s) => s.retry);
@@ -444,13 +460,21 @@ function LoggedInRight() {
     });
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+  // 평소(SSE 정상)엔 굳이 라벨에 안 얹어서 조용히 두고, 폴링으로 내려간 상태일 때만 스크린리더
+  // 사용자도 알 수 있게 버튼 이름 자체에 덧붙인다(hover 전용 title만으론 스크린리더가 못 읽음).
+  const notifLabel = [
+    unreadCount > 0 ? `안 읽은 알림 ${unreadCount}개` : "알림",
+    connectionMode === "polling" ? "(주기적으로 확인 중)" : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div className="relative flex items-center gap-4">
-      <SearchBar />
+      <SearchBar width="hidden w-60 md:block" />
       <button
         onClick={() => toggle("notif")}
-        aria-label={unreadCount > 0 ? `안 읽은 알림 ${unreadCount}개` : "알림"}
+        aria-label={notifLabel}
         aria-expanded={open === "notif"}
         aria-controls={notifId}
         className="relative flex h-10 w-10 items-center justify-center rounded-[9px] bg-neutral transition-colors hover:bg-[#ECECEF]"
@@ -470,6 +494,16 @@ function LoggedInRight() {
         {unreadCount > 0 && (
           <span className="absolute right-2 top-[7px] h-[7px] w-[7px] rounded-full border-[1.5px] border-neutral bg-primary" />
         )}
+        {/* SSE 실시간 연결 상태 인디케이터 — 안읽음 점(우상단)과 겹치지 않게 반대쪽 구석에 둔다.
+            색뿐 아니라 채움 여부도 다르게 해서(sse=채움, polling=테두리만) 색맹이어도 구분 가능. */}
+        <span
+          title={connectionMode === "sse" ? "실시간 연결됨" : "새 알림을 주기적으로 확인 중"}
+          className={`absolute bottom-[7px] left-2 h-[6px] w-[6px] rounded-full ${
+            connectionMode === "sse"
+              ? "border-[1.5px] border-neutral bg-[#087a4e]" // 채움 — 안읽음 점과 같은 스타일(구분용 링 + 실선 채움)
+              : "border-[1.5px] border-grade-b bg-transparent" // 테두리만 — 색이 아니라 채움 여부로도 구분되게
+          }`}
+        />
       </button>
       <button
         onClick={() => toggle("profile")}
@@ -478,134 +512,154 @@ function LoggedInRight() {
         aria-controls={profileId}
         className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-[14px] font-bold text-white"
       >
-        {nickname?.charAt(0) ?? "U"}
+        <Avatar path={profileImageUrl} nickname={nickname} size={40} />
       </button>
 
-      {open && (
-        <div onClick={() => setOpen(null)} aria-hidden="true" className="fixed inset-0 z-[80]" />
-      )}
-
-      {open === "notif" && (
-        <div
-          id={notifId}
-          aria-label="알림 목록"
-          className="absolute right-[44px] top-[52px] z-[90] w-[344px] overflow-hidden rounded-[14px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]"
-        >
-          <div className="flex items-center justify-between border-b border-[#F0F0F0] px-4 py-3.5">
-            <span className="text-[14.5px] font-extrabold">알림</span>
-            <button
-              type="button"
-              onClick={markAllRead}
-              className="cursor-pointer text-xs font-bold text-secondary hover:text-secondary-dark"
-            >
-              모두 읽음 처리
-            </button>
-          </div>
-          <div className="max-h-[340px] overflow-y-auto">
-            {loadState === "loading" && (
-              <div className="px-4 py-8 text-center text-[13px] text-[#9A9AA2]">
-                불러오는 중...
-              </div>
-            )}
-            {loadState === "error" && (
-              <div
-                role="alert"
-                className="mx-4 my-3 rounded-[12px] border border-[#F6C6C6] bg-[#FFF1F1] px-4 py-3 text-center text-[13px] font-semibold text-[#C21414]"
-              >
-                {errorMessage}
-              </div>
-            )}
-            {loadState === "ready" && notifications.length === 0 && (
-              <div className="px-4 py-8 text-center text-[13px] text-[#9A9AA2]">
-                새 알림이 없습니다.
-              </div>
-            )}
-            {loadState === "ready" &&
-              notifications.length > 0 &&
-              notifications.map((n) => {
-                const style = notifStyle(n.type);
-                return (
-                  <button
-                    key={n.id}
-                    type="button"
-                    onClick={() => markOneRead(n)}
-                    className={`flex w-full cursor-pointer gap-[11px] border-b border-[#F5F5F7] px-4 py-[13px] text-left hover:bg-[#FAFAFB] ${!n.isRead ? "bg-[#FFF7F7]" : ""}`}
-                  >
-                    <span
-                      className={`mt-[15px] h-[7px] w-[7px] flex-shrink-0 rounded-full ${!n.isRead ? "bg-primary" : "bg-transparent"}`}
-                    />
-                    <div
-                      className="flex h-[34px] w-[34px] flex-shrink-0 items-center justify-center rounded-[9px]"
-                      style={{ background: style.tint }}
-                    >
-                      {style.icon}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div
-                        className={`text-[13px] leading-[1.4] text-ink ${!n.isRead ? "font-bold" : "font-semibold"}`}
-                      >
-                        {n.message}
-                      </div>
-                      <div className="mt-[3px] text-[11px] text-[#B0B0B8]">
-                        {formatNotifTime(n.createdAt)}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-          </div>
-          <Link
-            href="/notifications"
+      {/* 알림/프로필 패널(및 백드롭)은 <header>(sticky+z-50)가 만드는 스태킹 컨텍스트에 갇히면
+          같은 z-index라도 header 바깥의 다른 오버레이(예: /search 필터 바텀시트)와 정확히 비교되지
+          않는다. document.body로 Portal해서 header 스태킹 컨텍스트 밖으로 완전히 빼낸다 - 이때
+          absolute 위치(right-*, top-*)가 기존과 동일하게 보이도록, header와 같은 좌우 패딩(px-4
+          sm:px-10)을 가진 얇은 fixed 래퍼를 여기서도 그대로 재현한다(top-52px였던 값은 이 래퍼의
+          top이 header 상단과 같아졌으므로 header 높이 그대로인 top-16으로 치환). */}
+      {(open === "notif" || open === "profile") &&
+        createPortal(
+          <div
             onClick={() => setOpen(null)}
-            className="block border-t border-[#F0F0F0] px-4 py-[13px] text-center text-[13px] font-bold text-secondary hover:bg-[#FAFAFB]"
-          >
-            전체 알림 보기
-          </Link>
-        </div>
-      )}
+            aria-hidden="true"
+            className="fixed inset-x-0 bottom-0 top-16 z-[80]"
+          />,
+          document.body,
+        )}
 
-      {open === "profile" && (
-        <div
-          id={profileId}
-          aria-label="프로필 메뉴"
-          className="absolute right-0 top-[52px] z-[90] w-[260px] overflow-hidden rounded-[14px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]"
-        >
-          <div className="flex items-center gap-3 px-4 py-[18px]">
-            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-secondary text-base font-extrabold text-white">
-              {nickname?.charAt(0) ?? "U"}
-            </div>
-            <div className="min-w-0">
-              <div className="text-[14.5px] font-extrabold">{nickname ?? "사용자"}</div>
-              <div className="truncate text-xs text-[#9A9AA2]">{email ?? ""}</div>
-            </div>
-          </div>
-          <div className="h-px bg-[#F0F0F0]" />
-          <div className="p-2">
-            {PROFILE_MENU.map((m) => (
-              <Link
-                key={m.label}
-                href={m.href}
-                className="flex items-center gap-2.5 rounded-[9px] px-3 py-2.5 text-[13.5px] font-semibold text-[#3A3A42] hover:bg-[#F5F5F7] hover:text-ink"
-              >
-                {m.label}
-              </Link>
-            ))}
-          </div>
-          <div className="h-px bg-[#F0F0F0]" />
-          <div className="p-2">
-            <button
-              onClick={async () => {
-                setOpen(null);
-                await logout();
-                router.push("/");
-              }}
-              className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-bold text-primary hover:bg-[#FFF5F5] hover:text-primary"
+      {open === "notif" &&
+        createPortal(
+          <div className="pointer-events-none fixed inset-x-0 top-0 z-[90] px-4 sm:px-10">
+            <div
+              id={notifId}
+              aria-label="알림 목록"
+              className="pointer-events-auto absolute right-[44px] top-16 w-[344px] overflow-hidden rounded-[14px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]"
             >
-              로그아웃
-            </button>
-          </div>
-        </div>
-      )}
+              <div className="flex items-center justify-between border-b border-[#F0F0F0] px-4 py-3.5">
+                <span className="text-[14.5px] font-extrabold">알림</span>
+                <button
+                  type="button"
+                  onClick={markAllRead}
+                  className="cursor-pointer text-xs font-bold text-secondary hover:text-secondary-dark"
+                >
+                  모두 읽음 처리
+                </button>
+              </div>
+              <div className="max-h-[340px] overflow-y-auto">
+                {loadState === "loading" && (
+                  <div className="px-4 py-8 text-center text-[13px] text-[#9A9AA2]">
+                    불러오는 중...
+                  </div>
+                )}
+                {loadState === "error" && (
+                  <div
+                    role="alert"
+                    className="mx-4 my-3 rounded-[12px] border border-[#F6C6C6] bg-[#FFF1F1] px-4 py-3 text-center text-[13px] font-semibold text-[#C21414]"
+                  >
+                    {errorMessage}
+                  </div>
+                )}
+                {loadState === "ready" && notifications.length === 0 && (
+                  <div className="px-4 py-8 text-center text-[13px] text-[#9A9AA2]">
+                    새 알림이 없습니다.
+                  </div>
+                )}
+                {loadState === "ready" &&
+                  notifications.length > 0 &&
+                  notifications.map((n) => {
+                    const style = notifStyle(n.type);
+                    return (
+                      <button
+                        key={n.id}
+                        type="button"
+                        onClick={() => markOneRead(n)}
+                        className={`flex w-full cursor-pointer gap-[11px] border-b border-[#F5F5F7] px-4 py-[13px] text-left hover:bg-[#FAFAFB] ${!n.isRead ? "bg-[#FFF7F7]" : ""}`}
+                      >
+                        <span
+                          className={`mt-[15px] h-[7px] w-[7px] flex-shrink-0 rounded-full ${!n.isRead ? "bg-primary" : "bg-transparent"}`}
+                        />
+                        <div
+                          className="flex h-[34px] w-[34px] flex-shrink-0 items-center justify-center rounded-[9px]"
+                          style={{ background: style.tint }}
+                        >
+                          {style.icon}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div
+                            className={`text-[13px] leading-[1.4] text-ink ${!n.isRead ? "font-bold" : "font-semibold"}`}
+                          >
+                            {n.message}
+                          </div>
+                          <div className="mt-[3px] text-[11px] text-[#B0B0B8]">
+                            {formatNotifTime(n.createdAt)}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+              </div>
+              <Link
+                href="/notifications"
+                onClick={() => setOpen(null)}
+                className="block border-t border-[#F0F0F0] px-4 py-[13px] text-center text-[13px] font-bold text-secondary hover:bg-[#FAFAFB]"
+              >
+                전체 알림 보기
+              </Link>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {open === "profile" &&
+        createPortal(
+          <div className="pointer-events-none fixed inset-x-0 top-0 z-[90] px-4 sm:px-10">
+            <div
+              id={profileId}
+              aria-label="프로필 메뉴"
+              className="pointer-events-auto absolute right-0 top-16 w-[260px] overflow-hidden rounded-[14px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]"
+            >
+              <div className="flex items-center gap-3 px-4 py-[18px]">
+                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-secondary text-base font-extrabold text-white">
+                  <Avatar path={profileImageUrl} nickname={nickname} size={44} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[14.5px] font-extrabold">{nickname ?? "사용자"}</div>
+                  <div className="truncate text-xs text-[#9A9AA2]">{email ?? ""}</div>
+                </div>
+              </div>
+              <div className="h-px bg-[#F0F0F0]" />
+              <div className="p-2">
+                {PROFILE_MENU.map((m) => (
+                  <Link
+                    key={m.label}
+                    href={m.href}
+                    className="flex items-center gap-2.5 rounded-[9px] px-3 py-2.5 text-[13.5px] font-semibold text-[#3A3A42] hover:bg-[#F5F5F7] hover:text-ink"
+                  >
+                    {m.label}
+                  </Link>
+                ))}
+              </div>
+              <div className="h-px bg-[#F0F0F0]" />
+              <div className="p-2">
+                <button
+                  onClick={async () => {
+                    setOpen(null);
+                    await logout();
+                    router.push("/");
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2.5 text-left text-[13.5px] font-bold text-primary hover:bg-[#FFF5F5] hover:text-primary"
+                >
+                  로그아웃
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
@@ -624,8 +678,24 @@ export default function Header() {
           ? "admin"
           : "in";
 
+  const mobileMenuId = useId();
+  // 알림/프로필 드롭다운(LoggedInRight)과 모바일 메뉴 드로어가 이 값 하나를 공유한다 —
+  // 동시에 하나만 열릴 수 있어서, 하나가 열린 채로 다른 트리거를 눌러도 백드롭끼리
+  // 클릭을 가로채는 충돌이 타입 레벨에서 아예 발생하지 않는다.
+  const [open, setOpen] = useState<HeaderPanel>(null);
+  // ESC/스크롤락은 모바일 메뉴에만 좁게 적용 — 알림/프로필 드롭다운은 이 state 통합 이전과
+  // 동일하게 이 동작이 없던 상태를 그대로 유지한다(의도적으로 범위를 넓히지 않음).
+  useEscapeAndScrollLock(open === "menu", () => setOpen(null));
+
+  // 페이지 이동(네비 링크 클릭 외의 경로 — 뒤로가기 등) 시에도 열려있던 모바일 메뉴를 닫는다.
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
+    if (open === "menu") setOpen(null);
+  }
+
   return (
-    <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-b border-[#F0F0F0] bg-white px-10">
+    <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-b border-[#F0F0F0] bg-white px-4 sm:px-10">
       <div className="flex items-center gap-11">
         <Link
           href="/"
@@ -633,7 +703,7 @@ export default function Header() {
         >
           POCKET TRADE
         </Link>
-        <nav className="flex items-center gap-[30px] text-[15px] font-semibold">
+        <nav className="hidden items-center gap-[30px] text-[15px] font-semibold md:flex">
           {NAV.map((n) => {
             const isActive =
               n.href !== "#" && (pathname === n.href || pathname.startsWith(n.href + "/"));
@@ -658,7 +728,7 @@ export default function Header() {
         {variant === "loading" && <div className="h-10 w-10 rounded-full bg-neutral" />}
         {variant === "out" && (
           <>
-            <SearchBar width="w-56" />
+            <SearchBar width="hidden w-56 md:block" />
             <Link
               href="/login"
               className="whitespace-nowrap px-1.5 py-2 text-[14.5px] font-bold text-[#4B4B52] hover:text-primary"
@@ -674,7 +744,7 @@ export default function Header() {
           </>
         )}
 
-        {variant === "in" && <LoggedInRight />}
+        {variant === "in" && <LoggedInRight open={open} setOpen={setOpen} />}
 
         {variant === "admin" && (
           <>
@@ -703,7 +773,92 @@ export default function Header() {
             </div>
           </>
         )}
+
+        <button
+          type="button"
+          aria-label={open === "menu" ? "메뉴 닫기" : "메뉴 열기"}
+          aria-expanded={open === "menu"}
+          aria-controls={mobileMenuId}
+          onClick={() => setOpen((o) => (o === "menu" ? null : "menu"))}
+          className="flex h-10 w-10 items-center justify-center rounded-[9px] bg-neutral transition-colors hover:bg-[#ECECEF] md:hidden"
+        >
+          {open === "menu" ? (
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#4B4B52"
+              strokeWidth="2"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          ) : (
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#4B4B52"
+              strokeWidth="2"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M4 6h16" />
+              <path d="M4 12h16" />
+              <path d="M4 18h16" />
+            </svg>
+          )}
+        </button>
       </div>
+
+      {/* 알림/프로필 패널과 같은 이유로 header 스태킹 컨텍스트 밖(document.body)으로 Portal한다.
+          header가 더 이상 containing block이 아니므로 top-full 대신 header 높이 그대로인
+          top-16을 쓰고, left-0 right-0는 이미 전체 폭이라 별도 좌우 패딩 래퍼 없이 그대로 fixed로 바꾼다. */}
+      {open === "menu" &&
+        createPortal(
+          <>
+            <div
+              onClick={() => setOpen(null)}
+              aria-hidden="true"
+              className="fixed inset-x-0 bottom-0 top-16 z-[80] md:hidden"
+            />
+            <div
+              id={mobileMenuId}
+              aria-label="메뉴"
+              className="fixed inset-x-0 top-16 z-[90] border-b border-[#EDEDF0] bg-white p-4 shadow-[0_14px_38px_rgba(20,26,52,0.18)] md:hidden"
+            >
+              {(variant === "out" || variant === "in") && (
+                <div className="mb-3">
+                  <SearchBar width="w-full" />
+                </div>
+              )}
+              <nav className="flex flex-col gap-1">
+                {NAV.map((n) => {
+                  const isActive =
+                    n.href !== "#" && (pathname === n.href || pathname.startsWith(n.href + "/"));
+                  return (
+                    <Link
+                      key={n.label}
+                      href={n.href}
+                      onClick={() => setOpen(null)}
+                      className={
+                        isActive
+                          ? "rounded-[9px] bg-[#FFF5F5] px-3 py-2.5 text-[14.5px] font-bold text-primary"
+                          : "rounded-[9px] px-3 py-2.5 text-[14.5px] font-semibold text-[#3A3A42] hover:bg-[#F5F5F7]"
+                      }
+                    >
+                      {n.label}
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
+          </>,
+          document.body,
+        )}
     </header>
   );
 }
