@@ -410,19 +410,16 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
   );
 }
 
-const PROFILE_MENU: { label: string; href: string }[] = [
+// href가 없으면 아직 화면이 없는 메뉴다. 설정은 /settings 신설 후 연결한다.
+const PROFILE_MENU: { label: string; href?: string }[] = [
   { label: "마이페이지", href: "/mypage" },
   { label: "내 상품 관리", href: "/listings/me" },
   { label: "워치리스트", href: "/watchlist" },
-  { label: "포인트 충전", href: "#" },
-  { label: "설정", href: "#" },
+  { label: "포인트 충전" },
+  { label: "설정" },
 ];
 
-// 알림 벨 버튼 + 드롭다운 — 로그인 사용자(variant="in")와 운영자(variant="admin") 헤더가
-// 공유한다. 이전엔 LoggedInRight 안에만 있어 admin 쪽 벨 버튼은 onClick조차 없는 장식용
-// 마크업으로 남아있었다(클릭해도 드롭다운이 안 열리는 버그의 원인) — 여기로 추출해 두 variant가
-// 같은 상태(open)/로직(useNotificationStore)을 그대로 재사용하게 한다.
-function NotificationBell({
+function LoggedInRight({
   open,
   setOpen,
 }: {
@@ -430,9 +427,15 @@ function NotificationBell({
   setOpen: (value: HeaderPanel | ((prev: HeaderPanel) => HeaderPanel)) => void;
 }) {
   const notifId = useId();
+  const profileId = useId();
+  const router = useRouter();
+  const nickname = useUserStore((s) => s.nickname);
+  const profileImageUrl = useUserStore((s) => s.profileImageUrl);
+  const email = useUserStore((s) => s.email);
+  const logout = useUserStore((s) => s.logout);
 
   // 알림 조회+30초 폴링은 useNotificationStore가 앱 전체에서 유일하게 소유한다.
-  // 이 컴포넌트는 로그인 상태인 동안(마운트~언마운트) 그 생명주기를 관리하는 역할 — 마운트 시
+  // Header는 로그인 상태인 동안(마운트~언마운트) 그 생명주기를 관리하는 역할 — 마운트 시
   // start()(멱등)로 폴링을 켜고, 로그아웃으로 언마운트되면 stop()으로 정리한다.
   const notifications = useNotificationStore((s) => s.notifications);
   const loadState = useNotificationStore((s) => s.loadState);
@@ -450,9 +453,9 @@ function NotificationBell({
   }, [startNotifications, stopNotifications]);
 
   // 알림 드롭다운을 열 때, 직전 조회가 에러였다면 폴링 주기를 기다리지 않고 바로 재시도한다.
-  const toggle = () =>
+  const toggle = (which: "notif" | "profile") =>
     setOpen((o) => {
-      const next = o === "notif" ? null : "notif";
+      const next = o === which ? null : which;
       if (next === "notif" && loadState === "error") retryNotifications();
       return next;
     });
@@ -468,9 +471,10 @@ function NotificationBell({
     .join(" ");
 
   return (
-    <>
+    <div className="relative flex items-center gap-4">
+      <SearchBar width="hidden w-60 md:block" />
       <button
-        onClick={toggle}
+        onClick={() => toggle("notif")}
         aria-label={notifLabel}
         aria-expanded={open === "notif"}
         aria-controls={notifId}
@@ -502,6 +506,31 @@ function NotificationBell({
           }`}
         />
       </button>
+      <button
+        onClick={() => toggle("profile")}
+        aria-label="프로필"
+        aria-expanded={open === "profile"}
+        aria-controls={profileId}
+        className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-[14px] font-bold text-white"
+      >
+        <Avatar path={profileImageUrl} nickname={nickname} size={40} />
+      </button>
+
+      {/* 알림/프로필 패널(및 백드롭)은 <header>(sticky+z-50)가 만드는 스태킹 컨텍스트에 갇히면
+          같은 z-index라도 header 바깥의 다른 오버레이(예: /search 필터 바텀시트)와 정확히 비교되지
+          않는다. document.body로 Portal해서 header 스태킹 컨텍스트 밖으로 완전히 빼낸다 - 이때
+          absolute 위치(right-*, top-*)가 기존과 동일하게 보이도록, header와 같은 좌우 패딩(px-4
+          sm:px-10)을 가진 얇은 fixed 래퍼를 여기서도 그대로 재현한다(top-52px였던 값은 이 래퍼의
+          top이 header 상단과 같아졌으므로 header 높이 그대로인 top-16으로 치환). */}
+      {(open === "notif" || open === "profile") &&
+        createPortal(
+          <div
+            onClick={() => setOpen(null)}
+            aria-hidden="true"
+            className="fixed inset-x-0 bottom-0 top-16 z-[80]"
+          />,
+          document.body,
+        )}
 
       {open === "notif" &&
         createPortal(
@@ -585,39 +614,6 @@ function NotificationBell({
           </div>,
           document.body,
         )}
-    </>
-  );
-}
-
-function LoggedInRight({
-  open,
-  setOpen,
-}: {
-  open: HeaderPanel;
-  setOpen: (value: HeaderPanel | ((prev: HeaderPanel) => HeaderPanel)) => void;
-}) {
-  const profileId = useId();
-  const router = useRouter();
-  const nickname = useUserStore((s) => s.nickname);
-  const profileImageUrl = useUserStore((s) => s.profileImageUrl);
-  const email = useUserStore((s) => s.email);
-  const logout = useUserStore((s) => s.logout);
-
-  const toggleProfile = () => setOpen((o) => (o === "profile" ? null : "profile"));
-
-  return (
-    <div className="relative flex items-center gap-4">
-      <SearchBar width="hidden w-60 md:block" />
-      <NotificationBell open={open} setOpen={setOpen} />
-      <button
-        onClick={toggleProfile}
-        aria-label="프로필"
-        aria-expanded={open === "profile"}
-        aria-controls={profileId}
-        className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-[14px] font-bold text-white"
-      >
-        <Avatar path={profileImageUrl} nickname={nickname} size={40} />
-      </button>
 
       {open === "profile" &&
         createPortal(
@@ -638,15 +634,28 @@ function LoggedInRight({
               </div>
               <div className="h-px bg-[#F0F0F0]" />
               <div className="p-2">
-                {PROFILE_MENU.map((m) => (
-                  <Link
-                    key={m.label}
-                    href={m.href}
-                    className="flex items-center gap-2.5 rounded-[9px] px-3 py-2.5 text-[13.5px] font-semibold text-[#3A3A42] hover:bg-[#F5F5F7] hover:text-ink"
-                  >
-                    {m.label}
-                  </Link>
-                ))}
+                {PROFILE_MENU.map((m) =>
+                  m.href ? (
+                    <Link
+                      key={m.label}
+                      href={m.href}
+                      // 이동해도 드롭다운이 새 페이지 위에 남는다 — pathname 변화 감지는 모바일 메뉴만 닫는다.
+                      onClick={() => setOpen(null)}
+                      className="flex items-center gap-2.5 rounded-[9px] px-3 py-2.5 text-[13.5px] font-semibold text-[#3A3A42] hover:bg-[#F5F5F7] hover:text-ink"
+                    >
+                      {m.label}
+                    </Link>
+                  ) : (
+                    <div
+                      key={m.label}
+                      aria-disabled="true"
+                      className="flex cursor-default items-center gap-2.5 rounded-[9px] px-3 py-2.5 text-[13.5px] font-semibold text-[#B4B4BC]"
+                    >
+                      <span className="flex-1">{m.label}</span>
+                      <span className="text-[10.5px] font-bold">준비 중</span>
+                    </div>
+                  ),
+                )}
               </div>
               <div className="h-px bg-[#F0F0F0]" />
               <div className="p-2">
@@ -749,17 +758,17 @@ export default function Header() {
           </>
         )}
 
-        {variant === "in" && <LoggedInRight open={open} setOpen={setOpen} />}
-
-        {variant === "admin" && (
+        {/* 관리자도 결국 로그인한 사용자다 — 알림·마이페이지·로그아웃이 똑같이 필요하므로
+            LoggedInRight를 그대로 쓰고 운영자 배지만 앞에 붙인다. 따로 만들어두면 일반 메뉴가
+            바뀔 때마다 관리자 쪽이 뒤처지고, 실제로 로그아웃 수단이 없는 상태였다. */}
+        {(variant === "in" || variant === "admin") && (
           <>
-            <span className="whitespace-nowrap rounded-full border border-[#F6D0D0] bg-[#FFF5F5] px-[11px] py-[5px] text-xs font-extrabold text-primary">
-              운영자
-            </span>
-            <NotificationBell open={open} setOpen={setOpen} />
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-navy text-[14px] font-bold text-white">
-              관
-            </div>
+            {variant === "admin" && (
+              <span className="whitespace-nowrap rounded-full border border-[#F6D0D0] bg-[#FFF5F5] px-[11px] py-[5px] text-xs font-extrabold text-primary">
+                운영자
+              </span>
+            )}
+            <LoggedInRight open={open} setOpen={setOpen} />
           </>
         )}
 
@@ -803,20 +812,6 @@ export default function Header() {
         </button>
       </div>
 
-      {/* 알림/프로필 드롭다운(LoggedInRight의 NotificationBell/프로필 메뉴, admin의 NotificationBell)이
-          공유하는 백드롭 — variant와 무관하게 Header가 유일하게 소유한 open 상태 하나로 판단하므로
-          여기 한 곳에만 있으면 된다. top-16(헤더 높이)부터만 덮어 헤더 자체(다른 트리거 버튼들)는
-          항상 클릭 가능하게 남겨둔다. */}
-      {(open === "notif" || open === "profile") &&
-        createPortal(
-          <div
-            onClick={() => setOpen(null)}
-            aria-hidden="true"
-            className="fixed inset-x-0 bottom-0 top-16 z-[80]"
-          />,
-          document.body,
-        )}
-
       {/* 알림/프로필 패널과 같은 이유로 header 스태킹 컨텍스트 밖(document.body)으로 Portal한다.
           header가 더 이상 containing block이 아니므로 top-full 대신 header 높이 그대로인
           top-16을 쓰고, left-0 right-0는 이미 전체 폭이라 별도 좌우 패딩 래퍼 없이 그대로 fixed로 바꾼다. */}
@@ -833,7 +828,8 @@ export default function Header() {
               aria-label="메뉴"
               className="fixed inset-x-0 top-16 z-[90] border-b border-[#EDEDF0] bg-white p-4 shadow-[0_14px_38px_rgba(20,26,52,0.18)] md:hidden"
             >
-              {(variant === "out" || variant === "in") && (
+              {/* 관리자만 모바일 메뉴에서 검색이 빠져 있었다 — 같은 원인(관리자를 별종 취급)의 누락. */}
+              {variant !== "loading" && (
                 <div className="mb-3">
                   <SearchBar width="w-full" />
                 </div>
