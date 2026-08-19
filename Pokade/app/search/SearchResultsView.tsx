@@ -1,4 +1,4 @@
-import { Dispatch, SetStateAction, useEffect, useId, useRef, useState } from "react";
+import { Dispatch, SetStateAction, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { GRADE_DESCRIPTIONS } from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
@@ -255,16 +255,6 @@ export default function SearchResultsView({
     setMaxInputText(String(priceMax));
   }
 
-  // 세트/타입/레어도 필터 섹션 아코디언 — 기본 펼침, 서로 독립적으로 접고 펼 수 있다(#142).
-  // 체크/선택 상태(selectedExpansionId, selectedTypes, selectedRarities)는 부모(page.tsx)가
-  // 소유해 이 UI 전용 펼침 상태와 완전히 분리돼 있으므로, 접었다 펴도 선택 값은 그대로 유지된다.
-  const [setSectionOpen, setSetSectionOpen] = useState(true);
-  const [typeSectionOpen, setTypeSectionOpen] = useState(true);
-  const [raritySectionOpen, setRaritySectionOpen] = useState(true);
-  const setPanelId = useId();
-  const typePanelId = useId();
-  const rarityPanelId = useId();
-
   // 세트는 항상 series 기준 아코디언으로 묶어서 보여준다 — BE가 이미 series 그룹
   // 최신순 → 그룹 내부 이름순으로 정렬해 내려주므로 여기서는 순서를 재정렬하지 않고
   // Map 삽입 순서(=setOptions 순서)만 그대로 유지한다.
@@ -428,155 +418,101 @@ export default function SearchResultsView({
                 ×
               </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setSetSectionOpen((v) => !v)}
-              aria-expanded={setSectionOpen}
-              aria-controls={setPanelId}
-              className="mb-[9px] flex w-full items-center justify-between rounded-md px-1 py-1 text-[12.5px] font-bold text-[#4B4B52] hover:bg-[#F2F2F5]"
-            >
-              <span>세트</span>
-              <span
-                aria-hidden="true"
-                className={`text-[10px] text-[#9A9AA2] transition-transform ${setSectionOpen ? "rotate-90" : ""}`}
-              >
-                ▸
-              </span>
-            </button>
-            {setSectionOpen && (
-              <div
-                id={setPanelId}
-                className="mb-5 flex max-h-[260px] flex-col gap-1 overflow-y-auto"
-              >
-                {facetsLoading ? (
-                  <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
-                ) : (
-                  [...seriesGroups.entries()].map(([series, options], i) => {
-                    const isExpanded = expandedSeries.has(series);
-                    const panelId = `set-series-panel-${i}`;
-                    return (
-                      <div key={series}>
-                        <button
-                          type="button"
-                          onClick={() => toggleSeries(series)}
-                          aria-expanded={isExpanded}
-                          aria-controls={panelId}
-                          className="flex w-full items-center justify-between rounded-md px-1 py-1.5 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F2F2F5]"
+            <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">세트</div>
+            <div className="mb-5 flex max-h-[260px] flex-col gap-1 overflow-y-auto">
+              {facetsLoading ? (
+                <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
+              ) : (
+                [...seriesGroups.entries()].map(([series, options], i) => {
+                  const isExpanded = expandedSeries.has(series);
+                  const panelId = `set-series-panel-${i}`;
+                  return (
+                    <div key={series}>
+                      <button
+                        type="button"
+                        onClick={() => toggleSeries(series)}
+                        aria-expanded={isExpanded}
+                        aria-controls={panelId}
+                        className="flex w-full items-center justify-between rounded-md px-1 py-1.5 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F2F2F5]"
+                      >
+                        <span>{series}</span>
+                        <span
+                          aria-hidden="true"
+                          className={`text-[10px] text-[#9A9AA2] transition-transform ${isExpanded ? "rotate-90" : ""}`}
                         >
-                          <span>{series}</span>
-                          <span
-                            aria-hidden="true"
-                            className={`text-[10px] text-[#9A9AA2] transition-transform ${isExpanded ? "rotate-90" : ""}`}
-                          >
-                            ▸
-                          </span>
-                        </button>
-                        {isExpanded && (
-                          <div id={panelId} className="flex flex-col gap-[9px] py-1 pl-3">
-                            {options.map(renderSetOption)}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            )}
+                          ▸
+                        </span>
+                      </button>
+                      {isExpanded && (
+                        <div id={panelId} className="flex flex-col gap-[9px] py-1 pl-3">
+                          {options.map(renderSetOption)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
             <div className="mb-[18px] h-px bg-[#F0F0F0]" />
-            <button
-              type="button"
-              onClick={() => setTypeSectionOpen((v) => !v)}
-              aria-expanded={typeSectionOpen}
-              aria-controls={typePanelId}
-              className="mb-[9px] flex w-full items-center justify-between rounded-md px-1 py-1 text-[12.5px] font-bold text-[#4B4B52] hover:bg-[#F2F2F5]"
-            >
-              <span>타입</span>
-              <span
-                aria-hidden="true"
-                className={`text-[10px] text-[#9A9AA2] transition-transform ${typeSectionOpen ? "rotate-90" : ""}`}
-              >
-                ▸
-              </span>
-            </button>
-            {typeSectionOpen && (
-              <div id={typePanelId} className="mb-5 flex flex-col gap-[9px]">
-                {facetsLoading ? (
-                  <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
-                ) : (
-                  typeOptions.map((t) => (
-                    <label
-                      key={t}
-                      className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedTypes.includes(t)}
-                        onChange={() => {
-                          setLoadState("loading");
-                          setSelectedTypes(toggleValue(selectedTypes, t));
-                        }}
-                      />
-                      {t}
-                    </label>
-                  ))
-                )}
-              </div>
-            )}
+            <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">타입</div>
+            <div className="mb-5 flex flex-col gap-[9px]">
+              {facetsLoading ? (
+                <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
+              ) : (
+                typeOptions.map((t) => (
+                  <label
+                    key={t}
+                    className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedTypes.includes(t)}
+                      onChange={() => {
+                        setLoadState("loading");
+                        setSelectedTypes(toggleValue(selectedTypes, t));
+                      }}
+                    />
+                    {t}
+                  </label>
+                ))
+              )}
+            </div>
             <div className="mb-[18px] h-px bg-[#F0F0F0]" />
-            <button
-              type="button"
-              onClick={() => setRaritySectionOpen((v) => !v)}
-              aria-expanded={raritySectionOpen}
-              aria-controls={rarityPanelId}
-              className="mb-[9px] flex w-full items-center justify-between rounded-md px-1 py-1 text-[12.5px] font-bold text-[#4B4B52] hover:bg-[#F2F2F5]"
-            >
-              <span>레어도</span>
-              <span
-                aria-hidden="true"
-                className={`text-[10px] text-[#9A9AA2] transition-transform ${raritySectionOpen ? "rotate-90" : ""}`}
-              >
-                ▸
-              </span>
-            </button>
-            {raritySectionOpen && (
-              <div
-                id={rarityPanelId}
-                className="mb-5 flex max-h-[260px] flex-col gap-1 overflow-y-auto"
-              >
-                {facetsLoading ? (
-                  <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
-                ) : (
-                  [...rarityGroups.entries()].map(([groupName, rarities], i) => {
-                    const isExpanded = expandedRarityGroups.has(groupName);
-                    const panelId = `rarity-group-panel-${i}`;
-                    return (
-                      <div key={groupName}>
-                        <button
-                          type="button"
-                          onClick={() => toggleRarityGroup(groupName)}
-                          aria-expanded={isExpanded}
-                          aria-controls={panelId}
-                          className="flex w-full items-center justify-between rounded-md px-1 py-1.5 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F2F2F5]"
+            <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">레어도</div>
+            <div className="mb-5 flex max-h-[260px] flex-col gap-1 overflow-y-auto">
+              {facetsLoading ? (
+                <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
+              ) : (
+                [...rarityGroups.entries()].map(([groupName, rarities], i) => {
+                  const isExpanded = expandedRarityGroups.has(groupName);
+                  const panelId = `rarity-group-panel-${i}`;
+                  return (
+                    <div key={groupName}>
+                      <button
+                        type="button"
+                        onClick={() => toggleRarityGroup(groupName)}
+                        aria-expanded={isExpanded}
+                        aria-controls={panelId}
+                        className="flex w-full items-center justify-between rounded-md px-1 py-1.5 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F2F2F5]"
+                      >
+                        <span>{groupName}</span>
+                        <span
+                          aria-hidden="true"
+                          className={`text-[10px] text-[#9A9AA2] transition-transform ${isExpanded ? "rotate-90" : ""}`}
                         >
-                          <span>{groupName}</span>
-                          <span
-                            aria-hidden="true"
-                            className={`text-[10px] text-[#9A9AA2] transition-transform ${isExpanded ? "rotate-90" : ""}`}
-                          >
-                            ▸
-                          </span>
-                        </button>
-                        {isExpanded && (
-                          <div id={panelId} className="flex flex-col gap-[9px] py-1 pl-3">
-                            {rarities.map(renderRarityOption)}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            )}
+                          ▸
+                        </span>
+                      </button>
+                      {isExpanded && (
+                        <div id={panelId} className="flex flex-col gap-[9px] py-1 pl-3">
+                          {rarities.map(renderRarityOption)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
             <div className="mb-[18px] h-px bg-[#F0F0F0]" />
             <div className="mb-3 text-[12.5px] font-bold text-[#4B4B52]">가격대</div>
             <div className="mb-3 flex flex-col gap-2">
