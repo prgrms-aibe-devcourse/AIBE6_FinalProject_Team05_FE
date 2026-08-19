@@ -25,9 +25,16 @@ export default function NotificationsPage() {
   const retryFeed = useNotificationStore((s) => s.retry);
 
   const [page, setPage] = useState(0); // BE와 동일하게 0-based로 들고 다닌다.
-  const [data, setData] = useState<PageResponse<NotificationResponse> | null>(null);
-  const [loadState, setLoadState] = useState<LoadState>("loading");
-  const [errorMessage, setErrorMessage] = useState("");
+  // app/mypage/MyTradesSection.tsx와 동일한 패턴 — "결과"를 요청 키(requestKey)와 한 덩어리로
+  // 저장하고, effect/load()는 fetch를 시작하는 것까지만 동기로 하고 결과 반영(setResult)은 항상
+  // .then()/.catch() 안에서만 한다. 이러면 effect 본문에 동기 setState 호출이 없어져
+  // react-hooks/set-state-in-effect 위반이 사라진다 — "로딩 중"은 별도 플래그가 아니라
+  // "지금 페이지에 대한 결과가 아직 없다"는 것으로 파생 계산한다.
+  const [result, setResult] = useState<{
+    key: string;
+    data: PageResponse<NotificationResponse> | null;
+    errorMessage: string;
+  } | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
 
   // Header가 이미 폴링/SSE를 시작했을 것이므로 대부분 no-op이지만, 직접 진입 등 마운트 순서를
@@ -37,9 +44,11 @@ export default function NotificationsPage() {
     if (authStatus === "authenticated") startFeed();
   }, [authStatus, startFeed]);
 
+  const requestKey = String(page);
+
   const load = useCallback(() => {
     if (authStatus !== "authenticated") return;
-    setLoadState("loading");
+    const key = requestKey;
     fetchNotifications({ page, size: PAGE_SIZE })
       .then((res) => {
         // 삭제(개별/전체보기 마지막 항목) 또는 BE 배치가 알림을 지워 이 페이지가 비게 된 경우 —
@@ -49,18 +58,26 @@ export default function NotificationsPage() {
           setPage((p) => p - 1);
           return;
         }
-        setData(res);
-        setLoadState("ready");
+        setResult({ key, data: res, errorMessage: "" });
       })
       .catch((err) => {
-        setErrorMessage(err instanceof ApiError ? err.message : "알림을 불러오지 못했습니다.");
-        setLoadState("error");
+        setResult({
+          key,
+          data: null,
+          errorMessage: err instanceof ApiError ? err.message : "알림을 불러오지 못했습니다.",
+        });
       });
-  }, [authStatus, page]);
+  }, [authStatus, page, requestKey]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  // 지금 페이지(requestKey)에 대한 결과가 아니면(요청 중이거나 막 페이지가 바뀐 직후) 로딩으로 본다.
+  const current = result?.key === requestKey ? result : null;
+  const data = current?.data ?? null;
+  const loadState: LoadState = current === null ? "loading" : data ? "ready" : "error";
+  const errorMessage = current?.errorMessage ?? "";
 
   const notifications = data?.content ?? [];
   // "모두 읽음 처리" 버튼 노출 여부는 여전히 이 페이지 기준이다 — BE에 안읽음 개수만 알려주는
