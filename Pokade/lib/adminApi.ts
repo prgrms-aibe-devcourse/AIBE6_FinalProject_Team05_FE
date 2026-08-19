@@ -1,7 +1,8 @@
-import { apiGet, apiPatch } from "@/lib/apiClient";
+import { apiGet, apiPatch, PageResponse } from "@/lib/apiClient";
 import { AdminDashboardResponse, AdminMetricsPeriod } from "@/types/adminMetrics";
 import { ReportResponse } from "@/types/adminReport";
 import { TradeResponse } from "@/types/trade";
+import { InquiryCategory, InquiryResponse, InquiryStatus } from "@/types/inquiry";
 
 // GET /api/admin/metrics/dashboard — ADMIN 권한 필요(401/403 가능). period는 차트(시리즈)에만 적용된다.
 export async function fetchAdminDashboard(period: AdminMetricsPeriod): Promise<AdminDashboardResponse> {
@@ -33,4 +34,33 @@ export async function inspectTrade(tradeId: number): Promise<TradeResponse> {
 // PATCH /api/admin/trades/{id}/deliver — 배송 완료 처리 (INSPECTED → DELIVERED).
 export async function deliverTrade(tradeId: number): Promise<TradeResponse> {
   return apiPatch<TradeResponse>(`/api/admin/trades/${tradeId}/deliver`);
+}
+
+// GET /api/admin/inquiries — 전체 1:1 문의 목록, 최신순, 페이지네이션 (ADMIN 권한 필요).
+// page는 0-based(BE Pageable 그대로). category 생략 시 전체 조회.
+export async function fetchInquiries(params: {
+  category?: InquiryCategory;
+  page?: number;
+  size?: number;
+}): Promise<PageResponse<InquiryResponse>> {
+  const query = new URLSearchParams();
+  if (params.category) query.set("category", params.category);
+  query.set("page", String(params.page ?? 0));
+  query.set("size", String(params.size ?? 20));
+  return apiGet<PageResponse<InquiryResponse>>(`/api/admin/inquiries?${query.toString()}`);
+}
+
+// GET /api/admin/inquiries/{id} — 문의 상세 (ADMIN 권한 필요). 없으면 404.
+export async function fetchInquiry(id: number): Promise<InquiryResponse> {
+  return apiGet<InquiryResponse>(`/api/admin/inquiries/${id}`);
+}
+
+// PATCH /api/admin/inquiries/{id}/status — 처리 상태 변경 (ADMIN 권한 필요). 없으면 404.
+export async function updateInquiryStatus(id: number, status: InquiryStatus): Promise<InquiryResponse> {
+  return apiPatch<InquiryResponse>(`/api/admin/inquiries/${id}/status`, { status });
+}
+
+// PATCH /api/admin/inquiries/{id}/answer — 답변 등록/수정 (ADMIN 권한 필요). 성공 시 상태가 HANDLED로 자동 전환된다. 없으면 404.
+export async function answerInquiry(id: number, content: string): Promise<InquiryResponse> {
+  return apiPatch<InquiryResponse>(`/api/admin/inquiries/${id}/answer`, { content });
 }

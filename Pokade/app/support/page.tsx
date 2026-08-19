@@ -113,12 +113,19 @@ export default function SupportPage() {
             <h3 className="text-base font-extrabold text-ink">더 궁금한 점이 있으신가요?</h3>
             <p className="text-sm leading-relaxed text-[#6E6E76]">
               시세, 거래, 진단 결과에 대한 질문은 1:1 채팅 상담을 통해 실시간으로 도와드립니다.
+              사진 첨부가 필요하거나 답변까지 시간이 걸려도 괜찮다면 1:1 문의를 남겨주세요.
             </p>
             <Link
               href="/chat"
               className="mt-1 inline-block rounded-[11px] border-2 border-primary-dark bg-primary px-5 py-3 text-center text-[14.5px] font-bold text-white shadow-tactile transition hover:text-white hover:shadow-tactile-hover active:translate-y-0.5 active:shadow-tactile-active"
             >
               1:1 채팅 상담 하기
+            </Link>
+            <Link
+              href="/inquiries/new"
+              className="inline-block rounded-[11px] border-[1.5px] border-[#DDDDE3] bg-white px-5 py-3 text-center text-[14.5px] font-bold text-[#4B4B52] transition hover:bg-[#F4F4F6]"
+            >
+              1:1 문의 작성하기
             </Link>
             <div className="mt-3 border-t border-[#E5E5EA] pt-3 text-[13px] leading-relaxed text-[#8A8A92]">
               <div>이메일: support@pockettrade.example</div>
