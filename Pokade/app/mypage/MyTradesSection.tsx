@@ -79,11 +79,12 @@ function MyTradesSectionInner() {
   // 조회 조건을 키로 함께 보관하고 "지금 조건의 결과인지"를 파생 계산한다. effect 안에서 로딩
   // 플래그를 직접 세우지 않아도 되고(react-hooks/set-state-in-effect), 뒤로가기로 조건이 바뀌는
   // 경우도 핸들러 없이 자동으로 로딩 상태가 된다.
-  const [loaded, setLoaded] = useState<{
+  // 결과를 조건 키와 한 덩어리로 들고 있고, page가 null이면 그 조건의 조회가 실패했다는 뜻이다.
+  // 성공과 실패를 한 값에 담으면 "에러 문구와 목록이 동시에 보이는" 모순이 표현 자체가 안 된다.
+  const [result, setResult] = useState<{
     key: string;
-    page: PageResponse<MyTradeResponse>;
+    page: PageResponse<MyTradeResponse> | null;
   } | null>(null);
-  const [errorKey, setErrorKey] = useState<string | null>(null);
   const [counts, setCounts] = useState<{ BUY: number | null; SELL: number | null }>({
     BUY: null,
     SELL: null,
@@ -116,10 +117,10 @@ function MyTradesSectionInner() {
       size: PAGE_SIZE,
     })
       .then((res) => {
-        if (!cancelled) setLoaded({ key, page: res });
+        if (!cancelled) setResult({ key, page: res });
       })
       .catch(() => {
-        if (!cancelled) setErrorKey(key);
+        if (!cancelled) setResult({ key, page: null });
       });
     return () => {
       cancelled = true;
@@ -140,9 +141,11 @@ function MyTradesSectionInner() {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }
 
-  const data = loaded?.key === requestKey ? loaded.page : null;
-  const isError = errorKey === requestKey;
-  const isLoading = !data && !isError;
+  // 지금 조건의 결과가 아직 없으면(키 불일치 포함) 로딩 — 셋 중 정확히 하나만 참이 된다.
+  const current = result?.key === requestKey ? result : null;
+  const data = current?.page ?? null;
+  const isError = current !== null && current.page === null;
+  const isLoading = current === null;
   const trades = data?.content ?? [];
   const totalPages = data?.totalPages ?? 0;
 
