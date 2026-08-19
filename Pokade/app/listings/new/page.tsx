@@ -7,7 +7,7 @@ import CardImage from "@/components/CardImage";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
 import { createListing } from "@/lib/listingApi";
-import { fetchCardDetail, fetchCardsByKeywordPage } from "@/lib/cardApi";
+import { fetchCardDetail, fetchCardsByKeywordPage, fetchPriceSummary } from "@/lib/cardApi";
 import {
   CardDetailResponse,
   CardResponse,
@@ -15,10 +15,20 @@ import {
   VariantSummary,
   variantLabel,
 } from "@/types/card";
-import { ListingGrade } from "@/types/price";
+import { ListingGrade, PriceSummaryResponse } from "@/types/price";
 
 const MIN_QUERY_LENGTH = 2;
 const GRADE_OPTIONS: ListingGrade[] = ["S", "A", "B", "PSA10", "PSA9", "PSA8"];
+
+// 등급 선택 가이드 — 각 등급의 판단 기준을 간단히 안내한다.
+const GRADE_GUIDE: Record<ListingGrade, string> = {
+  S: "완전품 수준 — 스크래치, 모서리 눌림, 백색 반점 등 흠집이 육안으로 보이지 않음",
+  A: "미세한 사용감 — 모서리에 아주 약간의 눌림이나 가벼운 스크래치가 있으나 거의 티 나지 않음",
+  B: "사용감 있음 — 모서리 마모, 스크래치, 백색 반점 등이 육안으로 확인되나 거래 가능한 상태",
+  PSA10: "PSA 감정 등급 10 (Gem Mint) — 감정사가 완전품으로 판정",
+  PSA9: "PSA 감정 등급 9 (Mint) — 극히 미세한 결점만 존재",
+  PSA8: "PSA 감정 등급 8 (NM-MT) — 육안으로 확인 가능한 경미한 결점 존재",
+};
 
 interface SelectedCard {
   id: number;
@@ -60,6 +70,9 @@ function NewListingForm() {
   const [price, setPrice] = useState("");
   const [grade, setGrade] = useState<ListingGrade | "">("");
 
+  const [priceSummary, setPriceSummary] = useState<PriceSummaryResponse | null>(null);
+  const [priceSummaryLoading, setPriceSummaryLoading] = useState(false);
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,6 +91,7 @@ function NewListingForm() {
         const primary = card.variants.find((v) => v.primary) ?? card.variants[0];
         setSelectedVariantId(primary?.id ?? null);
         setError(null);
+        setPriceSummaryLoading(true);
       })
       .catch(() => {
         if (selectRequestIdRef.current !== requestId) return;
@@ -93,6 +107,25 @@ function NewListingForm() {
     if (cardId == null) return;
     selectCardById(cardId);
   }, [searchParams]);
+
+  // 선택된 카드/판본의 현재 시세 조회 — 가격 입력 시 참고용으로만 노출, 실패해도 등록 흐름은 막지 않는다.
+  useEffect(() => {
+    if (!selectedCard) return;
+    let cancelled = false;
+    fetchPriceSummary(selectedCard.id, selectedVariantId ?? undefined)
+      .then((summary) => {
+        if (!cancelled) setPriceSummary(summary);
+      })
+      .catch(() => {
+        if (!cancelled) setPriceSummary(null);
+      })
+      .finally(() => {
+        if (!cancelled) setPriceSummaryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCard, selectedVariantId]);
 
   // 카드 검색 자동완성 (디바운스)
   useEffect(() => {
@@ -177,6 +210,7 @@ function NewListingForm() {
                 onClick={() => {
                   setSelectedCard(null);
                   setSelectedVariantId(null);
+                  setPriceSummary(null);
                 }}
                 className="flex-shrink-0 text-[12.5px] font-semibold text-[#8A8A92] hover:text-primary"
               >
@@ -248,7 +282,10 @@ function NewListingForm() {
                   <button
                     key={v.id}
                     type="button"
-                    onClick={() => setSelectedVariantId(v.id)}
+                    onClick={() => {
+                      setSelectedVariantId(v.id);
+                      setPriceSummaryLoading(true);
+                    }}
                     className={`rounded-full border px-3 py-1.5 text-[12.5px] font-bold transition ${
                       selectedVariantId === v.id
                         ? "border-primary bg-primary text-white"
@@ -265,9 +302,20 @@ function NewListingForm() {
           <div className="h-4" />
 
           {/* 가격 */}
-          <label htmlFor="price" className="mb-[7px] block text-[13px] font-bold text-[#4B4B52]">
-            가격
-          </label>
+          <div className="mb-[7px] flex items-center justify-between">
+            <label htmlFor="price" className="block text-[13px] font-bold text-[#4B4B52]">
+              가격
+            </label>
+            {selectedCard && (
+              <span className="text-[12px] font-semibold text-[#8A8A92]">
+                {priceSummaryLoading
+                  ? "시세 조회 중..."
+                  : priceSummary?.buyPrice != null
+                    ? `현재 최저 시세 ${priceSummary.buyPrice.toLocaleString("ko-KR")}원`
+                    : "시세 정보 없음"}
+              </span>
+            )}
+          </div>
           <input
             id="price"
             type="number"
@@ -281,9 +329,23 @@ function NewListingForm() {
           <div className="h-4" />
 
           {/* 등급 */}
-          <label htmlFor="grade" className="mb-[7px] block text-[13px] font-bold text-[#4B4B52]">
-            등급 (선택)
-          </label>
+          <div className="mb-[7px] flex items-center gap-1.5">
+            <label htmlFor="grade" className="block text-[13px] font-bold text-[#4B4B52]">
+              등급 (선택)
+            </label>
+            <div className="group relative flex items-center">
+              <span className="flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-[#EDEDF0] text-[10.5px] font-bold text-[#8A8A92]">
+                ?
+              </span>
+              <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-64 -translate-x-1/2 rounded-[10px] border border-[#EDEDF0] bg-white p-3 text-[12px] leading-relaxed text-[#4B4B52] opacity-0 shadow-card transition group-hover:opacity-100">
+                {GRADE_OPTIONS.map((g) => (
+                  <p key={g} className="mb-1.5 last:mb-0">
+                    <span className="font-bold text-ink">{g}</span> — {GRADE_GUIDE[g]}
+                  </p>
+                ))}
+              </div>
+            </div>
+          </div>
           <select
             id="grade"
             value={grade}
@@ -297,6 +359,11 @@ function NewListingForm() {
               </option>
             ))}
           </select>
+          {grade && (
+            <p className="mt-1.5 text-[12px] leading-relaxed text-[#8A8A92]">
+              {GRADE_GUIDE[grade]}
+            </p>
+          )}
 
           {error && <p className="mt-4 text-[12.5px] font-semibold text-primary">{error}</p>}
 
