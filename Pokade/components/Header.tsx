@@ -410,12 +410,13 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
   );
 }
 
-const PROFILE_MENU: { label: string; href: string }[] = [
+// href가 없으면 아직 화면이 없는 메뉴다. 설정은 /settings 신설 후 연결한다.
+const PROFILE_MENU: { label: string; href?: string }[] = [
   { label: "마이페이지", href: "/mypage" },
   { label: "내 상품 관리", href: "/listings/me" },
   { label: "워치리스트", href: "/watchlist" },
-  { label: "포인트 충전", href: "#" },
-  { label: "설정", href: "#" },
+  { label: "포인트 충전" },
+  { label: "설정" },
 ];
 
 function LoggedInRight({
@@ -633,15 +634,28 @@ function LoggedInRight({
               </div>
               <div className="h-px bg-[#F0F0F0]" />
               <div className="p-2">
-                {PROFILE_MENU.map((m) => (
-                  <Link
-                    key={m.label}
-                    href={m.href}
-                    className="flex items-center gap-2.5 rounded-[9px] px-3 py-2.5 text-[13.5px] font-semibold text-[#3A3A42] hover:bg-[#F5F5F7] hover:text-ink"
-                  >
-                    {m.label}
-                  </Link>
-                ))}
+                {PROFILE_MENU.map((m) =>
+                  m.href ? (
+                    <Link
+                      key={m.label}
+                      href={m.href}
+                      // 이동해도 드롭다운이 새 페이지 위에 남는다 — pathname 변화 감지는 모바일 메뉴만 닫는다.
+                      onClick={() => setOpen(null)}
+                      className="flex items-center gap-2.5 rounded-[9px] px-3 py-2.5 text-[13.5px] font-semibold text-[#3A3A42] hover:bg-[#F5F5F7] hover:text-ink"
+                    >
+                      {m.label}
+                    </Link>
+                  ) : (
+                    <div
+                      key={m.label}
+                      aria-disabled="true"
+                      className="flex cursor-default items-center gap-2.5 rounded-[9px] px-3 py-2.5 text-[13.5px] font-semibold text-[#B4B4BC]"
+                    >
+                      <span className="flex-1">{m.label}</span>
+                      <span className="text-[10.5px] font-bold">준비 중</span>
+                    </div>
+                  ),
+                )}
               </div>
               <div className="h-px bg-[#F0F0F0]" />
               <div className="p-2">
@@ -744,33 +758,17 @@ export default function Header() {
           </>
         )}
 
-        {variant === "in" && <LoggedInRight open={open} setOpen={setOpen} />}
-
-        {variant === "admin" && (
+        {/* 관리자도 결국 로그인한 사용자다 — 알림·마이페이지·로그아웃이 똑같이 필요하므로
+            LoggedInRight를 그대로 쓰고 운영자 배지만 앞에 붙인다. 따로 만들어두면 일반 메뉴가
+            바뀔 때마다 관리자 쪽이 뒤처지고, 실제로 로그아웃 수단이 없는 상태였다. */}
+        {(variant === "in" || variant === "admin") && (
           <>
-            <span className="whitespace-nowrap rounded-full border border-[#F6D0D0] bg-[#FFF5F5] px-[11px] py-[5px] text-xs font-extrabold text-primary">
-              운영자
-            </span>
-            <button
-              aria-label="알림"
-              className="relative flex h-10 w-10 items-center justify-center rounded-[9px] bg-neutral transition-colors hover:bg-[#ECECEF]"
-            >
-              <svg
-                width="19"
-                height="19"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#4B4B52"
-                strokeWidth="2"
-              >
-                <path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.7 21a2 2 0 01-3.4 0" />
-              </svg>
-              <span className="absolute right-2 top-[7px] h-[7px] w-[7px] rounded-full border-[1.5px] border-neutral bg-primary" />
-            </button>
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-navy text-[14px] font-bold text-white">
-              관
-            </div>
+            {variant === "admin" && (
+              <span className="whitespace-nowrap rounded-full border border-[#F6D0D0] bg-[#FFF5F5] px-[11px] py-[5px] text-xs font-extrabold text-primary">
+                운영자
+              </span>
+            )}
+            <LoggedInRight open={open} setOpen={setOpen} />
           </>
         )}
 
@@ -830,7 +828,8 @@ export default function Header() {
               aria-label="메뉴"
               className="fixed inset-x-0 top-16 z-[90] border-b border-[#EDEDF0] bg-white p-4 shadow-[0_14px_38px_rgba(20,26,52,0.18)] md:hidden"
             >
-              {(variant === "out" || variant === "in") && (
+              {/* 관리자만 모바일 메뉴에서 검색이 빠져 있었다 — 같은 원인(관리자를 별종 취급)의 누락. */}
+              {variant !== "loading" && (
                 <div className="mb-3">
                   <SearchBar width="w-full" />
                 </div>
