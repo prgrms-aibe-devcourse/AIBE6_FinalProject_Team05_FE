@@ -18,7 +18,10 @@ export default function SettingsNav() {
   ];
 
   return (
-    <nav className="flex gap-1 overflow-x-auto md:w-[180px] md:flex-shrink-0 md:flex-col md:overflow-visible">
+    <nav
+      aria-label="설정 메뉴"
+      className="flex gap-1 overflow-x-auto md:w-[180px] md:flex-shrink-0 md:flex-col md:overflow-visible"
+    >
       {menu.map(({ label, href }) => {
         // "/settings"는 하위 경로의 접두사라 startsWith로 판정하면 항상 함께 켜진다.
         // 인덱스 라우트만 정확히 일치로 판정한다.

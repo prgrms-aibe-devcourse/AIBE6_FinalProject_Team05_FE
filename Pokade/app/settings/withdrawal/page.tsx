@@ -95,8 +95,10 @@ export default function WithdrawalPage() {
     setSubmitting(true);
     try {
       await requestWithdrawal(isLocal ? { password } : { code });
+      // 가드가 걸린 /settings 밖으로 먼저 나간다 — logout()이 status를 unauthenticated로 바꾸는 순간
+      // 레이아웃 가드가 로그인 페이지로 리다이렉트해 이 이동과 경쟁하기 때문이다.
+      router.replace("/");
       await logout(); // refresh 무효화 + 클라 상태/힌트플래그 정리
-      router.push("/");
     } catch (e) {
       setError(authErrorMessage(e, "회원 탈퇴에 실패했습니다."));
       setSubmitting(false); // 성공 시엔 언마운트되므로 catch에서만 해제
