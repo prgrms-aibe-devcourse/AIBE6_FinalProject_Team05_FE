@@ -10,6 +10,7 @@ import { MyInfo } from "@/types/auth";
 import { MyProfile } from "@/types/profile";
 import { deleteProfileImage, uploadProfileImage, getMyProfile } from "@/lib/profileApi";
 import { withCacheBuster } from "@/lib/profileImage";
+import MyTradesSection from "./MyTradesSection";
 import Avatar from "@/components/Avatar";
 
 const PROVIDER_LABELS: Record<MyProfile["provider"], string> = {
@@ -384,6 +385,9 @@ export default function MyPage() {
                 </div>
               </div>
             </section>
+
+            <MyTradesSection />
+
             <Link
               href="/mypage/inquiries"
               className="mt-3 flex items-center justify-between rounded-[18px] border border-[#EDEDF0] bg-white px-8 py-6 shadow-card transition hover:bg-[#FAFAFB]"

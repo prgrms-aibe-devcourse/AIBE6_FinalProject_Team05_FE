@@ -1,5 +1,11 @@
-import { apiGet, apiPatch, apiPost } from "@/lib/apiClient";
-import { TradeCreateRequest, TradeResponse } from "@/types/trade";
+import { apiGet, apiPatch, apiPost, PageResponse } from "@/lib/apiClient";
+import {
+  MyTradeResponse,
+  TradeCreateRequest,
+  TradeResponse,
+  TradeRole,
+  TradeStatus,
+} from "@/types/trade";
 
 // POST /api/trades — 즉시구매 요청. 인증 필요. 결제는 BE가 스텁 처리(항상 성공)해서 즉시 매칭됨.
 export async function createTrade(request: TradeCreateRequest): Promise<TradeResponse> {
@@ -24,4 +30,23 @@ export async function confirmTrade(tradeId: number): Promise<TradeResponse> {
 // PATCH /api/trades/{id}/cancel — 거래 취소(구매자·판매자 둘 다 가능).
 export async function cancelTrade(tradeId: number): Promise<TradeResponse> {
   return apiPatch<TradeResponse>(`/api/trades/${tradeId}/cancel`);
+}
+
+// GET /api/users/me/trades — 마이페이지 거래 내역. 인증 필요.
+// role 미지정이면 구매·판매 전체, statuses 미지정이면 전체 상태.
+export async function fetchMyTrades(params: {
+  role?: TradeRole;
+  statuses?: TradeStatus[];
+  page?: number; // 0-indexed(Spring Pageable 관례)
+  size?: number;
+}): Promise<PageResponse<MyTradeResponse>> {
+  const query = new URLSearchParams();
+  if (params.role) query.set("role", params.role);
+  // 서버는 콤마 다중값을 받는다 — '진행중' 같은 묶음의 정의는 화면 사정이라 FE가 갖는다.
+  if (params.statuses?.length) query.set("status", params.statuses.join(","));
+  if (params.page) query.set("page", String(params.page));
+  if (params.size) query.set("size", String(params.size));
+
+  const qs = query.toString();
+  return apiGet<PageResponse<MyTradeResponse>>(`/api/users/me/trades${qs ? `?${qs}` : ""}`);
 }
