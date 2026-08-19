@@ -41,7 +41,9 @@ export default function AdminSidebar() {
           );
         }
 
-        const active = pathname.startsWith(href);
+        // 경계를 확인하지 않으면 나중에 /admin/trades-history 같은 경로가 생겼을 때
+        // /admin/trades 메뉴까지 함께 활성화된다. Header.tsx의 NAV와 같은 판정을 쓴다.
+        const active = pathname === href || pathname.startsWith(`${href}/`);
         return (
           <Link
             key={label}
