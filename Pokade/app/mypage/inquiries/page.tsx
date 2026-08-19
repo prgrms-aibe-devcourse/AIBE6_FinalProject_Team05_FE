@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
 import { fetchMyInquiries } from "@/lib/inquiryApi";
@@ -26,6 +26,13 @@ export default function MyInquiriesPage() {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [selected, setSelected] = useState<InquiryResponse | null>(null);
+
+  // 화면엔 DB의 실제 문의 id 대신 "몇 번째로 등록한 문의인지"를 유저별로 보여준다 —
+  // 등록순(id 오름차순)으로 1부터 번호를 매긴다. 목록 자체는 최신순(내림차순) 정렬을 유지한다.
+  const sequenceNumberById = useMemo(() => {
+    const byRegisteredOrder = [...inquiries].sort((a, b) => a.id - b.id);
+    return new Map(byRegisteredOrder.map((inquiry, i) => [inquiry.id, i + 1]));
+  }, [inquiries]);
 
   useEffect(() => {
     if (status !== "authenticated") return;
@@ -96,7 +103,7 @@ export default function MyInquiriesPage() {
                   onClick={() => setSelected(inquiry)}
                   className="grid cursor-pointer grid-cols-[0.5fr_0.8fr_1.8fr_0.8fr_1fr] items-center gap-3.5 border-b border-[#F2F2F5] px-[22px] py-[15px] text-[13.5px] last:border-b-0 hover:bg-[#FAFAFB]"
                 >
-                  <div className="font-bold text-secondary">#{inquiry.id}</div>
+                  <div className="font-bold text-secondary">#{sequenceNumberById.get(inquiry.id)}</div>
                   <div>
                     <span className="rounded-full bg-[#F2F2F5] px-2.5 py-1 text-[11px] font-bold text-[#5A5A62]">
                       {INQUIRY_CATEGORY_LABELS[inquiry.category]}
@@ -140,7 +147,7 @@ export default function MyInquiriesPage() {
             <div className="flex items-center justify-between border-b border-[#EDEDF0] px-6 py-[22px]">
               <div>
                 <div className="text-xs font-semibold text-[#9A9AA2]">문의 상세</div>
-                <div className="text-lg font-extrabold text-secondary">#{selected.id}</div>
+                <div className="text-lg font-extrabold text-secondary">#{sequenceNumberById.get(selected.id)}</div>
               </div>
               <button
                 onClick={() => setSelected(null)}
