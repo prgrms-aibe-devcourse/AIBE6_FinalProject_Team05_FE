@@ -20,6 +20,9 @@ import { ListingGrade, PriceSummaryResponse } from "@/types/price";
 const MIN_QUERY_LENGTH = 2;
 const GRADE_OPTIONS: ListingGrade[] = ["S", "A", "B", "PSA10", "PSA9", "PSA8"];
 
+// 입력 가격이 현재 최저 시세 대비 이 비율 이상 벗어나면 참고용 경고를 보여준다 — 등록 자체는 막지 않는다.
+const PRICE_OUTLIER_THRESHOLD = 0.3;
+
 // 등급 선택 가이드 — 각 등급의 판단 기준을 간단히 안내한다.
 const GRADE_GUIDE: Record<ListingGrade, string> = {
   S: "완전품 수준 — 스크래치, 모서리 눌림, 백색 반점 등 흠집이 육안으로 보이지 않음",
@@ -186,6 +189,18 @@ function NewListingForm() {
   const inputCls =
     "w-full rounded-[11px] border border-[#DDDDE3] px-3.5 py-3 text-[14.5px] text-ink outline-none";
 
+  const priceNumber = Number(price);
+  const buyPrice = priceSummary?.buyPrice;
+  let priceOutlierWarning: string | null = null;
+  if (price && Number.isInteger(priceNumber) && priceNumber > 0 && buyPrice != null && buyPrice > 0) {
+    const diffRatio = (priceNumber - buyPrice) / buyPrice;
+    if (diffRatio >= PRICE_OUTLIER_THRESHOLD) {
+      priceOutlierWarning = "입력하신 가격이 현재 최저 시세보다 많이 높습니다. 다시 한번 확인해 주세요.";
+    } else if (diffRatio <= -PRICE_OUTLIER_THRESHOLD) {
+      priceOutlierWarning = "입력하신 가격이 현재 최저 시세보다 많이 낮습니다. 다시 한번 확인해 주세요.";
+    }
+  }
+
   return (
     <main className="main-content bg-neutral px-10 py-14">
       <div className="mx-auto w-full max-w-[520px] rounded-[18px] border border-[#EDEDF0] bg-white px-[34px] py-9 shadow-card">
@@ -326,6 +341,11 @@ function NewListingForm() {
             placeholder="판매 가격 (원)"
             className={inputCls}
           />
+          {priceOutlierWarning && (
+            <p className="mt-1.5 text-[12px] font-semibold text-[#C97A00]">
+              {priceOutlierWarning}
+            </p>
+          )}
 
           <div className="h-4" />
 

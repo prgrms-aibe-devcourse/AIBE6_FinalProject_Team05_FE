@@ -322,10 +322,10 @@ export default function MyListingsPage() {
                 {listing.status === "ACTIVE" && editingId === listing.id && (
                   <div className="flex items-center gap-2 border-t border-[#EDEDF0] pt-3">
                     <input
-                      type="number"
-                      min={1}
-                      value={editPrice}
-                      onChange={(e) => setEditPrice(e.target.value)}
+                      type="text"
+                      inputMode="numeric"
+                      value={editPrice ? Number(editPrice).toLocaleString("ko-KR") : ""}
+                      onChange={(e) => setEditPrice(e.target.value.replace(/[^0-9]/g, ""))}
                       className="w-32 rounded-[9px] border border-[#DDDDE3] px-2.5 py-1.5 text-[13.5px] outline-none"
                     />
                     <button
