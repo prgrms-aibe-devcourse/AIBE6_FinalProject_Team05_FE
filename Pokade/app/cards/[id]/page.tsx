@@ -7,13 +7,8 @@ import CardImage from "@/components/CardImage";
 import PriceChart from "@/components/PriceChart";
 import ImageLightbox from "@/components/ImageLightbox";
 import AddWatchlistModal from "@/components/AddWatchlistModal";
-import {
-  CardDetailResponse,
-  CardSearchItem,
-  parseCardId,
-  toCardSearchItem,
-  variantLabel,
-} from "@/types/card";
+import RelatedCardsSection from "./RelatedCardsSection";
+import { CardDetailResponse, parseCardId, variantLabel } from "@/types/card";
 import {
   ChartPeriod,
   ListingGrade,
@@ -29,7 +24,6 @@ import {
   fetchPriceChart,
   fetchPriceStats,
   fetchPriceSummary,
-  fetchRelatedCards,
 } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
 import { createTrade } from "@/lib/tradeApi";
@@ -106,9 +100,6 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [watchlistModalOpen, setWatchlistModalOpen] = useState(false);
   const [watchlistAdded, triggerWatchlistAdded] = useTimedFlag(2000);
-
-  const [relatedCards, setRelatedCards] = useState<CardSearchItem[]>([]);
-  const [relatedLoadState, setRelatedLoadState] = useState<RelatedLoadState>("loading");
 
   const [priceSummary, setPriceSummary] = useState<PriceSummaryResponse | null>(null);
   // 비로그인이거나 체결 이력이 부족해 계산할 수 없으면 null — 뱃지 자체를 숨긴다(에러 UI 없음).
@@ -255,27 +246,6 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedVariantId, card]);
-
-  useEffect(() => {
-    if (loadState !== "ready" || cardId == null) return;
-    let cancelled = false;
-
-    fetchRelatedCards(cardId)
-      .then((res) => {
-        if (cancelled) return;
-        setRelatedCards(res.map(toCardSearchItem));
-        setRelatedLoadState("ready");
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setRelatedCards([]);
-        setRelatedLoadState("ready");
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [cardId, loadState]);
 
   useEffect(() => {
     if (loadState !== "ready" || cardId == null || !card) return;
@@ -818,46 +788,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                   </div>
                 </div>
 
-                <div className="mt-8">
-                  <h2 className="mb-4 text-[17px] font-extrabold">비슷한 카드</h2>
-
-                  {relatedLoadState === "loading" && (
-                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <div
-                          key={i}
-                          className="aspect-[5/7] w-full animate-pulse rounded-[13px] border border-[#EDEDF0] bg-[#F2F2F5]"
-                        />
-                      ))}
-                    </div>
-                  )}
-
-                  {relatedLoadState === "ready" && relatedCards.length === 0 && (
-                    <div className="rounded-2xl border border-[#EDEDF0] bg-white py-12 text-center text-[13.5px] text-[#9A9AA2]">
-                      비슷한 카드가 없습니다.
-                    </div>
-                  )}
-
-                  {relatedLoadState === "ready" && relatedCards.length > 0 && (
-                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                      {relatedCards.map((rc) => (
-                        <Link
-                          key={rc.id}
-                          href={`/cards/${rc.id}`}
-                          className="flex cursor-pointer flex-col overflow-hidden rounded-[13px] border border-[#EDEDF0] transition hover:-translate-y-[3px] hover:shadow-lift"
-                        >
-                          <div className="relative aspect-[5/7] w-full bg-[#F2F2F5]">
-                            <CardImage src={rc.imageUrl} alt={rc.name} label="카드" />
-                          </div>
-                          <div className="flex flex-1 flex-col p-3">
-                            <div className="text-[13px] font-bold">{rc.name}</div>
-                            <div className="mt-0.5 text-[11px] text-[#9A9AA2]">{rc.set}</div>
-                          </div>
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <RelatedCardsSection cardId={cardId} />
 
                 <ImageLightbox
                   isOpen={lightboxOpen}
