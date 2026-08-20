@@ -379,8 +379,16 @@ export default function MyPage() {
 
                 <div className="flex items-center justify-between">
                   <span className="text-[#8A8A92]">포인트</span>
-                  <span className="font-semibold">
-                    {info.pointBalance.toLocaleString("ko-KR")} P
+                  <span className="flex items-center gap-2">
+                    <span className="font-semibold">
+                      {info.pointBalance.toLocaleString("ko-KR")} P
+                    </span>
+                    <Link
+                      href="/mypage/points/charge"
+                      className="rounded-full border border-primary-dark bg-primary px-2.5 py-1 text-[11.5px] font-bold text-white"
+                    >
+                      충전하기
+                    </Link>
                   </span>
                 </div>
               </div>
