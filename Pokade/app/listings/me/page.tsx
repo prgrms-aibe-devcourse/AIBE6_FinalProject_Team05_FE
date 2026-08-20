@@ -8,6 +8,15 @@ import { ApiError } from "@/lib/apiClient";
 import { deleteListing, fetchMyListings, updateListingPrice } from "@/lib/listingApi";
 import { ListingGrade, ListingStatus, ListingSummaryResponse } from "@/types/price";
 
+type Sort = "latest" | "oldest" | "priceAsc" | "priceDesc";
+
+const SORT_OPTIONS: { key: Sort; label: string }[] = [
+  { key: "latest", label: "등록 최신순" },
+  { key: "oldest", label: "등록 오래된순" },
+  { key: "priceAsc", label: "가격 낮은순" },
+  { key: "priceDesc", label: "가격 높은순" },
+];
+
 const STATUS_FILTERS: { label: string; value: ListingStatus | null }[] = [
   { label: "전체", value: null },
   { label: "판매중", value: "ACTIVE" },
@@ -77,6 +86,8 @@ export default function MyListingsPage() {
   const status = useRequireAuth();
 
   const [statusFilter, setStatusFilter] = useState<ListingStatus | null>(null);
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<Sort>("latest");
   const [listings, setListings] = useState<ListingSummaryResponse[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
@@ -115,9 +126,23 @@ export default function MyListingsPage() {
     };
   }, [status]);
 
-  const visibleListings = statusFilter
-    ? listings.filter((l) => l.status === statusFilter)
-    : listings;
+  const trimmedQuery = query.trim().toLowerCase();
+  const visibleListings = listings
+    .filter((l) => (statusFilter ? l.status === statusFilter : true))
+    .filter((l) => (trimmedQuery ? (l.cardName ?? "").toLowerCase().includes(trimmedQuery) : true))
+    .sort((a, b) => {
+      switch (sort) {
+        case "oldest":
+          return a.createdAt.localeCompare(b.createdAt);
+        case "priceAsc":
+          return a.price - b.price;
+        case "priceDesc":
+          return b.price - a.price;
+        case "latest":
+        default:
+          return b.createdAt.localeCompare(a.createdAt);
+      }
+    });
   const countFor = (value: ListingStatus | null) =>
     value === null ? listings.length : listings.filter((l) => l.status === value).length;
 
@@ -197,7 +222,7 @@ export default function MyListingsPage() {
           </Link>
         </div>
 
-        <div className="mb-5 flex flex-wrap gap-2">
+        <div className="mb-3.5 flex flex-wrap gap-2">
           {STATUS_FILTERS.map(({ label, value }) => (
             <button
               key={label}
@@ -214,9 +239,35 @@ export default function MyListingsPage() {
           ))}
         </div>
 
+        <div className="mb-5 flex gap-2">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="카드 이름으로 검색"
+            className="flex-1 rounded-[11px] border border-[#DDDDE3] px-3.5 py-2.5 text-[13.5px] text-ink outline-none"
+          />
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as Sort)}
+            className="rounded-[11px] border border-[#DDDDE3] px-3 py-2.5 text-[13px] font-semibold text-[#4B4B52] outline-none"
+          >
+            {SORT_OPTIONS.map((option) => (
+              <option key={option.key} value={option.key}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {loadState === "loading" && (
-          <div className="rounded-[18px] border border-[#EDEDF0] bg-white px-6 py-14 text-center text-[13.5px] text-[#8A8A92]">
-            불러오는 중...
+          <div className="flex flex-col gap-2.5">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div
+                key={i}
+                className="h-[72px] animate-pulse rounded-[14px] border border-[#EDEDF0] bg-[#F2F2F5]"
+              />
+            ))}
           </div>
         )}
 
@@ -228,7 +279,11 @@ export default function MyListingsPage() {
 
         {loadState === "ready" && visibleListings.length === 0 && (
           <div className="rounded-[18px] border border-[#EDEDF0] bg-white px-6 py-14 text-center text-[13.5px] text-[#8A8A92]">
-            {listings.length === 0 ? "등록된 상품이 없습니다." : "해당 상태의 상품이 없습니다."}
+            {listings.length === 0
+              ? "등록된 상품이 없습니다."
+              : trimmedQuery
+                ? "검색 결과가 없습니다."
+                : "해당 상태의 상품이 없습니다."}
           </div>
         )}
 

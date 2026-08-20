@@ -177,8 +177,24 @@ export default function TradeStatusPage() {
         <h1 className="mb-6 text-[26px] font-extrabold tracking-[-0.6px]">거래 상세</h1>
 
         {loadState === "loading" && (
-          <div className="rounded-2xl border border-[#EDEDF0] bg-white py-14 text-center text-[13.5px] text-[#9A9AA2]">
-            불러오는 중...
+          <div className="flex flex-col gap-5">
+            <div className="h-[70px] animate-pulse rounded-2xl border border-[#EDEDF0] bg-[#F2F2F5]" />
+            <div className="h-[92px] animate-pulse rounded-2xl border border-[#EDEDF0] bg-[#F2F2F5]" />
+            <div className="rounded-2xl border border-[#EDEDF0] bg-white p-6">
+              <div className="flex gap-4">
+                <div className="h-[100px] w-[72px] flex-shrink-0 animate-pulse rounded-[10px] bg-[#F2F2F5]" />
+                <div className="flex-1 space-y-2.5 pt-1">
+                  <div className="h-4 w-2/3 animate-pulse rounded bg-[#F2F2F5]" />
+                  <div className="h-6 w-1/3 animate-pulse rounded bg-[#F2F2F5]" />
+                </div>
+              </div>
+              <div className="my-5 h-px bg-[#EDEDF0]" />
+              <div className="space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-4 animate-pulse rounded bg-[#F2F2F5]" />
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
