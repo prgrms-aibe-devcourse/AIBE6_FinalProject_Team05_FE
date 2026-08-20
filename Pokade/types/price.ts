@@ -80,6 +80,7 @@ export interface ListingSummaryResponse {
   grade: ListingGrade | null;
   status: ListingStatus;
   createdAt: string;
+  tradeId: number | null;
 }
 
 // POST /api/listings 요청 바디 — com.pokade.domain.listing.dto.ListingCreateRequest 미러링.
