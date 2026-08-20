@@ -169,6 +169,12 @@ export async function fetchPriceSummaries(
   return new Map(results.flat().map((summary) => [summary.cardId, summary]));
 }
 
+// GET /api/prices/{cardId}/trades — 최근 체결 내역. BE가 최신순(confirmedAt DESC)으로 이미
+// 정렬해서 상위 20건 고정 반환한다(RECENT_TRADES_LIMIT) — 페이지네이션 파라미터 없음, FE 재정렬 불필요.
+export async function fetchCardTrades(cardId: number): Promise<TradeSummaryResponse[]> {
+  return apiGet<TradeSummaryResponse[]>(`/api/prices/${cardId}/trades`);
+}
+
 // GET /api/prices/{cardId}/chart?period= — 기간별 체결가 추이 (오래된순, TradeSummaryResponse 재사용).
 // grade별 필터링은 BE가 안 하므로(팀 결정, CLAUDE.md 참고) grade는 응답 그대로 두고 FE에서 묶어서 그린다.
 export async function fetchPriceChart(
