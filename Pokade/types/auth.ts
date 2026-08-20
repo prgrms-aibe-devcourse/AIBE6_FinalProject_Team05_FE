@@ -26,6 +26,10 @@ export interface SignupRequest {
   email: string;
   password: string;
   nickname: string;
+  termsOfService: boolean;
+  privacyPolicy: boolean;
+  thirdPartySharing: boolean;
+  marketing: boolean;
 }
 
 export interface EmailSendRequest {
@@ -59,7 +63,10 @@ export interface PasswordUpdateRequest {
 export interface OAuth2RegisterRequest {
   ticket: string;
   nickname: string;
-  termsAgreed: boolean;
+  termsOfService: boolean;
+  privacyPolicy: boolean;
+  thirdPartySharing: boolean;
+  marketing: boolean;
 }
 
 export interface WithdrawalRequest {
