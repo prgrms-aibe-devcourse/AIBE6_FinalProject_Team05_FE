@@ -575,6 +575,13 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                         <div className="mt-2 text-[14px] text-[#8A8A92]">
                           {card.setName} · {card.rarity}
                         </div>
+                        {/* EN(기본값)이 절대다수라 EN은 생략하고, 눈에 띄어야 하는 예외
+                            (JA 등 비영어판)만 표시한다 — 검색 타일과 동일한 정책(SearchResultsView.tsx). */}
+                        {card.languageCode !== "EN" && (
+                          <span className="mt-1.5 inline-flex w-fit items-center rounded-full border border-[#DDDDE3] bg-white px-2.5 py-1 text-[11.5px] font-bold text-[#4B4B52]">
+                            {card.languageCode}
+                          </span>
+                        )}
                         {card.types.length > 0 && (
                           <div className="mt-2.5 flex flex-wrap gap-1.5">
                             {card.types.map((t) => (

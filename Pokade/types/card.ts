@@ -110,6 +110,8 @@ export interface CardDetailResponse {
   externalId: string;
   name: string;
   nameKo?: string | null;
+  // 언어(국가판) 코드 — CardResponse.languageCode와 동일(#263, EN/JA만 존재).
+  languageCode: string;
   setName: string;
   rarity: string;
   supertype: string;
