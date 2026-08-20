@@ -320,6 +320,7 @@ function NewListingForm() {
             id="price"
             type="number"
             min={1}
+            step={100}
             value={price}
             onChange={(e) => setPrice(e.target.value)}
             placeholder="판매 가격 (원)"

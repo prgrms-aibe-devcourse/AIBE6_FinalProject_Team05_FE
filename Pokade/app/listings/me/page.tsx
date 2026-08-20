@@ -92,10 +92,12 @@ export default function MyListingsPage() {
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  // 상태 필터는 재요청 없이 클라이언트에서 처리한다(watchlist 페이지와 동일한 패턴) —
+  // 그래야 필터 전환 시 깜빡임 없이 즉시 반영되고, 상태별 개수도 별도 요청 없이 계산 가능하다.
   useEffect(() => {
     if (status !== "authenticated") return;
     let cancelled = false;
-    fetchMyListings(statusFilter ?? undefined)
+    fetchMyListings()
       .then((data) => {
         if (!cancelled) {
           setListings(data);
@@ -111,7 +113,13 @@ export default function MyListingsPage() {
     return () => {
       cancelled = true;
     };
-  }, [status, statusFilter]);
+  }, [status]);
+
+  const visibleListings = statusFilter
+    ? listings.filter((l) => l.status === statusFilter)
+    : listings;
+  const countFor = (value: ListingStatus | null) =>
+    value === null ? listings.length : listings.filter((l) => l.status === value).length;
 
   const startEdit = (listing: ListingSummaryResponse) => {
     setConfirmDeleteId(null);
@@ -162,12 +170,9 @@ export default function MyListingsPage() {
     setDeleteError(null);
     try {
       await deleteListing(listingId);
-      // "판매중" 필터는 CANCELLED 매물을 보여주지 않는 화면이므로 상태만 바꾸면 필터와 어긋난다 — 목록에서 아예 제거.
-      // 그 외 필터("전체" 등)는 취소된 매물도 계속 보여주므로 상태만 갱신.
+      // 상태만 CANCELLED로 갱신하면 되고, 필터에서 보이지 않게 되는 건 visibleListings가 알아서 처리한다.
       setListings((prev) =>
-        statusFilter === "ACTIVE"
-          ? prev.filter((l) => l.id !== listingId)
-          : prev.map((l) => (l.id === listingId ? { ...l, status: "CANCELLED" } : l)),
+        prev.map((l) => (l.id === listingId ? { ...l, status: "CANCELLED" } : l)),
       );
       setConfirmDeleteId(null);
     } catch (err) {
@@ -197,17 +202,14 @@ export default function MyListingsPage() {
             <button
               key={label}
               type="button"
-              onClick={() => {
-                setStatusFilter(value);
-                setLoadState("loading");
-              }}
+              onClick={() => setStatusFilter(value)}
               className={`rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition ${
                 statusFilter === value
                   ? "border-primary-dark bg-primary text-white"
                   : "border-[#DDDDE3] bg-white text-[#4B4B52] hover:bg-neutral"
               }`}
             >
-              {label}
+              {label} {countFor(value)}
             </button>
           ))}
         </div>
@@ -224,15 +226,15 @@ export default function MyListingsPage() {
           </div>
         )}
 
-        {loadState === "ready" && listings.length === 0 && (
+        {loadState === "ready" && visibleListings.length === 0 && (
           <div className="rounded-[18px] border border-[#EDEDF0] bg-white px-6 py-14 text-center text-[13.5px] text-[#8A8A92]">
-            등록된 상품이 없습니다.
+            {listings.length === 0 ? "등록된 상품이 없습니다." : "해당 상태의 상품이 없습니다."}
           </div>
         )}
 
-        {loadState === "ready" && listings.length > 0 && (
+        {loadState === "ready" && visibleListings.length > 0 && (
           <div className="flex flex-col gap-2.5">
-            {listings.map((listing) => (
+            {visibleListings.map((listing) => (
               <div
                 key={listing.id}
                 className="flex flex-col gap-3 rounded-[14px] border border-[#EDEDF0] bg-white px-5 py-4"
