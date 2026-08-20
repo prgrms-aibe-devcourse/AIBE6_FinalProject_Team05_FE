@@ -382,6 +382,12 @@ export default function TradeStatusPage() {
                     <span className="font-bold">{formatDateTime(trade.confirmedAt)}</span>
                   </div>
                 )}
+                {trade.settledAt && (
+                  <div className="flex justify-between">
+                    <span className="text-[#8A8A92]">정산일</span>
+                    <span className="font-bold">{formatDateTime(trade.settledAt)}</span>
+                  </div>
+                )}
               </div>
             </div>
 

@@ -44,9 +44,11 @@ type RelatedLoadState = "loading" | "ready";
 type GradeKey = ListingGrade | "RAW";
 
 // 등급별 최저가 매물 — 구매하기 버튼이 어떤 매물(listingId)을 살지 알아야 해서 가격뿐 아니라 id도 들고 있는다.
+// count: 해당 등급에 몇 명의 판매자(매물)가 있는지 — 최저가 1건으로 압축되면서 사라지는 정보라 별도로 센다.
 interface GradeOffer {
   listingId: number;
   price: number;
+  count: number;
 }
 
 // PSA10 > PSA9 > PSA8 > S > A > B > 미등급 순으로 구매 박스에 노출.
@@ -82,8 +84,14 @@ function computeGradeSummary(
   for (const l of listings) {
     const key: GradeKey = l.grade ?? "RAW";
     const current = summary[key];
-    if (current == null || l.price < current.price) {
-      summary[key] = { listingId: l.id, price: l.price };
+    if (current == null) {
+      summary[key] = { listingId: l.id, price: l.price, count: 1 };
+    } else {
+      summary[key] = {
+        listingId: l.price < current.price ? l.id : current.listingId,
+        price: Math.min(current.price, l.price),
+        count: current.count + 1,
+      };
     }
   }
   return summary;
@@ -758,7 +766,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                                 </span>
                                 <span className="text-[11px] font-semibold text-[#8A8A92]">
                                   {hasStock
-                                    ? `${offer.price.toLocaleString("ko-KR")}원`
+                                    ? `${offer.price.toLocaleString("ko-KR")}원 · ${offer.count}개`
                                     : "상품 없음"}
                                 </span>
                               </button>
