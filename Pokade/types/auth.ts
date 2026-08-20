@@ -7,12 +7,15 @@ export interface LoginResponse {
   accessToken: string;
 }
 
+export type UserStatus = "PENDING" | "ACTIVE" | "WITHDRAWAL_PENDING" | "SUSPENDED" | "DELETED";
+export type UserRole = "USER" | "ADMIN";
+
 export interface MyInfo {
   userId: number;
   email: string;
   nickname: string;
-  role: "USER" | "ADMIN";
-  status: "PENDING" | "ACTIVE" | "WITHDRAWAL_PENDING" | "SUSPENDED" | "DELETED";
+  role: UserRole;
+  status: UserStatus;
   profileImageUrl: string | null; // 서버 상대 경로 — profileImageSrc()로 변환해서 사용
   pointBalance: number;
   provider: "LOCAL" | "GOOGLE" | "KAKAO";
@@ -23,6 +26,10 @@ export interface SignupRequest {
   email: string;
   password: string;
   nickname: string;
+  termsOfService: boolean;
+  privacyPolicy: boolean;
+  thirdPartySharing: boolean;
+  marketing: boolean;
 }
 
 export interface EmailSendRequest {
@@ -56,7 +63,10 @@ export interface PasswordUpdateRequest {
 export interface OAuth2RegisterRequest {
   ticket: string;
   nickname: string;
-  termsAgreed: boolean;
+  termsOfService: boolean;
+  privacyPolicy: boolean;
+  thirdPartySharing: boolean;
+  marketing: boolean;
 }
 
 export interface WithdrawalRequest {

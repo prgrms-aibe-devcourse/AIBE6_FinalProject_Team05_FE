@@ -18,6 +18,7 @@ import {
 } from "@/lib/recentSearches";
 import { notifStyle, formatNotifTime } from "@/lib/notificationDisplay";
 import { CardResponse } from "@/types/card";
+import { NotificationResponse } from "@/types/notification";
 import { useUserStore } from "@/store/useUserStore";
 import { useNotificationStore } from "@/store/useNotificationStore";
 
@@ -447,12 +448,22 @@ function LoggedInRight({
   const notifications = useNotificationStore((s) => s.notifications);
   const loadState = useNotificationStore((s) => s.loadState);
   const errorMessage = useNotificationStore((s) => s.errorMessage);
-  const connectionMode = useNotificationStore((s) => s.connectionMode);
   const startNotifications = useNotificationStore((s) => s.start);
   const stopNotifications = useNotificationStore((s) => s.stop);
   const retryNotifications = useNotificationStore((s) => s.retry);
   const markOneRead = useNotificationStore((s) => s.markOneRead);
   const markAllRead = useNotificationStore((s) => s.markAllRead);
+
+  // /app/notifications/page.tsx와 동일한 정책 — cardId가 있으면 읽음 여부와 무관하게 항상
+  // 카드 상세로 이동하고, 드롭다운은 페이지 전환 후 열려있지 않도록 닫는다. cardId가 없는
+  // 알림(문의 처리 등)은 기존처럼 읽음 처리만 하고 드롭다운은 그대로 둔다.
+  const handleNotificationClick = (n: NotificationResponse) => {
+    markOneRead(n);
+    if (n.cardId != null) {
+      setOpen(null);
+      router.push(`/cards/${n.cardId}`);
+    }
+  };
 
   useEffect(() => {
     startNotifications();
@@ -468,14 +479,7 @@ function LoggedInRight({
     });
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
-  // 평소(SSE 정상)엔 굳이 라벨에 안 얹어서 조용히 두고, 폴링으로 내려간 상태일 때만 스크린리더
-  // 사용자도 알 수 있게 버튼 이름 자체에 덧붙인다(hover 전용 title만으론 스크린리더가 못 읽음).
-  const notifLabel = [
-    unreadCount > 0 ? `안 읽은 알림 ${unreadCount}개` : "알림",
-    connectionMode === "polling" ? "(주기적으로 확인 중)" : null,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const notifLabel = unreadCount > 0 ? `안 읽은 알림 ${unreadCount}개` : "알림";
 
   return (
     <div className="relative flex items-center gap-4">
@@ -502,16 +506,6 @@ function LoggedInRight({
         {unreadCount > 0 && (
           <span className="absolute right-2 top-[7px] h-[7px] w-[7px] rounded-full border-[1.5px] border-neutral bg-primary" />
         )}
-        {/* SSE 실시간 연결 상태 인디케이터 — 안읽음 점(우상단)과 겹치지 않게 반대쪽 구석에 둔다.
-            색뿐 아니라 채움 여부도 다르게 해서(sse=채움, polling=테두리만) 색맹이어도 구분 가능. */}
-        <span
-          title={connectionMode === "sse" ? "실시간 연결됨" : "새 알림을 주기적으로 확인 중"}
-          className={`absolute bottom-[7px] left-2 h-[6px] w-[6px] rounded-full ${
-            connectionMode === "sse"
-              ? "border-[1.5px] border-neutral bg-[#087a4e]" // 채움 — 안읽음 점과 같은 스타일(구분용 링 + 실선 채움)
-              : "border-[1.5px] border-grade-b bg-transparent" // 테두리만 — 색이 아니라 채움 여부로도 구분되게
-          }`}
-        />
       </button>
       <button
         onClick={() => toggle("profile")}
@@ -584,18 +578,35 @@ function LoggedInRight({
                       <button
                         key={n.id}
                         type="button"
-                        onClick={() => markOneRead(n)}
+                        onClick={() => handleNotificationClick(n)}
                         className={`flex w-full cursor-pointer gap-[11px] border-b border-[#F5F5F7] px-4 py-[13px] text-left hover:bg-[#FAFAFB] ${!n.isRead ? "bg-[#FFF7F7]" : ""}`}
                       >
                         <span
                           className={`mt-[15px] h-[7px] w-[7px] flex-shrink-0 rounded-full ${!n.isRead ? "bg-primary" : "bg-transparent"}`}
                         />
-                        <div
-                          className="flex h-[34px] w-[34px] flex-shrink-0 items-center justify-center rounded-[9px]"
-                          style={{ background: style.tint }}
-                        >
-                          {style.icon}
-                        </div>
+                        {/* /app/notifications/page.tsx와 동일한 정책 — cardImageUrl 있으면 카드
+                            썸네일, 없으면(또는 조회 실패) 기존 타입 아이콘. 좁은 드롭다운이라도
+                            34px 그대로 유지(전체 목록과 다른 크기 분기를 또 만들지 않는다). */}
+                        {n.cardImageUrl ? (
+                          <div className="relative h-[34px] w-[34px] flex-shrink-0 overflow-hidden rounded-[9px] bg-[#F2F2F5]">
+                            {/* 실제 카드 이미지를 대조해 보면 일러스트 프레임이 카드 세로 기준
+                                대략 5~51% 지점에 있다 — object-top으로 상단부터 잘라낸 뒤 그
+                                프레임만 꽉 채우도록 scale+origin으로 확대한다. */}
+                            <CardImage
+                              src={n.cardImageUrl}
+                              alt=""
+                              rounded="rounded-[9px]"
+                              className="origin-[50%_19%] scale-150 object-top"
+                            />
+                          </div>
+                        ) : (
+                          <div
+                            className="flex h-[34px] w-[34px] flex-shrink-0 items-center justify-center rounded-[9px]"
+                            style={{ background: style.tint }}
+                          >
+                            {style.icon}
+                          </div>
+                        )}
                         <div className="min-w-0 flex-1">
                           <div
                             className={`text-[13px] leading-[1.4] text-ink ${!n.isRead ? "font-bold" : "font-semibold"}`}
