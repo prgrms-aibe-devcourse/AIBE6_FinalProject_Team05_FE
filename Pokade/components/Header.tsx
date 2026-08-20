@@ -448,7 +448,6 @@ function LoggedInRight({
   const notifications = useNotificationStore((s) => s.notifications);
   const loadState = useNotificationStore((s) => s.loadState);
   const errorMessage = useNotificationStore((s) => s.errorMessage);
-  const connectionMode = useNotificationStore((s) => s.connectionMode);
   const startNotifications = useNotificationStore((s) => s.start);
   const stopNotifications = useNotificationStore((s) => s.stop);
   const retryNotifications = useNotificationStore((s) => s.retry);
@@ -480,14 +479,7 @@ function LoggedInRight({
     });
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
-  // 평소(SSE 정상)엔 굳이 라벨에 안 얹어서 조용히 두고, 폴링으로 내려간 상태일 때만 스크린리더
-  // 사용자도 알 수 있게 버튼 이름 자체에 덧붙인다(hover 전용 title만으론 스크린리더가 못 읽음).
-  const notifLabel = [
-    unreadCount > 0 ? `안 읽은 알림 ${unreadCount}개` : "알림",
-    connectionMode === "polling" ? "(주기적으로 확인 중)" : null,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const notifLabel = unreadCount > 0 ? `안 읽은 알림 ${unreadCount}개` : "알림";
 
   return (
     <div className="relative flex items-center gap-4">
@@ -514,16 +506,6 @@ function LoggedInRight({
         {unreadCount > 0 && (
           <span className="absolute right-2 top-[7px] h-[7px] w-[7px] rounded-full border-[1.5px] border-neutral bg-primary" />
         )}
-        {/* SSE 실시간 연결 상태 인디케이터 — 안읽음 점(우상단)과 겹치지 않게 반대쪽 구석에 둔다.
-            색뿐 아니라 채움 여부도 다르게 해서(sse=채움, polling=테두리만) 색맹이어도 구분 가능. */}
-        <span
-          title={connectionMode === "sse" ? "실시간 연결됨" : "새 알림을 주기적으로 확인 중"}
-          className={`absolute bottom-[7px] left-2 h-[6px] w-[6px] rounded-full ${
-            connectionMode === "sse"
-              ? "border-[1.5px] border-neutral bg-[#087a4e]" // 채움 — 안읽음 점과 같은 스타일(구분용 링 + 실선 채움)
-              : "border-[1.5px] border-grade-b bg-transparent" // 테두리만 — 색이 아니라 채움 여부로도 구분되게
-          }`}
-        />
       </button>
       <button
         onClick={() => toggle("profile")}

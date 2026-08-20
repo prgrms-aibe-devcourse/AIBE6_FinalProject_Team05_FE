@@ -20,8 +20,10 @@ const SSE_MAX_RETRIES = 3;
 const SSE_POLL_RETRY_INTERVAL_MS = 5 * 60_000;
 
 type LoadState = "loading" | "error" | "ready";
-// SSE로 실시간 수신 중인지, 폴링으로 대체 중인지 — Header 알림 벨의 상태 인디케이터가 구독한다.
-// pollTimer 등 다른 모듈 변수와 달리 이 값은 UI가 반응해야 해서 store state로 둔다.
+// SSE로 실시간 수신 중인지, 폴링으로 대체 중인지 — 전환 로직 자체(재연결 시도, 폴링 폴백)는
+// 그대로 필요하지만, 이 값을 보여주던 Header 알림 벨의 점 인디케이터는 너무 작아 알아보기
+// 어렵고 SSE/폴링이라는 구현 디테일이 사용자에겐 무의미해서 제거했다(#173) — 지금은 UI 소비처
+// 없이 내부 전환 로직에서만 쓰인다.
 type ConnectionMode = "sse" | "polling";
 
 interface NotificationState {
