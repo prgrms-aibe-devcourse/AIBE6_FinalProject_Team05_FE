@@ -8,13 +8,13 @@ import { highlightMatch } from "@/lib/highlightMatch";
 import { pickDisplayName } from "@/lib/pickDisplayName";
 import { PriceBasis, resolvePriceDisplay, resolveSortablePrice } from "@/lib/priceDisplay";
 import { addRecentSearch } from "@/lib/recentSearches";
-import { isPriceSort, LANGUAGE_OPTIONS, PRICE_MAX, UiSort } from "./constants";
+import { isPriceSort, LANGUAGE_OPTIONS, MARKET_PAGE_SIZE, PRICE_MAX, UiSort } from "./constants";
 import SearchFilterSidebar from "./SearchFilterSidebar";
 
 type LoadState = "loading" | "error" | "ready";
 
-// size 파라미터를 넘기지 않을 때 BE 기본 페이지 size(cardApi.ts 주석 참고)와 맞춘 스켈레톤 칸 수.
-const SEARCH_SKELETON_COUNT = 20;
+// page.tsx가 실제로 요청하는 페이지 size(MARKET_PAGE_SIZE, #187)와 맞춘 스켈레톤 칸 수.
+const SEARCH_SKELETON_COUNT = MARKET_PAGE_SIZE;
 
 // 검색 타일 가격 아래 보조텍스트 — resolvePriceDisplay의 label(문장형, "S등급 상품가" 등)과
 // 별도로 짧게 줄인 배지 문구. 홈/워치리스트 등 다른 화면은 여전히 기존 label을 그대로 쓰므로

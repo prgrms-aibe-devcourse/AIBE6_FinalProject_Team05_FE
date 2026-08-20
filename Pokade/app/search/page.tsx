@@ -13,7 +13,7 @@ import {
 } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
-import { isPriceSort, PRICE_MAX, UiSort } from "./constants";
+import { isPriceSort, MARKET_PAGE_SIZE, PRICE_MAX, UiSort } from "./constants";
 import SearchResultsView from "./SearchResultsView";
 import PriceDashboardView from "./PriceDashboardView";
 
@@ -180,7 +180,7 @@ function SearchDashboard() {
     let cancelled = false;
 
     const request = q
-      ? fetchCardsByKeywordPage(q, page - 1)
+      ? fetchCardsByKeywordPage(q, page - 1, MARKET_PAGE_SIZE)
       : fetchCardsPage({
           expansionId: selectedExpansionId ?? undefined,
           types: selectedTypes,
@@ -190,6 +190,7 @@ function SearchDashboard() {
           maxPrice: debouncedPriceMax < PRICE_MAX ? debouncedPriceMax : undefined,
           sort: apiSort,
           page: page - 1,
+          size: MARKET_PAGE_SIZE,
         });
 
     request

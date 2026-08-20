@@ -6,6 +6,11 @@ import { CardSort } from "@/lib/cardApi";
 
 export const PRICE_MAX = 10000000;
 
+// 마켓 한 페이지에 보여줄 카드 수 — BE 기본값(20) 대신 명시적으로 10을 요청한다(#187).
+// page.tsx의 API 호출과 SearchResultsView.tsx의 로딩 스켈레톤 칸 수가 항상 같은 값을 보도록
+// 여기 하나로 공유한다.
+export const MARKET_PAGE_SIZE = 10;
+
 // 가격순 정렬 — BE 정렬 화이트리스트(CardRepository.SORT_COLUMN_WHITELIST: latest/name/popular)에
 // 가격이 없다(가격은 cards 테이블이 아니라 별도 listings 테이블에 있어 단순 컬럼 정렬이 아니라 BE
 // 작업이 필요 — #142 조사 결과, 임의로 BE를 손대지 않기로 함). 그래서 이 두 값은 BE에 그대로
