@@ -10,7 +10,7 @@ const MENU: { label: string; href?: string }[] = [
   { label: "신고 매물 관리", href: "/admin/listings" },
   { label: "문의 관리", href: "/admin/inquiries" },
   { label: "거래 관리", href: "/admin/trades" },
-  { label: "회원 관리" },
+  { label: "회원 관리", href: "/admin/users" },
   { label: "정산 관리" },
   { label: "공지 관리" },
 ];
