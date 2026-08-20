@@ -82,6 +82,7 @@ export default function AgreementSection({
                 href={item.href}
                 target="_blank"
                 rel="noopener noreferrer"
+                aria-label={`${item.label} 보기 (새 탭에서 열림)`}
                 className="flex-shrink-0 text-[12.5px] font-semibold text-[#8A8A92] underline hover:text-primary"
               >
                 보기
