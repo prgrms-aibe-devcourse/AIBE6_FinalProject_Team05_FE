@@ -430,6 +430,17 @@ export default function MyListingsPage() {
                       </button>
                     </div>
                   )}
+
+                {listing.status !== "ACTIVE" && listing.tradeId != null && (
+                  <div className="flex gap-2 border-t border-[#EDEDF0] pt-3">
+                    <Link
+                      href={`/trade-status/${listing.tradeId}`}
+                      className="rounded-[9px] border border-[#DDDDE3] px-3 py-1.5 text-[12.5px] font-semibold text-[#4B4B52] hover:text-primary"
+                    >
+                      거래 확인
+                    </Link>
+                  </div>
+                )}
               </div>
             ))}
           </div>
