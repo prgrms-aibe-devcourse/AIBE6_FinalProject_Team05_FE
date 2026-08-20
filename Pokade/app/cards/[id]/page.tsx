@@ -89,6 +89,12 @@ function computeGradeSummary(
   return summary;
 }
 
+// 선택된 변형(없으면 카드 대표 이미지)의 대표 이미지 — 구매 흐름(handleBuy)과 본문 렌더링에서 공유.
+function resolveMainImageSrc(card: CardDetailResponse, variantId: number | null): string | undefined {
+  const selectedVariant = card.variants.find((v) => v.id === variantId) ?? null;
+  return selectedVariant?.imageLarge || selectedVariant?.imageSmall || card.imageLarge || card.imageMedium;
+}
+
 // cardId가 바뀔 때마다 key={id}로 리마운트시켜, 이전 카드의 상태(이미지/시세/매물/체결 등)가
 // 새 카드 응답을 받기 전까지 화면에 잔존하는 것을 방지한다.
 function CardDetailView({ cardId }: { cardId: number | null }) {
@@ -197,6 +203,11 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
         orderName,
         cardId: String(cardId),
       });
+      if (card) {
+        const cardImage = resolveMainImageSrc(card, selectedVariantId);
+        if (cardImage) checkoutParams.set("cardImage", cardImage);
+      }
+      if (selectedGrade) checkoutParams.set("grade", GRADE_LABELS[selectedGrade]);
       router.push(`/trades/checkout?${checkoutParams.toString()}`);
     } catch (err) {
       setBuyError(err instanceof ApiError ? err.message : "구매 요청에 실패했습니다.");
@@ -528,13 +539,8 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
           card &&
           cardId != null &&
           (() => {
-            const selectedVariant = card.variants.find((v) => v.id === selectedVariantId) ?? null;
             const displayName = card.nameKo ?? card.name;
-            const mainImageSrc =
-              selectedVariant?.imageLarge ||
-              selectedVariant?.imageSmall ||
-              card.imageLarge ||
-              card.imageMedium;
+            const mainImageSrc = resolveMainImageSrc(card, selectedVariantId);
             const gradeSummary = computeGradeSummary(activeListings);
             const selectedOffer = selectedGrade ? gradeSummary[selectedGrade] : undefined;
             // 등급을 선택했으면 그 등급의 실제 최저 매물가를 우선 보여준다 — 선택 전(또는 방금
