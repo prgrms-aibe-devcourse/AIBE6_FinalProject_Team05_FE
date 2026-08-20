@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import CardImage from "@/components/CardImage";
 import Pagination from "@/components/Pagination";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useNotificationStore } from "@/store/useNotificationStore";
@@ -216,12 +217,31 @@ export default function NotificationsPage() {
                       <span
                         className={`h-[7px] w-[7px] flex-shrink-0 rounded-full ${!n.isRead ? "bg-primary" : "bg-transparent"}`}
                       />
-                      <div
-                        className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[10px]"
-                        style={{ background: style.tint }}
-                      >
-                        {style.icon}
-                      </div>
+                      {/* cardImageUrl이 있으면(카드 관련 알림) 타입 아이콘 대신 카드 썸네일을 보여준다 —
+                          cardId가 아니라 cardImageUrl로 분기해야 "카드는 있었지만 조회 실패"인
+                          경우도 안전하게 기존 아이콘으로 폴백한다. 박스 크기·위치는 그대로 둬서
+                          옆 삭제 버튼·클릭 영역과 겹칠 일이 없다. */}
+                      {n.cardImageUrl ? (
+                        <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-[10px] bg-[#F2F2F5]">
+                          {/* 실제 카드 이미지(images.scrydex.com) 여러 장을 대조해 보면 일러스트
+                              프레임이 카드 세로 기준 대략 5~51% 지점에 있다 — object-top으로 카드
+                              상단부터 잘라낸 뒤, 그 프레임만 꽉 채우도록 scale+origin으로 확대한다.
+                              CardImage 자체(검색 결과 등 다른 화면)는 그대로 둔다. */}
+                          <CardImage
+                            src={n.cardImageUrl}
+                            alt=""
+                            rounded="rounded-[10px]"
+                            className="origin-[50%_19%] scale-150 object-top"
+                          />
+                        </div>
+                      ) : (
+                        <div
+                          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[10px]"
+                          style={{ background: style.tint }}
+                        >
+                          {style.icon}
+                        </div>
+                      )}
                       <div className="min-w-0 flex-1">
                         <div
                           className={`text-[14px] leading-[1.4] text-ink ${!n.isRead ? "font-bold" : "font-semibold"}`}

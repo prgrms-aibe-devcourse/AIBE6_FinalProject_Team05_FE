@@ -9,6 +9,9 @@ export interface NotificationResponse {
   message: string;
   // 알림이 가리키는 카드 — 문의 처리(INQUIRY_HANDLED) 등 카드와 무관한 알림은 null.
   cardId: number | null;
+  // 카드 썸네일 — imageMedium 우선, 없으면 imageSmall. cardId가 있어도 카드 조회 실패 시 null일 수
+  // 있어 표시 여부는 cardId가 아니라 이 필드로 직접 판단한다.
+  cardImageUrl: string | null;
   isRead: boolean;
   createdAt: string;
 }

@@ -602,12 +602,29 @@ function LoggedInRight({
                         <span
                           className={`mt-[15px] h-[7px] w-[7px] flex-shrink-0 rounded-full ${!n.isRead ? "bg-primary" : "bg-transparent"}`}
                         />
-                        <div
-                          className="flex h-[34px] w-[34px] flex-shrink-0 items-center justify-center rounded-[9px]"
-                          style={{ background: style.tint }}
-                        >
-                          {style.icon}
-                        </div>
+                        {/* /app/notifications/page.tsx와 동일한 정책 — cardImageUrl 있으면 카드
+                            썸네일, 없으면(또는 조회 실패) 기존 타입 아이콘. 좁은 드롭다운이라도
+                            34px 그대로 유지(전체 목록과 다른 크기 분기를 또 만들지 않는다). */}
+                        {n.cardImageUrl ? (
+                          <div className="relative h-[34px] w-[34px] flex-shrink-0 overflow-hidden rounded-[9px] bg-[#F2F2F5]">
+                            {/* 실제 카드 이미지를 대조해 보면 일러스트 프레임이 카드 세로 기준
+                                대략 5~51% 지점에 있다 — object-top으로 상단부터 잘라낸 뒤 그
+                                프레임만 꽉 채우도록 scale+origin으로 확대한다. */}
+                            <CardImage
+                              src={n.cardImageUrl}
+                              alt=""
+                              rounded="rounded-[9px]"
+                              className="origin-[50%_19%] scale-150 object-top"
+                            />
+                          </div>
+                        ) : (
+                          <div
+                            className="flex h-[34px] w-[34px] flex-shrink-0 items-center justify-center rounded-[9px]"
+                            style={{ background: style.tint }}
+                          >
+                            {style.icon}
+                          </div>
+                        )}
                         <div className="min-w-0 flex-1">
                           <div
                             className={`text-[13px] leading-[1.4] text-ink ${!n.isRead ? "font-bold" : "font-semibold"}`}
