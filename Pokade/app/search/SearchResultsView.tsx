@@ -69,6 +69,7 @@ interface SearchResultsViewProps {
   loadState: LoadState;
   errorMessage: string;
   cards: CardSearchItem[];
+  hasFuzzyMatch: boolean;
   priceSummaries: Map<number, CardPriceSummaryResponse>;
   totalElements: number;
   totalPages: number;
@@ -151,6 +152,7 @@ export default function SearchResultsView({
   loadState,
   errorMessage,
   cards,
+  hasFuzzyMatch,
   priceSummaries,
   totalElements,
   totalPages,
@@ -269,6 +271,14 @@ export default function SearchResultsView({
             className="w-full border-none bg-transparent text-[13.5px] text-ink outline-none"
           />
         </form>
+
+        {/* 오타 등으로 정확 일치 결과가 없어 유사검색으로 대체됐을 때만 노출(#187) — q가 없거나
+            (필터 검색) 결과가 비어 있으면(빈 상태 문구가 대신 노출) 굳이 같이 보여줄 필요가 없다. */}
+        {q && hasFuzzyMatch && loadState === "ready" && cards.length > 0 && (
+          <div className="mb-4 rounded-[10px] bg-lavender px-3.5 py-2.5 text-[12.5px] font-semibold text-secondary">
+            {`"${q}"에 대한 정확한 검색 결과가 없어, 비슷한 카드를 보여드려요.`}
+          </div>
+        )}
 
         <div className="mb-4 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">

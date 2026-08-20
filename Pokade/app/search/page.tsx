@@ -101,6 +101,11 @@ function SearchDashboard() {
   );
   const [totalPages, setTotalPages] = useState(1);
   const [totalElements, setTotalElements] = useState(0);
+  // 키워드 검색(q)에서 정확 일치 결과가 없어 유사검색으로 대체됐는지(#187) — 필터 검색/연관
+  // 카드 경로는 애초에 계산 자체를 하지 않아(아래 fetch effect의 q 분기 참고) 항상 false로
+  // 남는다. BE가 "필터 검색은 항상 fuzzyMatch:false"라고 보장하더라도 그 값을 그대로 믿지 않고
+  // FE에서 한 번 더 q로 걸러내, 안내 문구가 키워드 검색 결과에만 뜨도록 이중으로 막는다.
+  const [hasFuzzyMatch, setHasFuzzyMatch] = useState(false);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
@@ -199,6 +204,7 @@ function SearchDashboard() {
         setCards(response.content.map(toCardSearchItem));
         setTotalPages(response.totalPages);
         setTotalElements(response.totalElements);
+        setHasFuzzyMatch(q ? response.content.some((c) => c.fuzzyMatch) : false);
         setLoadState("ready");
       })
       .catch((err) => {
@@ -407,6 +413,7 @@ function SearchDashboard() {
             loadState={loadState}
             errorMessage={errorMessage}
             cards={cards}
+            hasFuzzyMatch={hasFuzzyMatch}
             priceSummaries={priceSummaries}
             totalElements={totalElements}
             totalPages={totalPages}
