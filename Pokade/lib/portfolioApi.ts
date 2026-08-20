@@ -49,3 +49,10 @@ export async function fetchPortfolioPnl(id: number): Promise<PortfolioItemPnlRes
 export async function fetchPortfolioAnalytics(): Promise<PortfolioAnalyticsResponse> {
   return apiGet<PortfolioAnalyticsResponse>("/api/portfolio/analytics");
 }
+
+// POST /api/portfolio/from-grade/{resultId} — AI 진단 결과(FR-AI-04)를 도감에 등록.
+// 정상 산출(SUCCESS)이 아니면 400(GRADE_RESULT_NOT_REGISTRABLE), 본인 결과가 아니면 403(ACCESS_DENIED),
+// 이미 등록된 결과면 409(GRADE_RESULT_ALREADY_REGISTERED), 카드를 해석하지 못하면 404(CARD_NOT_FOUND).
+export async function addPortfolioItemFromGrade(resultId: number): Promise<PortfolioItemResponse> {
+  return apiPost<PortfolioItemResponse>(`/api/portfolio/from-grade/${resultId}`);
+}
