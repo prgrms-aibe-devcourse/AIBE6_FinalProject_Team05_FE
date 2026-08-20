@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { ChangeEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { loadTossPayments, TossPaymentsWidgets } from "@tosspayments/tosspayments-sdk";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
@@ -12,7 +12,7 @@ const TOSS_CLIENT_KEY = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY ?? "";
 const ORDER_NAME = "포켓트레이드 포인트 충전";
 const MIN_AMOUNT = 1000;
 const MAX_AMOUNT = 1_000_000;
-const QUICK_AMOUNTS = [10000, 30000, 50000, 100000];
+const QUICK_AMOUNTS = [1000, 5000, 10000, 30000, 50000, 100000];
 
 type Step = "input" | "widget";
 
@@ -21,7 +21,10 @@ export default function PointChargePage() {
   const userId = useUserStore((s) => s.userId);
 
   const [step, setStep] = useState<Step>("input");
-  const [amount, setAmount] = useState(10000);
+  // 입력창은 문자열로 들고 있는다 - amount를 number 상태로 직접 바인딩하면 전부 지웠을 때
+  // value가 0으로 즉시 되돌아가 빈 칸을 만들 수가 없다(그 앞에 숫자를 이어붙여야 하는 상황이 됨).
+  const [amountInput, setAmountInput] = useState("10000");
+  const amount = amountInput === "" ? 0 : Number(amountInput);
   const [orderId, setOrderId] = useState<string | null>(null);
   const [widgets, setWidgets] = useState<TossPaymentsWidgets | null>(null);
   const [preparing, setPreparing] = useState(false);
@@ -39,7 +42,14 @@ export default function PointChargePage() {
 
   if (status !== "authenticated" || userId === null) return null;
 
-  const amountValid = amount >= MIN_AMOUNT && amount <= MAX_AMOUNT;
+  const amountInRange = amount >= MIN_AMOUNT && amount <= MAX_AMOUNT;
+  const amountIsStep = amount % 1000 === 0;
+  const amountValid = amountInRange && amountIsStep;
+
+  // 자동으로 반올림하지 않는다 - 1,000원 단위가 아니면 그 자리에서 진행을 막고 이유를 보여준다.
+  const handleAmountChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setAmountInput(e.target.value.replace(/[^0-9]/g, ""));
+  };
 
   const handlePrepare = async () => {
     if (!amountValid || preparing) return;
@@ -93,18 +103,18 @@ export default function PointChargePage() {
         <div className="rounded-[18px] border border-[#EDEDF0] bg-white p-7 shadow-card">
           <label className="mb-2 block text-[13px] font-bold text-[#4B4B52]">충전 금액</label>
           <input
-            type="number"
-            value={amount}
+            type="text"
+            inputMode="numeric"
+            value={amountInput === "" ? "" : amount.toLocaleString("ko-KR")}
             disabled={step === "widget"}
-            onChange={(e) => setAmount(Number(e.target.value))}
-            min={MIN_AMOUNT}
-            max={MAX_AMOUNT}
-            step={1000}
+            onChange={handleAmountChange}
             className="w-full rounded-[11px] border border-[#DDDDE3] px-3.5 py-3 text-[15px] font-bold text-ink outline-none focus:border-primary disabled:bg-[#FAFAFB] disabled:text-[#9A9AA2]"
           />
           {!amountValid && (
             <p className="mt-1.5 text-[12.5px] text-primary">
-              {MIN_AMOUNT.toLocaleString("ko-KR")}원 이상 {MAX_AMOUNT.toLocaleString("ko-KR")}원 이하로 입력해주세요.
+              {!amountInRange
+                ? `${MIN_AMOUNT.toLocaleString("ko-KR")}원 이상 ${MAX_AMOUNT.toLocaleString("ko-KR")}원 이하로 입력해주세요.`
+                : "1,000원 단위로 입력해주세요."}
             </p>
           )}
 
@@ -114,10 +124,10 @@ export default function PointChargePage() {
                 <button
                   key={quick}
                   type="button"
-                  onClick={() => setAmount(quick)}
+                  onClick={() => setAmountInput(String(quick))}
                   className="rounded-full border border-[#DDDDE3] bg-white px-3 py-1.5 text-[12px] font-bold text-[#4B4B52] transition hover:border-primary hover:text-primary"
                 >
-                  +{quick.toLocaleString("ko-KR")}
+                  {quick.toLocaleString("ko-KR")}P
                 </button>
               ))}
             </div>
