@@ -8,6 +8,7 @@ import PriceChart from "@/components/PriceChart";
 import ImageLightbox from "@/components/ImageLightbox";
 import AddWatchlistModal from "@/components/AddWatchlistModal";
 import RelatedCardsSection from "./RelatedCardsSection";
+import VariantPriceComparison from "./VariantPriceComparison";
 import { CardDetailResponse, parseCardId, variantLabel } from "@/types/card";
 import {
   ChartPeriod,
@@ -105,11 +106,6 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   // 비로그인이거나 체결 이력이 부족해 계산할 수 없으면 null — 뱃지 자체를 숨긴다(에러 UI 없음).
   const [priceStats, setPriceStats] = useState<PriceStatsResponse | null>(null);
   const [activeListings, setActiveListings] = useState<ListingSummaryResponse[]>([]);
-  // 판본이 2개 이상인 카드에서만 채워지는 판본별 시세 비교용 상태(variantId -> summary).
-  const [variantPrices, setVariantPrices] = useState<Record<number, PriceSummaryResponse | null>>(
-    {},
-  );
-  const [variantPricesLoadState, setVariantPricesLoadState] = useState<RelatedLoadState>("loading");
   const [selectedGrade, setSelectedGrade] = useState<GradeKey | null>(null);
   const [chartPeriod, setChartPeriod] = useState<ChartPeriod>("30d");
   const [chartData, setChartData] = useState<TradeSummaryResponse[]>([]);
@@ -300,30 +296,6 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
       cancelled = true;
     };
   }, [cardId, loadState]);
-
-  // 판본이 여러 개인 카드만 판본별 시세 비교가 필요하므로, 판본당 summary를 병렬로 따로 조회한다.
-  // (판본 1개 카드는 기존 priceSummary 조회만으로 충분해 이 effect 자체가 동작하지 않는다.)
-  useEffect(() => {
-    if (loadState !== "ready" || cardId == null || !card || card.variants.length <= 1) return;
-    let cancelled = false;
-
-    Promise.allSettled(card.variants.map((v) => fetchPriceSummary(cardId, v.id))).then(
-      (results) => {
-        if (cancelled) return;
-        const next: Record<number, PriceSummaryResponse | null> = {};
-        card.variants.forEach((v, i) => {
-          const r = results[i];
-          next[v.id] = r.status === "fulfilled" ? r.value : null;
-        });
-        setVariantPrices(next);
-        setVariantPricesLoadState("ready");
-      },
-    );
-
-    return () => {
-      cancelled = true;
-    };
-  }, [cardId, loadState, card]);
 
   useEffect(() => {
     if (loadState !== "ready" || cardId == null) return;
@@ -588,64 +560,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                       </div>
                     </div>
 
-                    {card.variants.length > 1 && (
-                      <div className="flex flex-col gap-2 rounded-2xl border border-[#EDEDF0] bg-white p-5">
-                        <div className="mb-1 text-[12.5px] font-bold text-ink">
-                          판본별 시세 비교
-                        </div>
-                        {card.variants.map((v) => {
-                          const vp = variantPrices[v.id];
-                          return (
-                            <div
-                              key={v.id}
-                              className="flex items-center justify-between gap-4 rounded-xl bg-neutral px-3 py-2.5"
-                            >
-                              <span className="text-[12.5px] font-bold text-ink">
-                                {variantLabel(v.variantName)}
-                              </span>
-                              <div className="flex items-end gap-5">
-                                <div>
-                                  <div className="text-[10.5px] font-semibold text-[#8A8A92]">
-                                    즉시구매가
-                                  </div>
-                                  <div className="mt-0.5 text-right text-[15px] font-extrabold text-primary">
-                                    {variantPricesLoadState === "loading" ? (
-                                      <span className="text-[12.5px] font-semibold text-[#9A9AA2]">
-                                        불러오는 중...
-                                      </span>
-                                    ) : vp?.buyPrice != null ? (
-                                      `${vp.buyPrice.toLocaleString("ko-KR")}원`
-                                    ) : (
-                                      <span className="text-[12.5px] font-semibold text-[#9A9AA2]">
-                                        상품 없음
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <div>
-                                  <div className="text-[10.5px] font-semibold text-[#8A8A92]">
-                                    판매가
-                                  </div>
-                                  <div className="mt-0.5 text-right text-[13px] font-bold text-ink">
-                                    {variantPricesLoadState === "loading" ? (
-                                      <span className="text-[12px] font-semibold text-[#9A9AA2]">
-                                        불러오는 중...
-                                      </span>
-                                    ) : vp?.sellPrice != null ? (
-                                      `${vp.sellPrice.toLocaleString("ko-KR")}원`
-                                    ) : (
-                                      <span className="text-[12px] font-semibold text-[#9A9AA2]">
-                                        판매 요청 없음
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                    <VariantPriceComparison cardId={cardId} variants={card.variants} />
 
                     <PriceChart
                       data={chartData}
