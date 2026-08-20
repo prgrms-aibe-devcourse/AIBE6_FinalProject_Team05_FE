@@ -81,6 +81,8 @@ export default function TradeStatusPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
 
+  const [retryKey, setRetryKey] = useState(0);
+
   useEffect(() => {
     if (userStatus !== "authenticated" || tradeId == null) return;
     let cancelled = false;
@@ -104,7 +106,7 @@ export default function TradeStatusPage() {
     return () => {
       cancelled = true;
     };
-  }, [userStatus, tradeId]);
+  }, [userStatus, tradeId, retryKey]);
 
   const handleShip = async () => {
     if (!trade) return;
@@ -202,19 +204,41 @@ export default function TradeStatusPage() {
 
         {loadState === "notfound" && (
           <div className="rounded-2xl border border-[#EDEDF0] bg-white py-14 text-center text-[13.5px] text-[#9A9AA2]">
-            거래를 찾을 수 없습니다.
+            <p>거래를 찾을 수 없습니다.</p>
+            <Link
+              href="/listings/me"
+              className="mt-3 inline-block text-[12.5px] font-bold text-primary hover:text-primary-dark"
+            >
+              내 상품으로 돌아가기
+            </Link>
           </div>
         )}
 
         {loadState === "forbidden" && (
           <div className="rounded-2xl border border-[#EDEDF0] bg-white py-14 text-center text-[13.5px] text-[#9A9AA2]">
-            본인의 거래만 확인할 수 있습니다.
+            <p>본인의 거래만 확인할 수 있습니다.</p>
+            <Link
+              href="/listings/me"
+              className="mt-3 inline-block text-[12.5px] font-bold text-primary hover:text-primary-dark"
+            >
+              내 상품으로 돌아가기
+            </Link>
           </div>
         )}
 
         {loadState === "error" && (
           <div className="rounded-2xl border border-[#F6C6C6] bg-[#FFF1F1] py-14 text-center text-[13.5px] text-[#C21414]">
-            거래 정보를 불러오지 못했습니다.
+            <p>거래 정보를 불러오지 못했습니다.</p>
+            <button
+              type="button"
+              onClick={() => {
+                setLoadState("loading");
+                setRetryKey((k) => k + 1);
+              }}
+              className="mt-3 font-bold text-[#C21414] underline hover:no-underline"
+            >
+              다시 시도
+            </button>
           </div>
         )}
 

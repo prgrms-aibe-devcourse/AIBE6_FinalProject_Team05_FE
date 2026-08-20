@@ -277,13 +277,48 @@ export default function MyListingsPage() {
           </div>
         )}
 
-        {loadState === "ready" && visibleListings.length === 0 && (
+        {loadState === "ready" && visibleListings.length === 0 && listings.length === 0 && (
+          <div className="rounded-[18px] border border-[#EDEDF0] bg-white px-10 py-[60px] text-center">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#F2F2F5]">
+              <svg
+                width="38"
+                height="38"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#C7C7CE"
+                strokeWidth="1.6"
+                aria-hidden="true"
+              >
+                <path d="M4 7l8-4 8 4v10l-8 4-8-4V7z" />
+                <path d="M4 7l8 4 8-4M12 11v10" />
+              </svg>
+            </div>
+            <h3 className="mb-0 mt-[18px] text-[16px] font-extrabold">등록된 상품이 없어요</h3>
+            <p className="mt-2 text-[13px] leading-relaxed text-[#8A8A92]">
+              첫 상품을 등록하고 판매를 시작해보세요.
+            </p>
+            <Link
+              href="/listings/new"
+              className="mt-5 inline-block rounded-[11px] border-2 border-primary-dark bg-primary px-6 py-2.5 text-[13.5px] font-bold text-white shadow-tactile-sm hover:text-white"
+            >
+              상품 등록하러 가기
+            </Link>
+          </div>
+        )}
+
+        {loadState === "ready" && visibleListings.length === 0 && listings.length > 0 && (
           <div className="rounded-[18px] border border-[#EDEDF0] bg-white px-6 py-14 text-center text-[13.5px] text-[#8A8A92]">
-            {listings.length === 0
-              ? "등록된 상품이 없습니다."
-              : trimmedQuery
-                ? "검색 결과가 없습니다."
-                : "해당 상태의 상품이 없습니다."}
+            <p>{trimmedQuery ? "검색 결과가 없습니다." : "해당 상태의 상품이 없습니다."}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setStatusFilter(null);
+                setQuery("");
+              }}
+              className="mt-3 text-[12.5px] font-bold text-primary hover:text-primary-dark"
+            >
+              필터 초기화
+            </button>
           </div>
         )}
 
