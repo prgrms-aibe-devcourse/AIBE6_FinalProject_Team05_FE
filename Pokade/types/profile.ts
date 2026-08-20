@@ -7,6 +7,7 @@ export interface MyProfile {
   socialLinked: boolean;
   joinedAt: string;
   birthDate: string | null;
+  marketingAgreed: boolean;
 }
 
 // GET /api/users/{userId} — 비로그인도 조회 가능한 공개 프로필.

@@ -95,3 +95,8 @@ export function changePassword(currentPassword: string, newPassword: string): Pr
 export function oauth2Register(body: OAuth2RegisterRequest): Promise<LoginResponse> {
   return apiPost<LoginResponse>("/api/auth/oauth2/register", body);
 }
+
+// PATCH /api/users/me/agreements/marketing — 마케팅 수신 동의 변경. 철회도 이력으로 남는다.
+export function changeMarketingAgreement(agreed: boolean): Promise<void> {
+  return apiPatch<void>("/api/users/me/agreements/marketing", { agreed });
+}

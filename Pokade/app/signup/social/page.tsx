@@ -4,13 +4,18 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUserStore } from "@/store/useUserStore";
 import { oauth2Register } from "@/lib/authApi";
+import AgreementSection, {
+  Agreements,
+  EMPTY_AGREEMENTS,
+  isRequiredAgreed,
+} from "@/components/AgreementSection";
 
 export default function SocialSignupPage() {
   const router = useRouter();
   const loginWithToken = useUserStore((s) => s.loginWithToken);
   const [ticket, setTicket] = useState<string | null>(null);
   const [nickname, setNickname] = useState("");
-  const [termsAgreed, setTermsAgreed] = useState(false);
+  const [agreements, setAgreements] = useState<Agreements>(EMPTY_AGREEMENTS);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,7 +40,7 @@ export default function SocialSignupPage() {
     setError(null);
     setLoading(true);
     try {
-      const { accessToken } = await oauth2Register({ ticket, nickname, termsAgreed });
+      const { accessToken } = await oauth2Register({ ticket, nickname, ...agreements });
       await loginWithToken(accessToken);
       router.replace("/");
     } catch (err) {
@@ -60,18 +65,11 @@ export default function SocialSignupPage() {
           required
           className="rounded-[11px] border border-[#DADCE0] px-4 py-3 text-[15px] outline-none focus:border-primary"
         />
-        <label className="flex items-center gap-2 text-[14px] text-[#3C4043]">
-          <input
-            type="checkbox"
-            checked={termsAgreed}
-            onChange={(e) => setTermsAgreed(e.target.checked)}
-          />
-          [필수] 이용약관에 동의합니다
-        </label>
+        <AgreementSection value={agreements} onChange={setAgreements} />
         {error && <p className="text-[13.5px] text-red-500">{error}</p>}
         <button
           type="submit"
-          disabled={loading || !termsAgreed || nickname.length < 2}
+          disabled={loading || !isRequiredAgreed(agreements) || nickname.length < 2}
           className="rounded-[11px] bg-primary py-3.5 font-bold text-white transition active:translate-y-0.5 disabled:opacity-60"
         >
           {loading ? "가입 중..." : "가입 완료"}
