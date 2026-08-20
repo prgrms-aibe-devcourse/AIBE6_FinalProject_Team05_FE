@@ -10,8 +10,9 @@ import { ApiError } from "@/lib/apiClient";
 import { cancelTrade, confirmTrade, fetchTrade, shipTrade } from "@/lib/tradeApi";
 import { parseTradeId, TradeResponse } from "@/types/trade";
 
-// COMPLETED/CANCELLED(종결 상태)를 제외한 나머지는 전부 취소 가능 — BE의 cancel() 가드와 동일하게.
-const CANCELLABLE = new Set(["PENDING", "SHIPPED_TO_PLATFORM", "INSPECTED", "DELIVERED"]);
+// DELIVERED(실물 수령) 이후와 COMPLETED/CANCELLED(종결 상태)는 취소할 수 없다 — BE의 cancel() 가드와
+// 동일하게. 배송 완료 후에도 취소를 허용하면 카드를 받고도 결제를 환불받아가는 경로가 생긴다.
+const CANCELLABLE = new Set(["PENDING", "SHIPPED_TO_PLATFORM", "INSPECTED"]);
 
 // 실제 택배사 추적 연동이 없어 확정 도착일이 아닌, 운영 기준(발송 후 24시간 이내 검수 /
 // 검수 후 2일 이내 배송)으로 계산한 참고용 예상치다.

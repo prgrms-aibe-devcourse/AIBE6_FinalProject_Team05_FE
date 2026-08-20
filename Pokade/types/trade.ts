@@ -2,9 +2,11 @@
 export type TradeStatus =
   "PENDING" | "SHIPPED_TO_PLATFORM" | "INSPECTED" | "DELIVERED" | "COMPLETED" | "CANCELLED";
 
-// POST /api/trades 요청 바디 — com.pokade.domain.trade.dto.TradeCreateRequest 미러링.
-export interface TradeCreateRequest {
-  listingId: number;
+// POST /api/trades/ready 응답 — com.pokade.domain.trade.dto.TradeReadyResponse 미러링.
+// 결제창을 띄우기 전 주문만 먼저 만든 상태라, 이 시점엔 아직 매물이 잠기지 않는다.
+export interface TradeReadyResponse {
+  orderId: string;
+  amount: number;
 }
 
 // POST/GET/PATCH /api/trades 응답 — com.pokade.domain.trade.dto.TradeResponse 미러링.
