@@ -4,17 +4,17 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { GRADE_BG } from "@/components/GradeBadge";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { ApiError } from "@/lib/apiClient";
-import { deleteListing, fetchMyListings, updateListingPrice } from "@/lib/listingApi";
+import { ApiError, PageResponse } from "@/lib/apiClient";
+import { deleteListing, fetchMyListings, MyListingsSort, updateListingPrice } from "@/lib/listingApi";
 import { ListingGrade, ListingStatus, ListingSummaryResponse } from "@/types/price";
 
-type Sort = "latest" | "oldest" | "priceAsc" | "priceDesc";
+const PAGE_SIZE = 10;
 
-const SORT_OPTIONS: { key: Sort; label: string }[] = [
-  { key: "latest", label: "등록 최신순" },
-  { key: "oldest", label: "등록 오래된순" },
-  { key: "priceAsc", label: "가격 낮은순" },
-  { key: "priceDesc", label: "가격 높은순" },
+const SORT_OPTIONS: { key: MyListingsSort; label: string }[] = [
+  { key: "createdAt,desc", label: "등록 최신순" },
+  { key: "createdAt,asc", label: "등록 오래된순" },
+  { key: "price,asc", label: "가격 낮은순" },
+  { key: "price,desc", label: "가격 높은순" },
 ];
 
 const STATUS_FILTERS: { label: string; value: ListingStatus | null }[] = [
@@ -86,9 +86,9 @@ export default function MyListingsPage() {
   const status = useRequireAuth();
 
   const [statusFilter, setStatusFilter] = useState<ListingStatus | null>(null);
-  const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<Sort>("latest");
-  const [listings, setListings] = useState<ListingSummaryResponse[]>([]);
+  const [sort, setSort] = useState<MyListingsSort>("createdAt,desc");
+  const [page, setPage] = useState(0);
+  const [pageData, setPageData] = useState<PageResponse<ListingSummaryResponse> | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -103,15 +103,14 @@ export default function MyListingsPage() {
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  // 상태 필터는 재요청 없이 클라이언트에서 처리한다(watchlist 페이지와 동일한 패턴) —
-  // 그래야 필터 전환 시 깜빡임 없이 즉시 반영되고, 상태별 개수도 별도 요청 없이 계산 가능하다.
+  // 상태/정렬 변경 시 페이지를 0으로 되돌리고 다시 조회 — 서버 페이징이라 필터·정렬이 바뀌면 항상 재요청이 필요하다.
   useEffect(() => {
     if (status !== "authenticated") return;
     let cancelled = false;
-    fetchMyListings()
+    fetchMyListings(statusFilter ?? undefined, page, PAGE_SIZE, sort)
       .then((data) => {
         if (!cancelled) {
-          setListings(data);
+          setPageData(data);
           setLoadState("ready");
         }
       })
@@ -124,27 +123,9 @@ export default function MyListingsPage() {
     return () => {
       cancelled = true;
     };
-  }, [status]);
+  }, [status, statusFilter, sort, page]);
 
-  const trimmedQuery = query.trim().toLowerCase();
-  const visibleListings = listings
-    .filter((l) => (statusFilter ? l.status === statusFilter : true))
-    .filter((l) => (trimmedQuery ? (l.cardName ?? "").toLowerCase().includes(trimmedQuery) : true))
-    .sort((a, b) => {
-      switch (sort) {
-        case "oldest":
-          return a.createdAt.localeCompare(b.createdAt);
-        case "priceAsc":
-          return a.price - b.price;
-        case "priceDesc":
-          return b.price - a.price;
-        case "latest":
-        default:
-          return b.createdAt.localeCompare(a.createdAt);
-      }
-    });
-  const countFor = (value: ListingStatus | null) =>
-    value === null ? listings.length : listings.filter((l) => l.status === value).length;
+  const listings = pageData?.content ?? [];
 
   const startEdit = (listing: ListingSummaryResponse) => {
     setConfirmDeleteId(null);
@@ -168,8 +149,15 @@ export default function MyListingsPage() {
     setEditError(null);
     try {
       const updated = await updateListingPrice(listingId, { price: priceNumber });
-      setListings((prev) =>
-        prev.map((l) => (l.id === listingId ? { ...l, price: updated.price } : l)),
+      setPageData((prev) =>
+        prev
+          ? {
+              ...prev,
+              content: prev.content.map((l) =>
+                l.id === listingId ? { ...l, price: updated.price } : l,
+              ),
+            }
+          : prev,
       );
       setEditingId(null);
     } catch (err) {
@@ -195,9 +183,15 @@ export default function MyListingsPage() {
     setDeleteError(null);
     try {
       await deleteListing(listingId);
-      // 상태만 CANCELLED로 갱신하면 되고, 필터에서 보이지 않게 되는 건 visibleListings가 알아서 처리한다.
-      setListings((prev) =>
-        prev.map((l) => (l.id === listingId ? { ...l, status: "CANCELLED" } : l)),
+      setPageData((prev) =>
+        prev
+          ? {
+              ...prev,
+              content: prev.content.map((l) =>
+                l.id === listingId ? { ...l, status: "CANCELLED" } : l,
+              ),
+            }
+          : prev,
       );
       setConfirmDeleteId(null);
     } catch (err) {
@@ -227,29 +221,31 @@ export default function MyListingsPage() {
             <button
               key={label}
               type="button"
-              onClick={() => setStatusFilter(value)}
+              onClick={() => {
+                setStatusFilter(value);
+                setPage(0);
+              }}
               className={`rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition ${
                 statusFilter === value
                   ? "border-primary-dark bg-primary text-white"
                   : "border-[#DDDDE3] bg-white text-[#4B4B52] hover:bg-neutral"
               }`}
             >
-              {label} {countFor(value)}
+              {label}
             </button>
           ))}
         </div>
 
-        <div className="mb-5 flex gap-2">
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="카드 이름으로 검색"
-            className="flex-1 rounded-[11px] border border-[#DDDDE3] px-3.5 py-2.5 text-[13.5px] text-ink outline-none"
-          />
+        <div className="mb-5 flex items-center justify-between">
+          <span className="text-[13px] font-semibold text-[#8A8A92]">
+            {loadState === "ready" && pageData ? `총 ${pageData.totalElements}개` : ""}
+          </span>
           <select
             value={sort}
-            onChange={(e) => setSort(e.target.value as Sort)}
+            onChange={(e) => {
+              setSort(e.target.value as MyListingsSort);
+              setPage(0);
+            }}
             className="rounded-[11px] border border-[#DDDDE3] px-3 py-2.5 text-[13px] font-semibold text-[#4B4B52] outline-none"
           >
             {SORT_OPTIONS.map((option) => (
@@ -277,7 +273,7 @@ export default function MyListingsPage() {
           </div>
         )}
 
-        {loadState === "ready" && visibleListings.length === 0 && listings.length === 0 && (
+        {loadState === "ready" && listings.length === 0 && (pageData?.totalElements ?? 0) === 0 && (
           <div className="rounded-[18px] border border-[#EDEDF0] bg-white px-10 py-[60px] text-center">
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#F2F2F5]">
               <svg
@@ -306,14 +302,14 @@ export default function MyListingsPage() {
           </div>
         )}
 
-        {loadState === "ready" && visibleListings.length === 0 && listings.length > 0 && (
+        {loadState === "ready" && listings.length === 0 && (pageData?.totalElements ?? 0) > 0 && (
           <div className="rounded-[18px] border border-[#EDEDF0] bg-white px-6 py-14 text-center text-[13.5px] text-[#8A8A92]">
-            <p>{trimmedQuery ? "검색 결과가 없습니다." : "해당 상태의 상품이 없습니다."}</p>
+            <p>해당 상태의 상품이 없습니다.</p>
             <button
               type="button"
               onClick={() => {
                 setStatusFilter(null);
-                setQuery("");
+                setPage(0);
               }}
               className="mt-3 text-[12.5px] font-bold text-primary hover:text-primary-dark"
             >
@@ -322,9 +318,9 @@ export default function MyListingsPage() {
           </div>
         )}
 
-        {loadState === "ready" && visibleListings.length > 0 && (
+        {loadState === "ready" && listings.length > 0 && (
           <div className="flex flex-col gap-2.5">
-            {visibleListings.map((listing) => (
+            {listings.map((listing) => (
               <div
                 key={listing.id}
                 className="flex flex-col gap-3 rounded-[14px] border border-[#EDEDF0] bg-white px-5 py-4"
@@ -443,6 +439,41 @@ export default function MyListingsPage() {
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {loadState === "ready" && pageData && pageData.totalPages > 1 && (
+          <div className="mt-6 flex items-center justify-center gap-1.5">
+            <button
+              type="button"
+              disabled={page === 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              className="rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#4B4B52] disabled:opacity-40"
+            >
+              이전
+            </button>
+            {Array.from({ length: pageData.totalPages }).map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setPage(i)}
+                className={`h-8 w-8 rounded-[9px] text-[12.5px] font-bold transition ${
+                  page === i
+                    ? "bg-primary text-white"
+                    : "border border-[#DDDDE3] bg-white text-[#4B4B52] hover:bg-neutral"
+                }`}
+              >
+                {i + 1}
+              </button>
+            ))}
+            <button
+              type="button"
+              disabled={page >= pageData.totalPages - 1}
+              onClick={() => setPage((p) => Math.min(pageData.totalPages - 1, p + 1))}
+              className="rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#4B4B52] disabled:opacity-40"
+            >
+              다음
+            </button>
           </div>
         )}
       </div>
