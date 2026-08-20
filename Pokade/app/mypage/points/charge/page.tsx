@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { loadTossPayments, TossPaymentsWidgets } from "@tosspayments/tosspayments-sdk";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
@@ -28,6 +28,15 @@ export default function PointChargePage() {
   const [requesting, setRequesting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  // #toss-payment-method/#toss-agreement는 step === "widget"일 때만 JSX에 렌더되므로,
+  // 그 DOM이 실제로 커밋된 뒤(useEffect)에 위젯을 붙여야 한다 — handlePrepare 안에서 바로 부르면
+  // setStep("widget") 이전이라 두 div가 아직 없어 렌더링이 조용히 실패한다.
+  useEffect(() => {
+    if (step !== "widget" || !widgets) return;
+    widgets.renderPaymentMethods({ selector: "#toss-payment-method" });
+    widgets.renderAgreement({ selector: "#toss-agreement" });
+  }, [step, widgets]);
+
   if (status !== "authenticated" || userId === null) return null;
 
   const amountValid = amount >= MIN_AMOUNT && amount <= MAX_AMOUNT;
@@ -39,10 +48,9 @@ export default function PointChargePage() {
     try {
       const ready = await readyPointCharge(amount);
       const tossPayments = await loadTossPayments(TOSS_CLIENT_KEY);
-      const widgetInstance = tossPayments.widgets({ customerKey: String(userId) });
+      // Toss customerKey는 2자 이상이어야 해서, 한 자리 userId(1~9)를 그대로 넘기면 위젯 생성이 실패한다.
+      const widgetInstance = tossPayments.widgets({ customerKey: `user-${userId}` });
       await widgetInstance.setAmount({ currency: "KRW", value: ready.amount });
-      await widgetInstance.renderPaymentMethods({ selector: "#toss-payment-method" });
-      await widgetInstance.renderAgreement({ selector: "#toss-agreement" });
 
       setOrderId(ready.orderId);
       setWidgets(widgetInstance);
