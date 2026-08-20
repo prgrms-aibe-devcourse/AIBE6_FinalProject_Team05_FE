@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import { ApiError, PageResponse } from "@/lib/apiClient";
@@ -20,6 +21,7 @@ type LoadState = "loading" | "error" | "ready";
 // 전역 store 대신 화면 자체 상태를 쓴다). 다만 읽음 처리 시 헤더 배지/드롭다운도 함께 최신화되도록
 // store의 retry()만 가져와 쓴다(마크 자체는 이 화면이 직접 호출).
 export default function NotificationsPage() {
+  const router = useRouter();
   const authStatus = useRequireAuth();
   const startFeed = useNotificationStore((s) => s.start);
   const retryFeed = useNotificationStore((s) => s.retry);
@@ -97,6 +99,14 @@ export default function NotificationsPage() {
         retryFeed();
       })
       .catch(() => {});
+  };
+
+  // 읽음 처리 여부와 무관하게, cardId가 있는 알림은 항상 카드 상세로 이동한다 — 이미 읽은
+  // 알림이라도 다시 들어갈 수 있어야 자연스럽다. cardId가 없는 알림(문의 처리 등)은 기존처럼
+  // 읽음 처리만 하고 제자리에 둔다.
+  const handleNotificationClick = (n: NotificationResponse) => {
+    markOneRead(n);
+    if (n.cardId != null) router.push(`/cards/${n.cardId}`);
   };
 
   // 확인창 없이 즉시 삭제(결정된 방향) — 삭제한 알림이 안읽음이었어도 신경 쓰지 않고 항상
@@ -199,7 +209,7 @@ export default function NotificationsPage() {
                   >
                     <button
                       type="button"
-                      onClick={() => markOneRead(n)}
+                      onClick={() => handleNotificationClick(n)}
                       className="flex min-w-0 flex-1 items-center gap-[13px] text-left"
                     >
                       <span

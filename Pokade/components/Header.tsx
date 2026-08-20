@@ -18,6 +18,7 @@ import {
 } from "@/lib/recentSearches";
 import { notifStyle, formatNotifTime } from "@/lib/notificationDisplay";
 import { CardResponse } from "@/types/card";
+import { NotificationResponse } from "@/types/notification";
 import { useUserStore } from "@/store/useUserStore";
 import { useNotificationStore } from "@/store/useNotificationStore";
 
@@ -454,6 +455,17 @@ function LoggedInRight({
   const markOneRead = useNotificationStore((s) => s.markOneRead);
   const markAllRead = useNotificationStore((s) => s.markAllRead);
 
+  // /app/notifications/page.tsx와 동일한 정책 — cardId가 있으면 읽음 여부와 무관하게 항상
+  // 카드 상세로 이동하고, 드롭다운은 페이지 전환 후 열려있지 않도록 닫는다. cardId가 없는
+  // 알림(문의 처리 등)은 기존처럼 읽음 처리만 하고 드롭다운은 그대로 둔다.
+  const handleNotificationClick = (n: NotificationResponse) => {
+    markOneRead(n);
+    if (n.cardId != null) {
+      setOpen(null);
+      router.push(`/cards/${n.cardId}`);
+    }
+  };
+
   useEffect(() => {
     startNotifications();
     return () => stopNotifications();
@@ -584,7 +596,7 @@ function LoggedInRight({
                       <button
                         key={n.id}
                         type="button"
-                        onClick={() => markOneRead(n)}
+                        onClick={() => handleNotificationClick(n)}
                         className={`flex w-full cursor-pointer gap-[11px] border-b border-[#F5F5F7] px-4 py-[13px] text-left hover:bg-[#FAFAFB] ${!n.isRead ? "bg-[#FFF7F7]" : ""}`}
                       >
                         <span

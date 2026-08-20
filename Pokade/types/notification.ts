@@ -7,6 +7,8 @@ export interface NotificationResponse {
   id: number;
   type: NotificationType;
   message: string;
+  // 알림이 가리키는 카드 — 문의 처리(INQUIRY_HANDLED) 등 카드와 무관한 알림은 null.
+  cardId: number | null;
   isRead: boolean;
   createdAt: string;
 }
