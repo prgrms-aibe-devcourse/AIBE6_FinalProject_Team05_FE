@@ -27,7 +27,7 @@ import {
   fetchPriceSummary,
 } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
-import { createTrade } from "@/lib/tradeApi";
+import { readyTradePurchase } from "@/lib/tradeApi";
 import { useUserStore } from "@/store/useUserStore";
 import { loginUrlFor } from "@/lib/authRedirect";
 import { toKrw } from "@/lib/currency";
@@ -82,6 +82,12 @@ function computeGradeSummary(
     }
   }
   return summary;
+}
+
+// 선택된 변형(없으면 카드 대표 이미지)의 대표 이미지 — 구매 흐름(handleBuy)과 본문 렌더링에서 공유.
+function resolveMainImageSrc(card: CardDetailResponse, variantId: number | null): string | undefined {
+  const selectedVariant = card.variants.find((v) => v.id === variantId) ?? null;
+  return selectedVariant?.imageLarge || selectedVariant?.imageSmall || card.imageLarge || card.imageMedium;
 }
 
 // cardId가 바뀔 때마다 key={id}로 리마운트시켜, 이전 카드의 상태(이미지/시세/매물/체결 등)가
@@ -165,6 +171,8 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     setSelectedGrade((prev) => (prev != null && nextSummary[prev] != null ? prev : null));
   };
 
+  // 결제창을 띄우기 전 주문만 먼저 만들고(매물은 아직 안 잠금), 실제 결제는 별도 체크아웃
+  // 페이지(/trades/checkout)에서 토스 위젯으로 진행한다 - 포인트 충전과 동일한 ready → 위젯 → confirm 흐름.
   const handleBuy = async (listingId: number) => {
     if (userStatus === "loading") return; // 세션 복원 중 — 확정될 때까지 아무 것도 하지 않는다.
     if (userStatus !== "authenticated") {
@@ -174,8 +182,20 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     setBuyingListingId(listingId);
     setBuyError(null);
     try {
-      const trade = await createTrade({ listingId });
-      router.push(`/trade-status/${trade.id}`);
+      const ready = await readyTradePurchase(listingId);
+      const orderName = card ? (card.nameKo ?? card.name) : "카드 구매";
+      const checkoutParams = new URLSearchParams({
+        orderId: ready.orderId,
+        amount: String(ready.amount),
+        orderName,
+        cardId: String(cardId),
+      });
+      if (card) {
+        const cardImage = resolveMainImageSrc(card, selectedVariantId);
+        if (cardImage) checkoutParams.set("cardImage", cardImage);
+      }
+      if (selectedGrade) checkoutParams.set("grade", GRADE_LABELS[selectedGrade]);
+      router.push(`/trades/checkout?${checkoutParams.toString()}`);
     } catch (err) {
       setBuyError(err instanceof ApiError ? err.message : "구매 요청에 실패했습니다.");
       setBuyingListingId(null);
@@ -461,13 +481,8 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
           card &&
           cardId != null &&
           (() => {
-            const selectedVariant = card.variants.find((v) => v.id === selectedVariantId) ?? null;
             const displayName = card.nameKo ?? card.name;
-            const mainImageSrc =
-              selectedVariant?.imageLarge ||
-              selectedVariant?.imageSmall ||
-              card.imageLarge ||
-              card.imageMedium;
+            const mainImageSrc = resolveMainImageSrc(card, selectedVariantId);
             const gradeSummary = computeGradeSummary(activeListings);
             const selectedOffer = selectedGrade ? gradeSummary[selectedGrade] : undefined;
             // 등급을 선택했으면 그 등급의 실제 최저 매물가를 우선 보여준다 — 선택 전(또는 방금
