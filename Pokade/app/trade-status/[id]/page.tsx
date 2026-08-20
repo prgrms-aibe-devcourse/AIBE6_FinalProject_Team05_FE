@@ -79,6 +79,7 @@ export default function TradeStatusPage() {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [actionSubmitting, setActionSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
 
   useEffect(() => {
     if (userStatus !== "authenticated" || tradeId == null) return;
@@ -140,6 +141,7 @@ export default function TradeStatusPage() {
     try {
       const updated = await cancelTrade(trade.id);
       setTrade(updated);
+      setConfirmingCancel(false);
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : "거래 취소에 실패했습니다.");
     } finally {
@@ -411,14 +413,38 @@ export default function TradeStatusPage() {
                     {actionSubmitting ? "처리 중..." : "구매 확정"}
                   </button>
                 )}
-                <button
-                  type="button"
-                  disabled={actionSubmitting}
-                  onClick={handleCancel}
-                  className="w-full rounded-xl border-[1.5px] border-[#DDDDE3] bg-white py-[15px] text-[15px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary disabled:opacity-60"
-                >
-                  거래 취소
-                </button>
+                {confirmingCancel ? (
+                  <div className="flex items-center gap-2 rounded-xl border-[1.5px] border-[#F6C6C6] bg-[#FFF1F1] px-4 py-3">
+                    <span className="flex-1 text-[13px] font-semibold text-[#C21414]">
+                      정말 거래를 취소하시겠어요?
+                    </span>
+                    <button
+                      type="button"
+                      disabled={actionSubmitting}
+                      onClick={handleCancel}
+                      className="rounded-[9px] border-2 border-primary-dark bg-primary px-3 py-1.5 text-[12.5px] font-bold text-white disabled:opacity-60"
+                    >
+                      {actionSubmitting ? "취소 중..." : "취소하기"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={actionSubmitting}
+                      onClick={() => setConfirmingCancel(false)}
+                      className="rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#4B4B52]"
+                    >
+                      돌아가기
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={actionSubmitting}
+                    onClick={() => setConfirmingCancel(true)}
+                    className="w-full rounded-xl border-[1.5px] border-[#DDDDE3] bg-white py-[15px] text-[15px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary disabled:opacity-60"
+                  >
+                    거래 취소
+                  </button>
+                )}
               </div>
             )}
           </div>

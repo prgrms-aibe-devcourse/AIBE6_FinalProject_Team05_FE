@@ -208,7 +208,9 @@ function NewListingForm() {
 
         <form onSubmit={handleSubmit}>
           {/* 카드 선택 */}
-          <label className="mb-[7px] block text-[13px] font-bold text-[#4B4B52]">카드</label>
+          <label htmlFor="card-search" className="mb-[7px] block text-[13px] font-bold text-[#4B4B52]">
+            카드
+          </label>
           {selectedCard ? (
             <div className="flex items-center gap-3 rounded-[11px] border border-[#DDDDE3] px-3.5 py-3">
               <div className="relative h-14 w-10 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
@@ -235,6 +237,7 @@ function NewListingForm() {
           ) : (
             <div className="relative">
               <input
+                id="card-search"
                 type="text"
                 value={query}
                 onChange={(e) => {
