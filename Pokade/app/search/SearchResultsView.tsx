@@ -78,6 +78,10 @@ interface SearchResultsViewProps {
 
 // 페이지네이션 윈도우 — 전체 페이지를 다 그리지 않고 현재 페이지 주변 + 처음/끝만 노출,
 // 나머지는 "..."로 생략한다. (siblingCount=1: 현재 페이지 양옆 1개씩)
+// 이 화면(카탈로그 탐색)만 번호+생략 방식을 쓴다 — MyTradesSection.tsx/notifications 전체보기처럼
+// 시간순으로 훑어보는 개인 활동 피드는 임의 페이지 점프가 필요 없어 components/Pagination.tsx의
+// 단순 prev/next를 쓴다. 페이지 수보다 "탐색 vs 피드"라는 화면 성격 차이가 기준이라 이 둘을
+// 하나의 컴포넌트로 통합하지 않는다.
 type PaginationItem = number | "ellipsis";
 
 function getPaginationRange(current: number, total: number): PaginationItem[] {

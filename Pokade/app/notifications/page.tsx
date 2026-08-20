@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import CardImage from "@/components/CardImage";
+import Pagination from "@/components/Pagination";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import { ApiError, PageResponse } from "@/lib/apiClient";
@@ -20,6 +23,7 @@ type LoadState = "loading" | "error" | "ready";
 // 전역 store 대신 화면 자체 상태를 쓴다). 다만 읽음 처리 시 헤더 배지/드롭다운도 함께 최신화되도록
 // store의 retry()만 가져와 쓴다(마크 자체는 이 화면이 직접 호출).
 export default function NotificationsPage() {
+  const router = useRouter();
   const authStatus = useRequireAuth();
   const startFeed = useNotificationStore((s) => s.start);
   const retryFeed = useNotificationStore((s) => s.retry);
@@ -97,6 +101,14 @@ export default function NotificationsPage() {
         retryFeed();
       })
       .catch(() => {});
+  };
+
+  // 읽음 처리 여부와 무관하게, cardId가 있는 알림은 항상 카드 상세로 이동한다 — 이미 읽은
+  // 알림이라도 다시 들어갈 수 있어야 자연스럽다. cardId가 없는 알림(문의 처리 등)은 기존처럼
+  // 읽음 처리만 하고 제자리에 둔다.
+  const handleNotificationClick = (n: NotificationResponse) => {
+    markOneRead(n);
+    if (n.cardId != null) router.push(`/cards/${n.cardId}`);
   };
 
   // 확인창 없이 즉시 삭제(결정된 방향) — 삭제한 알림이 안읽음이었어도 신경 쓰지 않고 항상
@@ -199,18 +211,37 @@ export default function NotificationsPage() {
                   >
                     <button
                       type="button"
-                      onClick={() => markOneRead(n)}
+                      onClick={() => handleNotificationClick(n)}
                       className="flex min-w-0 flex-1 items-center gap-[13px] text-left"
                     >
                       <span
                         className={`h-[7px] w-[7px] flex-shrink-0 rounded-full ${!n.isRead ? "bg-primary" : "bg-transparent"}`}
                       />
-                      <div
-                        className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[10px]"
-                        style={{ background: style.tint }}
-                      >
-                        {style.icon}
-                      </div>
+                      {/* cardImageUrl이 있으면(카드 관련 알림) 타입 아이콘 대신 카드 썸네일을 보여준다 —
+                          cardId가 아니라 cardImageUrl로 분기해야 "카드는 있었지만 조회 실패"인
+                          경우도 안전하게 기존 아이콘으로 폴백한다. 박스 크기·위치는 그대로 둬서
+                          옆 삭제 버튼·클릭 영역과 겹칠 일이 없다. */}
+                      {n.cardImageUrl ? (
+                        <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-[10px] bg-[#F2F2F5]">
+                          {/* 실제 카드 이미지(images.scrydex.com) 여러 장을 대조해 보면 일러스트
+                              프레임이 카드 세로 기준 대략 5~51% 지점에 있다 — object-top으로 카드
+                              상단부터 잘라낸 뒤, 그 프레임만 꽉 채우도록 scale+origin으로 확대한다.
+                              CardImage 자체(검색 결과 등 다른 화면)는 그대로 둔다. */}
+                          <CardImage
+                            src={n.cardImageUrl}
+                            alt=""
+                            rounded="rounded-[10px]"
+                            className="origin-[50%_19%] scale-150 object-top"
+                          />
+                        </div>
+                      ) : (
+                        <div
+                          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[10px]"
+                          style={{ background: style.tint }}
+                        >
+                          {style.icon}
+                        </div>
+                      )}
                       <div className="min-w-0 flex-1">
                         <div
                           className={`text-[14px] leading-[1.4] text-ink ${!n.isRead ? "font-bold" : "font-semibold"}`}
@@ -247,28 +278,12 @@ export default function NotificationsPage() {
               })}
             </div>
 
-            {data && data.totalPages > 1 && (
-              <div className="mt-6 flex items-center justify-center gap-5 text-[13px]">
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
-                  disabled={data.first}
-                  className="text-[#4B4B52] disabled:text-[#C9C9CF]"
-                >
-                  ‹ 이전
-                </button>
-                <span className="font-bold">
-                  {data.number + 1} / {data.totalPages}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => p + 1)}
-                  disabled={data.last}
-                  className="text-[#4B4B52] disabled:text-[#C9C9CF]"
-                >
-                  다음 ›
-                </button>
-              </div>
+            {data && (
+              <Pagination
+                page={data.number + 1}
+                totalPages={data.totalPages}
+                onPageChange={(p) => setPage(p - 1)}
+              />
             )}
           </>
         )}
