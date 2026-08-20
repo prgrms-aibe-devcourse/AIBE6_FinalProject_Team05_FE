@@ -6,6 +6,11 @@ import { fetchNotifications, markNotificationRead } from "@/lib/watchlistApi";
 import { NotificationResponse } from "@/types/notification";
 
 const POLL_INTERVAL_MS = 30_000;
+// 헤더 알림 벨(배지+드롭다운)이 들고 있을 알림 수 — BE #162 페이지네이션 기본값(20)과 맞춘다.
+// 이 화면은 "최근 알림 피드"라 전체 목록이 필요 없고, /notifications 전체보기 페이지가 나머지를
+// 페이지 단위로 따로 가져온다(app/notifications/page.tsx). 안읽음 배지·모두읽음 처리도 이 범위
+// 안에서만 정확하다 — 안읽은 알림이 20개를 넘는 극단적인 경우까지는 이번 범위에서 다루지 않는다.
+const FEED_SIZE = 20;
 const SSE_URL = `${API_BASE_URL}/api/notifications/subscribe`;
 // 이 횟수만큼 SSE 재연결을 시도하다 실패하면 폴링으로 완전히 넘어간다 — 네트워크 일시
 // 오류는 몇 번 더 시도해볼 가치가 있지만, 무한 재시도는 폴링 없이 알림이 멎는 상태를 만든다.
@@ -68,10 +73,10 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
     if (inFlightGeneration === generation) return; // 같은 세대에서 이미 진행 중이면 스킵
     const myGeneration = generation;
     inFlightGeneration = myGeneration;
-    fetchNotifications()
+    fetchNotifications({ size: FEED_SIZE })
       .then((data) => {
         if (myGeneration !== generation) return; // 그 사이 stop()으로 세대가 바뀜 — 낡은 응답 무시
-        set({ notifications: data, loadState: "ready" });
+        set({ notifications: data.content, loadState: "ready" });
       })
       .catch((err) => {
         if (myGeneration !== generation) return;
