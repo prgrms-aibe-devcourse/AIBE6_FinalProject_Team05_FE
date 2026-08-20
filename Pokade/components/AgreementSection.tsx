@@ -21,7 +21,7 @@ export const EMPTY_AGREEMENTS: Agreements = {
 const ITEMS: { key: keyof Agreements; label: string; required: boolean; href?: string }[] = [
   { key: "termsOfService", label: "이용약관", required: true, href: "/terms" },
   { key: "privacyPolicy", label: "개인정보 수집·이용", required: true, href: "/privacy" },
-  { key: "thirdPartySharing", label: "제3자 정보제공", required: true, href: "/privacy" },
+  { key: "thirdPartySharing", label: "개인정보 제3자 제공", required: true, href: "/privacy" },
   { key: "marketing", label: "마케팅 정보 수신", required: false },
 ];
 
