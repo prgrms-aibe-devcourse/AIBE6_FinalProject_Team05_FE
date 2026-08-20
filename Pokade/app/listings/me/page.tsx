@@ -4,9 +4,18 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { GRADE_BG } from "@/components/GradeBadge";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { ApiError } from "@/lib/apiClient";
-import { deleteListing, fetchMyListings, updateListingPrice } from "@/lib/listingApi";
+import { ApiError, PageResponse } from "@/lib/apiClient";
+import { deleteListing, fetchMyListings, MyListingsSort, updateListingPrice } from "@/lib/listingApi";
 import { ListingGrade, ListingStatus, ListingSummaryResponse } from "@/types/price";
+
+const PAGE_SIZE = 10;
+
+const SORT_OPTIONS: { key: MyListingsSort; label: string }[] = [
+  { key: "createdAt,desc", label: "등록 최신순" },
+  { key: "createdAt,asc", label: "등록 오래된순" },
+  { key: "price,asc", label: "가격 낮은순" },
+  { key: "price,desc", label: "가격 높은순" },
+];
 
 const STATUS_FILTERS: { label: string; value: ListingStatus | null }[] = [
   { label: "전체", value: null },
@@ -77,7 +86,9 @@ export default function MyListingsPage() {
   const status = useRequireAuth();
 
   const [statusFilter, setStatusFilter] = useState<ListingStatus | null>(null);
-  const [listings, setListings] = useState<ListingSummaryResponse[]>([]);
+  const [sort, setSort] = useState<MyListingsSort>("createdAt,desc");
+  const [page, setPage] = useState(0);
+  const [pageData, setPageData] = useState<PageResponse<ListingSummaryResponse> | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -92,13 +103,14 @@ export default function MyListingsPage() {
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  // 상태/정렬 변경 시 페이지를 0으로 되돌리고 다시 조회 — 서버 페이징이라 필터·정렬이 바뀌면 항상 재요청이 필요하다.
   useEffect(() => {
     if (status !== "authenticated") return;
     let cancelled = false;
-    fetchMyListings(statusFilter ?? undefined)
+    fetchMyListings(statusFilter ?? undefined, page, PAGE_SIZE, sort)
       .then((data) => {
         if (!cancelled) {
-          setListings(data);
+          setPageData(data);
           setLoadState("ready");
         }
       })
@@ -111,7 +123,9 @@ export default function MyListingsPage() {
     return () => {
       cancelled = true;
     };
-  }, [status, statusFilter]);
+  }, [status, statusFilter, sort, page]);
+
+  const listings = pageData?.content ?? [];
 
   const startEdit = (listing: ListingSummaryResponse) => {
     setConfirmDeleteId(null);
@@ -135,8 +149,15 @@ export default function MyListingsPage() {
     setEditError(null);
     try {
       const updated = await updateListingPrice(listingId, { price: priceNumber });
-      setListings((prev) =>
-        prev.map((l) => (l.id === listingId ? { ...l, price: updated.price } : l)),
+      setPageData((prev) =>
+        prev
+          ? {
+              ...prev,
+              content: prev.content.map((l) =>
+                l.id === listingId ? { ...l, price: updated.price } : l,
+              ),
+            }
+          : prev,
       );
       setEditingId(null);
     } catch (err) {
@@ -162,12 +183,15 @@ export default function MyListingsPage() {
     setDeleteError(null);
     try {
       await deleteListing(listingId);
-      // "판매중" 필터는 CANCELLED 매물을 보여주지 않는 화면이므로 상태만 바꾸면 필터와 어긋난다 — 목록에서 아예 제거.
-      // 그 외 필터("전체" 등)는 취소된 매물도 계속 보여주므로 상태만 갱신.
-      setListings((prev) =>
-        statusFilter === "ACTIVE"
-          ? prev.filter((l) => l.id !== listingId)
-          : prev.map((l) => (l.id === listingId ? { ...l, status: "CANCELLED" } : l)),
+      setPageData((prev) =>
+        prev
+          ? {
+              ...prev,
+              content: prev.content.map((l) =>
+                l.id === listingId ? { ...l, status: "CANCELLED" } : l,
+              ),
+            }
+          : prev,
       );
       setConfirmDeleteId(null);
     } catch (err) {
@@ -192,14 +216,14 @@ export default function MyListingsPage() {
           </Link>
         </div>
 
-        <div className="mb-5 flex flex-wrap gap-2">
+        <div className="mb-3.5 flex flex-wrap gap-2">
           {STATUS_FILTERS.map(({ label, value }) => (
             <button
               key={label}
               type="button"
               onClick={() => {
                 setStatusFilter(value);
-                setLoadState("loading");
+                setPage(0);
               }}
               className={`rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition ${
                 statusFilter === value
@@ -212,9 +236,34 @@ export default function MyListingsPage() {
           ))}
         </div>
 
+        <div className="mb-5 flex items-center justify-between">
+          <span className="text-[13px] font-semibold text-[#8A8A92]">
+            {loadState === "ready" && pageData ? `총 ${pageData.totalElements}개` : ""}
+          </span>
+          <select
+            value={sort}
+            onChange={(e) => {
+              setSort(e.target.value as MyListingsSort);
+              setPage(0);
+            }}
+            className="rounded-[11px] border border-[#DDDDE3] px-3 py-2.5 text-[13px] font-semibold text-[#4B4B52] outline-none"
+          >
+            {SORT_OPTIONS.map((option) => (
+              <option key={option.key} value={option.key}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {loadState === "loading" && (
-          <div className="rounded-[18px] border border-[#EDEDF0] bg-white px-6 py-14 text-center text-[13.5px] text-[#8A8A92]">
-            불러오는 중...
+          <div className="flex flex-col gap-2.5">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div
+                key={i}
+                className="h-[72px] animate-pulse rounded-[14px] border border-[#EDEDF0] bg-[#F2F2F5]"
+              />
+            ))}
           </div>
         )}
 
@@ -224,9 +273,48 @@ export default function MyListingsPage() {
           </div>
         )}
 
-        {loadState === "ready" && listings.length === 0 && (
+        {loadState === "ready" && listings.length === 0 && (pageData?.totalElements ?? 0) === 0 && (
+          <div className="rounded-[18px] border border-[#EDEDF0] bg-white px-10 py-[60px] text-center">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#F2F2F5]">
+              <svg
+                width="38"
+                height="38"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#C7C7CE"
+                strokeWidth="1.6"
+                aria-hidden="true"
+              >
+                <path d="M4 7l8-4 8 4v10l-8 4-8-4V7z" />
+                <path d="M4 7l8 4 8-4M12 11v10" />
+              </svg>
+            </div>
+            <h3 className="mb-0 mt-[18px] text-[16px] font-extrabold">등록된 상품이 없어요</h3>
+            <p className="mt-2 text-[13px] leading-relaxed text-[#8A8A92]">
+              첫 상품을 등록하고 판매를 시작해보세요.
+            </p>
+            <Link
+              href="/listings/new"
+              className="mt-5 inline-block rounded-[11px] border-2 border-primary-dark bg-primary px-6 py-2.5 text-[13.5px] font-bold text-white shadow-tactile-sm hover:text-white"
+            >
+              상품 등록하러 가기
+            </Link>
+          </div>
+        )}
+
+        {loadState === "ready" && listings.length === 0 && (pageData?.totalElements ?? 0) > 0 && (
           <div className="rounded-[18px] border border-[#EDEDF0] bg-white px-6 py-14 text-center text-[13.5px] text-[#8A8A92]">
-            등록된 상품이 없습니다.
+            <p>해당 상태의 상품이 없습니다.</p>
+            <button
+              type="button"
+              onClick={() => {
+                setStatusFilter(null);
+                setPage(0);
+              }}
+              className="mt-3 text-[12.5px] font-bold text-primary hover:text-primary-dark"
+            >
+              필터 초기화
+            </button>
           </div>
         )}
 
@@ -265,10 +353,10 @@ export default function MyListingsPage() {
                 {listing.status === "ACTIVE" && editingId === listing.id && (
                   <div className="flex items-center gap-2 border-t border-[#EDEDF0] pt-3">
                     <input
-                      type="number"
-                      min={1}
-                      value={editPrice}
-                      onChange={(e) => setEditPrice(e.target.value)}
+                      type="text"
+                      inputMode="numeric"
+                      value={editPrice ? Number(editPrice).toLocaleString("ko-KR") : ""}
+                      onChange={(e) => setEditPrice(e.target.value.replace(/[^0-9]/g, ""))}
                       className="w-32 rounded-[9px] border border-[#DDDDE3] px-2.5 py-1.5 text-[13.5px] outline-none"
                     />
                     <button
@@ -338,8 +426,54 @@ export default function MyListingsPage() {
                       </button>
                     </div>
                   )}
+
+                {listing.status !== "ACTIVE" && listing.tradeId != null && (
+                  <div className="flex gap-2 border-t border-[#EDEDF0] pt-3">
+                    <Link
+                      href={`/trade-status/${listing.tradeId}`}
+                      className="rounded-[9px] border border-[#DDDDE3] px-3 py-1.5 text-[12.5px] font-semibold text-[#4B4B52] hover:text-primary"
+                    >
+                      거래 확인
+                    </Link>
+                  </div>
+                )}
               </div>
             ))}
+          </div>
+        )}
+
+        {loadState === "ready" && pageData && pageData.totalPages > 1 && (
+          <div className="mt-6 flex items-center justify-center gap-1.5">
+            <button
+              type="button"
+              disabled={page === 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              className="rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#4B4B52] disabled:opacity-40"
+            >
+              이전
+            </button>
+            {Array.from({ length: pageData.totalPages }).map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setPage(i)}
+                className={`h-8 w-8 rounded-[9px] text-[12.5px] font-bold transition ${
+                  page === i
+                    ? "bg-primary text-white"
+                    : "border border-[#DDDDE3] bg-white text-[#4B4B52] hover:bg-neutral"
+                }`}
+              >
+                {i + 1}
+              </button>
+            ))}
+            <button
+              type="button"
+              disabled={page >= pageData.totalPages - 1}
+              onClick={() => setPage((p) => Math.min(pageData.totalPages - 1, p + 1))}
+              className="rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#4B4B52] disabled:opacity-40"
+            >
+              다음
+            </button>
           </div>
         )}
       </div>
