@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useUserStore } from "@/store/useUserStore";
-import { getMyInfo, updateNickname } from "@/lib/authApi";
+import { changeMarketingAgreement, getMyInfo, updateNickname } from "@/lib/authApi";
 import { authErrorMessage } from "@/lib/authErrorMessages";
 import { MyInfo } from "@/types/auth";
 import { MyProfile } from "@/types/profile";
@@ -47,6 +47,8 @@ export default function SettingsPage() {
   const [nickError, setNickError] = useState<string | null>(null);
   const [imageSaving, setImageSaving] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [marketingSaving, setMarketingSaving] = useState(false);
+  const [marketingError, setMarketingError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -151,6 +153,21 @@ export default function SettingsPage() {
       setImageError(authErrorMessage(err, "이미지 삭제에 실패했습니다."));
     } finally {
       setImageSaving(false);
+    }
+  }
+
+  // 마케팅 수신 동의변경, 서버는 철회도 새 이력 행으로 남기므로 낙관적 갱신 대신 응답 후 반영한다.
+  async function handleMarketingToggle(next: boolean) {
+    if (marketingSaving) return;
+    setMarketingError(null);
+    setMarketingSaving(true);
+    try {
+      await changeMarketingAgreement(next);
+      setProfile((prev) => (prev ? { ...prev, marketingAgreed: next } : prev));
+    } catch (e) {
+      setMarketingError(authErrorMessage(e, "설정 변경에 실패했습니다."));
+    } finally {
+      setMarketingSaving(false);
     }
   }
 
@@ -309,6 +326,38 @@ export default function SettingsPage() {
           <span className="text-[#8A8A92]">포인트</span>
           <span className="font-semibold">{info.pointBalance.toLocaleString("ko-KR")} P</span>
         </div>
+
+        <div className="flex items-center justify-between gap-3 border-t border-[#F0F0F0] pt-4">
+          <div className="min-w-0">
+            <p className="font-semibold">마케팅 정보 수신</p>
+            <p className="mt-0.5 text-[12.5px] text-[#8A8A92]">
+              혜택·이벤트 소식을 이메일로 받습니다. 언제든 해제할 수 있습니다.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={profile?.marketingAgreed ?? false}
+            aria-label="마케팅 정보 수신"
+            disabled={marketingSaving || !profile}
+            onClick={() => handleMarketingToggle(!profile?.marketingAgreed)}
+            className={`relative h-[26px] w-[46px] flex-shrink-0 rounded-full transition disabled:opacity-50 ${
+              profile?.marketingAgreed ? "bg-primary" : "bg-[#D6D6DC]"
+            }`}
+          >
+            <span
+              aria-hidden="true"
+              className={`absolute top-[3px] h-5 w-5 rounded-full bg-white transition-all ${
+                profile?.marketingAgreed ? "left-[23px]" : "left-[3px]"
+              }`}
+            />
+          </button>
+        </div>
+        {marketingError && (
+          <p role="alert" className="text-right text-[12.5px] font-semibold text-[#C21414]">
+            {marketingError}
+          </p>
+        )}
       </div>
     </section>
   );
