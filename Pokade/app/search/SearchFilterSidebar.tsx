@@ -209,7 +209,7 @@ export default function SearchFilterSidebar({
         }}
       />
       {opt.label}
-      <span className="text-[#9A9AA2]">({opt.count.toLocaleString("ko-KR")})</span>
+      <span className="text-[#9A9AA2]">({(opt.count ?? 0).toLocaleString("ko-KR")})</span>
     </label>
   );
 
@@ -368,7 +368,7 @@ export default function SearchFilterSidebar({
                   }}
                 />
                 {opt.value}
-                <span className="text-[#9A9AA2]">({opt.count.toLocaleString("ko-KR")})</span>
+                <span className="text-[#9A9AA2]">({(opt.count ?? 0).toLocaleString("ko-KR")})</span>
               </label>
             ))
           )}
