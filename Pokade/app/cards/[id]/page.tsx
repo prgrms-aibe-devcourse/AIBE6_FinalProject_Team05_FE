@@ -32,7 +32,7 @@ import {
   fetchRelatedCards,
 } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
-import { createTrade } from "@/lib/tradeApi";
+import { readyTradePurchase } from "@/lib/tradeApi";
 import { useUserStore } from "@/store/useUserStore";
 import { loginUrlFor } from "@/lib/authRedirect";
 import { toKrw } from "@/lib/currency";
@@ -178,6 +178,8 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     setSelectedGrade((prev) => (prev != null && nextSummary[prev] != null ? prev : null));
   };
 
+  // 결제창을 띄우기 전 주문만 먼저 만들고(매물은 아직 안 잠금), 실제 결제는 별도 체크아웃
+  // 페이지(/trades/checkout)에서 토스 위젯으로 진행한다 - 포인트 충전과 동일한 ready → 위젯 → confirm 흐름.
   const handleBuy = async (listingId: number) => {
     if (userStatus === "loading") return; // 세션 복원 중 — 확정될 때까지 아무 것도 하지 않는다.
     if (userStatus !== "authenticated") {
@@ -187,8 +189,15 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     setBuyingListingId(listingId);
     setBuyError(null);
     try {
-      const trade = await createTrade({ listingId });
-      router.push(`/trade-status/${trade.id}`);
+      const ready = await readyTradePurchase(listingId);
+      const orderName = card ? (card.nameKo ?? card.name) : "카드 구매";
+      const checkoutParams = new URLSearchParams({
+        orderId: ready.orderId,
+        amount: String(ready.amount),
+        orderName,
+        cardId: String(cardId),
+      });
+      router.push(`/trades/checkout?${checkoutParams.toString()}`);
     } catch (err) {
       setBuyError(err instanceof ApiError ? err.message : "구매 요청에 실패했습니다.");
       setBuyingListingId(null);
