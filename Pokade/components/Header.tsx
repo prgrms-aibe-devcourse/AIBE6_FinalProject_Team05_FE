@@ -246,6 +246,7 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
           onBlur={() => setFocused(false)}
           onKeyDown={handleKeyDown}
           placeholder="카드 이름으로 검색"
+          spellCheck={false}
           role="combobox"
           aria-expanded={showDropdown}
           aria-controls={listboxId}

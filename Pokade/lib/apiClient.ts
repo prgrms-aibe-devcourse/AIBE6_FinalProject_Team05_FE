@@ -20,13 +20,17 @@ export interface ApiEnvelope<T> {
   data: T;
 }
 
-// Spring Data Page<T> JSON 직렬화 형태.
+// Spring Data Page<T> JSON 직렬화 형태 — 실제 응답엔 pageable/sort/empty 등 더 있지만
+// 이 프로젝트에서 쓰는 필드만 추린다. first/last는 prev/next 버튼 disabled 판정에 쓴다
+// (number+totalPages로 직접 계산해도 되지만, BE가 이미 계산해 내려주는 값을 신뢰하는 쪽이 더 명확).
 export interface PageResponse<T> {
   content: T[];
   totalElements: number;
   totalPages: number;
   number: number;
   size: number;
+  first: boolean;
+  last: boolean;
 }
 
 export class ApiError extends Error {
