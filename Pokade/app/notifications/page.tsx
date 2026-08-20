@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Pagination from "@/components/Pagination";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import { ApiError, PageResponse } from "@/lib/apiClient";
@@ -257,28 +258,12 @@ export default function NotificationsPage() {
               })}
             </div>
 
-            {data && data.totalPages > 1 && (
-              <div className="mt-6 flex items-center justify-center gap-5 text-[13px]">
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
-                  disabled={data.first}
-                  className="text-[#4B4B52] disabled:text-[#C9C9CF]"
-                >
-                  ‹ 이전
-                </button>
-                <span className="font-bold">
-                  {data.number + 1} / {data.totalPages}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => p + 1)}
-                  disabled={data.last}
-                  className="text-[#4B4B52] disabled:text-[#C9C9CF]"
-                >
-                  다음 ›
-                </button>
-              </div>
+            {data && (
+              <Pagination
+                page={data.number + 1}
+                totalPages={data.totalPages}
+                onPageChange={(p) => setPage(p - 1)}
+              />
             )}
           </>
         )}
