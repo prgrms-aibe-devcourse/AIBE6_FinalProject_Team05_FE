@@ -158,8 +158,11 @@ export default function SearchFilterSidebar({
   };
 
   // 직접 입력(number input) 전용 텍스트 상태 — 입력 중에는 클램핑 없이 자유롭게 두고,
-  // blur 시점에만 handleMinChange/handleMaxChange로 보정한다. 슬라이더 조작 등으로
-  // priceMin/priceMax가 바뀌면(타이핑 중이 아닌 한) 아래에서 표시 텍스트를 동기화한다.
+  // blur 시점에만 handleMinChange/handleMaxChange로 보정한다(위 두 함수가 클램핑된 값을
+  // 상태와 입력창 텍스트에 함께 반영하므로, 슬라이더 조작이나 blur 입력은 이 비교 블록 없이도
+  // 이미 텍스트가 맞다). 이 블록이 실제로 필요한 경우는 그 두 함수를 거치지 않고 priceMin/
+  // priceMax를 직접 바꾸는 외부 리셋뿐이다 — 필터 초기화(resetFilters)와 필터 칩 제거
+  // (FilterChip onRemove → setPriceRangeNow, page.tsx) — 이때만 아래에서 표시 텍스트를 동기화한다.
   // (렌더 중 조건부 setState — effect가 아니라 "prop 변경에 맞춰 state 조정하기" 패턴)
   const [minInputText, setMinInputText] = useState(String(priceMin));
   const [prevPriceMin, setPrevPriceMin] = useState(priceMin);
