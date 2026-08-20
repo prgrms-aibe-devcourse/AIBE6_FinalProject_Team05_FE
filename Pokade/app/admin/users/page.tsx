@@ -80,7 +80,9 @@ export default function AdminUsersPage() {
       size: PAGE_SIZE,
     })
       .then((data) => {
-        if (!cancelled) setResult({ key, page: data });
+        if (cancelled) return;
+        setResult({ key, page: data });
+        if (page > data.totalPages) setPage(Math.max(1, data.totalPages)); // 페이지가 범위를 벗어나면 마지막 페이지로
       })
       .catch(() => {
         if (!cancelled) setResult({ key, page: null });
