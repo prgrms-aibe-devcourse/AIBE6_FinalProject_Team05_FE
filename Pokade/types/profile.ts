@@ -1,12 +1,10 @@
 // GET /api/users/me/profile — 본인 전용 상세. 마이페이지 진입 시에만 호출한다
-// (GET /api/users/me 는 세션 복원마다 불리는 경량 응답이라 연락처·생년월일 같은 PII를 담지 않는다).
+// (GET /api/users/me 는 세션 복원마다 불리는 경량 응답이라 가입 경로·가입일 같은 상세를 담지 않는다).
 export interface MyProfile {
   email: string;
-  phoneNumber: string | null;
   provider: "LOCAL" | "GOOGLE" | "KAKAO";
   socialLinked: boolean;
   joinedAt: string;
-  birthDate: string | null;
   marketingAgreed: boolean;
 }
 

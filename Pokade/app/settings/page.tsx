@@ -304,11 +304,6 @@ export default function SettingsPage() {
         {profile && (
           <>
             <div className="flex items-center justify-between">
-              <span className="text-[#8A8A92]">연락처</span>
-              <span className="font-semibold">{profile.phoneNumber ?? "등록되지 않음"}</span>
-            </div>
-
-            <div className="flex items-center justify-between">
               <span className="text-[#8A8A92]">가입 경로</span>
               <span className="font-semibold">
                 {profile.socialLinked ? providerLabel(profile.provider) : "이메일"}
@@ -327,7 +322,7 @@ export default function SettingsPage() {
           <span className="font-semibold">{info.pointBalance.toLocaleString("ko-KR")} P</span>
         </div>
 
-        {/* 상세 조회 실패 시엔 서버의 동의 상태를 모르므로 아예 내보내지 않는다 (연락처 등과 같은 규칙). */}
+        {/* 상세 조회 실패 시엔 서버의 동의 상태를 모르므로 아예 내보내지 않는다 (가입 경로·가입일과 같은 규칙). */}
         {profile && (
           <>
             <div className="flex items-center justify-between gap-3 border-t border-[#F0F0F0] pt-4">
