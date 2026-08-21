@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { SearchBar } from "@/components/CardSearchBar";
 import { CardFacetsResponse, CardSearchItem, toCardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
 import { CardSort, fetchCardFacets, fetchCardsPage, fetchPriceSummaries } from "@/lib/cardApi";
@@ -410,10 +411,11 @@ function SearchDashboard() {
   return (
     <main className="main-content bg-neutral px-4 pb-14 pt-8 sm:px-10">
       <div className="mx-auto max-w-[1280px]">
-        <div className="mb-[22px] flex items-center justify-between">
-          <h1 className="m-0 text-[26px] font-extrabold tracking-[-0.6px]">
+        <div className="mb-6 rounded-2xl border border-[#EDEDF0] bg-white p-5 shadow-card">
+          <h1 className="m-0 mb-4 text-[26px] font-extrabold tracking-[-0.6px]">
             {q ? `"${q}" 검색 결과` : "카드 검색"}
           </h1>
+          <SearchBar width="w-full" variant="market" />
         </div>
 
         <SearchResultsView

@@ -14,12 +14,13 @@ const MIN_QUERY_LENGTH = 2;
 
 type SearchBarVariant = "default" | "market";
 
-// variant="market": 마켓 페이지(bg-neutral) 위에서 검색창이 필터 사이드바(bg-white 패널)와
-// 같은 톤으로 보이도록, 그리고 44px 터치 타겟을 확보하도록 별도 스타일을 준다. 헤더는 기존
-// 스타일(variant="default") 그대로 유지 — 이번 개선 범위가 아니다.
+// variant="market": 마켓 페이지(/search) 상단 "카드 검색" 카드(흰 배경) 안에 놓이므로,
+// 자체 배경/그림자를 넣으면 흰 카드 안에 흰 카드가 겹치는 이중 박싱이 된다 — 배경 없이
+// 테두리(입력 필드라는 걸 alert 없이도 알 수 있게)와 44px 터치 타겟 패딩만 남긴다.
+// 헤더는 기존 스타일(variant="default") 그대로 유지 — 이번 개선 범위가 아니다.
 const CONTAINER_STYLES: Record<SearchBarVariant, string> = {
   default: "border-[#DDDDE3] bg-neutral px-3.5 py-2.5",
-  market: "border-[#DDDDE3] bg-white px-4 py-3 shadow-card",
+  market: "border-[#DDDDE3] px-4 py-3",
 };
 const FOCUS_STYLES: Record<SearchBarVariant, string> = {
   default: "transition focus-within:border-primary",
