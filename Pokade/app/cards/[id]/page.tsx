@@ -619,10 +619,13 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                             );
                           })()}
                         {/* 0/낮은 값도 그대로 노출 — 관심수와 달리 조회수는 숨길 이유가 없는
-                            신뢰 신호(활발히 조회되는 카드라는 근거)로 쓰기로 정했다. */}
-                        <span className="text-[11.5px] font-semibold text-[#9A9AA2]">
-                          {card.viewCount.toLocaleString("ko-KR")}번 조회됐어요
-                        </span>
+                            신뢰 신호(활발히 조회되는 카드라는 근거)로 쓰기로 정했다. null/undefined(값
+                            없음)는 0과 다르므로 이때만 숨긴다 — 프로덕션 크래시 핫픽스. */}
+                        {card.viewCount != null && (
+                          <span className="text-[11.5px] font-semibold text-[#9A9AA2]">
+                            {card.viewCount.toLocaleString("ko-KR")}번 조회됐어요
+                          </span>
+                        )}
                       </div>
                       <div
                         className="relative aspect-[5/7] w-[160px] shrink-0 cursor-pointer overflow-hidden rounded-xl bg-[#F2F2F5]"
