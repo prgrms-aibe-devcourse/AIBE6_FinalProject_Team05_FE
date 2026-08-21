@@ -30,9 +30,9 @@ export type GradeKey = ListingGrade | "RAW";
 export const GRADE_ORDER: GradeKey[] = ["PSA10", "PSA9", "PSA8", "S", "A", "B", "RAW"];
 
 export const GRADE_LABELS: Record<GradeKey, string> = {
-  PSA10: "PSA10",
-  PSA9: "PSA9",
-  PSA8: "PSA8",
+  PSA10: "PSA 10",
+  PSA9: "PSA 9",
+  PSA8: "PSA 8",
   S: "S",
   A: "A",
   B: "B",

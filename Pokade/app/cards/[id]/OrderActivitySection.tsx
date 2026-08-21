@@ -39,22 +39,33 @@ function gradeKeyOf(grade: string | null): GradeKey {
   return (grade ?? "RAW") as GradeKey;
 }
 
-type Row = { key: string | number; grade: GradeKey; price: number; dateLabel?: string };
+type Row = { key: string | number; grade: GradeKey; price: number; dateLabel?: string; quantity?: number };
+
+// 같은 (등급, 가격) 조합의 구매입찰/판매입찰을 하나의 행으로 묶고 개수를 센다 — 호가창처럼
+// "이 가격에 몇 건이 걸려있는지"를 보여주기 위함. BE가 이미 가격순으로 정렬해서 내려주므로
+// 같은 가격끼리는 원본 배열에서 항상 인접해 있어 Map 삽입 순서로 정렬을 그대로 유지할 수 있다.
+function groupByGradePrice(items: { grade: GradeKey; price: number }[]): Row[] {
+  const grouped = new Map<string, Row>();
+  for (const item of items) {
+    const key = `${item.grade}-${item.price}`;
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.quantity = (existing.quantity ?? 1) + 1;
+    } else {
+      grouped.set(key, { key, grade: item.grade, price: item.price, quantity: 1 });
+    }
+  }
+  return Array.from(grouped.values());
+}
 
 function toRows(tab: Tab, trades: TradeSummaryResponse[], buys: BuyOfferOrderbookEntryResponse[], sells: ListingSummaryResponse[]): Row[] {
   if (tab === "trades") {
     return trades.map((t, i) => ({ key: i, grade: gradeKeyOf(t.grade), price: t.price, dateLabel: formatTradedAt(t.tradedAt) }));
   }
   if (tab === "buy") {
-    return buys.map((o) => ({ key: o.buyOfferId, grade: gradeKeyOf(o.grade), price: o.price }));
+    return groupByGradePrice(buys.map((o) => ({ grade: gradeKeyOf(o.grade), price: o.price })));
   }
-  return sells.map((l) => ({ key: l.id, grade: gradeKeyOf(l.grade), price: l.price }));
-}
-
-function priceColorClass(tab: Tab) {
-  if (tab === "buy") return "text-secondary";
-  if (tab === "sell") return "text-primary";
-  return "text-ink";
+  return groupByGradePrice(sells.map((l) => ({ grade: gradeKeyOf(l.grade), price: l.price })));
 }
 
 // 등급 필터가 적용된 행 목록을 테이블로 렌더링 — 구매 박스 안 요약(limit=5)과 모달(전체) 양쪽에서 공유.
@@ -70,15 +81,23 @@ function ActivityTable({ tab, rows, emptyMessage }: { tab: Tab; rows: Row[]; emp
         <tr className="text-[11px] font-semibold text-[#9A9AA2]">
           <th className="pb-1.5 font-semibold">등급</th>
           <th className="pb-1.5 text-right font-semibold">{tab === "trades" ? "거래가" : tab === "buy" ? "입찰가" : "판매가"}</th>
-          {tab === "trades" && <th className="pb-1.5 text-right font-semibold">거래일</th>}
+          {tab === "trades" ? (
+            <th className="pb-1.5 text-right font-semibold">거래일</th>
+          ) : (
+            <th className="pb-1.5 text-right font-semibold">수량</th>
+          )}
         </tr>
       </thead>
       <tbody>
         {rows.map((r) => (
           <tr key={r.key} className="border-t border-[#F5F5F7]">
             <td className="py-1.5 font-bold">{GRADE_LABELS[r.grade]}</td>
-            <td className={`py-1.5 text-right font-bold ${priceColorClass(tab)}`}>{r.price.toLocaleString("ko-KR")}원</td>
-            {tab === "trades" && <td className="py-1.5 text-right text-[#8A8A92]">{r.dateLabel}</td>}
+            <td className="py-1.5 text-right font-bold text-ink">{r.price.toLocaleString("ko-KR")}원</td>
+            {tab === "trades" ? (
+              <td className="py-1.5 text-right text-[#8A8A92]">{r.dateLabel}</td>
+            ) : (
+              <td className="py-1.5 text-right text-[#8A8A92]">{r.quantity}개</td>
+            )}
           </tr>
         ))}
       </tbody>
@@ -119,7 +138,7 @@ function GradeFilterPills({
               : "border-[#DDDDE3] bg-white text-[#4B4B52] hover:border-primary hover:text-primary"
           }`}
         >
-          {GRADE_LABELS[g]} {counts.get(g)}
+          {GRADE_LABELS[g]} <span className="font-semibold text-[#9A9AA2]">{counts.get(g)}</span>
         </button>
       ))}
     </div>
@@ -141,6 +160,9 @@ export default function OrderActivitySection({ cardId }: { cardId: number }) {
 
   const [tab, setTab] = useState<Tab>("trades");
   const [modalOpen, setModalOpen] = useState(false);
+  // 모달 전용 탭/필터 — 페이지 뒤(compact 영역)의 tab과 완전히 분리해서, 모달에서 탭을 바꿔도
+  // 뒤쪽 compact 영역은 그대로 유지되고 모달을 닫았다 다시 열어도 서로 영향을 주지 않게 한다.
+  const [modalTab, setModalTab] = useState<Tab>("trades");
   const [modalGradeFilter, setModalGradeFilter] = useState<GradeKey | "ALL">("ALL");
 
   const [recentTrades, setRecentTrades] = useState<TradeSummaryResponse[]>([]);
@@ -182,26 +204,36 @@ export default function OrderActivitySection({ cardId }: { cardId: number }) {
     };
   }, [cardId]);
 
-  const allRows = useMemo(
+  const compactAllRows = useMemo(
     () => toRows(tab, recentTrades, buyOffers, sellListings),
     [tab, recentTrades, buyOffers, sellListings],
   );
-  const compactRows = allRows.slice(0, COMPACT_ROW_LIMIT);
+  const compactRows = compactAllRows.slice(0, COMPACT_ROW_LIMIT);
 
-  const gradeCounts = useMemo(() => {
-    const counts = new Map<GradeKey, number>();
-    for (const row of allRows) {
-      counts.set(row.grade, (counts.get(row.grade) ?? 0) + 1);
-    }
-    return counts;
-  }, [allRows]);
-
-  const modalRows = useMemo(
-    () => (modalGradeFilter === "ALL" ? allRows : allRows.filter((r) => r.grade === modalGradeFilter)),
-    [allRows, modalGradeFilter],
+  const modalAllRows = useMemo(
+    () => toRows(modalTab, recentTrades, buyOffers, sellListings),
+    [modalTab, recentTrades, buyOffers, sellListings],
   );
 
+  // 등급 필터 pill의 숫자는 "가격대 몇 개"가 아니라 "총 몇 건"이어야 하므로, 그룹핑된 quantity를 합산한다
+  // (최근 체결 탭처럼 quantity가 없는 행은 1건으로 취급).
+  const modalGradeCounts = useMemo(() => {
+    const counts = new Map<GradeKey, number>();
+    for (const row of modalAllRows) {
+      counts.set(row.grade, (counts.get(row.grade) ?? 0) + (row.quantity ?? 1));
+    }
+    return counts;
+  }, [modalAllRows]);
+
+  const modalRows = useMemo(
+    () => (modalGradeFilter === "ALL" ? modalAllRows : modalAllRows.filter((r) => r.grade === modalGradeFilter)),
+    [modalAllRows, modalGradeFilter],
+  );
+
+  // 모달은 항상 compact 영역이 보고 있던 탭에서 시작하되(둘러보던 맥락 유지), 그 이후로는
+  // 서로 완전히 독립적으로 동작한다 — 모달 안에서 탭을 바꿔도 뒤쪽 compact 영역엔 영향 없음.
   const openModal = () => {
+    setModalTab(tab);
     setModalGradeFilter("ALL");
     setModalOpen(true);
   };
@@ -244,7 +276,7 @@ export default function OrderActivitySection({ cardId }: { cardId: number }) {
         <>
           <ActivityTable tab={tab} rows={compactRows} emptyMessage={EMPTY_MESSAGE[tab]} />
 
-          {allRows.length > 0 && (
+          {compactAllRows.length > 0 && (
             <button
               type="button"
               onClick={openModal}
@@ -286,11 +318,11 @@ export default function OrderActivitySection({ cardId }: { cardId: number }) {
                   key={t.value}
                   type="button"
                   onClick={() => {
-                    setTab(t.value);
+                    setModalTab(t.value);
                     setModalGradeFilter("ALL");
                   }}
                   className={`rounded-[9px] px-3.5 py-1.5 text-[13px] font-bold transition ${
-                    tab === t.value ? "bg-primary text-white" : "text-[#8A8A92] hover:bg-neutral hover:text-ink"
+                    modalTab === t.value ? "bg-primary text-white" : "text-[#8A8A92] hover:bg-neutral hover:text-ink"
                   }`}
                 >
                   {t.label}
@@ -298,10 +330,10 @@ export default function OrderActivitySection({ cardId }: { cardId: number }) {
               ))}
             </div>
 
-            <GradeFilterPills counts={gradeCounts} value={modalGradeFilter} onChange={setModalGradeFilter} />
+            <GradeFilterPills counts={modalGradeCounts} value={modalGradeFilter} onChange={setModalGradeFilter} />
 
             <div className="overflow-y-auto">
-              <ActivityTable tab={tab} rows={modalRows} emptyMessage={EMPTY_MESSAGE[tab]} />
+              <ActivityTable tab={modalTab} rows={modalRows} emptyMessage={EMPTY_MESSAGE[modalTab]} />
             </div>
           </div>
         </div>
