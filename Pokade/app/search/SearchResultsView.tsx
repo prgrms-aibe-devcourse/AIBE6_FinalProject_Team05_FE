@@ -195,7 +195,10 @@ export default function SearchResultsView({
     : cards;
 
   return (
-    <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[250px_1fr]">
+    // lg:items-stretch(#235): items-start면 필터 쪽 그리드 아이템이 콘텐츠 높이에 딱 맞아
+    // sticky가 움직일 여유(부모 높이 - 자기 높이)가 0이라 아예 고정되지 않는다. 데스크톱에서만
+    // 행 높이만큼 늘려 sticky에 이동 구간을 준다(필터 카드 자체는 max-h가 있어 안 늘어난다).
+    <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[250px_1fr] lg:items-stretch">
       {/* filter sidebar — #308: 키워드(q) 검색 중에도 필터를 함께 적용할 수 있어 항상 노출한다.
           lg 미만에서는 사이드바 대신 "필터" 버튼으로 여는 바텀시트/드로어로 표시.
           세트/타입/레어도/언어/가격대 필터 전체는 SearchFilterSidebar로 분리돼 있다(#142).
