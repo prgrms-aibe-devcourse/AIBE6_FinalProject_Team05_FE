@@ -1,6 +1,7 @@
 import { Dispatch, SetStateAction, useEffect, useRef } from "react";
 import Link from "next/link";
 import CardImage from "@/components/CardImage";
+import IconTooltip from "@/components/IconTooltip";
 import { CardFacetOption, CardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
 import { highlightMatch } from "@/lib/highlightMatch";
@@ -488,30 +489,38 @@ export default function SearchResultsView({
                     </div>
                     {/* 시각 크기는 32px 그대로 두고 -m-1.5/p-1.5로 히트 영역만 44px로 넓힌다
                         (터치 타겟 최소 44px). 레이아웃에 영향이 없도록 음수 마진으로 상쇄한다. */}
-                    <button
-                      type="button"
-                      onClick={() => onHeartClick(c.id)}
-                      disabled={watchlistPendingCardId === c.id}
-                      aria-label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}
-                      className="-m-1.5 flex flex-shrink-0 items-center justify-center p-1.5 disabled:cursor-not-allowed disabled:opacity-60"
+                    {/* 툴팁은 위로 — 하트가 타일 맨 아래(가격 줄)에 있어 아래로 열면
+                        타일의 overflow-hidden에 잘린다. */}
+                    <IconTooltip
+                      label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}
+                      placement="top"
+                      className="flex-shrink-0"
                     >
-                      <span className="flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#EDEDF0] bg-white transition hover:border-primary hover:bg-[#FFF5F5]">
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          stroke="#EE1515"
-                          strokeWidth="2"
-                          fill={myWatchlist.has(c.id) ? "#EE1515" : "none"}
-                          aria-hidden="true"
-                        >
-                          <path
-                            d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
-                            transform="translate(-3 0)"
-                          />
-                        </svg>
-                      </span>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => onHeartClick(c.id)}
+                        disabled={watchlistPendingCardId === c.id}
+                        aria-label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}
+                        className="-m-1.5 flex flex-shrink-0 items-center justify-center p-1.5 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <span className="flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#EDEDF0] bg-white transition hover:border-primary hover:bg-[#FFF5F5]">
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            stroke="#EE1515"
+                            strokeWidth="2"
+                            fill={myWatchlist.has(c.id) ? "#EE1515" : "none"}
+                            aria-hidden="true"
+                          >
+                            <path
+                              d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
+                              transform="translate(-3 0)"
+                            />
+                          </svg>
+                        </span>
+                      </button>
+                    </IconTooltip>
                   </div>
                   {watchlistError?.cardId === c.id && (
                     <div

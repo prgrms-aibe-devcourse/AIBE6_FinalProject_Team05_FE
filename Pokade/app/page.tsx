@@ -6,6 +6,7 @@ import GradeBadge from "@/components/GradeBadge";
 import ConditionBar from "@/components/ConditionBar";
 import CardImage from "@/components/CardImage";
 import HeroTiltCard from "@/components/HeroTiltCard";
+import IconTooltip from "@/components/IconTooltip";
 import ImageLightbox from "@/components/ImageLightbox";
 import Toast from "@/components/Toast";
 import { CardSearchItem, toCardSearchItem } from "@/types/card";
@@ -360,26 +361,34 @@ export default function HomePage() {
                         </div>
                       </div>
                     </Link>
-                    <button
-                      onClick={() => handleHeartClick(c.id)}
-                      disabled={pendingCardId === c.id}
-                      aria-label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}
-                      className="absolute bottom-3.5 right-3.5 flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#EDEDF0] bg-white hover:border-primary hover:bg-[#FFF5F5] disabled:cursor-not-allowed disabled:opacity-60"
+                    {/* 툴팁은 위로 — 하트가 타일 맨 아래에 있어 아래로 열면 타일의
+                        overflow-hidden에 잘린다(마켓 타일과 같은 이유). */}
+                    <IconTooltip
+                      label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}
+                      placement="top"
+                      className="absolute bottom-3.5 right-3.5"
                     >
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        stroke="#EE1515"
-                        strokeWidth="2"
-                        fill={myWatchlist.has(c.id) ? "#EE1515" : "none"}
+                      <button
+                        onClick={() => handleHeartClick(c.id)}
+                        disabled={pendingCardId === c.id}
+                        aria-label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}
+                        className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#EDEDF0] bg-white hover:border-primary hover:bg-[#FFF5F5] disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        <path
-                          d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
-                          transform="translate(-3 0)"
-                        />
-                      </svg>
-                    </button>
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          stroke="#EE1515"
+                          strokeWidth="2"
+                          fill={myWatchlist.has(c.id) ? "#EE1515" : "none"}
+                        >
+                          <path
+                            d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
+                            transform="translate(-3 0)"
+                          />
+                        </svg>
+                      </button>
+                    </IconTooltip>
                     {watchlistError?.cardId === c.id && (
                       <div
                         role="alert"
