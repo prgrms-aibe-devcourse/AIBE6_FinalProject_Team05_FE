@@ -415,6 +415,7 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
 // href가 없으면 아직 화면이 없는 메뉴다. 설정은 /settings 신설 후 연결한다.
 const PROFILE_MENU: { label: string; href?: string }[] = [
   { label: "마이페이지", href: "/mypage" },
+  { label: "내 포트폴리오", href: "/portfolio" },
   { label: "내 상품 관리", href: "/listings/me" },
   { label: "워치리스트", href: "/watchlist" },
   { label: "포인트 충전", href: "/mypage/points/charge" },
