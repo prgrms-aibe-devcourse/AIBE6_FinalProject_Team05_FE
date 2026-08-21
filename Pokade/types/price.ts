@@ -22,6 +22,23 @@ export type CardPriceSummaryResponse = {
 // AI 등급진단 도메인의 Grade("S"|"A"|"B")와는 별개 개념(판매자가 매물 등록 시 직접 표기하는 등급).
 export type ListingGrade = "S" | "A" | "B" | "PSA10" | "PSA9" | "PSA8";
 
+// ListingGrade + 미등급(RAW, BE에서는 grade=null) — 카드 상세 화면(등급 선택 박스/구매·판매입찰 탭)에서
+// "등급 없음"도 하나의 선택지로 다뤄야 하는 곳에서 공용으로 쓴다.
+export type GradeKey = ListingGrade | "RAW";
+
+// PSA10 > PSA9 > PSA8 > S > A > B > 미등급 순 — 등급 선택 박스/구매·판매입찰 탭에서 공통으로 쓰는 표시 순서.
+export const GRADE_ORDER: GradeKey[] = ["PSA10", "PSA9", "PSA8", "S", "A", "B", "RAW"];
+
+export const GRADE_LABELS: Record<GradeKey, string> = {
+  PSA10: "PSA 10",
+  PSA9: "PSA 9",
+  PSA8: "PSA 8",
+  S: "S",
+  A: "A",
+  B: "B",
+  RAW: "미등급",
+};
+
 // com.pokade.domain.price.dto.TradeSummaryResponse 미러링.
 export interface TradeSummaryResponse {
   tradedAt: string;
@@ -94,6 +111,14 @@ export interface ListingCreateRequest {
 // PUT /api/listings/{id} 요청 바디 — com.pokade.domain.listing.dto.ListingUpdateRequest 미러링.
 export interface ListingUpdateRequest {
   price: number;
+}
+
+// GET /api/prices/{cardId}/buy-offers 응답 항목 — com.pokade.domain.price.dto.BuyOfferOrderbookEntryResponse 미러링.
+// 활성 구매입찰(매수 호가)을 가격 내림차순으로 반환 — 판매 매물의 OrderbookEntryResponse/ListingSummaryResponse에 대응.
+export interface BuyOfferOrderbookEntryResponse {
+  buyOfferId: number;
+  price: number;
+  grade: ListingGrade | null;
 }
 
 // POST/PUT /api/listings 응답 — com.pokade.domain.listing.dto.ListingResponse 미러링.
