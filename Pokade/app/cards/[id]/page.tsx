@@ -713,6 +713,83 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                       </div>
                     </div>
 
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleWatchlistToggle}
+                        disabled={watchlistPendingCardId === cardId}
+                        aria-label={
+                          myWatchlist
+                            ? watchlistCount
+                              ? `관심 해제 (${watchlistCount.toLocaleString("ko-KR")})`
+                              : "관심 해제"
+                            : watchlistCount
+                              ? `관심 등록 (${watchlistCount.toLocaleString("ko-KR")})`
+                              : "관심 등록"
+                        }
+                        className={`flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-[11px] border-[1.5px] transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                          myWatchlist
+                            ? "border-primary bg-lavender"
+                            : "border-[#DDDDE3] bg-white hover:border-primary hover:bg-[#FFF5F5]"
+                        }`}
+                      >
+                        <svg
+                          width="20"
+                          height="20"
+                          viewBox="0 0 24 24"
+                          stroke="#EE1515"
+                          strokeWidth="2"
+                          fill={myWatchlist ? "#EE1515" : "none"}
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
+                            transform="translate(-3 0)"
+                          />
+                        </svg>
+                      </button>
+                      {/* 0/조회 실패(null)는 표시할 의미 있는 숫자가 없다고 보고 숨긴다 —
+                          신규 카드에 "0"이 찍혀 위축감을 주는 것도 피한다. */}
+                      {!!watchlistCount && (
+                        <span className="text-[12.5px] font-semibold text-[#9A9AA2]">
+                          {watchlistCount.toLocaleString("ko-KR")}
+                        </span>
+                      )}
+                      {myWatchlist && (
+                        <button
+                          type="button"
+                          onClick={() => setWatchlistModalOpen(true)}
+                          aria-label="목표가 설정"
+                          className="flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-[11px] border-[1.5px] border-[#DDDDE3] bg-white text-[#8A8A92] transition hover:border-primary hover:text-primary"
+                        >
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M12 20h9" />
+                            <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z" />
+                          </svg>
+                        </button>
+                      )}
+                      {watchlistAdded && (
+                        <span className="whitespace-nowrap text-[12.5px] font-bold text-primary">
+                          저장됨
+                        </span>
+                      )}
+                    </div>
+                    {watchlistToggleError && (
+                      <span role="alert" className="text-[12px] font-semibold text-primary">
+                        {watchlistToggleError}
+                      </span>
+                    )}
+
                     {buyError && (
                       <div className="rounded-xl border border-[#F6C6C6] bg-[#FFF1F1] px-3.5 py-2.5 text-[12.5px] font-semibold text-[#C21414]">
                         {buyError}
@@ -805,83 +882,6 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                             ? "구매하기"
                             : "등급을 선택하세요"}
                     </button>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={handleWatchlistToggle}
-                        disabled={watchlistPendingCardId === cardId}
-                        aria-label={
-                          myWatchlist
-                            ? watchlistCount
-                              ? `관심 해제 (${watchlistCount.toLocaleString("ko-KR")})`
-                              : "관심 해제"
-                            : watchlistCount
-                              ? `관심 등록 (${watchlistCount.toLocaleString("ko-KR")})`
-                              : "관심 등록"
-                        }
-                        className={`flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-[11px] border-[1.5px] transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                          myWatchlist
-                            ? "border-primary bg-lavender"
-                            : "border-[#DDDDE3] bg-white hover:border-primary hover:bg-[#FFF5F5]"
-                        }`}
-                      >
-                        <svg
-                          width="20"
-                          height="20"
-                          viewBox="0 0 24 24"
-                          stroke="#EE1515"
-                          strokeWidth="2"
-                          fill={myWatchlist ? "#EE1515" : "none"}
-                          aria-hidden="true"
-                        >
-                          <path
-                            d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
-                            transform="translate(-3 0)"
-                          />
-                        </svg>
-                      </button>
-                      {/* 0/조회 실패(null)는 표시할 의미 있는 숫자가 없다고 보고 숨긴다 —
-                          신규 카드에 "0"이 찍혀 위축감을 주는 것도 피한다. */}
-                      {!!watchlistCount && (
-                        <span className="text-[12.5px] font-semibold text-[#9A9AA2]">
-                          {watchlistCount.toLocaleString("ko-KR")}
-                        </span>
-                      )}
-                      {myWatchlist && (
-                        <button
-                          type="button"
-                          onClick={() => setWatchlistModalOpen(true)}
-                          aria-label="목표가 설정"
-                          className="flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-[11px] border-[1.5px] border-[#DDDDE3] bg-white text-[#8A8A92] transition hover:border-primary hover:text-primary"
-                        >
-                          <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden="true"
-                          >
-                            <path d="M12 20h9" />
-                            <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z" />
-                          </svg>
-                        </button>
-                      )}
-                      {watchlistAdded && (
-                        <span className="whitespace-nowrap text-[12.5px] font-bold text-primary">
-                          저장됨
-                        </span>
-                      )}
-                    </div>
-                    {watchlistToggleError && (
-                      <span role="alert" className="text-[12px] font-semibold text-primary">
-                        {watchlistToggleError}
-                      </span>
-                    )}
                   </div>
 
                   <div className="rounded-2xl border border-[#EDEDF0] bg-white p-5">
