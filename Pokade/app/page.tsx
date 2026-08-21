@@ -11,6 +11,7 @@ import AddWatchlistModal from "@/components/AddWatchlistModal";
 import { CardSearchItem, toCardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
 import { fetchCards, fetchCardsByKeywordPage, fetchPriceSummaries } from "@/lib/cardApi";
+import { fetchWatchlistCounts } from "@/lib/watchlistApi";
 import { ApiError } from "@/lib/apiClient";
 import { resolvePriceDisplay } from "@/lib/priceDisplay";
 
@@ -69,6 +70,7 @@ export default function HomePage() {
   const [priceSummaries, setPriceSummaries] = useState<Map<number, CardPriceSummaryResponse>>(
     new Map(),
   );
+  const [watchlistCounts, setWatchlistCounts] = useState<Map<number, number>>(new Map());
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [isHeroCardOpen, setIsHeroCardOpen] = useState(false);
@@ -130,6 +132,25 @@ export default function HomePage() {
       })
       .catch(() => {
         // 가격 조회 실패는 조용히 무시 — 카드 목록은 이미 정상 표시된 상태를 유지한다.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [popularCards]);
+
+  // 인기 카드 목록이 바뀌면 관심수도 한 번에 배치 조회한다.
+  // 조회 실패는 조용히 무시 — 배지만 안 보일 뿐, 하트 클릭(워치리스트 등록)은 그대로 정상 동작해야 한다.
+  useEffect(() => {
+    if (popularCards.length === 0) return;
+    let cancelled = false;
+
+    fetchWatchlistCounts(popularCards.map((c) => c.id))
+      .then((counts) => {
+        if (!cancelled) setWatchlistCounts(counts);
+      })
+      .catch(() => {
+        // 관심수 조회 실패는 조용히 무시 — 배지를 숨긴 상태로 남긴다.
       });
 
     return () => {
@@ -308,7 +329,11 @@ export default function HomePage() {
                     </Link>
                     <button
                       onClick={() => setWatchlistCardId(c.id)}
-                      aria-label="관심 등록"
+                      aria-label={
+                        watchlistCounts.get(c.id)
+                          ? `관심 등록 (관심 ${watchlistCounts.get(c.id)!.toLocaleString("ko-KR")}명)`
+                          : "관심 등록"
+                      }
                       aria-haspopup="dialog"
                       className="absolute bottom-3.5 right-3.5 flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#EDEDF0] bg-white hover:border-primary hover:bg-[#FFF5F5]"
                     >
@@ -325,6 +350,14 @@ export default function HomePage() {
                           transform="translate(-3 0)"
                         />
                       </svg>
+                      {!!watchlistCounts.get(c.id) && (
+                        <span
+                          aria-hidden="true"
+                          className="absolute -right-1.5 -top-1.5 min-w-[18px] rounded-full border border-white bg-primary px-1 text-[10px] font-bold leading-[16px] text-white"
+                        >
+                          {watchlistCounts.get(c.id)!.toLocaleString("ko-KR")}
+                        </span>
+                      )}
                     </button>
                   </div>
                 );
