@@ -10,8 +10,32 @@ import { ApiError } from "@/lib/apiClient";
 import { cancelTrade, confirmTrade, fetchTrade, shipTrade } from "@/lib/tradeApi";
 import { parseTradeId, TradeResponse } from "@/types/trade";
 
-// COMPLETED/CANCELLED(종결 상태)를 제외한 나머지는 전부 취소 가능 — BE의 cancel() 가드와 동일하게.
-const CANCELLABLE = new Set(["PENDING", "SHIPPED_TO_PLATFORM", "INSPECTED", "DELIVERED"]);
+// DELIVERED(실물 수령) 이후와 COMPLETED/CANCELLED(종결 상태)는 취소할 수 없다 — BE의 cancel() 가드와
+// 동일하게. 배송 완료 후에도 취소를 허용하면 카드를 받고도 결제를 환불받아가는 경로가 생긴다.
+const CANCELLABLE = new Set(["PENDING", "SHIPPED_TO_PLATFORM", "INSPECTED"]);
+
+// 실제 택배사 추적 연동이 없어 확정 도착일이 아닌, 운영 기준(발송 후 24시간 이내 검수 /
+// 검수 후 2일 이내 배송)으로 계산한 참고용 예상치다.
+const INSPECTION_SLA_HOURS = 24;
+const DELIVERY_SLA_DAYS = 2;
+
+const STEPS = [
+  { key: "paid", label: "결제 완료" },
+  { key: "shipped", label: "판매자 발송" },
+  { key: "inspected", label: "검수 완료" },
+  { key: "delivered", label: "배송 완료" },
+  { key: "confirmed", label: "수령 확정" },
+] as const;
+
+// 현재까지 완료된 스텝 개수 — 거래는 생성 시점에 이미 결제(에스크로)가 성립되므로 최소 1.
+function completedStepCount(trade: TradeResponse) {
+  let count = 1;
+  if (trade.shippedAt) count++;
+  if (trade.inspectedAt) count++;
+  if (trade.deliveredAt) count++;
+  if (trade.confirmedAt) count++;
+  return count;
+}
 
 // "yyyy-MM-ddTHH:mm:ss" → "YYYY.MM.DD HH:mm" (app/cards/[id]/page.tsx의 formatTradedAt과 동일 규칙).
 function formatDateTime(iso: string) {
@@ -19,6 +43,28 @@ function formatDateTime(iso: string) {
   if (Number.isNaN(d.getTime())) return iso;
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// 발송 시각 기준 검수 완료 예상 안내 — 실제 SLA 추적이 없어 고정 기준(24시간)으로 계산한 참고용 문구.
+function inspectionEtaText(shippedAt: string) {
+  const target = new Date(shippedAt);
+  target.setHours(target.getHours() + INSPECTION_SLA_HOURS);
+  const remainingHours = Math.ceil((target.getTime() - Date.now()) / (1000 * 60 * 60));
+  if (remainingHours <= 0) {
+    return "검수 완료 예정 시간이 지났습니다. 곧 처리될 예정입니다.";
+  }
+  return `약 ${remainingHours}시간 후 검수 완료 예정 (${formatDateTime(target.toISOString())})`;
+}
+
+// 검수 완료 시각 기준 배송 완료 예상 안내 — 고정 기준(2일)으로 계산한 참고용 문구.
+function deliveryEtaText(inspectedAt: string) {
+  const target = new Date(inspectedAt);
+  target.setDate(target.getDate() + DELIVERY_SLA_DAYS);
+  const remainingDays = Math.ceil((target.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+  if (remainingDays <= 0) {
+    return "도착 예정일이 지났습니다. 곧 도착할 예정입니다.";
+  }
+  return `약 ${remainingDays}일 후 도착 예정 (${formatDateTime(target.toISOString())})`;
 }
 
 type LoadState = "loading" | "notfound" | "forbidden" | "error" | "ready";
@@ -34,6 +80,9 @@ export default function TradeStatusPage() {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [actionSubmitting, setActionSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
+
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     if (userStatus !== "authenticated" || tradeId == null) return;
@@ -58,7 +107,7 @@ export default function TradeStatusPage() {
     return () => {
       cancelled = true;
     };
-  }, [userStatus, tradeId]);
+  }, [userStatus, tradeId, retryKey]);
 
   const handleShip = async () => {
     if (!trade) return;
@@ -95,6 +144,7 @@ export default function TradeStatusPage() {
     try {
       const updated = await cancelTrade(trade.id);
       setTrade(updated);
+      setConfirmingCancel(false);
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : "거래 취소에 실패했습니다.");
     } finally {
@@ -132,26 +182,64 @@ export default function TradeStatusPage() {
         <h1 className="mb-6 text-[26px] font-extrabold tracking-[-0.6px]">거래 상세</h1>
 
         {loadState === "loading" && (
-          <div className="rounded-2xl border border-[#EDEDF0] bg-white py-14 text-center text-[13.5px] text-[#9A9AA2]">
-            불러오는 중...
+          <div className="flex flex-col gap-5">
+            <div className="h-[70px] animate-pulse rounded-2xl border border-[#EDEDF0] bg-[#F2F2F5]" />
+            <div className="h-[92px] animate-pulse rounded-2xl border border-[#EDEDF0] bg-[#F2F2F5]" />
+            <div className="rounded-2xl border border-[#EDEDF0] bg-white p-6">
+              <div className="flex gap-4">
+                <div className="h-[100px] w-[72px] flex-shrink-0 animate-pulse rounded-[10px] bg-[#F2F2F5]" />
+                <div className="flex-1 space-y-2.5 pt-1">
+                  <div className="h-4 w-2/3 animate-pulse rounded bg-[#F2F2F5]" />
+                  <div className="h-6 w-1/3 animate-pulse rounded bg-[#F2F2F5]" />
+                </div>
+              </div>
+              <div className="my-5 h-px bg-[#EDEDF0]" />
+              <div className="space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-4 animate-pulse rounded bg-[#F2F2F5]" />
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
         {loadState === "notfound" && (
           <div className="rounded-2xl border border-[#EDEDF0] bg-white py-14 text-center text-[13.5px] text-[#9A9AA2]">
-            거래를 찾을 수 없습니다.
+            <p>거래를 찾을 수 없습니다.</p>
+            <Link
+              href="/listings/me"
+              className="mt-3 inline-block text-[12.5px] font-bold text-primary hover:text-primary-dark"
+            >
+              내 상품으로 돌아가기
+            </Link>
           </div>
         )}
 
         {loadState === "forbidden" && (
           <div className="rounded-2xl border border-[#EDEDF0] bg-white py-14 text-center text-[13.5px] text-[#9A9AA2]">
-            본인의 거래만 확인할 수 있습니다.
+            <p>본인의 거래만 확인할 수 있습니다.</p>
+            <Link
+              href="/listings/me"
+              className="mt-3 inline-block text-[12.5px] font-bold text-primary hover:text-primary-dark"
+            >
+              내 상품으로 돌아가기
+            </Link>
           </div>
         )}
 
         {loadState === "error" && (
           <div className="rounded-2xl border border-[#F6C6C6] bg-[#FFF1F1] py-14 text-center text-[13.5px] text-[#C21414]">
-            거래 정보를 불러오지 못했습니다.
+            <p>거래 정보를 불러오지 못했습니다.</p>
+            <button
+              type="button"
+              onClick={() => {
+                setLoadState("loading");
+                setRetryKey((k) => k + 1);
+              }}
+              className="mt-3 font-bold text-[#C21414] underline hover:no-underline"
+            >
+              다시 시도
+            </button>
           </div>
         )}
 
@@ -177,12 +265,22 @@ export default function TradeStatusPage() {
             )}
             {trade.status === "SHIPPED_TO_PLATFORM" && (
               <div className="rounded-2xl border border-[#F5E4A8] bg-[#FFF9E6] px-5 py-4 text-[13.5px] font-semibold text-[#8A6A00]">
-                플랫폼에서 매물을 검수 중입니다.
+                <p>플랫폼에서 매물을 검수 중입니다.</p>
+                {trade.shippedAt && (
+                  <p className="mt-1 text-[12px] font-semibold text-[#9A7B1F]">
+                    {inspectionEtaText(trade.shippedAt)}
+                  </p>
+                )}
               </div>
             )}
             {trade.status === "INSPECTED" && (
               <div className="rounded-2xl border border-[#F5E4A8] bg-[#FFF9E6] px-5 py-4 text-[13.5px] font-semibold text-[#8A6A00]">
-                검수가 완료되어 배송 준비 중입니다.
+                <p>검수가 완료되어 배송 준비 중입니다.</p>
+                {trade.inspectedAt && (
+                  <p className="mt-1 text-[12px] font-semibold text-[#9A7B1F]">
+                    {deliveryEtaText(trade.inspectedAt)}
+                  </p>
+                )}
               </div>
             )}
             {trade.status === "DELIVERED" && (
@@ -190,6 +288,48 @@ export default function TradeStatusPage() {
                 {isBuyer
                   ? "배송이 완료되었습니다. 수령 후 구매를 확정해 주세요."
                   : "구매자의 확정을 기다리는 중입니다."}
+              </div>
+            )}
+
+            {/* 진행 단계 */}
+            {trade.status !== "CANCELLED" && (
+              <div className="rounded-2xl border border-[#EDEDF0] bg-white px-6 py-7">
+                <div className="flex items-center">
+                  {STEPS.map((step, i) => {
+                    const doneCount = completedStepCount(trade);
+                    const isDone = i < doneCount;
+                    const isCurrent = i === doneCount && doneCount < STEPS.length;
+                    return (
+                      <div key={step.key} className="flex flex-1 flex-col items-center last:flex-none">
+                        <div className="flex w-full items-center">
+                          {i > 0 && (
+                            <div
+                              className={`h-[3px] flex-1 ${i <= doneCount ? "bg-primary" : "bg-[#EDEDF0]"}`}
+                            />
+                          )}
+                          <div
+                            className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-[12px] font-bold ${
+                              isDone
+                                ? "bg-primary text-white"
+                                : isCurrent
+                                  ? "border-2 border-primary bg-white text-primary"
+                                  : "border border-[#DDDDE3] bg-white text-[#B0B0B8]"
+                            }`}
+                          >
+                            {isDone ? "✓" : i + 1}
+                          </div>
+                        </div>
+                        <span
+                          className={`mt-2 whitespace-nowrap text-center text-[11.5px] font-semibold ${
+                            isDone || isCurrent ? "text-ink" : "text-[#B0B0B8]"
+                          }`}
+                        >
+                          {step.label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
@@ -206,7 +346,7 @@ export default function TradeStatusPage() {
                   >
                     {trade.cardName ?? "알 수 없는 카드"}
                   </Link>
-                  <div className="mt-3.5 text-xs text-[#9A9AA2]">결제 금액</div>
+                  <div className="mt-3.5 text-xs text-[#9A9AA2]">상품 금액</div>
                   <div className="text-xl font-extrabold text-primary">
                     {trade.price.toLocaleString("ko-KR")}원
                   </div>
@@ -214,6 +354,10 @@ export default function TradeStatusPage() {
               </div>
               <div className="my-5 h-px bg-[#EDEDF0]" />
               <div className="flex flex-col gap-[11px] text-[13.5px]">
+                <div className="flex justify-between">
+                  <span className="text-[#8A8A92]">총 결제 금액</span>
+                  <span className="font-bold">{trade.price.toLocaleString("ko-KR")}원</span>
+                </div>
                 <div className="flex justify-between">
                   <span className="text-[#8A8A92]">거래 번호</span>
                   <span className="font-bold">#{trade.id}</span>
@@ -263,6 +407,12 @@ export default function TradeStatusPage() {
                     <span className="font-bold">{formatDateTime(trade.confirmedAt)}</span>
                   </div>
                 )}
+                {trade.settledAt && (
+                  <div className="flex justify-between">
+                    <span className="text-[#8A8A92]">정산일</span>
+                    <span className="font-bold">{formatDateTime(trade.settledAt)}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -294,14 +444,38 @@ export default function TradeStatusPage() {
                     {actionSubmitting ? "처리 중..." : "구매 확정"}
                   </button>
                 )}
-                <button
-                  type="button"
-                  disabled={actionSubmitting}
-                  onClick={handleCancel}
-                  className="w-full rounded-xl border-[1.5px] border-[#DDDDE3] bg-white py-[15px] text-[15px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary disabled:opacity-60"
-                >
-                  거래 취소
-                </button>
+                {confirmingCancel ? (
+                  <div className="flex items-center gap-2 rounded-xl border-[1.5px] border-[#F6C6C6] bg-[#FFF1F1] px-4 py-3">
+                    <span className="flex-1 text-[13px] font-semibold text-[#C21414]">
+                      정말 거래를 취소하시겠어요?
+                    </span>
+                    <button
+                      type="button"
+                      disabled={actionSubmitting}
+                      onClick={handleCancel}
+                      className="rounded-[9px] border-2 border-primary-dark bg-primary px-3 py-1.5 text-[12.5px] font-bold text-white disabled:opacity-60"
+                    >
+                      {actionSubmitting ? "취소 중..." : "취소하기"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={actionSubmitting}
+                      onClick={() => setConfirmingCancel(false)}
+                      className="rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#4B4B52]"
+                    >
+                      돌아가기
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={actionSubmitting}
+                    onClick={() => setConfirmingCancel(true)}
+                    className="w-full rounded-xl border-[1.5px] border-[#DDDDE3] bg-white py-[15px] text-[15px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary disabled:opacity-60"
+                  >
+                    거래 취소
+                  </button>
+                )}
               </div>
             )}
           </div>

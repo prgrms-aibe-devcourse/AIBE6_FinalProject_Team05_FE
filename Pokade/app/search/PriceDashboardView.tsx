@@ -1,11 +1,38 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import GradeBadge, { Grade } from "@/components/GradeBadge";
+import GradeBadge from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
 import AddWatchlistModal from "@/components/AddWatchlistModal";
-import { fetchCardsByKeywordPage } from "@/lib/cardApi";
+import { fetchCardsByKeywordPage, fetchCardTrades } from "@/lib/cardApi";
+import { ListingGrade, TradeSummaryResponse } from "@/types/price";
 import { useTimedFlag } from "@/hooks/useTimedFlag";
+
+// MyTradesSection.tsx의 formatDateTime과 같은 모양이지만, 그 파일은 다른 담당자(마이페이지) 소유라
+// 공용 헬퍼로 뽑지 않고 이 화면 안에 로컬로 둔다.
+function formatTradeTime(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// GradeBadge는 S/A/B(자체 AI 등급)만 지원한다 — PSA10/9/8(외부 공인등급)은 cards/[id]/page.tsx가
+// 이미 그러듯 GradeBadge를 확장하지 않고 이 화면에서 로컬로 처리한다. grade가 null이면(등급 없는
+// 원본 거래) GradeBadge에 grade를 안 넘겨 컴포넌트 자체 "등급 미정" 폴백을 그대로 쓴다.
+function TradeGradeBadge({ grade }: { grade: ListingGrade | null }) {
+  if (grade === "S" || grade === "A" || grade === "B") {
+    return <GradeBadge grade={grade} size="sm" />;
+  }
+  if (grade == null) {
+    return <GradeBadge size="sm" />;
+  }
+  return (
+    <span className="inline-flex items-center justify-center rounded-full border-2 border-[#D5D7DC] bg-[#EEF0F2] px-[8px] py-[2px] text-[9px] font-bold leading-none tracking-[0.5px] text-[#5F6368] shadow-sm">
+      {grade}
+    </span>
+  );
+}
 
 // /search의 "시세 대시보드" 탭 — 아직 단일 카드(리자몽 ex) 시연용 정적 뷰라 카드 목록/시세는
 // 여전히 목업이다. 워치리스트 버튼만 실제 등록이 되도록, 화면에 표시된 카드("리자몽 ex")를
@@ -37,6 +64,39 @@ export default function PriceDashboardView() {
       cancelled = true;
     };
   }, []);
+
+  // "최근 거래 내역"만 실제 API로 연동한다(차트/요약카드/추천카드는 이번 범위 밖, 여전히 목업).
+  // 결과를 조회에 쓰인 cardId(key)와 한 덩어리로 들고 있고, 로딩 여부는 별도 플래그가 아니라
+  // "지금 cardId에 대한 결과가 아직 없다"로 파생 계산한다 — MyTradesSection.tsx/notifications
+  // 페이지와 동일한 패턴(effect 안에서 setState를 동기 호출하면 react-hooks/set-state-in-effect에
+  // 걸린다, #162 HANDOFF 참고).
+  const [tradesResult, setTradesResult] = useState<{
+    key: number;
+    data: TradeSummaryResponse[] | null;
+  } | null>(null);
+
+  useEffect(() => {
+    if (cardId == null) return;
+    let cancelled = false;
+    const key = cardId;
+
+    fetchCardTrades(cardId)
+      .then((data) => {
+        if (!cancelled) setTradesResult({ key, data });
+      })
+      .catch(() => {
+        if (!cancelled) setTradesResult({ key, data: null });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cardId]);
+
+  const currentTrades = tradesResult?.key === cardId ? tradesResult : null;
+  const trades = currentTrades?.data ?? null;
+  const tradesLoadState: "loading" | "error" | "ready" =
+    cardId != null && currentTrades !== null ? (trades ? "ready" : "error") : "loading";
 
   return (
     <div className="grid grid-cols-1 items-start gap-[22px] lg:grid-cols-[60fr_40fr]">
@@ -86,30 +146,43 @@ export default function PriceDashboardView() {
         </div>
         <div className="rounded-2xl border border-[#EDEDF0] bg-white px-7 py-6">
           <h2 className="mb-4 mt-0 text-base font-extrabold">최근 거래 내역</h2>
-          <div className="grid grid-cols-4 border-b border-[#EDEDF0] pb-[11px] text-xs font-bold text-[#9A9AA2]">
+          <div className="grid grid-cols-3 border-b border-[#EDEDF0] pb-[11px] text-xs font-bold text-[#9A9AA2]">
             <span>등급</span>
             <span>체결가</span>
-            <span>변동</span>
             <span className="text-right">시각</span>
           </div>
-          {[
-            { g: "S" as Grade, p: "₩142,000", c: "▲ 3.2%", up: true, t: "2분 전" },
-            { g: "A" as Grade, p: "₩98,000", c: "▲ 1.1%", up: true, t: "18분 전" },
-            { g: "S" as Grade, p: "₩139,500", c: "▼ 0.7%", up: false, t: "1시간 전" },
-            { g: "B" as Grade, p: "₩61,000", c: "▲ 2.0%", up: true, t: "3시간 전" },
-          ].map((r, i, a) => (
-            <div
-              key={i}
-              className={`grid grid-cols-4 items-center py-3 text-[13.5px] ${i < a.length - 1 ? "border-b border-[#F5F5F7]" : ""}`}
-            >
-              <span>
-                <GradeBadge grade={r.g} size="md" />
-              </span>
-              <span className="font-bold">{r.p}</span>
-              <span className={`font-bold ${r.up ? "text-primary" : "text-secondary"}`}>{r.c}</span>
-              <span className="text-right text-[#9A9AA2]">{r.t}</span>
-            </div>
-          ))}
+          {/* 실제 API(GET /api/prices/{cardId}/trades)에는 변동률 필드가 없다 — 이 표 한 줄
+              한 줄이 서로 다른 등급(PSA10/S/등급없음 등)을 섞어 보여주므로, 바로 위 줄과
+              비교해 변동률을 계산하면 등급이 다른 거래끼리 비교하는 셈이라 의미가 없다.
+              그래서 억지로 만들지 않고 컬럼 자체를 뺐다. */}
+          {tradesLoadState === "loading" && (
+            <p className="py-8 text-center text-[13px] text-[#8A8A92]">불러오는 중...</p>
+          )}
+          {tradesLoadState === "error" && (
+            <p className="py-8 text-center text-[13px] text-[#C21414]">
+              거래 내역을 불러오지 못했습니다.
+            </p>
+          )}
+          {tradesLoadState === "ready" && trades && trades.length === 0 && (
+            <p className="py-8 text-center text-[13px] text-[#8A8A92]">
+              아직 체결된 거래가 없습니다.
+            </p>
+          )}
+          {tradesLoadState === "ready" &&
+            trades &&
+            trades.length > 0 &&
+            trades.map((t, i) => (
+              <div
+                key={`${t.tradedAt}-${i}`}
+                className={`grid grid-cols-3 items-center py-3 text-[13.5px] ${i < trades.length - 1 ? "border-b border-[#F5F5F7]" : ""}`}
+              >
+                <span>
+                  <TradeGradeBadge grade={t.grade} />
+                </span>
+                <span className="font-bold">{t.price.toLocaleString("ko-KR")}원</span>
+                <span className="text-right text-[#9A9AA2]">{formatTradeTime(t.tradedAt)}</span>
+              </div>
+            ))}
         </div>
       </div>
       <div className="flex flex-col gap-5">

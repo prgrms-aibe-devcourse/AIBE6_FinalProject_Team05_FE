@@ -23,6 +23,8 @@ interface UserState {
   role: "user" | "admin" | null;
   // 비로그인 프리셋 이관 성공 시 증가 — useChat이 구독해 이력을 자동 재로드함.
   chatHistoryVersion: number;
+  accountStatus: MyInfo["status"] | null;
+  provider: MyInfo["provider"] | null;
   login: (email: string, password: string) => Promise<void>;
   loginWithToken: (accessToken: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -67,6 +69,8 @@ export const useUserStore = create<UserState>((set, get) => ({
   profileImageUrl: null,
   role: null,
   chatHistoryVersion: 0,
+  accountStatus: null,
+  provider: null,
 
   // 이미 발급된 accessToken으로 세션 확정: 토큰 저장 → 프로필 조회 → 상태 세팅 (소셜 가입·로그인 공용)
   loginWithToken: async (accessToken) => {
@@ -83,6 +87,8 @@ export const useUserStore = create<UserState>((set, get) => ({
         email: me.email,
         profileImageUrl: me.profileImageUrl,
         role: toStoreRole(me.role),
+        accountStatus: me.status,
+        provider: me.provider,
       });
       // 비로그인 때 쌓아둔 프리셋 클릭 이력을 서버로 이관 (best-effort, fire-and-forget)
       flushChatImportQueue(set).catch(() => {});
@@ -99,6 +105,8 @@ export const useUserStore = create<UserState>((set, get) => ({
         email: null,
         profileImageUrl: null,
         role: null,
+        accountStatus: null,
+        provider: null,
       });
       throw err; // 화면에서 에러 처리하도록 재throw
     }
@@ -128,6 +136,8 @@ export const useUserStore = create<UserState>((set, get) => ({
       profileImageUrl: null,
       email: null,
       role: null,
+      accountStatus: null,
+      provider: null,
     });
   },
 
@@ -144,6 +154,8 @@ export const useUserStore = create<UserState>((set, get) => ({
         email: null,
         profileImageUrl: null,
         role: null,
+        accountStatus: null,
+        provider: null,
       });
       return false;
     }
@@ -166,6 +178,8 @@ export const useUserStore = create<UserState>((set, get) => ({
         email: null,
         profileImageUrl: null,
         role: null,
+        accountStatus: null,
+        provider: null,
       });
       return false;
     }
@@ -183,6 +197,8 @@ export const useUserStore = create<UserState>((set, get) => ({
         email: me.email,
         profileImageUrl: me.profileImageUrl,
         role: toStoreRole(me.role),
+        accountStatus: me.status,
+        provider: me.provider,
       });
       return true;
     } catch (err) {
@@ -199,6 +215,8 @@ export const useUserStore = create<UserState>((set, get) => ({
           email: null,
           profileImageUrl: null,
           role: null,
+          accountStatus: null,
+          provider: null,
         });
         return false;
       }
@@ -215,6 +233,8 @@ export const useUserStore = create<UserState>((set, get) => ({
         email: me.email,
         profileImageUrl: me.profileImageUrl,
         role: toStoreRole(me.role),
+        accountStatus: me.status,
+        provider: me.provider,
       });
       return true;
     } catch {

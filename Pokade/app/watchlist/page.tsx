@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import AddWatchlistModal from "@/components/AddWatchlistModal";
 import CardImage from "@/components/CardImage";
+import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
 import { resolvePriceDisplay } from "@/lib/priceDisplay";
@@ -41,6 +42,59 @@ function statusOf(item: WatchlistResponse): Status {
   return item.targetReached ? "목표도달" : "대기중";
 }
 
+// AddWatchlistModal과 동일한 오버레이 패턴(backdrop 클릭/ESC로 닫기, stopPropagation) —
+// 이 화면 한 곳에만 쓰이는 확인 모달이라 components/로 공용화하지 않고 로컬로 둔다.
+function DeleteConfirmModal({
+  cardName,
+  submitting,
+  onCancel,
+  onConfirm,
+}: {
+  cardName: string;
+  submitting: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  useEscapeAndScrollLock(true, onCancel);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      onClick={onCancel}
+      role="dialog"
+      aria-modal="true"
+      aria-label="워치리스트 삭제 확인"
+    >
+      <div
+        className="w-full max-w-[360px] rounded-2xl bg-white p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="m-0 text-[16px] font-extrabold">워치리스트에서 삭제</h2>
+        <p className="mb-5 mt-2 text-[13.5px] leading-relaxed text-[#5A5A62]">
+          <b className="font-bold text-ink">{cardName}</b>을(를) 워치리스트에서 삭제하시겠어요?
+        </p>
+        <div className="flex gap-2.5">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex-1 rounded-[10px] border-[1.5px] border-[#DDDDE3] bg-white py-2.5 text-[13.5px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            disabled={submitting}
+            onClick={onConfirm}
+            className="flex-1 rounded-[10px] bg-primary py-2.5 text-[13.5px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {submitting ? "삭제 중..." : "삭제"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // targetBuyPrice/targetSellPrice 중 최소 하나는 항상 있다(둘 다 없으면 BE가 400).
 // 둘 다 등록된 경우 하나만 보여주면 다른 쪽 목표가가 화면에서 사라지므로, 있는 것을 모두 반환한다.
 function formatTargets(item: WatchlistResponse): { label: string; value: string }[] {
@@ -70,6 +124,7 @@ export default function WatchlistPage() {
   const [sort, setSort] = useState<Sort>("oldest");
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<WatchlistResponse | null>(null);
   const [editingItem, setEditingItem] = useState<WatchlistResponse | null>(null);
   const [resendingId, setResendingId] = useState<number | null>(null);
   const [resendError, setResendError] = useState<string | null>(null);
@@ -119,15 +174,17 @@ export default function WatchlistPage() {
         : "border-[#E4E4E9] bg-white font-semibold text-[#7A7A82]"
     }`;
 
+  // 확인은 DeleteConfirmModal(커스텀 모달)이 담당 — 여기서는 이미 확인된 삭제만 수행한다.
   const handleDelete = async (id: number) => {
-    if (!window.confirm("워치리스트에서 삭제하시겠어요?")) return;
     setDeletingId(id);
     setDeleteError(null);
     try {
       await deleteWatchlistItem(id);
       setRows((prev) => prev.filter((r) => r.id !== id));
+      setDeleteTarget(null);
     } catch (err) {
       setDeleteError(err instanceof ApiError ? err.message : "삭제에 실패했습니다.");
+      setDeleteTarget(null);
     } finally {
       setDeletingId(null);
     }
@@ -407,7 +464,7 @@ export default function WatchlistPage() {
                               type="button"
                               aria-label={`${displayName} 워치리스트에서 삭제`}
                               disabled={deletingId === row.id}
-                              onClick={() => handleDelete(row.id)}
+                              onClick={() => setDeleteTarget(row)}
                               className="-m-3.5 p-3.5 text-[#C7C7CE] hover:text-primary disabled:opacity-50"
                             >
                               <svg
@@ -441,6 +498,15 @@ export default function WatchlistPage() {
           initialTargetBuyPrice={editingItem.targetBuyPrice}
           initialTargetSellPrice={editingItem.targetSellPrice}
           onSuccess={handleUpdateSuccess}
+        />
+      )}
+
+      {deleteTarget && (
+        <DeleteConfirmModal
+          cardName={deleteTarget.cardNameKo ?? deleteTarget.cardName ?? "이 카드"}
+          submitting={deletingId === deleteTarget.id}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => handleDelete(deleteTarget.id)}
         />
       )}
     </main>

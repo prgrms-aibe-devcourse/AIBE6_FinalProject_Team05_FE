@@ -13,7 +13,7 @@ import {
 } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
-import { PRICE_MAX } from "./constants";
+import { isPriceSort, PRICE_MAX, UiSort } from "./constants";
 import SearchResultsView from "./SearchResultsView";
 import PriceDashboardView from "./PriceDashboardView";
 
@@ -70,14 +70,26 @@ function SearchDashboard() {
   const [selectedRarities, setSelectedRarities] = useState<string[]>(
     () => searchParams.get("rarity")?.split(",").filter(Boolean) ?? [],
   );
+  // 언어(국가판) 필터 — 세트/타입/레어도와 달리 facets API에 옵션 목록이 없어(#263 범위 밖) 값
+  // 화이트리스트 보정을 하지 않는다. 체크박스 자체가 EN/JA로만 고정돼 있어(SearchResultsView의
+  // LANGUAGE_OPTIONS) 화면에서 다른 값이 선택될 수 없고, BE도 어차피 그대로 IN절로 필터링한다.
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(
+    () => searchParams.get("languages")?.split(",").filter(Boolean) ?? [],
+  );
   const [facets, setFacets] = useState<CardFacetsResponse>(EMPTY_FACETS);
   const [facetsLoading, setFacetsLoading] = useState(true);
   // BE 화이트리스트에 없는 값은 기본값(popular)으로 취급 — /api/cards/search(키워드 검색)는
   // sort를 지원하지 않으므로 q가 있을 때는 드롭다운 자체를 숨긴다.
-  const [sort, setSort] = useState<CardSort>(() => {
+  // priceAsc/priceDesc는 BE 화이트리스트에 없는 FE 전용 값(constants.ts의 UiSort 참고) — URL
+  // 복원 시에도 그대로 인식해야 새로고침 후에도 가격순 선택이 유지된다.
+  const [sort, setSort] = useState<UiSort>(() => {
     const s = searchParams.get("sort");
-    return s === "name" || s === "latest" ? s : "popular";
+    return s === "name" || s === "latest" || s === "priceAsc" || s === "priceDesc" ? s : "popular";
   });
+  // BE에 실제로 보내는 정렬값 — 가격순은 BE 화이트리스트에 없어(위 import의 isPriceSort 참고)
+  // 그대로 보내면 조용히 latest로 폴백돼 "선택했는데 안 바뀐" 것처럼 보인다. 대신 기본 정렬(popular)로
+  // 받아온 페이지를 SearchResultsView가 클라이언트에서 가격 기준으로 다시 정렬한다.
+  const apiSort: CardSort = isPriceSort(sort) ? "popular" : sort;
   // 1-indexed(화면 표시용). BE 호출 시에만 0-indexed로 변환한다.
   const [page, setPage] = useState<number>(() => {
     const p = Number(searchParams.get("page"));
@@ -108,7 +120,7 @@ function SearchDashboard() {
   // 가격대는 debounced 값 기준 — 드래그 중간값으로 매번 1페이지/로딩 상태가 흔들리지 않도록 함.
   // (다른 필터는 각 onChange에서 이미 setLoadState("loading")을 즉시 호출하므로 여기서 또
   // 호출해도 중복일 뿐 해가 없고, debounced 가격 변경은 이 지점이 유일한 트리거가 된다.)
-  const filterKey = `${selectedExpansionId}|${selectedTypes.join(",")}|${selectedRarities.join(",")}|${sort}|${debouncedPriceMin}|${debouncedPriceMax}`;
+  const filterKey = `${selectedExpansionId}|${selectedTypes.join(",")}|${selectedRarities.join(",")}|${selectedLanguages.join(",")}|${apiSort}|${debouncedPriceMin}|${debouncedPriceMax}`;
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
@@ -136,8 +148,12 @@ function SearchDashboard() {
         setSelectedExpansionId((id) =>
           id && safeData.expansions.some((e) => e.id === id) ? id : null,
         );
-        setSelectedTypes((types) => types.filter((t) => safeData.types.includes(t)));
-        setSelectedRarities((rarities) => rarities.filter((r) => safeData.rarities.includes(r)));
+        setSelectedTypes((types) =>
+          types.filter((t) => safeData.types.some((opt) => opt.value === t)),
+        );
+        setSelectedRarities((rarities) =>
+          rarities.filter((r) => safeData.rarities.some((opt) => opt.value === r)),
+        );
       })
       .catch(() => {
         // 무시 — facets는 EMPTY_FACETS로 남고 필터 체크박스 목록만 비어 보인다.
@@ -169,9 +185,10 @@ function SearchDashboard() {
           expansionId: selectedExpansionId ?? undefined,
           types: selectedTypes,
           rarity: selectedRarities,
+          languages: selectedLanguages,
           minPrice: debouncedPriceMin > 0 ? debouncedPriceMin : undefined,
           maxPrice: debouncedPriceMax < PRICE_MAX ? debouncedPriceMax : undefined,
-          sort,
+          sort: apiSort,
           page: page - 1,
         });
 
@@ -197,9 +214,10 @@ function SearchDashboard() {
     selectedExpansionId,
     selectedTypes,
     selectedRarities,
+    selectedLanguages,
     debouncedPriceMin,
     debouncedPriceMax,
-    sort,
+    apiSort,
     page,
     q,
   ]);
@@ -252,6 +270,8 @@ function SearchDashboard() {
     else params.delete("types");
     if (selectedRarities.length) params.set("rarity", selectedRarities.join(","));
     else params.delete("rarity");
+    if (selectedLanguages.length) params.set("languages", selectedLanguages.join(","));
+    else params.delete("languages");
     if (debouncedPriceMin > 0) params.set("minPrice", String(debouncedPriceMin));
     else params.delete("minPrice");
     if (debouncedPriceMax < PRICE_MAX) params.set("maxPrice", String(debouncedPriceMax));
@@ -267,6 +287,7 @@ function SearchDashboard() {
     selectedExpansionId,
     selectedTypes,
     selectedRarities,
+    selectedLanguages,
     debouncedPriceMin,
     debouncedPriceMax,
     sort,
@@ -296,6 +317,7 @@ function SearchDashboard() {
     setSelectedExpansionId(null);
     setSelectedTypes([]);
     setSelectedRarities([]);
+    setSelectedLanguages([]);
     setSort("popular");
     setPage(1);
     // 필터가 이미 초기값이면 위 세터들이 상태를 바꾸지 않아 카드 목록 effect가
@@ -308,11 +330,12 @@ function SearchDashboard() {
   // 기존 SET_OPTIONS과 같은 모양({label, expansionId})으로 맞춰서, 이 값을 쓰는
   // SearchResultsView 쪽 JSX(옵션 렌더링/칩 라벨 조회)를 그대로 재사용한다.
   // series는 BE가 null이면 "기타"로 고정해서 내려주지만, 위쪽 safeData 보정과 같은 이유로
-  // 한 번 더 방어해둔다.
+  // 한 번 더 방어해둔다. count(#263)는 그대로 실어 날라서 옵션 라벨 옆 개수 배지에 쓴다.
   const setOptions = facets.expansions.map((e) => ({
     label: e.name,
     expansionId: e.id,
     series: e.series ?? "기타",
+    count: e.count,
   }));
 
   return (
@@ -345,6 +368,8 @@ function SearchDashboard() {
             setSelectedTypes={setSelectedTypes}
             selectedRarities={selectedRarities}
             setSelectedRarities={setSelectedRarities}
+            selectedLanguages={selectedLanguages}
+            setSelectedLanguages={setSelectedLanguages}
             setOptions={setOptions}
             typeOptions={facets.types}
             rarityOptions={facets.rarities}

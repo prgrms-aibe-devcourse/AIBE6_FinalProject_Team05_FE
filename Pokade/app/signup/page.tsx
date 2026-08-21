@@ -7,6 +7,11 @@ import { useRouter } from "next/navigation";
 import { ApiError } from "@/lib/apiClient";
 import { authErrorMessage } from "@/lib/authErrorMessages";
 import EmailVerificationForm from "@/components/EmailVerificationForm";
+import AgreementSection, {
+  Agreements,
+  EMPTY_AGREEMENTS,
+  isRequiredAgreed,
+} from "@/components/AgreementSection";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -20,6 +25,7 @@ export default function SignupPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needVerify, setNeedVerify] = useState(false);
+  const [agreements, setAgreements] = useState<Agreements>(EMPTY_AGREEMENTS);
 
   // 생년월일 완성 여부 + 만 나이(월·일까지) 계산
   const birthValid = /^\d{4}-\d{2}-\d{2}$/.test(birth.trim());
@@ -66,12 +72,22 @@ export default function SignupPage() {
       setError("닉네임은 2~20자로 입력해 주세요.");
       return;
     }
+    // 버튼도 막고 있지만 BE와 같은 조건을 여기서 한 번 더 본다 — 미동의로 요청이 나가면 400이다.
+    if (!isRequiredAgreed(agreements)) {
+      setError("필수 약관에 모두 동의해 주세요.");
+      return;
+    }
 
     setSubmitting(true);
     try {
       // signup은 한 번만 (send 실패 후 재시도 시 DUPLICATE_EMAIL 방지)
       if (!signedUp) {
-        await signup({ email: email.trim(), password, nickname: nickname.trim() });
+        await signup({
+          email: email.trim(),
+          password,
+          nickname: nickname.trim(),
+          ...agreements, // 키가 BE 요청 필드명과 같아 변환 없이 그대로 넘긴다
+        });
         setSignedUp(true);
       }
       await sendEmailCode(email.trim());
@@ -213,6 +229,10 @@ export default function SignupPage() {
               </p>
             )}
 
+            <div className="mt-[22px]">
+              <AgreementSection value={agreements} onChange={setAgreements} />
+            </div>
+
             {error && (
               <p
                 role="alert"
@@ -232,9 +252,9 @@ export default function SignupPage() {
             )}
             <button
               onClick={handleStep1Submit}
-              disabled={ageError || submitting}
+              disabled={ageError || submitting || !isRequiredAgreed(agreements)}
               className={`mt-[26px] w-full rounded-[11px] border-2 py-3.5 text-[15.5px] font-bold ${
-                ageError || submitting
+                ageError || submitting || !isRequiredAgreed(agreements)
                   ? "cursor-not-allowed border-[#D6D6DC] bg-[#E4E4E8] text-[#A0A0A8]"
                   : "border-primary-dark bg-primary text-white shadow-tactile"
               }`}

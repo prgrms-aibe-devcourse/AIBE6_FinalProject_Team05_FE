@@ -4,6 +4,8 @@ export interface CardResponse {
   externalId: string;
   name: string;
   nameKo?: string | null;
+  // 언어(국가판) 코드 — 실제 존재 값은 EN/JA뿐(#263, 다른 값 없음 확인됨).
+  languageCode: string;
   setName: string;
   rarity: string;
   supertype: string;
@@ -26,14 +28,26 @@ export interface CardSearchItem {
   set: string;
   imageUrl: string;
   types: string[];
+  // CardResponse.grades 그대로 — 검색 타일이 "다른 등급도 있음" 힌트를 보여줄 때 쓴다.
+  grades: string[];
+  // CardResponse.languageCode 그대로 — 검색 타일 언어 배지에 쓴다.
+  languageCode: string;
+}
+
+// #263 — 타입/레어도 옵션 하나에 딸린 결과 개수. count는 전체 기준 고정 집계로,
+// 다른 필터를 선택해도 바뀌지 않는다(BE CardFacetsResponse.FacetOption 주석 참고) — FE는
+// 이 값을 그대로 표시만 하고 재계산하지 않는다.
+export interface CardFacetOption {
+  value: string;
+  count: number;
 }
 
 // GET /api/cards/facets 응답 — 검색 필터(세트/타입/레어도) 체크박스가 쓰는 옵션 목록.
 // expansions는 series 그룹 최신순 → 그룹 내부 이름순으로 이미 정렬돼 내려온다(FE 재정렬 금지).
 export interface CardFacetsResponse {
-  types: string[];
-  rarities: string[];
-  expansions: { id: string; name: string; series: string }[];
+  types: CardFacetOption[];
+  rarities: CardFacetOption[];
+  expansions: { id: string; name: string; series: string; count: number }[];
 }
 
 export function toCardSearchItem(card: CardResponse): CardSearchItem {
@@ -45,6 +59,8 @@ export function toCardSearchItem(card: CardResponse): CardSearchItem {
     set: `${card.setName} · ${card.rarity}`,
     imageUrl: card.imageMedium || card.imageSmall,
     types: card.types,
+    grades: card.grades,
+    languageCode: card.languageCode,
   };
 }
 
@@ -94,6 +110,8 @@ export interface CardDetailResponse {
   externalId: string;
   name: string;
   nameKo?: string | null;
+  // 언어(국가판) 코드 — CardResponse.languageCode와 동일(#263, EN/JA만 존재).
+  languageCode: string;
   setName: string;
   rarity: string;
   supertype: string;
