@@ -603,31 +603,38 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
                   <div className="flex flex-col gap-6">
                     <div className="relative flex gap-6 rounded-2xl border border-[#EDEDF0] bg-white p-6">
-                      {priceStats &&
-                        priceStats.changeRate !== 0 &&
-                        (() => {
-                          const isRise = priceStats.changeRate > 0;
-                          const sign = isRise ? "+" : "-";
-                          return (
-                            <div className="absolute right-6 top-6 flex items-center gap-1.5">
-                              <span className="text-[11.5px] font-semibold text-[#9A9AA2]">
-                                지난주대비
-                              </span>
-                              <span
-                                className={`rounded-full px-3.5 py-2 text-[15px] font-extrabold ${
-                                  isRise
-                                    ? "bg-[#FFF1F1] text-[#EE1515]"
-                                    : "bg-[#EEF3FF] text-[#2D5BFF]"
-                                }`}
-                              >
-                                {sign}
-                                {Math.abs(priceStats.changeAmount).toLocaleString("ko-KR")}원 (
-                                {sign}
-                                {Math.abs(priceStats.changeRate).toFixed(2)}%)
-                              </span>
-                            </div>
-                          );
-                        })()}
+                      <div className="absolute right-6 top-6 flex flex-col items-end gap-1.5">
+                        {priceStats &&
+                          priceStats.changeRate !== 0 &&
+                          (() => {
+                            const isRise = priceStats.changeRate > 0;
+                            const sign = isRise ? "+" : "-";
+                            return (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[11.5px] font-semibold text-[#9A9AA2]">
+                                  지난주대비
+                                </span>
+                                <span
+                                  className={`rounded-full px-3.5 py-2 text-[15px] font-extrabold ${
+                                    isRise
+                                      ? "bg-[#FFF1F1] text-[#EE1515]"
+                                      : "bg-[#EEF3FF] text-[#2D5BFF]"
+                                  }`}
+                                >
+                                  {sign}
+                                  {Math.abs(priceStats.changeAmount).toLocaleString("ko-KR")}원 (
+                                  {sign}
+                                  {Math.abs(priceStats.changeRate).toFixed(2)}%)
+                                </span>
+                              </div>
+                            );
+                          })()}
+                        {/* 0/낮은 값도 그대로 노출 — 관심수와 달리 조회수는 숨길 이유가 없는
+                            신뢰 신호(활발히 조회되는 카드라는 근거)로 쓰기로 정했다. */}
+                        <span className="text-[11.5px] font-semibold text-[#9A9AA2]">
+                          {card.viewCount.toLocaleString("ko-KR")}번 조회됐어요
+                        </span>
+                      </div>
                       <div
                         className="relative aspect-[5/7] w-[160px] shrink-0 cursor-pointer overflow-hidden rounded-xl bg-[#F2F2F5]"
                         onClick={() => setLightboxOpen(true)}
