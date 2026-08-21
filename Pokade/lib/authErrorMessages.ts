@@ -11,7 +11,7 @@ const AUTH_ERROR_MESSAGES: Record<string, string> = {
   EMAIL_CODE_EXPIRED: "인증 코드가 만료되었습니다. 코드를 재발송해 주세요.",
   EMAIL_VERIFY_ATTEMPT_EXCEEDED: "인증 시도 횟수를 초과했습니다. 코드를 재발송해 주세요.",
   LOGIN_FAILED:
-    "이메일 또는 비밀번호가 일치하지 않습니다. 소셜 로그인으로 가입하셨다면 아래 소셜 버튼으로 로그인해 주세요.",
+    "이메일 또는 비밀번호가 일치하지 않습니다.\n소셜 로그인으로 가입하셨다면 아래 소셜 버튼으로 로그인해 주세요.",
   USER_NOT_FOUND: "가입되지 않은 이메일입니다.",
   PASSWORD_CHANGE_NOT_ALLOWED: "소셜 로그인 계정은 비밀번호를 재설정할 수 없습니다.",
   NICKNAME_CHANGE_LIMITED: "닉네임은 마지막 변경 후 30일이 지나야 다시 변경할 수 있습니다.",

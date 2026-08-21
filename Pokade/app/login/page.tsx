@@ -40,6 +40,12 @@ function LoginForm() {
     }
   }, [authStatus, router, searchParams]);
 
+  // 소셜 로그인 실패 사유는 BE가 /login?error=...(&provider=) 로 붙여 보낸다.
+  // 초기화 함수로 한 번만 읽는다 - effect에서 setState 하면 URL을 지운 뒤라 값을 놓친다.
+  const [oauthNotice] = useState<string | null>(() =>
+    oauthRedirectErrorMessage(searchParams.get("error"), searchParams.get("provider")),
+  );
+
   // 사유는 위에서 이미 읽었다. URL에 남겨두면 새로고침마다 다시 뜨므로 지운다.
   // redirect는 보존한다 - 보호된 페이지로 가려다 실패한 경우 목적지를 잃으면 안 된다.
   useEffect(() => {
@@ -51,11 +57,6 @@ function LoginForm() {
     router.replace(qs ? `/login?${qs}` : "/login");
   }, [searchParams, router]);
 
-  // 소셜 로그인 실패 사유는 BE가 /login?error=...(&provider=) 로 붙여 보낸다.
-  // 초기화 함수로 한 번만 읽는다 - effect에서 setState 하면 URL을 지운 뒤라 값을 놓친다.
-  const [oauthNotice] = useState<string | null>(() =>
-    oauthRedirectErrorMessage(searchParams.get("error"), searchParams.get("provider")),
-  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -108,7 +109,7 @@ function LoginForm() {
         {oauthNotice && (
           <p
             role="alert"
-            className="mb-4 rounded-[11px] border border-[#FFD9D9] bg-[#FFF6F6] px-3.5 py-3 text-[13px] font-semibold text-primary"
+            className="mb-4 break-keep rounded-[11px] border border-[#FFD9D9] bg-[#FFF6F6] px-3.5 py-3 text-[13px] font-semibold text-primary"
           >
             {oauthNotice}
           </p>
@@ -146,7 +147,10 @@ function LoginForm() {
               className={inputCls}
             />
             {error && (
-              <p role="alert" className="mt-[9px] text-[12.5px] font-semibold text-primary">
+              <p
+                role="alert"
+                className="mt-[9px] whitespace-pre-line break-keep text-[12.5px] font-semibold text-primary"
+              >
                 {error}
               </p>
             )}
