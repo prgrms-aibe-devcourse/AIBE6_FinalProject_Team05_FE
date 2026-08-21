@@ -55,7 +55,7 @@ function SearchDashboard() {
   const [watchlistError, setWatchlistError] = useState<{ cardId: number; message: string } | null>(
     null,
   );
-  const { toast, showToast } = useToast();
+  const { toast, showToast, pauseToast, resumeToast } = useToast();
   const { toggle: toggleWatchlist, pendingCardId: watchlistPendingCardId } =
     useQuickWatchlistToggle();
   const [priceMin, setPriceMin] = useState<number>(() => {
@@ -467,7 +467,7 @@ function SearchDashboard() {
           onHeartClick={handleHeartClick}
         />
       </div>
-      <Toast toast={toast} />
+      <Toast toast={toast} onPause={pauseToast} onResume={resumeToast} />
     </main>
   );
 }

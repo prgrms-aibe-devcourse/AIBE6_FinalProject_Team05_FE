@@ -23,25 +23,85 @@ export const TOAST_DEFAULT_MS = 2500;
 export function useToast() {
   const [toast, setToast] = useState<ToastState | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 자동 소멸까지 남은 시간과 현재 타이머가 시작된 시각 — 일시정지 후 "처음부터"가 아니라
+  // "남은 만큼"만 재개하기 위해 필요하다(4초짜리 토스트를 3.9초쯤 hover했다가 벗어났는데
+  // 다시 4초를 기다리게 하면, 붙잡을 의도가 없던 스침에도 토스트가 계속 살아남는다).
+  const remainingRef = useRef(TOAST_DEFAULT_MS);
+  const startedAtRef = useRef(0);
+  // hover/focus가 토스트 "안에 있는 동안" true. 일시정지 여부를 이 플래그로 따로 들고 있는
+  // 이유: 토스트가 떠 있는 상태에서 새 토스트를 띄우면(하트 연타) 같은 DOM 노드가 재사용돼
+  // mouseenter가 다시 발생하지 않는다 — 이 플래그가 없으면 마우스를 올려둔 채로도 새 토스트가
+  // 그냥 사라진다.
+  const heldRef = useRef(false);
+
+  const clearTimer = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  }, []);
+
+  const startTimer = useCallback(
+    (durationMs: number) => {
+      clearTimer();
+      remainingRef.current = durationMs;
+      startedAtRef.current = Date.now();
+      timeoutRef.current = setTimeout(() => {
+        timeoutRef.current = null;
+        setToast(null);
+      }, durationMs);
+    },
+    [clearTimer],
+  );
 
   useEffect(() => {
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, []);
+    return () => clearTimer();
+  }, [clearTimer]);
+
+  // 토스트가 사라지면 붙잡힘 상태도 반드시 푼다 — 마우스를 올려둔 채 토스트가 DOM에서
+  // 제거되면 브라우저가 mouseleave를 쏘지 않아 heldRef가 true로 굳고, 그 뒤 뜨는 토스트가
+  // 영영 안 사라지게 된다.
+  useEffect(() => {
+    if (toast === null) heldRef.current = false;
+  }, [toast]);
 
   // 연속 호출(하트를 빠르게 여러 번 클릭)에서는 이전 타이머를 취소하고 다시 재서, 먼저 걸린
   // 타이머가 방금 띄운 토스트를 앞당겨 지우지 않게 한다.
-  const showToast = useCallback((next: ToastState, durationMs: number = TOAST_DEFAULT_MS) => {
-    setToast(next);
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => setToast(null), durationMs);
-  }, []);
+  const showToast = useCallback(
+    (next: ToastState, durationMs: number = TOAST_DEFAULT_MS) => {
+      setToast(next);
+      if (heldRef.current) {
+        // 이미 붙잡혀 있으면 타이머를 걸지 않고 남은 시간만 새 값으로 맞춰둔다 —
+        // 벗어나는 순간(resumeToast) 이 값으로 시작한다.
+        clearTimer();
+        remainingRef.current = durationMs;
+        return;
+      }
+      startTimer(durationMs);
+    },
+    [clearTimer, startTimer],
+  );
+
+  // hover/focus가 들어온 순간 — 남은 시간을 계산해 붙들어 둔다.
+  const pauseToast = useCallback(() => {
+    heldRef.current = true;
+    if (timeoutRef.current == null) return; // 이미 멈춰 있음
+    clearTimer();
+    remainingRef.current = Math.max(0, remainingRef.current - (Date.now() - startedAtRef.current));
+  }, [clearTimer]);
+
+  // hover/focus가 빠져나간 순간 — 남은 시간만큼만 다시 센다.
+  const resumeToast = useCallback(() => {
+    heldRef.current = false;
+    if (timeoutRef.current != null) return; // 이미 돌고 있음
+    startTimer(remainingRef.current > 0 ? remainingRef.current : TOAST_DEFAULT_MS);
+  }, [startTimer]);
 
   const hideToast = useCallback(() => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    clearTimer();
+    heldRef.current = false;
     setToast(null);
-  }, []);
+  }, [clearTimer]);
 
-  return { toast, showToast, hideToast };
+  return { toast, showToast, hideToast, pauseToast, resumeToast };
 }

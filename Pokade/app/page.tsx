@@ -83,7 +83,7 @@ export default function HomePage() {
   const [watchlistError, setWatchlistError] = useState<{ cardId: number; message: string } | null>(
     null,
   );
-  const { toast, showToast } = useToast();
+  const { toast, showToast, pauseToast, resumeToast } = useToast();
   const { triggerPunch, punchKey, punchClass } = useHeartPunch();
   const { toggle, pendingCardId } = useQuickWatchlistToggle();
 
@@ -592,7 +592,7 @@ export default function HomePage() {
           ))}
         </div>
       </section>
-      <Toast toast={toast} />
+      <Toast toast={toast} onPause={pauseToast} onResume={resumeToast} />
     </main>
   );
 }

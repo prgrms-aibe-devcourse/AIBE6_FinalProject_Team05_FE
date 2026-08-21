@@ -138,7 +138,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   // 남을 뿐이라, 이 화면이 실제로 쓰는 필드까지만 좁힌다.
   const [myWatchlist, setMyWatchlist] = useState<Pick<WatchlistResponse, "id"> | null>(null);
   const [watchlistToggleError, setWatchlistToggleError] = useState<string | null>(null);
-  const { toast, showToast } = useToast();
+  const { toast, showToast, pauseToast, resumeToast } = useToast();
   const { triggerPunch, punchKey, punchClass } = useHeartPunch();
   const { toggle: toggleWatchlist, pendingCardId: watchlistPendingCardId } =
     useQuickWatchlistToggle();
@@ -962,7 +962,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
           })()}
       </div>
 
-      <Toast toast={toast} />
+      <Toast toast={toast} onPause={pauseToast} onResume={resumeToast} />
     </main>
   );
 }

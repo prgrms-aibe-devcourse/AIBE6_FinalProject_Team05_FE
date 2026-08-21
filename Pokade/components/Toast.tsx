@@ -7,33 +7,74 @@ import { ToastState } from "@/hooks/useToast";
 //
 // href가 있으면 전체가 링크가 된다 — 관심 "등록" 토스트는 눌러서 /watchlist로 이동해 목표가를
 // 입력할 수 있게(#235), "해제"처럼 갈 곳이 없는 알림은 href 없이 기존처럼 읽고 지나가는 알림으로
-// 남는다. 바깥 div가 role="status"를 계속 들고 있어 링크가 되어도 스크린리더에는 알림으로 읽히고,
-// 안쪽 Link는 실제 <a>라서 Tab 포커스·엔터 이동이 기본으로 따라온다.
-export default function Toast({ toast }: { toast: ToastState | null }) {
+// 남는다.
+//
+// 알림 영역(live region)과 시각 토스트를 분리한 이유(CodeRabbit 리뷰):
+// 예전에는 바깥 div 하나가 role="status"를 들고 링크까지 품고 있었다. role="status"는 암묵적으로
+// aria-live="polite"라 "떠오르는 순간" 읽히는 영역인데, 그 안에 Tab으로 도달해야 하는 링크를 같이
+// 두면 읽히는 것과 조작하는 것이 한 덩어리로 묶여 버린다. 그래서
+//   - 스크린리더에 읽힐 문구는 sr-only 영역이 전담하고,
+//   - 눈에 보이는 토스트는 role 없이 순수 시각/조작 요소로 남긴다.
+// 시각 토스트에 aria-hidden을 걸지 않는 이유: 그 안에 포커스 가능한 링크가 있어서, 조상에
+// aria-hidden을 걸면 "접근성 트리에는 없는데 Tab으로는 닿는" 잘못된 상태가 된다. 대신 중복해서
+// 읽히는 텍스트 노드만 aria-hidden으로 가리고, 링크에는 aria-label로 이름을 직접 준다.
+//
+// onPause/onResume: hover/focus가 안에 있는 동안 자동 소멸 타이머를 멈춘다(useToast.ts).
+// 없으면(전달 안 하면) 기존처럼 그냥 시간이 지나면 사라진다.
+export default function Toast({
+  toast,
+  onPause,
+  onResume,
+}: {
+  toast: ToastState | null;
+  onPause?: () => void;
+  onResume?: () => void;
+}) {
   if (!toast) return null;
 
   const base =
     "fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-5 py-3 text-[13.5px] font-bold text-white shadow-lg";
 
+  const linkLabel = toast.linkLabel ?? "이동";
+
   return (
-    <div role="status" className={base}>
-      {toast.href ? (
-        <Link
-          href={toast.href}
-          className="flex items-center gap-2.5 text-white outline-none focus-visible:underline"
-        >
-          <span>{toast.message}</span>
-          {/* 구분선 + 행선지 라벨 — "누를 수 있다"와 "누르면 어디로 간다"를 문구를 늘리지 않고
-              한 번에 보여준다(안내 문장을 덧붙이는 대신 택한 방식, #235). */}
-          <span aria-hidden="true" className="h-3 w-px bg-white/30" />
-          <span className="whitespace-nowrap text-tertiary">
-            {toast.linkLabel ?? "이동"}
-            <span aria-hidden="true"> →</span>
-          </span>
-        </Link>
-      ) : (
-        toast.message
-      )}
-    </div>
+    <>
+      {/* 스크린리더 전용 알림 영역 — 문구만 담는다. 포커스를 뺏지 않고(WCAG) 떠오르는 순간
+          polite로 읽힌다. 시각 토스트와 분리돼 있어 링크가 생겨도 읽히는 내용은 그대로다. */}
+      <span role="status" aria-live="polite" className="sr-only">
+        {toast.message}
+      </span>
+
+      {/* 눈에 보이는 토스트 — role 없음. onFocus/onBlur는 React에서 버블링되므로(focusin/
+          focusout) 안쪽 링크로 Tab이 들어오고 나가는 것도 여기서 함께 잡힌다. */}
+      <div
+        className={base}
+        onMouseEnter={onPause}
+        onMouseLeave={onResume}
+        onFocus={onPause}
+        onBlur={onResume}
+      >
+        {toast.href ? (
+          <Link
+            href={toast.href}
+            // 시각 요소는 전부 aria-hidden이라, 링크의 이름은 여기서 직접 준다 —
+            // sr-only 영역이 읽어준 문구와 "어디로 가는지"를 한 번에 전달한다.
+            aria-label={`${toast.message} — ${linkLabel}(으)로 이동`}
+            className="flex items-center gap-2.5 rounded-full text-white outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
+          >
+            <span aria-hidden="true">{toast.message}</span>
+            {/* 구분선 + 행선지 라벨 — "누를 수 있다"와 "누르면 어디로 간다"를 문구를 늘리지 않고
+                한 번에 보여준다(안내 문장을 덧붙이는 대신 택한 방식, #235). */}
+            <span aria-hidden="true" className="h-3 w-px bg-white/30" />
+            <span aria-hidden="true" className="whitespace-nowrap text-tertiary">
+              {linkLabel}
+              <span> →</span>
+            </span>
+          </Link>
+        ) : (
+          <span aria-hidden="true">{toast.message}</span>
+        )}
+      </div>
+    </>
   );
 }
