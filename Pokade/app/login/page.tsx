@@ -49,13 +49,14 @@ function LoginForm() {
   // 사유는 위에서 이미 읽었다. URL에 남겨두면 새로고침마다 다시 뜨므로 지운다.
   // redirect는 보존한다 - 보호된 페이지로 가려다 실패한 경우 목적지를 잃으면 안 된다.
   useEffect(() => {
+    if (authStatus === "authenticated") return; // 위 effect가 목적지로 보내므로 정리할 이유가 없다
     if (!searchParams.get("error") && !searchParams.get("provider")) return;
     const params = new URLSearchParams(searchParams.toString());
     params.delete("error");
     params.delete("provider");
     const qs = params.toString();
     router.replace(qs ? `/login?${qs}` : "/login");
-  }, [searchParams, router]);
+  }, [authStatus, searchParams, router]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

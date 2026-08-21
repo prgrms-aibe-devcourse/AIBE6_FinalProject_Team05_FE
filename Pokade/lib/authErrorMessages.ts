@@ -38,7 +38,7 @@ const OAUTH_REDIRECT_MESSAGES: Record<string, string> = {
     "소셜 계정에서 이메일을 받지 못했습니다. 이메일 제공에 동의한 뒤 다시 시도해 주세요.",
   unsupported_provider: "지원하지 않는 소셜 로그인입니다.",
   login_failed: "로그인할 수 없는 계정입니다. 이메일 인증을 완료했는지 확인해 주세요.",
-  account_suspended: "정지된 계정입니다. 고객센터에 문의해주세요.",
+  account_suspended: "정지된 계정입니다. 고객센터에 문의해 주세요.",
   access_denied: "소셜 로그인을 취소했습니다.",
   oauth2_failed: "소셜 로그인에 실패했습니다. 다시 시도해 주세요.",
 };
