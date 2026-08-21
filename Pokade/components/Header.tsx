@@ -55,6 +55,7 @@ function LoggedInRight({
   const profileImageUrl = useUserStore((s) => s.profileImageUrl);
   const email = useUserStore((s) => s.email);
   const role = useUserStore((s) => s.role);
+  const pointBalance = useUserStore((s) => s.pointBalance);
   const logout = useUserStore((s) => s.logout);
 
   // 알림 조회+30초 폴링은 useNotificationStore가 앱 전체에서 유일하게 소유한다.
@@ -273,6 +274,11 @@ function LoggedInRight({
                 <div className="min-w-0">
                   <div className="text-[14.5px] font-extrabold">{nickname ?? "사용자"}</div>
                   <div className="truncate text-xs text-[#9A9AA2]">{email ?? ""}</div>
+                  {pointBalance !== null && (
+                    <div className="mt-0.5 text-xs font-bold text-primary">
+                      {pointBalance.toLocaleString("ko-KR")} P
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="h-px bg-[#F0F0F0]" />

@@ -12,7 +12,11 @@ import { apiPostFormRaw, ApiError, PageResponse } from "@/lib/apiClient";
 import { fetchGradeHistory } from "@/lib/aiApi";
 import { addPortfolioItemFromGrade } from "@/lib/portfolioApi";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { useUserStore } from "@/store/useUserStore";
 import type { GradeResponse } from "@/types/ai";
+
+const FREE_DIAGNOSES = 3;
+const DIAGNOSIS_COST = 100;
 
 // 슬롯 순서는 백엔드 @RequestPart 이름과 그대로 매칭되어야 함 (front/back/corner_tl/tr/bl/br)
 const SLOTS: { field: string; label: string }[] = [
@@ -197,11 +201,13 @@ function UploadView({
   loading,
   error,
   isRetry,
+  diagnosisCount,
 }: {
   onSubmit: (photos: File[]) => void;
   loading: boolean;
   error: string | null;
   isRetry: boolean;
+  diagnosisCount: number | null;
 }) {
   const [photos, setPhotos] = useState<(File | null)[]>(Array(6).fill(null));
   const [previews, setPreviews] = useState<(string | null)[]>(Array(6).fill(null));
@@ -210,6 +216,7 @@ function UploadView({
   const [demoNotice, setDemoNotice] = useState<string | null>(null);
   const count = photos.filter(Boolean).length;
   const canStart = photos.every(Boolean) && !loading;
+  const pointBalance = useUserStore((s) => s.pointBalance);
 
   // 언마운트 시(진단 성공 → ResultView 전환 등) 남아있는 blob URL을 전부 해제하기 위한 최신값 참조
   const previewsRef = useRef(previews);
@@ -273,7 +280,7 @@ function UploadView({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="mb-1 mt-0 text-base font-extrabold">카드 사진 업로드</h2>
-          <p className="mb-5 text-[13px] text-[#8A8A92]">
+          <p className="mb-3 text-[13px] text-[#8A8A92]">
             앞면·뒷면·모서리 4곳을 촬영해 올려주세요 (6장 모두 필요)
           </p>
         </div>
@@ -284,6 +291,41 @@ function UploadView({
         >
           {demoLoading ? "불러오는 중..." : "테스트 해보기"}
         </button>
+      </div>
+      <div className="mb-5 flex items-center justify-between gap-4 rounded-[12px] border border-[#EDEDF0] bg-white px-5 py-4">
+        <div className="flex flex-col gap-2">
+          <div className="text-[13px] text-[#4B4B52]">
+            처음 {FREE_DIAGNOSES}회 무료 · 이후 <b>{DIAGNOSIS_COST.toLocaleString("ko-KR")}P / 회</b>
+          </div>
+          {diagnosisCount !== null && (
+            diagnosisCount < FREE_DIAGNOSES ? (
+              <span className="inline-flex w-fit items-center gap-1 rounded-full bg-[#E8F5EE] px-2.5 py-1 text-[12px] font-bold text-[#1A8A4A]">
+                <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                  <circle cx="6" cy="6" r="5.5" stroke="#1A8A4A" />
+                  <path d="M3.5 6L5.5 8L8.5 4" stroke="#1A8A4A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                무료 {FREE_DIAGNOSES - diagnosisCount}회 남음
+              </span>
+            ) : (
+              <span className="inline-flex w-fit rounded-full bg-[#F5F5F7] px-2.5 py-1 text-[12px] font-bold text-[#8A8A92]">
+                무료 소진
+              </span>
+            )
+          )}
+        </div>
+        {pointBalance !== null && (
+          <div className="flex shrink-0 items-center gap-2.5 rounded-[10px] bg-[#FFFBE8] px-4 py-2.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F5C518] text-[12px] font-extrabold text-white shadow-sm">
+              P
+            </div>
+            <div>
+              <div className="text-[10.5px] font-semibold text-[#9A8000]">보유 포인트</div>
+              <div className="text-[16px] font-extrabold leading-tight text-[#4A3800]">
+                {pointBalance.toLocaleString("ko-KR")}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       {demoNotice && (
         <div className="mb-5 rounded-xl border border-[#DDDDE3] bg-neutral px-4 py-3.5 text-[13.5px] font-bold text-[#4B4B52]">
@@ -683,8 +725,19 @@ function AIDiagnosisContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const authStatus = useRequireAuth();
+  const decrementPointBalance = useUserStore((s) => s.decrementPointBalance);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<DiagnosisStatus>({ kind: "idle" });
+  const [diagnosisCount, setDiagnosisCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (authStatus !== "authenticated") return;
+    let cancelled = false;
+    fetchGradeHistory(0, 1)
+      .then((r) => { if (!cancelled) setDiagnosisCount(r.totalElements); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [authStatus]);
   // 새로고침해도 보던 탭(새 진단/이력)이 유지되도록 쿼리 파라미터(?tab=history)로 관리
   const [tab, setTabState] = useState<"new" | "history">(
     searchParams.get("tab") === "history" ? "history" : "new",
@@ -709,6 +762,8 @@ function AIDiagnosisContent() {
         });
       } else {
         setStatus({ kind: "success", data: response });
+        setDiagnosisCount((c) => (c !== null ? c + 1 : null));
+        if (response.pointUsed > 0) decrementPointBalance(response.pointUsed);
       }
     } catch (e) {
       console.error("AI 진단 요청 중 오류:", e);
@@ -782,6 +837,7 @@ function AIDiagnosisContent() {
               loading={loading}
               error={status.kind === "error" ? status.message : null}
               isRetry={status.kind === "qualityFail"}
+              diagnosisCount={diagnosisCount}
             />
             <ShootingGuide />
           </>
