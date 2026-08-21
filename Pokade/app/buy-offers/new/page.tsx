@@ -7,7 +7,7 @@ import CardImage from "@/components/CardImage";
 import GradeMarketReference from "@/components/GradeMarketReference";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
-import { createListing } from "@/lib/listingApi";
+import { createBuyOffer } from "@/lib/buyOfferApi";
 import { fetchCardDetail, fetchCardsByKeywordPage, fetchPriceSummary } from "@/lib/cardApi";
 import {
   CardDetailResponse,
@@ -21,10 +21,10 @@ import { ListingGrade, PriceSummaryResponse } from "@/types/price";
 const MIN_QUERY_LENGTH = 2;
 const GRADE_OPTIONS: ListingGrade[] = ["S", "A", "B", "PSA10", "PSA9", "PSA8"];
 
-// 입력 가격이 현재 최저 시세 대비 이 비율 이상 벗어나면 참고용 경고를 보여준다 — 등록 자체는 막지 않는다.
+// 입력한 입찰가가 현재 최고 구매입찰가 대비 이 비율 이상 벗어나면 참고용 경고를 보여준다 — 등록 자체는 막지 않는다.
 const PRICE_OUTLIER_THRESHOLD = 0.3;
 
-// 등급 선택 가이드 — 각 등급의 판단 기준을 간단히 안내한다.
+// 등급 선택 가이드 — /listings/new의 GRADE_GUIDE와 동일한 문구(판매/구매 등록 둘 다 같은 등급 기준을 쓴다).
 const GRADE_GUIDE: Record<ListingGrade, string> = {
   S: "완전품 수준 — 스크래치, 모서리 눌림, 백색 반점 등 흠집이 육안으로 보이지 않음",
   A: "미세한 사용감 — 모서리에 아주 약간의 눌림이나 가벼운 스크래치가 있으나 거의 티 나지 않음",
@@ -52,15 +52,18 @@ function toSelectedCard(detail: CardDetailResponse): SelectedCard {
   };
 }
 
-export default function NewListingPage() {
+export default function NewBuyOfferPage() {
   return (
     <Suspense fallback={null}>
-      <NewListingForm />
+      <NewBuyOfferForm />
     </Suspense>
   );
 }
 
-function NewListingForm() {
+// app/listings/new/page.tsx(판매 등록)를 거의 그대로 미러링한 구매입찰 등록 폼 — 다른 점은
+// (1) createBuyOffer를 호출하는 것, (2) 시세 참고 기준이 "현재 최저 시세"가 아니라 "현재 최고
+// 구매입찰가"(sellPrice - PriceSummaryResponse에서 buy_offers 최고가를 뜻하는 필드)인 것뿐이다.
+function NewBuyOfferForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const status = useRequireAuth();
@@ -80,17 +83,13 @@ function NewListingForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 진행 중인 카드 상세 조회 중 가장 마지막 요청만 상태에 반영하기 위한 순번 —
-  // 먼저 보낸 요청(예: ?cardId= 진입)이 나중에 끝나 검색으로 새로 고른 카드를 덮어쓰는 것을 방지.
   const selectRequestIdRef = useRef(0);
 
-  // 카드 상세(판본 목록 포함)를 조회해서 선택된 카드로 세팅 — variantIdOverride가 그 카드의 실제
-  // 판본이면 그걸 선택하고, 아니면(또는 생략 시) 대표 판본을 기본 선택.
   const selectCardById = (cardId: number, variantIdOverride?: number) => {
     const requestId = ++selectRequestIdRef.current;
     fetchCardDetail(cardId)
       .then((detail) => {
-        if (selectRequestIdRef.current !== requestId) return; // 그 사이 다른 카드가 선택됨 — 무시
+        if (selectRequestIdRef.current !== requestId) return;
         const card = toSelectedCard(detail);
         setSelectedCard(card);
         const requested =
@@ -108,8 +107,6 @@ function NewListingForm() {
       });
   };
 
-  // ?cardId=&variantId=&grade= 로 진입했으면(카드 상세의 등급 선택에서 넘어온 경우) 카드/판본/등급을
-  // 미리 채운다. variantId/grade는 카드 상세 쪽에서만 붙여주는 선택적 파라미터라 없어도 그대로 동작한다.
   useEffect(() => {
     const cardIdParam = searchParams.get("cardId");
     if (!cardIdParam) return;
@@ -128,7 +125,6 @@ function NewListingForm() {
     }
   }, [searchParams]);
 
-  // 선택된 카드/판본의 현재 시세 조회 — 가격 입력 시 참고용으로만 노출, 실패해도 등록 흐름은 막지 않는다.
   useEffect(() => {
     if (!selectedCard) return;
     let cancelled = false;
@@ -147,7 +143,6 @@ function NewListingForm() {
     };
   }, [selectedCard, selectedVariantId]);
 
-  // 카드 검색 자동완성 (디바운스)
   useEffect(() => {
     const trimmed = query.trim();
     if (trimmed.length < MIN_QUERY_LENGTH) return;
@@ -176,7 +171,7 @@ function NewListingForm() {
     setError(null);
 
     if (!selectedCard) {
-      setError("등록할 카드를 선택해 주세요.");
+      setError("입찰할 카드를 선택해 주세요.");
       return;
     }
     const priceNumber = Number(price);
@@ -187,7 +182,7 @@ function NewListingForm() {
 
     setSubmitting(true);
     try {
-      await createListing({
+      await createBuyOffer({
         cardId: selectedCard.id,
         variantId: selectedVariantId ?? undefined,
         price: priceNumber,
@@ -195,7 +190,7 @@ function NewListingForm() {
       });
       router.push(`/cards/${selectedCard.id}`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "상품 등록에 실패했습니다.");
+      setError(err instanceof ApiError ? err.message : "구매입찰 등록에 실패했습니다.");
     } finally {
       setSubmitting(false);
     }
@@ -207,32 +202,31 @@ function NewListingForm() {
     "w-full rounded-[11px] border border-[#DDDDE3] px-3.5 py-3 text-[14.5px] text-ink outline-none";
 
   const priceNumber = Number(price);
-  const buyPrice = priceSummary?.buyPrice;
+  const topBidPrice = priceSummary?.sellPrice;
   let priceOutlierWarning: string | null = null;
   if (
     price &&
     Number.isInteger(priceNumber) &&
     priceNumber > 0 &&
-    buyPrice != null &&
-    buyPrice > 0
+    topBidPrice != null &&
+    topBidPrice > 0
   ) {
-    const diffRatio = (priceNumber - buyPrice) / buyPrice;
+    const diffRatio = (priceNumber - topBidPrice) / topBidPrice;
     if (diffRatio >= PRICE_OUTLIER_THRESHOLD) {
       priceOutlierWarning =
-        "입력하신 가격이 현재 최저 시세보다 많이 높습니다. 다시 한번 확인해 주세요.";
+        "입력하신 입찰가가 현재 최고 구매입찰가보다 많이 높습니다. 다시 한번 확인해 주세요.";
     } else if (diffRatio <= -PRICE_OUTLIER_THRESHOLD) {
       priceOutlierWarning =
-        "입력하신 가격이 현재 최저 시세보다 많이 낮습니다. 다시 한번 확인해 주세요.";
+        "입력하신 입찰가가 현재 최고 구매입찰가보다 많이 낮습니다. 다시 한번 확인해 주세요.";
     }
   }
 
   return (
     <main className="main-content bg-neutral px-10 py-14">
       <div className="mx-auto w-full max-w-[520px] rounded-[18px] border border-[#EDEDF0] bg-white px-[34px] py-9 shadow-card">
-        <h1 className="mb-6 text-[20px] font-extrabold tracking-[-0.5px]">상품 등록</h1>
+        <h1 className="mb-6 text-[20px] font-extrabold tracking-[-0.5px]">구매 입찰 등록</h1>
 
         <form onSubmit={handleSubmit}>
-          {/* 카드 선택 */}
           <label
             htmlFor="card-search"
             className="mb-[7px] block text-[13px] font-bold text-[#4B4B52]"
@@ -269,8 +263,6 @@ function NewListingForm() {
                 onChange={(e) => {
                   const next = e.target.value;
                   setQuery(next);
-                  // 새 검색어로 갈아탈 때 이전 검색 결과가 잠깐 그대로 보이는 것을 막는다 —
-                  // 디바운스가 끝나기 전까지는 목록/검색중 상태를 여기서 바로 초기화.
                   setSuggestions([]);
                   setSearching(next.trim().length >= MIN_QUERY_LENGTH);
                 }}
@@ -345,17 +337,16 @@ function NewListingForm() {
 
           <div className="h-4" />
 
-          {/* 가격 */}
           <div className="mb-[7px] flex items-center justify-between">
             <label htmlFor="price" className="block text-[13px] font-bold text-[#4B4B52]">
-              가격
+              입찰가
             </label>
             {selectedCard && (
               <span className="text-[12px] font-semibold text-[#8A8A92]">
                 {priceSummaryLoading
                   ? "시세 조회 중..."
-                  : priceSummary?.buyPrice != null
-                    ? `현재 최저 시세 ${priceSummary.buyPrice.toLocaleString("ko-KR")}원`
+                  : priceSummary?.sellPrice != null
+                    ? `현재 최고 구매입찰가 ${priceSummary.sellPrice.toLocaleString("ko-KR")}원`
                     : "시세 정보 없음"}
               </span>
             )}
@@ -367,7 +358,7 @@ function NewListingForm() {
             step={100}
             value={price}
             onChange={(e) => setPrice(e.target.value)}
-            placeholder="판매 가격 (원)"
+            placeholder="구매 입찰가 (원)"
             className={inputCls}
           />
           {priceOutlierWarning && (
@@ -376,7 +367,6 @@ function NewListingForm() {
 
           <div className="h-4" />
 
-          {/* 등급 */}
           <div className="mb-[7px] flex items-center gap-1.5">
             <label htmlFor="grade" className="block text-[13px] font-bold text-[#4B4B52]">
               등급 (선택)
@@ -427,7 +417,7 @@ function NewListingForm() {
             disabled={submitting}
             className="mt-6 w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3.5 text-[15.5px] font-bold text-white shadow-tactile transition active:translate-y-0.5 active:shadow-tactile-active disabled:opacity-60"
           >
-            {submitting ? "등록 중..." : "상품 등록"}
+            {submitting ? "등록 중..." : "입찰 등록"}
           </button>
         </form>
 

@@ -10,6 +10,7 @@ import AddWatchlistModal from "@/components/AddWatchlistModal";
 import RelatedCardsSection from "./RelatedCardsSection";
 import VariantPriceComparison from "./VariantPriceComparison";
 import OrderActivitySection from "./OrderActivitySection";
+import GradeGuideModal from "./GradeGuideModal";
 import { CardDetailResponse, parseCardId, variantLabel } from "@/types/card";
 import {
   ChartPeriod,
@@ -51,7 +52,12 @@ interface GradeOffer {
 // grade-chart 보완 대상 후보 등급 — RAW(미등급)는 ListingGrade가 아니라 제외.
 const CHART_FALLBACK_GRADES: ListingGrade[] = ["PSA10", "PSA9", "PSA8", "S", "A", "B"];
 
-const CHART_PERIOD_DAYS: Record<ChartPeriod, number> = { "7d": 7, "30d": 30, "90d": 90, "180d": 180 };
+const CHART_PERIOD_DAYS: Record<ChartPeriod, number> = {
+  "7d": 7,
+  "30d": 30,
+  "90d": 90,
+  "180d": 180,
+};
 
 // 실거래가 이 개수 미만인 등급은 점/선이 너무 빈약해서(예: 1~2개) card_prices 추정치를 대신 쓴다.
 const MIN_REAL_POINTS_PER_GRADE = 6;
@@ -82,9 +88,17 @@ function computeGradeSummary(
 }
 
 // 선택된 변형(없으면 카드 대표 이미지)의 대표 이미지 — 구매 흐름(handleBuy)과 본문 렌더링에서 공유.
-function resolveMainImageSrc(card: CardDetailResponse, variantId: number | null): string | undefined {
+function resolveMainImageSrc(
+  card: CardDetailResponse,
+  variantId: number | null,
+): string | undefined {
   const selectedVariant = card.variants.find((v) => v.id === variantId) ?? null;
-  return selectedVariant?.imageLarge || selectedVariant?.imageSmall || card.imageLarge || card.imageMedium;
+  return (
+    selectedVariant?.imageLarge ||
+    selectedVariant?.imageSmall ||
+    card.imageLarge ||
+    card.imageMedium
+  );
 }
 
 // cardId가 바뀔 때마다 key={id}로 리마운트시켜, 이전 카드의 상태(이미지/시세/매물/체결 등)가
@@ -104,6 +118,9 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [watchlistModalOpen, setWatchlistModalOpen] = useState(false);
   const [watchlistAdded, triggerWatchlistAdded] = useTimedFlag(2000);
+  // 등급 선택에서 "판매"/"구매입찰 등록"을 누르면 등급 안내 모달을 먼저 보여주고, 확인 시 이
+  // target에 맞는 등록 페이지로 이동한다. 모달 자체는 어디로 갈지 모르므로 여기서 target을 들고 있는다.
+  const [gradeGuideTarget, setGradeGuideTarget] = useState<"sell" | "buy-offer" | null>(null);
 
   const [priceSummary, setPriceSummary] = useState<PriceSummaryResponse | null>(null);
   // 비로그인이거나 체결 이력이 부족해 계산할 수 없으면 null — 뱃지 자체를 숨긴다(에러 UI 없음).
@@ -198,6 +215,19 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
       setBuyingListingId(null);
       await refreshListingsAndPrice();
     }
+  };
+
+  // 등급 안내 모달의 확인 버튼 — 지금 선택된 카드/판본/등급을 쿼리로 넘겨서 판매(/listings/new) 또는
+  // 구매입찰(/buy-offers/new) 등록 페이지로 이동한다. RAW(미등급)는 "선택 안 함"과 같은 뜻이라
+  // grade 파라미터 자체를 안 붙인다(두 등록 페이지 모두 grade 생략을 "선택 안 함"으로 처리).
+  const confirmGradeGuide = () => {
+    if (!gradeGuideTarget || cardId == null) return;
+    const basePath = gradeGuideTarget === "sell" ? "/listings/new" : "/buy-offers/new";
+    const params = new URLSearchParams({ cardId: String(cardId) });
+    if (selectedVariantId != null) params.set("variantId", String(selectedVariantId));
+    if (selectedGrade && selectedGrade !== "RAW") params.set("grade", selectedGrade);
+    setGradeGuideTarget(null);
+    router.push(`${basePath}?${params.toString()}`);
   };
 
   // /search에서 스크롤을 많이 내린 상태로 카드를 클릭하면, 상세 페이지가 처음
@@ -587,137 +617,163 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                   </div>
 
                   <div className="flex flex-col gap-4 lg:sticky lg:top-8 lg:self-start">
-                  <div className="flex flex-col gap-4 rounded-2xl border border-[#EDEDF0] bg-white p-5">
-                    <div>
-                      <div className="text-[12px] font-semibold text-[#8A8A92]">즉시구매가</div>
-                      <div className="mt-1 text-[24px] font-extrabold text-primary">
-                        {priceLoadState === "loading" ? (
-                          <span className="text-[14px] font-semibold text-[#9A9AA2]">
-                            불러오는 중...
-                          </span>
-                        ) : displayBuyPrice != null ? (
-                          `${displayBuyPrice.toLocaleString("ko-KR")}원`
-                        ) : (
-                          <span className="text-[14px] font-semibold text-[#9A9AA2]">
-                            상품 없음
+                    <div className="flex flex-col gap-4 rounded-2xl border border-[#EDEDF0] bg-white p-5">
+                      <div>
+                        <div className="text-[12px] font-semibold text-[#8A8A92]">즉시구매가</div>
+                        <div className="mt-1 text-[24px] font-extrabold text-primary">
+                          {priceLoadState === "loading" ? (
+                            <span className="text-[14px] font-semibold text-[#9A9AA2]">
+                              불러오는 중...
+                            </span>
+                          ) : displayBuyPrice != null ? (
+                            `${displayBuyPrice.toLocaleString("ko-KR")}원`
+                          ) : (
+                            <span className="text-[14px] font-semibold text-[#9A9AA2]">
+                              상품 없음
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {buyError && (
+                        <div className="rounded-xl border border-[#F6C6C6] bg-[#FFF1F1] px-3.5 py-2.5 text-[12.5px] font-semibold text-[#C21414]">
+                          {buyError}
+                        </div>
+                      )}
+
+                      <div className="border-t border-[#F5F5F7] pt-4">
+                        <div className="mb-2.5 text-[12.5px] font-bold text-ink">등급 선택</div>
+
+                        {priceLoadState === "loading" && (
+                          <div className="grid grid-cols-2 gap-2">
+                            {Array.from({ length: 6 }).map((_, i) => (
+                              <div
+                                key={i}
+                                className="h-[52px] animate-pulse rounded-xl bg-[#F2F2F5]"
+                              />
+                            ))}
+                          </div>
+                        )}
+
+                        {priceLoadState === "ready" &&
+                          listingsError &&
+                          (listingsError.status === 401 || listingsError.status === 403 ? (
+                            <div className="flex flex-col items-center gap-2 rounded-xl bg-neutral py-8 text-center text-[13px] text-[#9A9AA2]">
+                              <span>등급별 상품은 로그인 후 확인할 수 있습니다.</span>
+                              <Link
+                                href={loginUrlFor(pathname, searchParams)}
+                                className="text-[12.5px] font-bold text-primary hover:text-primary-dark"
+                              >
+                                로그인하기
+                              </Link>
+                            </div>
+                          ) : (
+                            <div className="rounded-xl bg-neutral py-8 text-center text-[13px] text-[#9A9AA2]">
+                              상품 정보를 불러오지 못했습니다.
+                            </div>
+                          ))}
+
+                        {priceLoadState === "ready" && !listingsError && (
+                          <div className="grid grid-cols-2 gap-2">
+                            {GRADE_ORDER.map((grade) => {
+                              const offer = gradeSummary[grade];
+                              const hasStock = offer != null;
+                              const isSelected = selectedGrade === grade;
+                              // 재고 없는 등급도 선택은 가능하게 한다 — 선택하면 아래 CTA가
+                              // "구매하기" 대신 "구매입찰 등록"으로 바뀐다(더 이상 disabled 취급 안 함).
+                              return (
+                                <button
+                                  key={grade}
+                                  type="button"
+                                  onClick={() => setSelectedGrade(grade)}
+                                  className={`flex flex-col items-center gap-0.5 rounded-xl border px-2 py-2.5 transition ${
+                                    isSelected
+                                      ? "border-primary bg-lavender"
+                                      : hasStock
+                                        ? "border-[#DDDDE3] bg-white hover:border-primary"
+                                        : "border-[#EDEDF0] bg-neutral hover:border-primary"
+                                  }`}
+                                >
+                                  <span className="text-[12px] font-extrabold text-ink">
+                                    {GRADE_LABELS[grade]}
+                                  </span>
+                                  <span className="text-[11px] font-semibold text-[#8A8A92]">
+                                    {hasStock
+                                      ? `${offer.price.toLocaleString("ko-KR")}원 · ${offer.count}개`
+                                      : "상품 없음 · 입찰 가능"}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {(() => {
+                        // 선택된 등급에 매물이 없으면 "구매하기" 대신 그 등급으로 구매입찰을 미리
+                        // 걸 수 있게 한다 — 재고가 생기길 기다리지 않고 원하는 가격에 예약해두는 흐름.
+                        const showBuyOfferCta = selectedGrade != null && !selectedOffer;
+                        return (
+                          <button
+                            type="button"
+                            disabled={
+                              userStatus === "loading" ||
+                              (!showBuyOfferCta && (!selectedOffer || buyingListingId != null))
+                            }
+                            onClick={() => {
+                              if (showBuyOfferCta) {
+                                setGradeGuideTarget("buy-offer");
+                                return;
+                              }
+                              if (!selectedOffer) return;
+                              handleBuy(selectedOffer.listingId);
+                            }}
+                            className="mt-1 w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3.5 text-[15px] font-bold text-white shadow-tactile transition active:translate-y-0.5 active:shadow-tactile-active disabled:cursor-not-allowed disabled:border-[#DDDDE3] disabled:bg-neutral disabled:text-[#9A9AA2] disabled:shadow-none"
+                          >
+                            {userStatus === "loading"
+                              ? "인증 확인 중..."
+                              : showBuyOfferCta
+                                ? "구매입찰 등록"
+                                : buyingListingId != null
+                                  ? "구매 중..."
+                                  : selectedOffer
+                                    ? "구매하기"
+                                    : "등급을 선택하세요"}
+                          </button>
+                        );
+                      })()}
+
+                      {selectedGrade != null && (
+                        <button
+                          type="button"
+                          disabled={userStatus === "loading"}
+                          onClick={() => setGradeGuideTarget("sell")}
+                          className="w-full rounded-[11px] border-[1.5px] border-primary bg-white py-2.5 text-[13.5px] font-bold text-primary transition hover:bg-lavender disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          이 등급으로 판매하기
+                        </button>
+                      )}
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setWatchlistModalOpen(true)}
+                          aria-label="관심 등록"
+                          className="w-full rounded-[11px] border-[1.5px] border-[#DDDDE3] bg-white py-2.5 text-[13.5px] font-bold text-[#4B4B52] transition hover:border-primary hover:text-primary"
+                        >
+                          관심 등록
+                        </button>
+                        {watchlistAdded && (
+                          <span className="whitespace-nowrap text-[12.5px] font-bold text-primary">
+                            등록됨
                           </span>
                         )}
                       </div>
                     </div>
 
-                    {buyError && (
-                      <div className="rounded-xl border border-[#F6C6C6] bg-[#FFF1F1] px-3.5 py-2.5 text-[12.5px] font-semibold text-[#C21414]">
-                        {buyError}
-                      </div>
-                    )}
-
-                    <div className="border-t border-[#F5F5F7] pt-4">
-                      <div className="mb-2.5 text-[12.5px] font-bold text-ink">등급 선택</div>
-
-                      {priceLoadState === "loading" && (
-                        <div className="grid grid-cols-2 gap-2">
-                          {Array.from({ length: 6 }).map((_, i) => (
-                            <div
-                              key={i}
-                              className="h-[52px] animate-pulse rounded-xl bg-[#F2F2F5]"
-                            />
-                          ))}
-                        </div>
-                      )}
-
-                      {priceLoadState === "ready" &&
-                        listingsError &&
-                        (listingsError.status === 401 || listingsError.status === 403 ? (
-                          <div className="flex flex-col items-center gap-2 rounded-xl bg-neutral py-8 text-center text-[13px] text-[#9A9AA2]">
-                            <span>등급별 상품은 로그인 후 확인할 수 있습니다.</span>
-                            <Link
-                              href={loginUrlFor(pathname, searchParams)}
-                              className="text-[12.5px] font-bold text-primary hover:text-primary-dark"
-                            >
-                              로그인하기
-                            </Link>
-                          </div>
-                        ) : (
-                          <div className="rounded-xl bg-neutral py-8 text-center text-[13px] text-[#9A9AA2]">
-                            상품 정보를 불러오지 못했습니다.
-                          </div>
-                        ))}
-
-                      {priceLoadState === "ready" && !listingsError && (
-                        <div className="grid grid-cols-2 gap-2">
-                          {GRADE_ORDER.map((grade) => {
-                            const offer = gradeSummary[grade];
-                            const hasStock = offer != null;
-                            const isSelected = selectedGrade === grade;
-                            return (
-                              <button
-                                key={grade}
-                                type="button"
-                                disabled={!hasStock}
-                                onClick={() => setSelectedGrade(grade)}
-                                className={`flex flex-col items-center gap-0.5 rounded-xl border px-2 py-2.5 transition ${
-                                  isSelected
-                                    ? "border-primary bg-lavender"
-                                    : hasStock
-                                      ? "border-[#DDDDE3] bg-white hover:border-primary"
-                                      : "cursor-not-allowed border-[#EDEDF0] bg-neutral opacity-50"
-                                }`}
-                              >
-                                <span className="text-[12px] font-extrabold text-ink">
-                                  {GRADE_LABELS[grade]}
-                                </span>
-                                <span className="text-[11px] font-semibold text-[#8A8A92]">
-                                  {hasStock
-                                    ? `${offer.price.toLocaleString("ko-KR")}원 · ${offer.count}개`
-                                    : "상품 없음"}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
+                    <div className="rounded-2xl border border-[#EDEDF0] bg-white p-5">
+                      <OrderActivitySection cardId={cardId} variantId={selectedVariantId} />
                     </div>
-
-                    <button
-                      type="button"
-                      disabled={
-                        userStatus === "loading" || !selectedOffer || buyingListingId != null
-                      }
-                      onClick={() => {
-                        if (!selectedOffer) return;
-                        handleBuy(selectedOffer.listingId);
-                      }}
-                      className="mt-1 w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3.5 text-[15px] font-bold text-white shadow-tactile transition active:translate-y-0.5 active:shadow-tactile-active disabled:cursor-not-allowed disabled:border-[#DDDDE3] disabled:bg-neutral disabled:text-[#9A9AA2] disabled:shadow-none"
-                    >
-                      {userStatus === "loading"
-                        ? "인증 확인 중..."
-                        : buyingListingId != null
-                          ? "구매 중..."
-                          : selectedOffer
-                            ? "구매하기"
-                            : "등급을 선택하세요"}
-                    </button>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setWatchlistModalOpen(true)}
-                        aria-label="관심 등록"
-                        className="w-full rounded-[11px] border-[1.5px] border-[#DDDDE3] bg-white py-2.5 text-[13.5px] font-bold text-[#4B4B52] transition hover:border-primary hover:text-primary"
-                      >
-                        관심 등록
-                      </button>
-                      {watchlistAdded && (
-                        <span className="whitespace-nowrap text-[12.5px] font-bold text-primary">
-                          등록됨
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-[#EDEDF0] bg-white p-5">
-                    <OrderActivitySection cardId={cardId} variantId={selectedVariantId} />
-                  </div>
                   </div>
                 </div>
 
@@ -736,6 +792,12 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                   cardId={cardId}
                   variantId={selectedVariantId}
                   onSuccess={triggerWatchlistAdded}
+                />
+
+                <GradeGuideModal
+                  isOpen={gradeGuideTarget != null}
+                  onClose={() => setGradeGuideTarget(null)}
+                  onConfirm={confirmGradeGuide}
                 />
               </>
             );

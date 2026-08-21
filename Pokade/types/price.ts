@@ -16,7 +16,10 @@ export type CardPriceSummaryResponse = {
   sellPrice: number | null;
   currency: string;
   recentTradePrice?: number | null;
-} & ({ marketPrice: number; marketPriceCurrency: string } | { marketPrice?: null; marketPriceCurrency?: null });
+} & (
+  | { marketPrice: number; marketPriceCurrency: string }
+  | { marketPrice?: null; marketPriceCurrency?: null }
+);
 
 // 매물/체결 등급 — com.pokade.domain.listing.ListingGrade 미러링.
 // AI 등급진단 도메인의 Grade("S"|"A"|"B")와는 별개 개념(판매자가 매물 등록 시 직접 표기하는 등급).
@@ -130,5 +133,26 @@ export interface ListingResponse {
   price: number;
   grade: ListingGrade | null;
   status: ListingStatus;
+  createdAt: string;
+}
+
+// POST /api/buy-offers 요청 바디 — com.pokade.domain.price.dto.BuyOfferCreateRequest 미러링.
+export interface BuyOfferCreateRequest {
+  cardId: number;
+  variantId?: number;
+  price: number;
+  grade?: ListingGrade;
+}
+
+// POST /api/buy-offers 응답 — com.pokade.domain.price.dto.BuyOfferResponse 미러링.
+// status는 BE에서 아직 별도 enum이 아니라 문자열("ACTIVE" 고정)로 내려온다.
+export interface BuyOfferResponse {
+  id: number;
+  cardId: number;
+  buyerId: number;
+  variantId: number | null;
+  price: number;
+  grade: ListingGrade | null;
+  status: string;
   createdAt: string;
 }
