@@ -30,7 +30,7 @@ const PSA_GRADE_GUIDE: { grade: "PSA10" | "PSA9" | "PSA8"; desc: string }[] = [
   { grade: "PSA8", desc: "NM-MT — 육안으로 확인 가능한 경미한 결점 존재" },
 ];
 
-// 판매/구매입찰 등록 페이지로 넘어가기 전에 한 번 보여주는 등급 안내 모달 — 우리 기준 등급(S/A/B)과
+// 판매/구매입찰 등록 페이지로 넘어가기 전에 한 번 보여주는 등급 안내 모달 — Pokade 기준 등급(S/A/B)과
 // 공인 PSA 등급을 탭으로 구분해서 설명한다. 등급 확정 로직은 없고, 확인을 누르면 호출부가 알아서
 // 등록 페이지로 이동시킨다(onConfirm).
 export default function GradeGuideModal({
@@ -82,7 +82,7 @@ export default function GradeGuideModal({
                 : "text-[#8A8A92] hover:bg-neutral hover:text-ink"
             }`}
           >
-            우리 기준 등급
+            Pokade 기준 등급
           </button>
           <button
             type="button"
@@ -101,7 +101,7 @@ export default function GradeGuideModal({
           {tab === "ours" ? (
             <div className="flex flex-col gap-3">
               <p className="text-[12.5px] leading-relaxed text-[#8A8A92]">
-                PSA 등급을 받기엔 애매하거나, 정식 감정 비용이 부담스러운 카드도 괜찮습니다. 우리
+                PSA 등급을 받기엔 애매하거나, 정식 감정 비용이 부담스러운 카드도 괜찮습니다. Pokade
                 기준 등급(S/A/B)은 낮은 등급의 카드도 부담 없이 가볍게 거래할 수 있도록
                 만들어졌습니다.
               </p>
