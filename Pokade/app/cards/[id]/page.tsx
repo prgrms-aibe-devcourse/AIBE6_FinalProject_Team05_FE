@@ -787,8 +787,13 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                         </IconTooltip>
                         {/* 0/조회 실패(null)는 표시할 의미 있는 숫자가 없다고 보고 숨긴다 —
                           신규 카드에 "0"이 찍혀 위축감을 주는 것도 피한다. */}
+                        {/* 옆 하트와 같은 key/class를 써서 등록 순간 둘이 한 동작으로 같이 튄다.
+                            ±1 변화라 숫자를 굴리는 카운트업은 눈에 띄지 않아 펀치로 대신한다(#235). */}
                         {!!watchlistCount && (
-                          <span className="text-[12.5px] font-semibold text-[#9A9AA2]">
+                          <span
+                            key={punchKey(cardId ?? -1)}
+                            className={`text-[12.5px] font-semibold text-[#9A9AA2] ${punchClass(cardId ?? -1)}`}
+                          >
                             {watchlistCount.toLocaleString("ko-KR")}
                           </span>
                         )}
