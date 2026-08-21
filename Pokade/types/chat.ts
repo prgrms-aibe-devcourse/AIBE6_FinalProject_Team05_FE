@@ -9,10 +9,18 @@ export interface QuickQuestion {
   question: string;
 }
 
+export interface RankingItem {
+  cardName: string;
+  price: number;        // 원 단위 정수 (예: 15000)
+  changeRate: number;   // 등락률 % (양수=급등, 음수=급락)
+  changeAmount: number; // 등락액 원 단위 (양수=상승, 음수=하락)
+}
+
 export interface ChatQueryResponse {
   sessionId: string;
-  answer: string;
+  answer: string | null;
   disclaimer: string | null;
+  rankingItems: RankingItem[] | null;
 }
 
 export type ChatRole = "USER" | "ASSISTANT";
@@ -21,4 +29,20 @@ export interface ChatHistoryItem {
   role: ChatRole;
   content: string;
   createdAt: string;
+}
+
+// POST /api/chat/history/import — 비로그인 프리셋 클릭 이력을 로그인 후 서버에 이관.
+export interface ChatHistoryImportEntry {
+  presetId: string;
+  askedAt: string; // ISO-8601 Instant
+}
+
+export interface ChatHistoryImportRequest {
+  sessionId: string;
+  entries: ChatHistoryImportEntry[];
+}
+
+export interface ChatHistoryImportResponse {
+  imported: number;
+  skipped: number;
 }
