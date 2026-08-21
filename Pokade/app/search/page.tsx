@@ -15,7 +15,6 @@ import { ApiError } from "@/lib/apiClient";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 import { isPriceSort, MARKET_PAGE_SIZE, PRICE_MAX, UiSort } from "./constants";
 import SearchResultsView from "./SearchResultsView";
-import PriceDashboardView from "./PriceDashboardView";
 
 const EMPTY_FACETS: CardFacetsResponse = { types: [], rarities: [], expansions: [] };
 
@@ -41,7 +40,6 @@ function SearchDashboard() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const q = searchParams.get("q")?.trim() || "";
-  const [view, setView] = useState<"search" | "dash">("search");
   const [priceMin, setPriceMin] = useState<number>(() => {
     const min = parsePriceQueryParam(searchParams.get("minPrice"));
     const max = parsePriceQueryParam(searchParams.get("maxPrice"));
@@ -350,9 +348,6 @@ function SearchDashboard() {
     // 재실행되지 않는다 — reloadKey를 강제로 올려 항상 재요청되게 한다.
     setReloadKey((k) => k + 1);
   };
-  const seg = (a: boolean) =>
-    `rounded-lg px-[18px] py-[9px] text-[13.5px] cursor-pointer ${a ? "bg-white font-bold text-ink shadow-[0_1px_3px_rgba(0,0,0,0.08)]" : "bg-transparent font-semibold text-[#8A8A92]"}`;
-
   // 기존 SET_OPTIONS과 같은 모양({label, expansionId})으로 맞춰서, 이 값을 쓰는
   // SearchResultsView 쪽 JSX(옵션 렌더링/칩 라벨 조회)를 그대로 재사용한다.
   // series는 BE가 null이면 "기타"로 고정해서 내려주지만, 위쪽 safeData 보정과 같은 이유로
@@ -369,62 +364,48 @@ function SearchDashboard() {
       <div className="mx-auto max-w-[1280px]">
         <div className="mb-[22px] flex items-center justify-between">
           <h1 className="m-0 text-[26px] font-extrabold tracking-[-0.6px]">
-            {q ? `"${q}" 검색 결과` : "카드 검색 & 시세"}
+            {q ? `"${q}" 검색 결과` : "카드 검색"}
           </h1>
-          {!q && (
-            <div className="flex rounded-[10px] bg-[#EDEDF0] p-1">
-              <button className={seg(view === "search")} onClick={() => setView("search")}>
-                카드 검색
-              </button>
-              <button className={seg(view === "dash")} onClick={() => setView("dash")}>
-                시세 대시보드
-              </button>
-            </div>
-          )}
         </div>
 
-        {(q || view === "search") && (
-          <SearchResultsView
-            q={q}
-            filterOpen={filterOpen}
-            setFilterOpen={setFilterOpen}
-            selectedExpansionId={selectedExpansionId}
-            setSelectedExpansionId={setSelectedExpansionId}
-            selectedTypes={selectedTypes}
-            setSelectedTypes={setSelectedTypes}
-            selectedRarities={selectedRarities}
-            setSelectedRarities={setSelectedRarities}
-            selectedLanguages={selectedLanguages}
-            setSelectedLanguages={setSelectedLanguages}
-            setOptions={setOptions}
-            typeOptions={facets.types}
-            rarityOptions={facets.rarities}
-            facetsLoading={facetsLoading}
-            priceMin={priceMin}
-            setPriceMin={setPriceMin}
-            priceMax={priceMax}
-            setPriceMax={setPriceMax}
-            setPriceRangeNow={setPriceRangeNow}
-            activeHandle={activeHandle}
-            setActiveHandle={setActiveHandle}
-            sort={sort}
-            setSort={setSort}
-            setLoadState={setLoadState}
-            loadState={loadState}
-            errorMessage={errorMessage}
-            cards={cards}
-            hasFuzzyMatch={hasFuzzyMatch}
-            priceSummaries={priceSummaries}
-            totalElements={totalElements}
-            totalPages={totalPages}
-            page={page}
-            goToPage={goToPage}
-            resetFilters={resetFilters}
-            setReloadKey={setReloadKey}
-          />
-        )}
-
-        {!q && view === "dash" && <PriceDashboardView />}
+        <SearchResultsView
+          q={q}
+          filterOpen={filterOpen}
+          setFilterOpen={setFilterOpen}
+          selectedExpansionId={selectedExpansionId}
+          setSelectedExpansionId={setSelectedExpansionId}
+          selectedTypes={selectedTypes}
+          setSelectedTypes={setSelectedTypes}
+          selectedRarities={selectedRarities}
+          setSelectedRarities={setSelectedRarities}
+          selectedLanguages={selectedLanguages}
+          setSelectedLanguages={setSelectedLanguages}
+          setOptions={setOptions}
+          typeOptions={facets.types}
+          rarityOptions={facets.rarities}
+          facetsLoading={facetsLoading}
+          priceMin={priceMin}
+          setPriceMin={setPriceMin}
+          priceMax={priceMax}
+          setPriceMax={setPriceMax}
+          setPriceRangeNow={setPriceRangeNow}
+          activeHandle={activeHandle}
+          setActiveHandle={setActiveHandle}
+          sort={sort}
+          setSort={setSort}
+          setLoadState={setLoadState}
+          loadState={loadState}
+          errorMessage={errorMessage}
+          cards={cards}
+          hasFuzzyMatch={hasFuzzyMatch}
+          priceSummaries={priceSummaries}
+          totalElements={totalElements}
+          totalPages={totalPages}
+          page={page}
+          goToPage={goToPage}
+          resetFilters={resetFilters}
+          setReloadKey={setReloadKey}
+        />
       </div>
     </main>
   );
