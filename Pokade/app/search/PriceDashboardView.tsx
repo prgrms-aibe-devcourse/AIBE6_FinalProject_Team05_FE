@@ -5,9 +5,12 @@ import GradeBadge from "@/components/GradeBadge";
 import CardImage from "@/components/CardImage";
 import AddWatchlistModal from "@/components/AddWatchlistModal";
 import { fetchCardsByKeywordPage, fetchCardTrades } from "@/lib/cardApi";
-import { fetchWatchlistCounts } from "@/lib/watchlistApi";
+import { fetchWatchlist, fetchWatchlistCounts } from "@/lib/watchlistApi";
+import { WatchlistResponse } from "@/types/watchlist";
 import { ListingGrade, TradeSummaryResponse } from "@/types/price";
 import { useTimedFlag } from "@/hooks/useTimedFlag";
+import { useQuickWatchlistToggle } from "@/hooks/useQuickWatchlistToggle";
+import { useUserStore } from "@/store/useUserStore";
 
 // MyTradesSection.tsx의 formatDateTime과 같은 모양이지만, 그 파일은 다른 담당자(마이페이지) 소유라
 // 공용 헬퍼로 뽑지 않고 이 화면 안에 로컬로 둔다.
@@ -44,9 +47,22 @@ const DASHBOARD_CARD = {
 };
 
 export default function PriceDashboardView() {
+  const authStatus = useUserStore((s) => s.status);
+  // 목표가 설정/수정 모달(AddWatchlistModal의 edit 모드) 오픈 여부 — 등록 자체는 useQuickWatchlistToggle이
+  // 즉시 처리하므로, 이 모달은 "이미 등록된 카드의 목표가를 나중에 설정"하는 선택적 진입점 전용이다.
   const [watchlistModalOpen, setWatchlistModalOpen] = useState(false);
+  // 목표가 저장 성공 flash("저장됨"). 등록/삭제 자체의 피드백은 toastMessage가 따로 담당한다.
   const [watchlistAdded, triggerWatchlistAdded] = useTimedFlag(2000);
   const [cardId, setCardId] = useState<number | null>(null);
+  // 이 카드가 이미 내 워치리스트에 있는지 + 목표가 수정 모달의 초기값으로 쓸 현재 목표가.
+  const [myWatchlist, setMyWatchlist] = useState<Pick<
+    WatchlistResponse,
+    "id" | "targetBuyPrice" | "targetSellPrice"
+  > | null>(null);
+  const [watchlistToggleError, setWatchlistToggleError] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const { toggle: toggleWatchlist, pendingCardId: watchlistPendingCardId } =
+    useQuickWatchlistToggle();
 
   useEffect(() => {
     let cancelled = false;
@@ -120,175 +136,289 @@ export default function PriceDashboardView() {
     };
   }, [cardId]);
 
+  // 이 카드가 이미 내 워치리스트에 있는지 + 목표가 수정 모달에 쓸 현재 목표가.
+  // BE는 사용자당 카드 하나에 항목 하나만 허용(variantId 무관, existsByUserIdAndCardId) — cardId로만 매칭한다.
+  useEffect(() => {
+    if (cardId == null || authStatus !== "authenticated") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 비로그인/카드 미확정 시 낡은 상태를 비운다.
+      setMyWatchlist(null);
+      return;
+    }
+    let cancelled = false;
+
+    fetchWatchlist()
+      .then((list) => {
+        if (cancelled) return;
+        const found = list.find((w) => w.cardId === cardId);
+        setMyWatchlist(
+          found
+            ? {
+                id: found.id,
+                targetBuyPrice: found.targetBuyPrice,
+                targetSellPrice: found.targetSellPrice,
+              }
+            : null,
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setMyWatchlist(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cardId, authStatus]);
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    setTimeout(() => {
+      setToastMessage((cur) => (cur === message ? null : cur));
+    }, 2500);
+  };
+
+  const handleWatchlistToggle = async () => {
+    if (cardId == null) return;
+    setWatchlistToggleError(null);
+    const result = await toggleWatchlist(cardId, myWatchlist?.id ?? null);
+    if (result.status === "added") {
+      setMyWatchlist({ id: result.watchlistId, targetBuyPrice: null, targetSellPrice: null });
+      showToast("워치리스트에 등록했습니다");
+    } else if (result.status === "removed") {
+      setMyWatchlist(null);
+      showToast("워치리스트에서 삭제했습니다");
+    } else if (result.status === "error") {
+      setWatchlistToggleError(result.message);
+      setTimeout(() => setWatchlistToggleError(null), 3000);
+    }
+  };
+
   return (
-    <div className="grid grid-cols-1 items-start gap-[22px] lg:grid-cols-[60fr_40fr]">
-      <div className="flex flex-col gap-5">
-        <div className="rounded-2xl border border-t-[3px] border-[#EDEDF0] border-t-primary bg-white px-7 py-[26px]">
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="text-[13.5px] font-semibold text-[#8A8A92]">리자몽 ex (S) 시세</div>
-              <div className="mt-1.5 flex items-baseline gap-2.5">
-                <span className="text-[32px] font-extrabold tracking-[-1px]">₩142,000</span>
-                <span className="text-sm font-bold text-primary">▲ 3.2% (4,400)</span>
+    <>
+      <div className="grid grid-cols-1 items-start gap-[22px] lg:grid-cols-[60fr_40fr]">
+        <div className="flex flex-col gap-5">
+          <div className="rounded-2xl border border-t-[3px] border-[#EDEDF0] border-t-primary bg-white px-7 py-[26px]">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="text-[13.5px] font-semibold text-[#8A8A92]">리자몽 ex (S) 시세</div>
+                <div className="mt-1.5 flex items-baseline gap-2.5">
+                  <span className="text-[32px] font-extrabold tracking-[-1px]">₩142,000</span>
+                  <span className="text-sm font-bold text-primary">▲ 3.2% (4,400)</span>
+                </div>
+              </div>
+              <div className="flex gap-1.5">
+                <span className="rounded-md bg-primary px-[11px] py-[5px] text-xs font-bold text-white">
+                  7D
+                </span>
+                <span className="rounded-md bg-[#F2F2F5] px-[11px] py-[5px] text-xs font-bold text-[#8A8A92]">
+                  1M
+                </span>
+                <span className="rounded-md bg-[#F2F2F5] px-[11px] py-[5px] text-xs font-bold text-[#8A8A92]">
+                  1Y
+                </span>
               </div>
             </div>
-            <div className="flex gap-1.5">
-              <span className="rounded-md bg-primary px-[11px] py-[5px] text-xs font-bold text-white">
-                7D
-              </span>
-              <span className="rounded-md bg-[#F2F2F5] px-[11px] py-[5px] text-xs font-bold text-[#8A8A92]">
-                1M
-              </span>
-              <span className="rounded-md bg-[#F2F2F5] px-[11px] py-[5px] text-xs font-bold text-[#8A8A92]">
-                1Y
-              </span>
+            <div className="mt-6 flex h-[170px] items-end gap-3">
+              {[48, 56, 44, 68].map((h, i) => (
+                <div
+                  key={i}
+                  className="flex-1 rounded-t-[5px] bg-secondary"
+                  style={{ height: `${h}%` }}
+                />
+              ))}
+              {[62, 82, 100].map((h, i) => (
+                <div
+                  key={i}
+                  className="flex-1 rounded-t-[5px] bg-primary"
+                  style={{ height: `${h}%` }}
+                />
+              ))}
+            </div>
+            <div className="mt-2.5 flex justify-between text-[11px] text-[#A8A8B0]">
+              {["7/16", "7/17", "7/18", "7/19", "7/20", "7/21", "오늘"].map((d) => (
+                <span key={d}>{d}</span>
+              ))}
             </div>
           </div>
-          <div className="mt-6 flex h-[170px] items-end gap-3">
-            {[48, 56, 44, 68].map((h, i) => (
-              <div
-                key={i}
-                className="flex-1 rounded-t-[5px] bg-secondary"
-                style={{ height: `${h}%` }}
-              />
-            ))}
-            {[62, 82, 100].map((h, i) => (
-              <div
-                key={i}
-                className="flex-1 rounded-t-[5px] bg-primary"
-                style={{ height: `${h}%` }}
-              />
-            ))}
-          </div>
-          <div className="mt-2.5 flex justify-between text-[11px] text-[#A8A8B0]">
-            {["7/16", "7/17", "7/18", "7/19", "7/20", "7/21", "오늘"].map((d) => (
-              <span key={d}>{d}</span>
-            ))}
-          </div>
-        </div>
-        <div className="rounded-2xl border border-[#EDEDF0] bg-white px-7 py-6">
-          <h2 className="mb-4 mt-0 text-base font-extrabold">최근 거래 내역</h2>
-          <div className="grid grid-cols-3 border-b border-[#EDEDF0] pb-[11px] text-xs font-bold text-[#9A9AA2]">
-            <span>등급</span>
-            <span>체결가</span>
-            <span className="text-right">시각</span>
-          </div>
-          {/* 실제 API(GET /api/prices/{cardId}/trades)에는 변동률 필드가 없다 — 이 표 한 줄
+          <div className="rounded-2xl border border-[#EDEDF0] bg-white px-7 py-6">
+            <h2 className="mb-4 mt-0 text-base font-extrabold">최근 거래 내역</h2>
+            <div className="grid grid-cols-3 border-b border-[#EDEDF0] pb-[11px] text-xs font-bold text-[#9A9AA2]">
+              <span>등급</span>
+              <span>체결가</span>
+              <span className="text-right">시각</span>
+            </div>
+            {/* 실제 API(GET /api/prices/{cardId}/trades)에는 변동률 필드가 없다 — 이 표 한 줄
               한 줄이 서로 다른 등급(PSA10/S/등급없음 등)을 섞어 보여주므로, 바로 위 줄과
               비교해 변동률을 계산하면 등급이 다른 거래끼리 비교하는 셈이라 의미가 없다.
               그래서 억지로 만들지 않고 컬럼 자체를 뺐다. */}
-          {tradesLoadState === "loading" && (
-            <p className="py-8 text-center text-[13px] text-[#8A8A92]">불러오는 중...</p>
-          )}
-          {tradesLoadState === "error" && (
-            <p className="py-8 text-center text-[13px] text-[#C21414]">
-              거래 내역을 불러오지 못했습니다.
-            </p>
-          )}
-          {tradesLoadState === "ready" && trades && trades.length === 0 && (
-            <p className="py-8 text-center text-[13px] text-[#8A8A92]">
-              아직 체결된 거래가 없습니다.
-            </p>
-          )}
-          {tradesLoadState === "ready" &&
-            trades &&
-            trades.length > 0 &&
-            trades.map((t, i) => (
-              <div
-                key={`${t.tradedAt}-${i}`}
-                className={`grid grid-cols-3 items-center py-3 text-[13.5px] ${i < trades.length - 1 ? "border-b border-[#F5F5F7]" : ""}`}
+            {tradesLoadState === "loading" && (
+              <p className="py-8 text-center text-[13px] text-[#8A8A92]">불러오는 중...</p>
+            )}
+            {tradesLoadState === "error" && (
+              <p className="py-8 text-center text-[13px] text-[#C21414]">
+                거래 내역을 불러오지 못했습니다.
+              </p>
+            )}
+            {tradesLoadState === "ready" && trades && trades.length === 0 && (
+              <p className="py-8 text-center text-[13px] text-[#8A8A92]">
+                아직 체결된 거래가 없습니다.
+              </p>
+            )}
+            {tradesLoadState === "ready" &&
+              trades &&
+              trades.length > 0 &&
+              trades.map((t, i) => (
+                <div
+                  key={`${t.tradedAt}-${i}`}
+                  className={`grid grid-cols-3 items-center py-3 text-[13.5px] ${i < trades.length - 1 ? "border-b border-[#F5F5F7]" : ""}`}
+                >
+                  <span>
+                    <TradeGradeBadge grade={t.grade} />
+                  </span>
+                  <span className="font-bold">{t.price.toLocaleString("ko-KR")}원</span>
+                  <span className="text-right text-[#9A9AA2]">{formatTradeTime(t.tradedAt)}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+        <div className="flex flex-col gap-5">
+          <div className="rounded-2xl border border-[#EDEDF0] bg-white p-6">
+            <div className="flex gap-4">
+              <div className="relative h-[132px] w-24 flex-shrink-0 overflow-hidden rounded-[10px] bg-[#F2F2F5]">
+                <CardImage />
+                <GradeBadge grade="S" size="sm" className="absolute left-[7px] top-[7px]" />
+              </div>
+              <div className="flex-1">
+                <div className="text-[17px] font-extrabold">리자몽 ex</div>
+                <div className="mt-[3px] text-[12.5px] text-[#9A9AA2]">흑염의 지배자 · SAR</div>
+                <div className="mt-3.5 flex flex-col gap-[7px] text-[12.5px]">
+                  {[
+                    ["최고가", "₩158,000"],
+                    ["최저가", "₩121,000"],
+                    ["거래량(7D)", "342건"],
+                  ].map(([k, v]) => (
+                    <div key={k} className="flex justify-between">
+                      <span className="text-[#8A8A92]">{k}</span>
+                      <span className="font-bold">{v}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="mt-[18px] flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleWatchlistToggle}
+                disabled={cardId == null || watchlistPendingCardId === cardId}
+                className={`flex-1 rounded-[11px] border-2 py-3 text-[14.5px] font-bold shadow-tactile-sm transition active:translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 ${
+                  myWatchlist
+                    ? "border-primary bg-lavender text-primary"
+                    : "border-primary-dark bg-primary text-white"
+                }`}
               >
-                <span>
-                  <TradeGradeBadge grade={t.grade} />
-                </span>
-                <span className="font-bold">{t.price.toLocaleString("ko-KR")}원</span>
-                <span className="text-right text-[#9A9AA2]">{formatTradeTime(t.tradedAt)}</span>
-              </div>
-            ))}
-        </div>
-      </div>
-      <div className="flex flex-col gap-5">
-        <div className="rounded-2xl border border-[#EDEDF0] bg-white p-6">
-          <div className="flex gap-4">
-            <div className="relative h-[132px] w-24 flex-shrink-0 overflow-hidden rounded-[10px] bg-[#F2F2F5]">
-              <CardImage />
-              <GradeBadge grade="S" size="sm" className="absolute left-[7px] top-[7px]" />
-            </div>
-            <div className="flex-1">
-              <div className="text-[17px] font-extrabold">리자몽 ex</div>
-              <div className="mt-[3px] text-[12.5px] text-[#9A9AA2]">흑염의 지배자 · SAR</div>
-              <div className="mt-3.5 flex flex-col gap-[7px] text-[12.5px]">
-                {[
-                  ["최고가", "₩158,000"],
-                  ["최저가", "₩121,000"],
-                  ["거래량(7D)", "342건"],
-                ].map(([k, v]) => (
-                  <div key={k} className="flex justify-between">
-                    <span className="text-[#8A8A92]">{k}</span>
-                    <span className="font-bold">{v}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setWatchlistModalOpen(true)}
-            disabled={cardId == null}
-            className="mt-[18px] w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3 text-[14.5px] font-bold text-white shadow-tactile-sm active:translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {watchlistCount
-              ? `워치리스트에 추가 (${watchlistCount.toLocaleString("ko-KR")})`
-              : "워치리스트에 추가"}
-          </button>
-          {watchlistAdded && (
-            <div className="mt-2 text-center text-[12.5px] font-bold text-primary">등록됨</div>
-          )}
-
-          {cardId != null && (
-            <AddWatchlistModal
-              isOpen={watchlistModalOpen}
-              onClose={() => setWatchlistModalOpen(false)}
-              cardId={cardId}
-              onSuccess={triggerWatchlistAdded}
-            />
-          )}
-        </div>
-        <div className="rounded-2xl border border-[#EDEDF0] bg-white p-6">
-          <h2 className="mb-3.5 mt-0 text-[15px] font-extrabold">추천 카드</h2>
-          <div className="flex flex-col gap-3.5">
-            {[
-              { n: "뮤츠 ex", s: "레이징 서프 · SAR", p: "₩211,000", c: "▲ 1.1%", up: true },
-              { n: "뮤 UR", s: "151 · UR", p: "₩89,500", c: "▼ 1.4%", up: false },
-              {
-                n: "칠색조 ex",
-                s: "파라다임 트리거 · SAR",
-                p: "₩118,000",
-                c: "▲ 4.6%",
-                up: true,
-              },
-            ].map((r) => (
-              <div key={r.n} className="flex items-center gap-3">
-                <div className="h-14 w-10 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
-                  <CardImage />
-                </div>
-                <div className="flex-1">
-                  <div className="text-[13.5px] font-bold">{r.n}</div>
-                  <div className="text-[11.5px] text-[#9A9AA2]">{r.s}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-[13.5px] font-extrabold">{r.p}</div>
-                  <div
-                    className={`text-[11.5px] font-bold ${r.up ? "text-primary" : "text-secondary"}`}
+                {myWatchlist
+                  ? watchlistCount
+                    ? `워치리스트에서 삭제 (${watchlistCount.toLocaleString("ko-KR")})`
+                    : "워치리스트에서 삭제"
+                  : watchlistCount
+                    ? `워치리스트에 추가 (${watchlistCount.toLocaleString("ko-KR")})`
+                    : "워치리스트에 추가"}
+              </button>
+              {myWatchlist && (
+                <button
+                  type="button"
+                  onClick={() => setWatchlistModalOpen(true)}
+                  aria-label="목표가 설정"
+                  className="flex h-[46px] w-[46px] flex-shrink-0 items-center justify-center rounded-[11px] border-2 border-[#DDDDE3] bg-white text-[#8A8A92] transition hover:border-primary hover:text-primary"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
                   >
-                    {r.c}
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z" />
+                  </svg>
+                </button>
+              )}
+            </div>
+            {watchlistAdded && (
+              <div className="mt-2 text-center text-[12.5px] font-bold text-primary">저장됨</div>
+            )}
+            {watchlistToggleError && (
+              <div role="alert" className="mt-2 text-center text-[12px] font-semibold text-primary">
+                {watchlistToggleError}
+              </div>
+            )}
+
+            {myWatchlist && (
+              <AddWatchlistModal
+                isOpen={watchlistModalOpen}
+                onClose={() => setWatchlistModalOpen(false)}
+                mode="edit"
+                watchlistId={myWatchlist.id}
+                initialTargetBuyPrice={myWatchlist.targetBuyPrice}
+                initialTargetSellPrice={myWatchlist.targetSellPrice}
+                onSuccess={(updated) => {
+                  setMyWatchlist({
+                    id: updated.id,
+                    targetBuyPrice: updated.targetBuyPrice,
+                    targetSellPrice: updated.targetSellPrice,
+                  });
+                  triggerWatchlistAdded();
+                }}
+              />
+            )}
+          </div>
+          <div className="rounded-2xl border border-[#EDEDF0] bg-white p-6">
+            <h2 className="mb-3.5 mt-0 text-[15px] font-extrabold">추천 카드</h2>
+            <div className="flex flex-col gap-3.5">
+              {[
+                { n: "뮤츠 ex", s: "레이징 서프 · SAR", p: "₩211,000", c: "▲ 1.1%", up: true },
+                { n: "뮤 UR", s: "151 · UR", p: "₩89,500", c: "▼ 1.4%", up: false },
+                {
+                  n: "칠색조 ex",
+                  s: "파라다임 트리거 · SAR",
+                  p: "₩118,000",
+                  c: "▲ 4.6%",
+                  up: true,
+                },
+              ].map((r) => (
+                <div key={r.n} className="flex items-center gap-3">
+                  <div className="h-14 w-10 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
+                    <CardImage />
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-[13.5px] font-bold">{r.n}</div>
+                    <div className="text-[11.5px] text-[#9A9AA2]">{r.s}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[13.5px] font-extrabold">{r.p}</div>
+                    <div
+                      className={`text-[11.5px] font-bold ${r.up ? "text-primary" : "text-secondary"}`}
+                    >
+                      {r.c}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+      {toastMessage && (
+        <div
+          role="status"
+          className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-5 py-3 text-[13.5px] font-bold text-white shadow-lg"
+        >
+          {toastMessage}
+        </div>
+      )}
+    </>
   );
 }
