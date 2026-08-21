@@ -20,9 +20,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <div className="page-container">
           <Header />
           {children}
+          <ChatWidget />
           <Footer />
         </div>
-        <ChatWidget />
       </body>
     </html>
   );
