@@ -188,39 +188,35 @@ export default function SearchResultsView({
     : cards;
 
   return (
-    <div
-      className={`grid items-start gap-6 ${q ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-[250px_1fr]"}`}
-    >
-      {/* filter sidebar — 키워드 검색 중에는 세트 필터와 동시 적용하지 않으므로 숨김.
+    <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[250px_1fr]">
+      {/* filter sidebar — #308: 키워드(q) 검색 중에도 필터를 함께 적용할 수 있어 항상 노출한다.
           lg 미만에서는 사이드바 대신 "필터" 버튼으로 여는 바텀시트/드로어로 표시.
           세트/타입/레어도/언어/가격대 필터 전체는 SearchFilterSidebar로 분리돼 있다(#142). */}
-      {!q && (
-        <SearchFilterSidebar
-          filterOpen={filterOpen}
-          setFilterOpen={setFilterOpen}
-          filterPanelRef={filterPanelRef}
-          selectedExpansionId={selectedExpansionId}
-          setSelectedExpansionId={setSelectedExpansionId}
-          selectedTypes={selectedTypes}
-          setSelectedTypes={setSelectedTypes}
-          selectedRarities={selectedRarities}
-          setSelectedRarities={setSelectedRarities}
-          selectedLanguages={selectedLanguages}
-          setSelectedLanguages={setSelectedLanguages}
-          setOptions={setOptions}
-          typeOptions={typeOptions}
-          rarityOptions={rarityOptions}
-          facetsLoading={facetsLoading}
-          priceMin={priceMin}
-          setPriceMin={setPriceMin}
-          priceMax={priceMax}
-          setPriceMax={setPriceMax}
-          activeHandle={activeHandle}
-          setActiveHandle={setActiveHandle}
-          setLoadState={setLoadState}
-          resetFilters={resetFilters}
-        />
-      )}
+      <SearchFilterSidebar
+        filterOpen={filterOpen}
+        setFilterOpen={setFilterOpen}
+        filterPanelRef={filterPanelRef}
+        selectedExpansionId={selectedExpansionId}
+        setSelectedExpansionId={setSelectedExpansionId}
+        selectedTypes={selectedTypes}
+        setSelectedTypes={setSelectedTypes}
+        selectedRarities={selectedRarities}
+        setSelectedRarities={setSelectedRarities}
+        selectedLanguages={selectedLanguages}
+        setSelectedLanguages={setSelectedLanguages}
+        setOptions={setOptions}
+        typeOptions={typeOptions}
+        rarityOptions={rarityOptions}
+        facetsLoading={facetsLoading}
+        priceMin={priceMin}
+        setPriceMin={setPriceMin}
+        priceMax={priceMax}
+        setPriceMax={setPriceMax}
+        activeHandle={activeHandle}
+        setActiveHandle={setActiveHandle}
+        setLoadState={setLoadState}
+        resetFilters={resetFilters}
+      />
 
       {/* results grid */}
       <div>
@@ -238,16 +234,14 @@ export default function SearchResultsView({
 
         <div className="mb-4 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            {!q && (
-              <button
-                ref={filterButtonRef}
-                type="button"
-                onClick={() => setFilterOpen(true)}
-                className="flex items-center gap-1 rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-2 text-[13px] font-bold text-[#4B4B52] lg:hidden"
-              >
-                필터
-              </button>
-            )}
+            <button
+              ref={filterButtonRef}
+              type="button"
+              onClick={() => setFilterOpen(true)}
+              className="flex items-center gap-1 rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-2 text-[13px] font-bold text-[#4B4B52] lg:hidden"
+            >
+              필터
+            </button>
             <span className="text-[13.5px] text-[#8A8A92]">
               <b className="text-ink">
                 {loadState === "ready"
@@ -259,91 +253,88 @@ export default function SearchResultsView({
               개의 카드
             </span>
           </div>
-          {/* 키워드 검색(q)은 BE에 sort 파라미터가 없어 정렬 옵션을 숨긴다 */}
-          {!q && (
-            <select
-              value={sort}
-              onChange={(e) => {
-                const next = e.target.value as UiSort;
-                // priceAsc/priceDesc는 BE에 안 보내는 FE 전용 값이라 실제로는 둘 다 기본 정렬
-                // (popular)로 조회한 뒤 클라이언트에서 재정렬만 한다 — popular↔priceAsc/priceDesc
-                // 간 전환처럼 BE 요청이 실제로 바뀌지 않을 때 setLoadState("loading")을 부르면
-                // 재요청이 없어 "ready"로 되돌아오지 못하고 로딩 상태에 그대로 갇힌다.
-                const apiSortChanged = (isPriceSort(sort) ? "popular" : sort) !==
-                  (isPriceSort(next) ? "popular" : next);
-                if (apiSortChanged) setLoadState("loading");
-                setSort(next);
-              }}
-              aria-label="정렬 기준"
-              className="cursor-pointer rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-2 text-[13px] outline-none"
-            >
-              <option value="popular">인기순</option>
-              <option value="latest">최신순</option>
-              <option value="name">이름순</option>
-              <option value="priceAsc">가격 낮은순</option>
-              <option value="priceDesc">가격 높은순</option>
-            </select>
-          )}
+          {/* #308: 필터+키워드 통합 검색에도 BE가 sort를 그대로 받으므로 q 유무와 무관하게 노출한다. */}
+          <select
+            value={sort}
+            onChange={(e) => {
+              const next = e.target.value as UiSort;
+              // priceAsc/priceDesc는 BE에 안 보내는 FE 전용 값이라 실제로는 둘 다 기본 정렬
+              // (popular)로 조회한 뒤 클라이언트에서 재정렬만 한다 — popular↔priceAsc/priceDesc
+              // 간 전환처럼 BE 요청이 실제로 바뀌지 않을 때 setLoadState("loading")을 부르면
+              // 재요청이 없어 "ready"로 되돌아오지 못하고 로딩 상태에 그대로 갇힌다.
+              const apiSortChanged =
+                (isPriceSort(sort) ? "popular" : sort) !== (isPriceSort(next) ? "popular" : next);
+              if (apiSortChanged) setLoadState("loading");
+              setSort(next);
+            }}
+            aria-label="정렬 기준"
+            className="cursor-pointer rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-2 text-[13px] outline-none"
+          >
+            <option value="popular">인기순</option>
+            <option value="latest">최신순</option>
+            <option value="name">이름순</option>
+            <option value="priceAsc">가격 낮은순</option>
+            <option value="priceDesc">가격 높은순</option>
+          </select>
         </div>
 
-        {!q &&
-          (selectedExpansionId ||
-            selectedTypes.length > 0 ||
-            selectedRarities.length > 0 ||
-            selectedLanguages.length > 0 ||
-            priceMin > 0 ||
-            priceMax < PRICE_MAX) && (
-            <div className="mb-4 flex flex-wrap gap-2">
-              {selectedExpansionId && (
-                <FilterChip
-                  label={
-                    setOptions.find((o) => o.expansionId === selectedExpansionId)?.label ??
-                    selectedExpansionId
-                  }
-                  onRemove={() => {
-                    setLoadState("loading");
-                    setSelectedExpansionId(null);
-                  }}
-                />
-              )}
-              {selectedTypes.map((t) => (
-                <FilterChip
-                  key={`type-${t}`}
-                  label={t}
-                  onRemove={() => {
-                    setLoadState("loading");
-                    setSelectedTypes(selectedTypes.filter((v) => v !== t));
-                  }}
-                />
-              ))}
-              {selectedRarities.map((r) => (
-                <FilterChip
-                  key={`rarity-${r}`}
-                  label={r}
-                  onRemove={() => {
-                    setLoadState("loading");
-                    setSelectedRarities(selectedRarities.filter((v) => v !== r));
-                  }}
-                />
-              ))}
-              {selectedLanguages.map((l) => (
-                <FilterChip
-                  key={`language-${l}`}
-                  label={LANGUAGE_OPTIONS.find((opt) => opt.value === l)?.label ?? l}
-                  onRemove={() => {
-                    setLoadState("loading");
-                    setSelectedLanguages(selectedLanguages.filter((v) => v !== l));
-                  }}
-                />
-              ))}
-              {(priceMin > 0 || priceMax < PRICE_MAX) && (
-                <FilterChip
-                  label={`${priceMin.toLocaleString("ko-KR")}원~${priceMax.toLocaleString("ko-KR")}원`}
-                  onRemove={() => setPriceRangeNow(0, PRICE_MAX)}
-                />
-              )}
-            </div>
-          )}
+        {(selectedExpansionId ||
+          selectedTypes.length > 0 ||
+          selectedRarities.length > 0 ||
+          selectedLanguages.length > 0 ||
+          priceMin > 0 ||
+          priceMax < PRICE_MAX) && (
+          <div className="mb-4 flex flex-wrap gap-2">
+            {selectedExpansionId && (
+              <FilterChip
+                label={
+                  setOptions.find((o) => o.expansionId === selectedExpansionId)?.label ??
+                  selectedExpansionId
+                }
+                onRemove={() => {
+                  setLoadState("loading");
+                  setSelectedExpansionId(null);
+                }}
+              />
+            )}
+            {selectedTypes.map((t) => (
+              <FilterChip
+                key={`type-${t}`}
+                label={t}
+                onRemove={() => {
+                  setLoadState("loading");
+                  setSelectedTypes(selectedTypes.filter((v) => v !== t));
+                }}
+              />
+            ))}
+            {selectedRarities.map((r) => (
+              <FilterChip
+                key={`rarity-${r}`}
+                label={r}
+                onRemove={() => {
+                  setLoadState("loading");
+                  setSelectedRarities(selectedRarities.filter((v) => v !== r));
+                }}
+              />
+            ))}
+            {selectedLanguages.map((l) => (
+              <FilterChip
+                key={`language-${l}`}
+                label={LANGUAGE_OPTIONS.find((opt) => opt.value === l)?.label ?? l}
+                onRemove={() => {
+                  setLoadState("loading");
+                  setSelectedLanguages(selectedLanguages.filter((v) => v !== l));
+                }}
+              />
+            ))}
+            {(priceMin > 0 || priceMax < PRICE_MAX) && (
+              <FilterChip
+                label={`${priceMin.toLocaleString("ko-KR")}원~${priceMax.toLocaleString("ko-KR")}원`}
+                onRemove={() => setPriceRangeNow(0, PRICE_MAX)}
+              />
+            )}
+          </div>
+        )}
 
         {loadState === "loading" && cards.length === 0 && (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
@@ -416,10 +407,8 @@ export default function SearchResultsView({
               // 등급만 "다른 등급"이고, 최근 체결가/참고시세가 기준이면(=활성 S등급 매물이 없다는
               // 뜻) 활성 매물이 있는 등급 전부가 화면에 보이는 값과는 다른 등급이다.
               const otherGradesCount = priceDisplay
-                ? (priceDisplay.basis === "sGrade"
-                    ? c.grades.filter((g) => g !== "S")
-                    : c.grades
-                  ).length
+                ? (priceDisplay.basis === "sGrade" ? c.grades.filter((g) => g !== "S") : c.grades)
+                    .length
                 : 0;
               // pickDisplayName이 받는 { name, nameKo } 형태로 원본 필드를 매핑한다 — 여기서
               // name은 병합된 c.name이 아니라 원본 영문명(c.nameEn)이어야 검색어와 정확히 대조된다.

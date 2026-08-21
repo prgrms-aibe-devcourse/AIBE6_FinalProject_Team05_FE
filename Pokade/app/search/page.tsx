@@ -4,13 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CardFacetsResponse, CardSearchItem, toCardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
-import {
-  CardSort,
-  fetchCardFacets,
-  fetchCardsByKeywordPage,
-  fetchCardsPage,
-  fetchPriceSummaries,
-} from "@/lib/cardApi";
+import { CardSort, fetchCardFacets, fetchCardsPage, fetchPriceSummaries } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 import { isPriceSort, MARKET_PAGE_SIZE, PRICE_MAX, UiSort } from "./constants";
@@ -182,21 +176,20 @@ function SearchDashboard() {
   useEffect(() => {
     let cancelled = false;
 
-    const request = q
-      ? fetchCardsByKeywordPage(q, page - 1, MARKET_PAGE_SIZE)
-      : fetchCardsPage({
-          expansionId: selectedExpansionId ?? undefined,
-          types: selectedTypes,
-          rarity: selectedRarities,
-          languages: selectedLanguages,
-          minPrice: debouncedPriceMin > 0 ? debouncedPriceMin : undefined,
-          maxPrice: debouncedPriceMax < PRICE_MAX ? debouncedPriceMax : undefined,
-          sort: apiSort,
-          page: page - 1,
-          size: MARKET_PAGE_SIZE,
-        });
-
-    request
+    // #308: q(키워드)와 필터를 항상 같이 보낸다 — BE가 q 없으면 기존 필터 전용 검색과
+    // 동일하게 동작하므로 q 유무로 호출을 분기할 필요가 없어졌다.
+    fetchCardsPage({
+      q: q || undefined,
+      expansionId: selectedExpansionId ?? undefined,
+      types: selectedTypes,
+      rarity: selectedRarities,
+      languages: selectedLanguages,
+      minPrice: debouncedPriceMin > 0 ? debouncedPriceMin : undefined,
+      maxPrice: debouncedPriceMax < PRICE_MAX ? debouncedPriceMax : undefined,
+      sort: apiSort,
+      page: page - 1,
+      size: MARKET_PAGE_SIZE,
+    })
       .then((response) => {
         if (cancelled) return;
         setCards(response.content.map(toCardSearchItem));
@@ -267,40 +260,29 @@ function SearchDashboard() {
   // 필터 상태를 URL 쿼리 파라미터에 반영 — 상세 페이지 진입 후 뒤로가기 시 필터가 유지되도록 함.
   // 세터 호출 지점마다 흩어져 있던 동기화 호출을 걷어내고, 필터 상태 변화를 감시하는
   // 단일 effect로 모아서 처리한다.
-  // q도 deps에 포함한다 — 헤더의 "마켓" 링크처럼 이 컴포넌트 바깥에서 q 없이 /search로만
+  // #308 이전에는 q가 있으면 필터 파라미터를 URL에서 지웠다(BE가 필터 없이 키워드만 받았기
+  // 때문) — 이제 BE가 q+필터를 함께 받으므로 그 분기를 없애고 항상 필터를 반영한다.
+  // q는 여전히 deps에 포함한다 — 헤더의 "마켓" 링크처럼 이 컴포넌트 바깥에서 q 없이 /search로만
   // 이동하는 순수 네비게이션은 이 effect를 거치지 않고 URL을 통째로 갈아치운다. 그 경우에도
   // selectedTypes 등 필터 상태 자체는 남아있어 화면은 필터가 적용된 채로 보이지만, URL만
-  // 그 상태를 잃어버려 새로고침/공유 시 조용히 사라졌다 — q 변화(진입/이탈 모두)를 감지해
+  // 그 상태를 잃어버려 새로고침/공유 시 조용히 사라졌다(#187) — q 변화(진입/이탈 모두)를 감지해
   // 그 시점의 실제 필터 상태를 다시 반영해야 이 불일치를 막을 수 있다.
   useEffect(() => {
     const params = new URLSearchParams(searchParams.toString());
-    // 키워드 검색(q) 중에는 필터 사이드바 자체가 숨겨지고(SearchResultsView.tsx의 `!q &&`)
-    // BE도 필터를 적용하지 않으므로, URL에도 필터 파라미터를 남기지 않는다 — q가 비워지면
-    // 이 effect가 다시 실행되며 그 시점의 실제 필터 상태를 다시 채워 넣는다.
-    if (q) {
-      params.delete("expansionId");
-      params.delete("types");
-      params.delete("rarity");
-      params.delete("languages");
-      params.delete("minPrice");
-      params.delete("maxPrice");
-      params.delete("sort");
-    } else {
-      if (selectedExpansionId) params.set("expansionId", selectedExpansionId);
-      else params.delete("expansionId");
-      if (selectedTypes.length) params.set("types", selectedTypes.join(","));
-      else params.delete("types");
-      if (selectedRarities.length) params.set("rarity", selectedRarities.join(","));
-      else params.delete("rarity");
-      if (selectedLanguages.length) params.set("languages", selectedLanguages.join(","));
-      else params.delete("languages");
-      if (debouncedPriceMin > 0) params.set("minPrice", String(debouncedPriceMin));
-      else params.delete("minPrice");
-      if (debouncedPriceMax < PRICE_MAX) params.set("maxPrice", String(debouncedPriceMax));
-      else params.delete("maxPrice");
-      if (sort !== "popular") params.set("sort", sort);
-      else params.delete("sort");
-    }
+    if (selectedExpansionId) params.set("expansionId", selectedExpansionId);
+    else params.delete("expansionId");
+    if (selectedTypes.length) params.set("types", selectedTypes.join(","));
+    else params.delete("types");
+    if (selectedRarities.length) params.set("rarity", selectedRarities.join(","));
+    else params.delete("rarity");
+    if (selectedLanguages.length) params.set("languages", selectedLanguages.join(","));
+    else params.delete("languages");
+    if (debouncedPriceMin > 0) params.set("minPrice", String(debouncedPriceMin));
+    else params.delete("minPrice");
+    if (debouncedPriceMax < PRICE_MAX) params.set("maxPrice", String(debouncedPriceMax));
+    else params.delete("maxPrice");
+    if (sort !== "popular") params.set("sort", sort);
+    else params.delete("sort");
     if (page > 1) params.set("page", String(page));
     else params.delete("page");
     const qs = params.toString();
