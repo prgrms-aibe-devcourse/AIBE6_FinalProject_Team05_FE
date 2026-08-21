@@ -647,7 +647,8 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                             {card.languageCode}
                           </span>
                         )}
-                        {card.types.length > 0 && (
+                        {/* types가 null인 카드가 실제로 있다(#235) — 빈 배열과 같게 취급해 숨긴다. */}
+                        {!!card.types?.length && (
                           <div className="mt-2.5 flex flex-wrap gap-1.5">
                             {card.types.map((t) => (
                               <span
