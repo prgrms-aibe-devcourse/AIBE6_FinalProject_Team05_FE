@@ -818,19 +818,26 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                               ? `관심 등록 (${watchlistCount.toLocaleString("ko-KR")})`
                               : "관심 등록"
                         }
-                        className={`flex-1 rounded-[11px] border-[1.5px] py-2.5 text-[13.5px] font-bold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                        className={`flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-[11px] border-[1.5px] transition disabled:cursor-not-allowed disabled:opacity-60 ${
                           myWatchlist
-                            ? "border-primary bg-lavender text-primary"
-                            : "border-[#DDDDE3] bg-white text-[#4B4B52] hover:border-primary hover:text-primary"
+                            ? "border-primary bg-lavender"
+                            : "border-[#DDDDE3] bg-white hover:border-primary hover:bg-[#FFF5F5]"
                         }`}
                       >
-                        {myWatchlist
-                          ? watchlistCount
-                            ? `관심 해제 (${watchlistCount.toLocaleString("ko-KR")})`
-                            : "관심 해제"
-                          : watchlistCount
-                            ? `관심 등록 (${watchlistCount.toLocaleString("ko-KR")})`
-                            : "관심 등록"}
+                        <svg
+                          width="20"
+                          height="20"
+                          viewBox="0 0 24 24"
+                          stroke="#EE1515"
+                          strokeWidth="2"
+                          fill={myWatchlist ? "#EE1515" : "none"}
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
+                            transform="translate(-3 0)"
+                          />
+                        </svg>
                       </button>
                       {myWatchlist && (
                         <button
