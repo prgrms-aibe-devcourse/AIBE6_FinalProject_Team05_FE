@@ -25,12 +25,15 @@ interface UserState {
   chatHistoryVersion: number;
   accountStatus: MyInfo["status"] | null;
   provider: MyInfo["provider"] | null;
+  pointBalance: number | null;
   login: (email: string, password: string) => Promise<void>;
   loginWithToken: (accessToken: string) => Promise<void>;
   logout: () => Promise<void>;
   restoreSession: (force?: boolean) => Promise<boolean>;
   setNickname: (nickname: string) => void;
   setProfileImageUrl: (profileImageUrl: string | null) => void;
+  setPointBalance: (balance: number) => void;
+  decrementPointBalance: (amount: number) => void;
 }
 
 const SESSION_HINT_KEY = "pokade_has_session"; // 세션이 있었음을 기억하는 로컬스토리지 키 (로그인 후 새로고침 시 restoreSession 호출 여부 판단용)
@@ -71,6 +74,7 @@ export const useUserStore = create<UserState>((set, get) => ({
   chatHistoryVersion: 0,
   accountStatus: null,
   provider: null,
+  pointBalance: null,
 
   // 이미 발급된 accessToken으로 세션 확정: 토큰 저장 → 프로필 조회 → 상태 세팅 (소셜 가입·로그인 공용)
   loginWithToken: async (accessToken) => {
@@ -89,6 +93,7 @@ export const useUserStore = create<UserState>((set, get) => ({
         role: toStoreRole(me.role),
         accountStatus: me.status,
         provider: me.provider,
+        pointBalance: me.pointBalance,
       });
       // 비로그인 때 쌓아둔 프리셋 클릭 이력을 서버로 이관 (best-effort, fire-and-forget)
       flushChatImportQueue(set).catch(() => {});
@@ -107,6 +112,7 @@ export const useUserStore = create<UserState>((set, get) => ({
         role: null,
         accountStatus: null,
         provider: null,
+        pointBalance: null,
       });
       throw err; // 화면에서 에러 처리하도록 재throw
     }
@@ -138,6 +144,7 @@ export const useUserStore = create<UserState>((set, get) => ({
       role: null,
       accountStatus: null,
       provider: null,
+      pointBalance: null,
     });
   },
 
@@ -156,6 +163,7 @@ export const useUserStore = create<UserState>((set, get) => ({
         role: null,
         accountStatus: null,
         provider: null,
+        pointBalance: null,
       });
       return false;
     }
@@ -180,6 +188,7 @@ export const useUserStore = create<UserState>((set, get) => ({
         role: null,
         accountStatus: null,
         provider: null,
+        pointBalance: null,
       });
       return false;
     }
@@ -199,6 +208,7 @@ export const useUserStore = create<UserState>((set, get) => ({
         role: toStoreRole(me.role),
         accountStatus: me.status,
         provider: me.provider,
+        pointBalance: me.pointBalance,
       });
       return true;
     } catch (err) {
@@ -217,6 +227,7 @@ export const useUserStore = create<UserState>((set, get) => ({
           role: null,
           accountStatus: null,
           provider: null,
+          pointBalance: null,
         });
         return false;
       }
@@ -235,6 +246,7 @@ export const useUserStore = create<UserState>((set, get) => ({
         role: toStoreRole(me.role),
         accountStatus: me.status,
         provider: me.provider,
+        pointBalance: me.pointBalance,
       });
       return true;
     } catch {
@@ -246,4 +258,9 @@ export const useUserStore = create<UserState>((set, get) => ({
 
   setNickname: (nickname) => set({ nickname }),
   setProfileImageUrl: (profileImageUrl) => set({ profileImageUrl }),
+  setPointBalance: (balance) => set({ pointBalance: balance }),
+  decrementPointBalance: (amount) => {
+    const current = get().pointBalance;
+    if (current !== null) set({ pointBalance: current - amount });
+  },
 }));

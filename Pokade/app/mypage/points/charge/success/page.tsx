@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { confirmPointCharge } from "@/lib/pointApi";
 import { ApiError } from "@/lib/apiClient";
+import { useUserStore } from "@/store/useUserStore";
 
 type ConfirmState = "confirming" | "success" | "error";
 
@@ -19,6 +20,7 @@ export default function PointChargeSuccessPage() {
 
 function PointChargeSuccessContent() {
   const searchParams = useSearchParams();
+  const setPointBalance = useUserStore((s) => s.setPointBalance);
   const [state, setState] = useState<ConfirmState>("confirming");
   const [balance, setBalance] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
@@ -44,6 +46,7 @@ function PointChargeSuccessContent() {
     confirmPointCharge(paymentKey, orderId, Number(amount))
       .then((res) => {
         setBalance(res.balance);
+        setPointBalance(res.balance);
         setState("success");
       })
       .catch((err) => {
