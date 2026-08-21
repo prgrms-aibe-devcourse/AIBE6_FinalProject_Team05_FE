@@ -236,7 +236,7 @@ function GradeFilterPills({
 }
 
 const EMPTY_MESSAGE: Record<Tab, string> = {
-  trades: "최근 30일간 체결 내역이 없습니다.",
+  trades: "최근 180일간 체결 내역이 없습니다.",
   buy: "등록된 구매입찰이 없습니다.",
   sell: "등록된 판매입찰이 없습니다.",
 };
@@ -269,7 +269,7 @@ export default function OrderActivitySection({ cardId }: { cardId: number }) {
     let cancelled = false;
 
     Promise.allSettled([
-      fetchPriceChart(cardId, "30d"),
+      fetchPriceChart(cardId, "180d"),
       fetchBuyOfferOrderbook(cardId),
       fetchActiveListings(cardId),
     ]).then(([tradesResult, buyResult, sellResult]) => {
