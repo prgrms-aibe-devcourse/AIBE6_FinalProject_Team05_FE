@@ -43,9 +43,14 @@ const config: Config = {
           from: { transform: "translateX(0)" },
           to: { transform: "translateX(-50%)" },
         },
+        fadeIn: {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
+        },
       },
       animation: {
         ticker: "tickerScroll 32s linear infinite",
+        "fade-in": "fadeIn 0.3s ease-out",
       },
     },
   },
