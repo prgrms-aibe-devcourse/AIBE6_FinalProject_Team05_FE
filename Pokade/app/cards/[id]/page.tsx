@@ -27,12 +27,14 @@ import {
   fetchPriceSummary,
 } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
-import { fetchWatchlistCounts } from "@/lib/watchlistApi";
+import { fetchWatchlist, fetchWatchlistCounts } from "@/lib/watchlistApi";
+import { WatchlistResponse } from "@/types/watchlist";
 import { readyTradePurchase } from "@/lib/tradeApi";
 import { useUserStore } from "@/store/useUserStore";
 import { loginUrlFor } from "@/lib/authRedirect";
 import { toKrw } from "@/lib/currency";
 import { useTimedFlag } from "@/hooks/useTimedFlag";
+import { useQuickWatchlistToggle } from "@/hooks/useQuickWatchlistToggle";
 
 type LoadState = "loading" | "error" | "notfound" | "ready";
 type RelatedLoadState = "loading" | "ready";
@@ -116,8 +118,19 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
   const [copied, triggerCopied] = useTimedFlag(2000);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  // 목표가 설정/수정 모달(AddWatchlistModal의 edit 모드) 오픈 여부 — 등록 자체는 useQuickWatchlistToggle이
+  // 즉시 처리하므로, 이 모달은 "이미 등록된 카드의 목표가를 나중에 설정"하는 선택적 진입점 전용이다.
   const [watchlistModalOpen, setWatchlistModalOpen] = useState(false);
+  // 목표가 저장 성공 flash("저장됨"). 등록/해제 자체의 피드백은 toastMessage가 따로 담당한다.
   const [watchlistAdded, triggerWatchlistAdded] = useTimedFlag(2000);
+  // 이 카드가 이미 내 워치리스트에 있는지 + 목표가 수정 모달의 초기값으로 쓸 현재 목표가.
+  const [myWatchlist, setMyWatchlist] = useState<
+    Pick<WatchlistResponse, "id" | "targetBuyPrice" | "targetSellPrice"> | null
+  >(null);
+  const [watchlistToggleError, setWatchlistToggleError] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const { toggle: toggleWatchlist, pendingCardId: watchlistPendingCardId } =
+    useQuickWatchlistToggle();
 
   const [priceSummary, setPriceSummary] = useState<PriceSummaryResponse | null>(null);
   // 비로그인이거나 체결 이력이 부족해 계산할 수 없으면 null — 뱃지 자체를 숨긴다(에러 UI 없음).
@@ -349,6 +362,58 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
       cancelled = true;
     };
   }, [cardId, loadState]);
+
+  // 이 카드가 이미 내 워치리스트에 있는지 + 목표가 수정 모달에 쓸 현재 목표가.
+  // BE는 사용자당 카드 하나에 항목 하나만 허용(variantId 무관, existsByUserIdAndCardId) — cardId로만 매칭한다.
+  useEffect(() => {
+    if (loadState !== "ready" || cardId == null || userStatus !== "authenticated") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 비로그인/카드 전환 시 낡은 상태를 비운다.
+      setMyWatchlist(null);
+      return;
+    }
+    let cancelled = false;
+
+    fetchWatchlist()
+      .then((list) => {
+        if (cancelled) return;
+        const found = list.find((w) => w.cardId === cardId);
+        setMyWatchlist(
+          found
+            ? { id: found.id, targetBuyPrice: found.targetBuyPrice, targetSellPrice: found.targetSellPrice }
+            : null,
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setMyWatchlist(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cardId, loadState, userStatus]);
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    setTimeout(() => {
+      setToastMessage((cur) => (cur === message ? null : cur));
+    }, 2500);
+  };
+
+  const handleWatchlistToggle = async () => {
+    if (cardId == null) return;
+    setWatchlistToggleError(null);
+    const result = await toggleWatchlist(cardId, myWatchlist?.id ?? null, selectedVariantId);
+    if (result.status === "added") {
+      setMyWatchlist({ id: result.watchlistId, targetBuyPrice: null, targetSellPrice: null });
+      showToast("워치리스트에 등록했습니다");
+    } else if (result.status === "removed") {
+      setMyWatchlist(null);
+      showToast("워치리스트에서 삭제했습니다");
+    } else if (result.status === "error") {
+      setWatchlistToggleError(result.message);
+      setTimeout(() => setWatchlistToggleError(null), 3000);
+    }
+  };
 
   useEffect(() => {
     if (loadState !== "ready" || cardId == null) return;
@@ -742,24 +807,65 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => setWatchlistModalOpen(true)}
+                        onClick={handleWatchlistToggle}
+                        disabled={watchlistPendingCardId === cardId}
                         aria-label={
-                          watchlistCount
-                            ? `관심 등록 (${watchlistCount.toLocaleString("ko-KR")})`
-                            : "관심 등록"
+                          myWatchlist
+                            ? watchlistCount
+                              ? `관심 해제 (${watchlistCount.toLocaleString("ko-KR")})`
+                              : "관심 해제"
+                            : watchlistCount
+                              ? `관심 등록 (${watchlistCount.toLocaleString("ko-KR")})`
+                              : "관심 등록"
                         }
-                        className="w-full rounded-[11px] border-[1.5px] border-[#DDDDE3] bg-white py-2.5 text-[13.5px] font-bold text-[#4B4B52] transition hover:border-primary hover:text-primary"
+                        className={`flex-1 rounded-[11px] border-[1.5px] py-2.5 text-[13.5px] font-bold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                          myWatchlist
+                            ? "border-primary bg-lavender text-primary"
+                            : "border-[#DDDDE3] bg-white text-[#4B4B52] hover:border-primary hover:text-primary"
+                        }`}
                       >
-                        {watchlistCount
-                          ? `관심 등록 (${watchlistCount.toLocaleString("ko-KR")})`
-                          : "관심 등록"}
+                        {myWatchlist
+                          ? watchlistCount
+                            ? `관심 해제 (${watchlistCount.toLocaleString("ko-KR")})`
+                            : "관심 해제"
+                          : watchlistCount
+                            ? `관심 등록 (${watchlistCount.toLocaleString("ko-KR")})`
+                            : "관심 등록"}
                       </button>
+                      {myWatchlist && (
+                        <button
+                          type="button"
+                          onClick={() => setWatchlistModalOpen(true)}
+                          aria-label="목표가 설정"
+                          className="flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-[11px] border-[1.5px] border-[#DDDDE3] bg-white text-[#8A8A92] transition hover:border-primary hover:text-primary"
+                        >
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M12 20h9" />
+                            <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z" />
+                          </svg>
+                        </button>
+                      )}
                       {watchlistAdded && (
                         <span className="whitespace-nowrap text-[12.5px] font-bold text-primary">
-                          등록됨
+                          저장됨
                         </span>
                       )}
                     </div>
+                    {watchlistToggleError && (
+                      <span role="alert" className="text-[12px] font-semibold text-primary">
+                        {watchlistToggleError}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -796,17 +902,37 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                   alt={displayName}
                 />
 
-                <AddWatchlistModal
-                  isOpen={watchlistModalOpen}
-                  onClose={() => setWatchlistModalOpen(false)}
-                  cardId={cardId}
-                  variantId={selectedVariantId}
-                  onSuccess={triggerWatchlistAdded}
-                />
+                {myWatchlist && (
+                  <AddWatchlistModal
+                    isOpen={watchlistModalOpen}
+                    onClose={() => setWatchlistModalOpen(false)}
+                    mode="edit"
+                    watchlistId={myWatchlist.id}
+                    initialTargetBuyPrice={myWatchlist.targetBuyPrice}
+                    initialTargetSellPrice={myWatchlist.targetSellPrice}
+                    onSuccess={(updated) => {
+                      setMyWatchlist({
+                        id: updated.id,
+                        targetBuyPrice: updated.targetBuyPrice,
+                        targetSellPrice: updated.targetSellPrice,
+                      });
+                      triggerWatchlistAdded();
+                    }}
+                  />
+                )}
               </>
             );
           })()}
       </div>
+
+      {toastMessage && (
+        <div
+          role="status"
+          className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-5 py-3 text-[13.5px] font-bold text-white shadow-lg"
+        >
+          {toastMessage}
+        </div>
+      )}
     </main>
   );
 }
