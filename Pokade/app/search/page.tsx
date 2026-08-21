@@ -6,7 +6,10 @@ import { CardFacetsResponse, CardSearchItem, toCardSearchItem } from "@/types/ca
 import { CardPriceSummaryResponse } from "@/types/price";
 import { CardSort, fetchCardFacets, fetchCardsPage, fetchPriceSummaries } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
+import { fetchWatchlist } from "@/lib/watchlistApi";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
+import { useQuickWatchlistToggle } from "@/hooks/useQuickWatchlistToggle";
+import { useUserStore } from "@/store/useUserStore";
 import { isPriceSort, MARKET_PAGE_SIZE, PRICE_MAX, UiSort } from "./constants";
 import SearchResultsView from "./SearchResultsView";
 
@@ -34,6 +37,16 @@ function SearchDashboard() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const q = searchParams.get("q")?.trim() || "";
+  const authStatus = useUserStore((s) => s.status);
+  // cardId -> watchlistId. 홈 화면(app/page.tsx)과 동일한 패턴 — 하트 채움 여부도 이 Map으로
+  // 판정하고, 삭제 시 필요한 watchlistId도 함께 들고 있는다.
+  const [myWatchlist, setMyWatchlist] = useState<Map<number, number>>(new Map());
+  const [watchlistError, setWatchlistError] = useState<{ cardId: number; message: string } | null>(
+    null,
+  );
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const { toggle: toggleWatchlist, pendingCardId: watchlistPendingCardId } =
+    useQuickWatchlistToggle();
   const [priceMin, setPriceMin] = useState<number>(() => {
     const min = parsePriceQueryParam(searchParams.get("minPrice"));
     const max = parsePriceQueryParam(searchParams.get("maxPrice"));
@@ -162,6 +175,30 @@ function SearchDashboard() {
       cancelled = true;
     };
   }, []);
+
+  // 로그인 상태가 확정되면 내 워치리스트 전체를 한 번 불러와 하트 채움 여부/삭제용 id를 안다
+  // (app/page.tsx와 동일한 패턴). 비로그인이면 빈 Map으로 남겨 하트가 전부 빈 상태로 보이게
+  // 한다(클릭하면 로그인으로 유도됨).
+  useEffect(() => {
+    if (authStatus !== "authenticated") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 로그아웃 시 직전 사용자의 워치리스트 흔적을 즉시 비운다.
+      setMyWatchlist(new Map());
+      return;
+    }
+    let cancelled = false;
+
+    fetchWatchlist()
+      .then((list) => {
+        if (!cancelled) setMyWatchlist(new Map(list.map((w) => [w.cardId, w.id])));
+      })
+      .catch(() => {
+        // 조회 실패는 조용히 무시 — 하트는 빈 상태로 보이고, 실제 등록 시도 자체는 그대로 동작한다.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authStatus]);
 
   // 가격 슬라이더는 드래그 중 priceMin/priceMax가 연속으로 바뀌므로, 300~500ms 동안
   // 값이 안정된 뒤에야 debouncedPriceMin/Max를 갱신한다 — API 요청/URL 동기화는 이 값을 본다.
@@ -300,6 +337,35 @@ function SearchDashboard() {
     page,
   ]);
 
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    setTimeout(() => {
+      setToastMessage((cur) => (cur === message ? null : cur));
+    }, 2500);
+  };
+
+  const handleHeartClick = async (cardId: number) => {
+    setWatchlistError(null);
+    const watchlistId = myWatchlist.get(cardId) ?? null;
+    const result = await toggleWatchlist(cardId, watchlistId);
+    if (result.status === "added") {
+      setMyWatchlist((m) => new Map(m).set(cardId, result.watchlistId));
+      showToast("관심 등록했습니다");
+    } else if (result.status === "removed") {
+      setMyWatchlist((m) => {
+        const next = new Map(m);
+        next.delete(cardId);
+        return next;
+      });
+      showToast("관심 해제했습니다");
+    } else if (result.status === "error") {
+      setWatchlistError({ cardId, message: result.message });
+      setTimeout(() => {
+        setWatchlistError((cur) => (cur?.cardId === cardId ? null : cur));
+      }, 3000);
+    }
+  };
+
   // 페이지 번호/이전·다음 버튼 클릭 시에만 맨 위로 스크롤 — 필터/정렬 변경으로
   // 인한 자동 setPage(1)은 이 핸들러를 거치지 않으므로 스크롤 동작이 없다.
   const goToPage = (p: number) => {
@@ -387,8 +453,20 @@ function SearchDashboard() {
           goToPage={goToPage}
           resetFilters={resetFilters}
           setReloadKey={setReloadKey}
+          myWatchlist={myWatchlist}
+          watchlistPendingCardId={watchlistPendingCardId}
+          watchlistError={watchlistError}
+          onHeartClick={handleHeartClick}
         />
       </div>
+      {toastMessage && (
+        <div
+          role="status"
+          className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-5 py-3 text-[13.5px] font-bold text-white shadow-lg"
+        >
+          {toastMessage}
+        </div>
+      )}
     </main>
   );
 }

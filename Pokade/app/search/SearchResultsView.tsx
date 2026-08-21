@@ -76,6 +76,10 @@ interface SearchResultsViewProps {
   goToPage: (p: number) => void;
   resetFilters: () => void;
   setReloadKey: Dispatch<SetStateAction<number>>;
+  myWatchlist: Map<number, number>;
+  watchlistPendingCardId: number | null;
+  watchlistError: { cardId: number; message: string } | null;
+  onHeartClick: (cardId: number) => void;
 }
 
 // 페이지네이션 윈도우 — 전체 페이지를 다 그리지 않고 현재 페이지 주변 + 처음/끝만 노출,
@@ -159,6 +163,10 @@ export default function SearchResultsView({
   goToPage,
   resetFilters,
   setReloadKey,
+  myWatchlist,
+  watchlistPendingCardId,
+  watchlistError,
+  onHeartClick,
 }: SearchResultsViewProps) {
   const filterPanelRef = useRef<HTMLDivElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
@@ -418,60 +426,90 @@ export default function SearchResultsView({
               // alt와 화면 표시 텍스트가 항상 같은 언어를 가리키도록 한 번만 계산해 공유한다.
               const displayName = q ? pickDisplayName(rawNames, q) : c.name;
               return (
-                <Link
+                <div
                   key={c.id}
-                  href={`/cards/${c.id}`}
-                  className="flex cursor-pointer flex-col overflow-hidden rounded-[13px] border border-[#EDEDF0] transition hover:-translate-y-[3px] hover:shadow-lift"
+                  className="relative flex flex-col overflow-hidden rounded-[13px] border border-[#EDEDF0] transition hover:-translate-y-[3px] hover:shadow-lift"
                 >
-                  <div className="relative aspect-[5/7] w-full bg-[#F2F2F5]">
-                    <CardImage src={c.imageUrl} alt={displayName} label="카드" />
-                  </div>
-                  <div className="flex flex-1 flex-col p-3">
-                    <div className="text-[13.5px] font-bold">
-                      {q ? highlightMatch(displayName, q) : displayName}
+                  <Link href={`/cards/${c.id}`} className="flex flex-1 cursor-pointer flex-col">
+                    <div className="relative aspect-[5/7] w-full bg-[#F2F2F5]">
+                      <CardImage src={c.imageUrl} alt={displayName} label="카드" />
                     </div>
-                    <div className="mt-0.5 text-[11.5px] text-[#9A9AA2]">{c.set}</div>
-                    {/* EN(기본값)이 절대다수라 EN은 배지를 생략하고, 눈에 띄어야 하는 예외
+                    <div className="flex flex-1 flex-col p-3">
+                      <div className="text-[13.5px] font-bold">
+                        {q ? highlightMatch(displayName, q) : displayName}
+                      </div>
+                      <div className="mt-0.5 text-[11.5px] text-[#9A9AA2]">{c.set}</div>
+                      {/* EN(기본값)이 절대다수라 EN은 배지를 생략하고, 눈에 띄어야 하는 예외
                         (JA 등 비영어판)만 표시한다 — 대다수 카드에 불필요한 배지를 매번
                         노출하지 않으면서도 국가판이 다른 경우만 부각한다. */}
-                    {c.languageCode !== "EN" && (
-                      <span className="mt-1 inline-flex w-fit items-center rounded-full border border-[#DDDDE3] bg-white px-2 py-0.5 text-[10px] font-bold text-[#4B4B52]">
-                        {c.languageCode}
-                      </span>
-                    )}
-                    {c.types.length > 0 && (
-                      <div className="mt-1.5 flex flex-wrap gap-1">
-                        {c.types.map((t) => (
-                          <span
-                            key={t}
-                            className="rounded-full border border-[#D4D9F5] bg-lavender px-2 py-0.5 text-[10px] font-bold text-secondary"
-                          >
-                            {t}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    <div className="mt-auto pt-2.5">
-                      {priceDisplay ? (
-                        <>
-                          <div className="text-[11px] text-[#9A9AA2]">
-                            {BASIS_BADGE_LABEL[priceDisplay.basis]}
-                            {otherGradesCount > 0 && ` · 외 ${otherGradesCount}개 등급`}
-                          </div>
-                          <div className="text-[15px] font-extrabold text-ink">
-                            {priceDisplay.price}
-                          </div>
-                        </>
-                      ) : (
-                        <div className="text-[15px] font-extrabold text-ink">
-                          <span className="text-[13px] font-semibold text-[#9A9AA2]">
-                            가격 정보 없음
-                          </span>
+                      {c.languageCode !== "EN" && (
+                        <span className="mt-1 inline-flex w-fit items-center rounded-full border border-[#DDDDE3] bg-white px-2 py-0.5 text-[10px] font-bold text-[#4B4B52]">
+                          {c.languageCode}
+                        </span>
+                      )}
+                      {c.types.length > 0 && (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {c.types.map((t) => (
+                            <span
+                              key={t}
+                              className="rounded-full border border-[#D4D9F5] bg-lavender px-2 py-0.5 text-[10px] font-bold text-secondary"
+                            >
+                              {t}
+                            </span>
+                          ))}
                         </div>
                       )}
+                      <div className="mt-auto pt-2.5">
+                        {priceDisplay ? (
+                          <>
+                            <div className="text-[11px] text-[#9A9AA2]">
+                              {BASIS_BADGE_LABEL[priceDisplay.basis]}
+                              {otherGradesCount > 0 && ` · 외 ${otherGradesCount}개 등급`}
+                            </div>
+                            <div className="text-[15px] font-extrabold text-ink">
+                              {priceDisplay.price}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-[15px] font-extrabold text-ink">
+                            <span className="text-[13px] font-semibold text-[#9A9AA2]">
+                              가격 정보 없음
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </Link>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => onHeartClick(c.id)}
+                    disabled={watchlistPendingCardId === c.id}
+                    aria-label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}
+                    className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#EDEDF0] bg-white/90 hover:border-primary hover:bg-[#FFF5F5] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      stroke="#EE1515"
+                      strokeWidth="2"
+                      fill={myWatchlist.has(c.id) ? "#EE1515" : "none"}
+                    >
+                      <path
+                        d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
+                        transform="translate(-3 0)"
+                      />
+                    </svg>
+                  </button>
+                  {watchlistError?.cardId === c.id && (
+                    <div
+                      role="alert"
+                      className="absolute right-2 top-11 z-10 max-w-[130px] rounded-lg bg-[#3A3A3E] px-2.5 py-1.5 text-[11px] font-semibold leading-snug text-white shadow-lg"
+                    >
+                      {watchlistError.message}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
