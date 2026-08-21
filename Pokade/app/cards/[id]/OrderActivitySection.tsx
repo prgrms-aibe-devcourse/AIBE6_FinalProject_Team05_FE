@@ -39,7 +39,35 @@ function gradeKeyOf(grade: string | null): GradeKey {
   return (grade ?? "RAW") as GradeKey;
 }
 
-type Row = { key: string | number; grade: GradeKey; price: number; dateLabel?: string; quantity?: number };
+type Row = {
+  key: string | number;
+  grade: GradeKey;
+  price: number;
+  dateLabel?: string;
+  dateValue?: number;
+  quantity?: number;
+};
+
+type SortColumn = "price" | "date";
+type SortState = { column: SortColumn; direction: "asc" | "desc" } | null;
+
+// 같은 컬럼을 다시 클릭하면 방향만 뒤집고, 다른 컬럼을 클릭하면 오름차순부터 새로 시작한다.
+function toggleSortState(prev: SortState, column: SortColumn): SortState {
+  if (prev?.column === column) {
+    return { column, direction: prev.direction === "asc" ? "desc" : "asc" };
+  }
+  return { column, direction: "asc" };
+}
+
+function sortRows(rows: Row[], sort: SortState): Row[] {
+  if (!sort) return rows;
+  const factor = sort.direction === "asc" ? 1 : -1;
+  const sorted = [...rows];
+  sorted.sort((a, b) =>
+    sort.column === "price" ? (a.price - b.price) * factor : ((a.dateValue ?? 0) - (b.dateValue ?? 0)) * factor,
+  );
+  return sorted;
+}
 
 // 같은 (등급, 가격) 조합의 구매입찰/판매입찰을 하나의 행으로 묶고 개수를 센다 — 호가창처럼
 // "이 가격에 몇 건이 걸려있는지"를 보여주기 위함. BE가 이미 가격순으로 정렬해서 내려주므로
@@ -60,7 +88,13 @@ function groupByGradePrice(items: { grade: GradeKey; price: number }[]): Row[] {
 
 function toRows(tab: Tab, trades: TradeSummaryResponse[], buys: BuyOfferOrderbookEntryResponse[], sells: ListingSummaryResponse[]): Row[] {
   if (tab === "trades") {
-    return trades.map((t, i) => ({ key: i, grade: gradeKeyOf(t.grade), price: t.price, dateLabel: formatTradedAt(t.tradedAt) }));
+    return trades.map((t, i) => ({
+      key: i,
+      grade: gradeKeyOf(t.grade),
+      price: t.price,
+      dateLabel: formatTradedAt(t.tradedAt),
+      dateValue: new Date(t.tradedAt).getTime(),
+    }));
   }
   if (tab === "buy") {
     return groupByGradePrice(buys.map((o) => ({ grade: gradeKeyOf(o.grade), price: o.price })));
@@ -68,21 +102,77 @@ function toRows(tab: Tab, trades: TradeSummaryResponse[], buys: BuyOfferOrderboo
   return groupByGradePrice(sells.map((l) => ({ grade: gradeKeyOf(l.grade), price: l.price })));
 }
 
+// 정렬 안 된 상태에도 위/아래 화살표를 항상 둘 다 보여주고(회색), 현재 정렬 방향에 해당하는
+// 화살표만 진하게(불이 들어온 것처럼) 표시한다 — 클릭하기 전에도 "정렬 가능한 컬럼"임을 알 수 있게.
+function SortArrows({ active }: { active: "asc" | "desc" | null }) {
+  return (
+    <span className="ml-0.5 inline-flex flex-col items-center leading-[7px]">
+      <span className={`text-[8px] ${active === "asc" ? "text-ink" : "text-[#D3D3D8]"}`}>▲</span>
+      <span className={`text-[8px] ${active === "desc" ? "text-ink" : "text-[#D3D3D8]"}`}>▼</span>
+    </span>
+  );
+}
+
 // 등급 필터가 적용된 행 목록을 테이블로 렌더링 — 구매 박스 안 요약(limit=5)과 모달(전체) 양쪽에서 공유.
-function ActivityTable({ tab, rows, emptyMessage }: { tab: Tab; rows: Row[]; emptyMessage: string }) {
+// 정렬 UI는 모달에만 노출한다(sortable=false면 헤더가 클릭 불가능한 일반 텍스트로 렌더링됨) —
+// 정렬 자체는 부모가 rows를 미리 정렬해서 넘기고, 클릭 핸들러만 위로 위임한다.
+function ActivityTable({
+  tab,
+  rows,
+  emptyMessage,
+  sortable,
+  sort,
+  onToggleSort,
+}: {
+  tab: Tab;
+  rows: Row[];
+  emptyMessage: string;
+  sortable: boolean;
+  sort?: SortState;
+  onToggleSort?: (column: SortColumn) => void;
+}) {
   if (rows.length === 0) {
     return (
       <div className="rounded-xl bg-neutral py-8 text-center text-[12.5px] text-[#9A9AA2]">{emptyMessage}</div>
     );
   }
+
+  const priceLabel = tab === "trades" ? "거래가" : tab === "buy" ? "입찰가" : "판매가";
+
   return (
     <table className="w-full text-left text-[12.5px]">
       <thead>
         <tr className="text-[11px] font-semibold text-[#9A9AA2]">
           <th className="pb-1.5 font-semibold">등급</th>
-          <th className="pb-1.5 text-right font-semibold">{tab === "trades" ? "거래가" : tab === "buy" ? "입찰가" : "판매가"}</th>
+          {sortable ? (
+            <th className="pb-1.5 text-right font-semibold">
+              <button
+                type="button"
+                onClick={() => onToggleSort?.("price")}
+                className="inline-flex select-none items-center justify-end hover:text-ink"
+              >
+                {priceLabel}
+                <SortArrows active={sort?.column === "price" ? sort.direction : null} />
+              </button>
+            </th>
+          ) : (
+            <th className="pb-1.5 text-right font-semibold">{priceLabel}</th>
+          )}
           {tab === "trades" ? (
-            <th className="pb-1.5 text-right font-semibold">거래일</th>
+            sortable ? (
+              <th className="pb-1.5 text-right font-semibold">
+                <button
+                  type="button"
+                  onClick={() => onToggleSort?.("date")}
+                  className="inline-flex select-none items-center justify-end hover:text-ink"
+                >
+                  거래일
+                  <SortArrows active={sort?.column === "date" ? sort.direction : null} />
+                </button>
+              </th>
+            ) : (
+              <th className="pb-1.5 text-right font-semibold">거래일</th>
+            )
           ) : (
             <th className="pb-1.5 text-right font-semibold">수량</th>
           )}
@@ -160,10 +250,12 @@ export default function OrderActivitySection({ cardId }: { cardId: number }) {
 
   const [tab, setTab] = useState<Tab>("trades");
   const [modalOpen, setModalOpen] = useState(false);
-  // 모달 전용 탭/필터 — 페이지 뒤(compact 영역)의 tab과 완전히 분리해서, 모달에서 탭을 바꿔도
-  // 뒤쪽 compact 영역은 그대로 유지되고 모달을 닫았다 다시 열어도 서로 영향을 주지 않게 한다.
+  // 모달 전용 탭/필터/정렬 — 페이지 뒤(compact 영역)의 상태와 완전히 분리해서, 모달에서 탭을 바꾸거나
+  // 컬럼을 정렬해도 뒤쪽 compact 영역은 그대로 유지되고, 서로 영향을 주지 않게 한다.
+  // 정렬 UI 자체가 모달에만 있으므로(compact는 항상 BE 기본 순서), 정렬 상태도 모달에만 둔다.
   const [modalTab, setModalTab] = useState<Tab>("trades");
   const [modalGradeFilter, setModalGradeFilter] = useState<GradeKey | "ALL">("ALL");
+  const [modalSort, setModalSort] = useState<SortState>(null);
 
   const [recentTrades, setRecentTrades] = useState<TradeSummaryResponse[]>([]);
   const [buyOffers, setBuyOffers] = useState<BuyOfferOrderbookEntryResponse[]>([]);
@@ -204,31 +296,33 @@ export default function OrderActivitySection({ cardId }: { cardId: number }) {
     };
   }, [cardId]);
 
+  // compact 영역은 정렬 UI가 없으므로 항상 BE가 내려준 기본 순서(가격순 등) 그대로 보여준다.
   const compactAllRows = useMemo(
     () => toRows(tab, recentTrades, buyOffers, sellListings),
     [tab, recentTrades, buyOffers, sellListings],
   );
   const compactRows = compactAllRows.slice(0, COMPACT_ROW_LIMIT);
 
-  const modalAllRows = useMemo(
+  const modalBaseRows = useMemo(
     () => toRows(modalTab, recentTrades, buyOffers, sellListings),
     [modalTab, recentTrades, buyOffers, sellListings],
   );
 
   // 등급 필터 pill의 숫자는 "가격대 몇 개"가 아니라 "총 몇 건"이어야 하므로, 그룹핑된 quantity를 합산한다
-  // (최근 체결 탭처럼 quantity가 없는 행은 1건으로 취급).
+  // (최근 체결 탭처럼 quantity가 없는 행은 1건으로 취급). 정렬과 무관하게 항상 원본(modalBaseRows) 기준.
   const modalGradeCounts = useMemo(() => {
     const counts = new Map<GradeKey, number>();
-    for (const row of modalAllRows) {
+    for (const row of modalBaseRows) {
       counts.set(row.grade, (counts.get(row.grade) ?? 0) + (row.quantity ?? 1));
     }
     return counts;
-  }, [modalAllRows]);
+  }, [modalBaseRows]);
 
-  const modalRows = useMemo(
-    () => (modalGradeFilter === "ALL" ? modalAllRows : modalAllRows.filter((r) => r.grade === modalGradeFilter)),
-    [modalAllRows, modalGradeFilter],
-  );
+  const modalRows = useMemo(() => {
+    const filtered =
+      modalGradeFilter === "ALL" ? modalBaseRows : modalBaseRows.filter((r) => r.grade === modalGradeFilter);
+    return sortRows(filtered, modalSort);
+  }, [modalBaseRows, modalGradeFilter, modalSort]);
 
   // 모달은 항상 compact 영역이 보고 있던 탭에서 시작하되(둘러보던 맥락 유지), 그 이후로는
   // 서로 완전히 독립적으로 동작한다 — 모달 안에서 탭을 바꿔도 뒤쪽 compact 영역엔 영향 없음.
@@ -274,7 +368,7 @@ export default function OrderActivitySection({ cardId }: { cardId: number }) {
 
       {loadState === "ready" && !authError && (
         <>
-          <ActivityTable tab={tab} rows={compactRows} emptyMessage={EMPTY_MESSAGE[tab]} />
+          <ActivityTable tab={tab} rows={compactRows} emptyMessage={EMPTY_MESSAGE[tab]} sortable={false} />
 
           {compactAllRows.length > 0 && (
             <button
@@ -320,6 +414,7 @@ export default function OrderActivitySection({ cardId }: { cardId: number }) {
                   onClick={() => {
                     setModalTab(t.value);
                     setModalGradeFilter("ALL");
+                    setModalSort(null);
                   }}
                   className={`rounded-[9px] px-3.5 py-1.5 text-[13px] font-bold transition ${
                     modalTab === t.value ? "bg-primary text-white" : "text-[#8A8A92] hover:bg-neutral hover:text-ink"
@@ -333,7 +428,14 @@ export default function OrderActivitySection({ cardId }: { cardId: number }) {
             <GradeFilterPills counts={modalGradeCounts} value={modalGradeFilter} onChange={setModalGradeFilter} />
 
             <div className="overflow-y-auto">
-              <ActivityTable tab={modalTab} rows={modalRows} emptyMessage={EMPTY_MESSAGE[modalTab]} />
+              <ActivityTable
+                tab={modalTab}
+                rows={modalRows}
+                emptyMessage={EMPTY_MESSAGE[modalTab]}
+                sortable={true}
+                sort={modalSort}
+                onToggleSort={(column) => setModalSort((prev) => toggleSortState(prev, column))}
+              />
             </div>
           </div>
         </div>
