@@ -10,10 +10,11 @@ import ImageLightbox from "@/components/ImageLightbox";
 import { CardSearchItem, toCardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
 import { fetchCards, fetchCardsByKeywordPage, fetchPriceSummaries } from "@/lib/cardApi";
-import { fetchWatchlistCounts } from "@/lib/watchlistApi";
+import { fetchWatchlist } from "@/lib/watchlistApi";
 import { ApiError } from "@/lib/apiClient";
 import { resolvePriceDisplay } from "@/lib/priceDisplay";
-import { useQuickWatchlistAdd } from "@/hooks/useQuickWatchlistAdd";
+import { useQuickWatchlistToggle } from "@/hooks/useQuickWatchlistToggle";
+import { useUserStore } from "@/store/useUserStore";
 
 const TICKER = [
   { name: "리자몽 ex SAR", price: "₩142,000", chg: "▲ 3.2%", up: true },
@@ -63,17 +64,20 @@ const STATS = [
 type LoadState = "loading" | "error" | "ready";
 
 export default function HomePage() {
-  const [liked, setLiked] = useState<Record<number, boolean>>({});
+  const authStatus = useUserStore((s) => s.status);
+  // cardId -> watchlistId. 이 카드가 이미 내 워치리스트에 있는지, 있다면 삭제할 때 필요한 id까지
+  // 함께 들고 있는다(하트 채움 여부도 이 Map으로 판정 — 별도 boolean 상태를 두지 않는다).
+  const [myWatchlist, setMyWatchlist] = useState<Map<number, number>>(new Map());
   const [watchlistError, setWatchlistError] = useState<{ cardId: number; message: string } | null>(
     null,
   );
-  const { addToWatchlist, pendingCardId } = useQuickWatchlistAdd();
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const { toggle, pendingCardId } = useQuickWatchlistToggle();
 
   const [popularCards, setPopularCards] = useState<CardSearchItem[]>([]);
   const [priceSummaries, setPriceSummaries] = useState<Map<number, CardPriceSummaryResponse>>(
     new Map(),
   );
-  const [watchlistCounts, setWatchlistCounts] = useState<Map<number, number>>(new Map());
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [isHeroCardOpen, setIsHeroCardOpen] = useState(false);
@@ -142,30 +146,50 @@ export default function HomePage() {
     };
   }, [popularCards]);
 
-  // 인기 카드 목록이 바뀌면 관심수도 한 번에 배치 조회한다.
-  // 조회 실패는 조용히 무시 — 배지만 안 보일 뿐, 하트 클릭(워치리스트 등록)은 그대로 정상 동작해야 한다.
+  // 로그인 상태가 확정되면 내 워치리스트 전체를 한 번 불러와 하트 채움 여부/삭제용 id를 안다.
+  // 비로그인이면 빈 Map으로 남겨 하트가 전부 빈 상태로 보이게 한다(클릭하면 로그인으로 유도됨).
   useEffect(() => {
-    if (popularCards.length === 0) return;
+    if (authStatus !== "authenticated") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 로그아웃 시 직전 사용자의 워치리스트 흔적을 즉시 비운다.
+      setMyWatchlist(new Map());
+      return;
+    }
     let cancelled = false;
 
-    fetchWatchlistCounts(popularCards.map((c) => c.id))
-      .then((counts) => {
-        if (!cancelled) setWatchlistCounts(counts);
+    fetchWatchlist()
+      .then((list) => {
+        if (!cancelled) setMyWatchlist(new Map(list.map((w) => [w.cardId, w.id])));
       })
       .catch(() => {
-        // 관심수 조회 실패는 조용히 무시 — 배지를 숨긴 상태로 남긴다.
+        // 조회 실패는 조용히 무시 — 하트는 빈 상태로 보이고, 실제 등록 시도 자체는 그대로 동작한다.
       });
 
     return () => {
       cancelled = true;
     };
-  }, [popularCards]);
+  }, [authStatus]);
 
-  const handleWatchlistClick = async (cardId: number) => {
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    setTimeout(() => {
+      setToastMessage((cur) => (cur === message ? null : cur));
+    }, 2500);
+  };
+
+  const handleHeartClick = async (cardId: number) => {
     setWatchlistError(null);
-    const result = await addToWatchlist(cardId);
-    if (result.status === "added" || result.status === "duplicate") {
-      setLiked((s) => ({ ...s, [cardId]: true }));
+    const watchlistId = myWatchlist.get(cardId) ?? null;
+    const result = await toggle(cardId, watchlistId);
+    if (result.status === "added") {
+      setMyWatchlist((m) => new Map(m).set(cardId, result.watchlistId));
+      showToast("워치리스트에 등록했습니다");
+    } else if (result.status === "removed") {
+      setMyWatchlist((m) => {
+        const next = new Map(m);
+        next.delete(cardId);
+        return next;
+      });
+      showToast("워치리스트에서 삭제했습니다");
     } else if (result.status === "error") {
       setWatchlistError({ cardId, message: result.message });
       setTimeout(() => {
@@ -337,13 +361,9 @@ export default function HomePage() {
                       </div>
                     </Link>
                     <button
-                      onClick={() => handleWatchlistClick(c.id)}
+                      onClick={() => handleHeartClick(c.id)}
                       disabled={pendingCardId === c.id}
-                      aria-label={
-                        watchlistCounts.get(c.id)
-                          ? `관심 등록 (관심 ${watchlistCounts.get(c.id)!.toLocaleString("ko-KR")}명)`
-                          : "관심 등록"
-                      }
+                      aria-label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}
                       className="absolute bottom-3.5 right-3.5 flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#EDEDF0] bg-white hover:border-primary hover:bg-[#FFF5F5] disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <svg
@@ -352,21 +372,13 @@ export default function HomePage() {
                         viewBox="0 0 24 24"
                         stroke="#EE1515"
                         strokeWidth="2"
-                        fill={liked[c.id] ? "#EE1515" : "none"}
+                        fill={myWatchlist.has(c.id) ? "#EE1515" : "none"}
                       >
                         <path
                           d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
                           transform="translate(-3 0)"
                         />
                       </svg>
-                      {!!watchlistCounts.get(c.id) && (
-                        <span
-                          aria-hidden="true"
-                          className="absolute -right-1.5 -top-1.5 min-w-[18px] rounded-full border border-white bg-primary px-1 text-[10px] font-bold leading-[16px] text-white"
-                        >
-                          {watchlistCounts.get(c.id)!.toLocaleString("ko-KR")}
-                        </span>
-                      )}
                     </button>
                     {watchlistError?.cardId === c.id && (
                       <div
@@ -570,6 +582,15 @@ export default function HomePage() {
           무료로 시작하기
         </Link>
       </section>
+
+      {toastMessage && (
+        <div
+          role="status"
+          className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-5 py-3 text-[13.5px] font-bold text-white shadow-lg"
+        >
+          {toastMessage}
+        </div>
+      )}
     </main>
   );
 }
