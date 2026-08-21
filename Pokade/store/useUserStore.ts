@@ -33,6 +33,7 @@ interface UserState {
   setNickname: (nickname: string) => void;
   setProfileImageUrl: (profileImageUrl: string | null) => void;
   setPointBalance: (balance: number) => void;
+  decrementPointBalance: (amount: number) => void;
 }
 
 const SESSION_HINT_KEY = "pokade_has_session"; // 세션이 있었음을 기억하는 로컬스토리지 키 (로그인 후 새로고침 시 restoreSession 호출 여부 판단용)
@@ -111,6 +112,7 @@ export const useUserStore = create<UserState>((set, get) => ({
         role: null,
         accountStatus: null,
         provider: null,
+        pointBalance: null,
       });
       throw err; // 화면에서 에러 처리하도록 재throw
     }
@@ -161,6 +163,7 @@ export const useUserStore = create<UserState>((set, get) => ({
         role: null,
         accountStatus: null,
         provider: null,
+        pointBalance: null,
       });
       return false;
     }
@@ -185,6 +188,7 @@ export const useUserStore = create<UserState>((set, get) => ({
         role: null,
         accountStatus: null,
         provider: null,
+        pointBalance: null,
       });
       return false;
     }
@@ -255,4 +259,8 @@ export const useUserStore = create<UserState>((set, get) => ({
   setNickname: (nickname) => set({ nickname }),
   setProfileImageUrl: (profileImageUrl) => set({ profileImageUrl }),
   setPointBalance: (balance) => set({ pointBalance: balance }),
+  decrementPointBalance: (amount) => {
+    const current = get().pointBalance;
+    if (current !== null) set({ pointBalance: current - amount });
+  },
 }));

@@ -725,17 +725,19 @@ function AIDiagnosisContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const authStatus = useRequireAuth();
-  const pointBalance = useUserStore((s) => s.pointBalance);
-  const setPointBalance = useUserStore((s) => s.setPointBalance);
+  const decrementPointBalance = useUserStore((s) => s.decrementPointBalance);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<DiagnosisStatus>({ kind: "idle" });
   const [diagnosisCount, setDiagnosisCount] = useState<number | null>(null);
 
   useEffect(() => {
+    if (authStatus !== "authenticated") return;
+    let cancelled = false;
     fetchGradeHistory(0, 1)
-      .then((r) => setDiagnosisCount(r.totalElements))
+      .then((r) => { if (!cancelled) setDiagnosisCount(r.totalElements); })
       .catch(() => {});
-  }, []);
+    return () => { cancelled = true; };
+  }, [authStatus]);
   // 새로고침해도 보던 탭(새 진단/이력)이 유지되도록 쿼리 파라미터(?tab=history)로 관리
   const [tab, setTabState] = useState<"new" | "history">(
     searchParams.get("tab") === "history" ? "history" : "new",
@@ -761,9 +763,7 @@ function AIDiagnosisContent() {
       } else {
         setStatus({ kind: "success", data: response });
         setDiagnosisCount((c) => (c !== null ? c + 1 : null));
-        if (response.pointUsed > 0 && pointBalance !== null) {
-          setPointBalance(pointBalance - response.pointUsed);
-        }
+        if (response.pointUsed > 0) decrementPointBalance(response.pointUsed);
       }
     } catch (e) {
       console.error("AI 진단 요청 중 오류:", e);
