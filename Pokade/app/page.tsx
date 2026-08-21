@@ -12,21 +12,12 @@ import Toast from "@/components/Toast";
 import { CardSearchItem, toCardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
 import { fetchCards, fetchCardsByKeywordPage, fetchPriceSummaries } from "@/lib/cardApi";
-import { fetchWatchlist } from "@/lib/watchlistApi";
 import { ApiError } from "@/lib/apiClient";
 import { resolvePriceDisplay } from "@/lib/priceDisplay";
 import { useHeartPunch } from "@/hooks/useHeartPunch";
-import {
-  QuickWatchlistToggleStatus,
-  useQuickWatchlistToggle,
-} from "@/hooks/useQuickWatchlistToggle";
+import { useWatchlistMap } from "@/hooks/useWatchlistMap";
 import { useToast } from "@/hooks/useToast";
-import {
-  WATCHLIST_ADDED_TOAST,
-  WATCHLIST_ADDED_TOAST_MS,
-  WATCHLIST_REMOVED_TOAST,
-} from "@/lib/watchlistToast";
-import { useUserStore } from "@/store/useUserStore";
+import { showWatchlistToggleToast } from "@/lib/watchlistToast";
 
 const TICKER = [
   { name: "리자몽 ex SAR", price: "₩142,000", chg: "▲ 3.2%", up: true },
@@ -76,16 +67,11 @@ const STATS = [
 type LoadState = "loading" | "error" | "ready";
 
 export default function HomePage() {
-  const authStatus = useUserStore((s) => s.status);
-  // cardId -> watchlistId. 이 카드가 이미 내 워치리스트에 있는지, 있다면 삭제할 때 필요한 id까지
-  // 함께 들고 있는다(하트 채움 여부도 이 Map으로 판정 — 별도 boolean 상태를 두지 않는다).
-  const [myWatchlist, setMyWatchlist] = useState<Map<number, number>>(new Map());
-  const [watchlistError, setWatchlistError] = useState<{ cardId: number; message: string } | null>(
-    null,
-  );
   const { toast, showToast, pauseToast, resumeToast } = useToast();
   const { triggerPunch, punchKey, punchClass } = useHeartPunch();
-  const { toggle, pendingCardId } = useQuickWatchlistToggle();
+  // 하트에 필요한 워치리스트 상태 한 세트(마켓과 공용) — 상태만 담당하고, 토스트·펀치는
+  // handleHeartClick이 돌려주는 status를 보고 아래 버튼에서 직접 처리한다.
+  const { myWatchlist, watchlistError, handleHeartClick, pendingCardId } = useWatchlistMap();
 
   const [popularCards, setPopularCards] = useState<CardSearchItem[]>([]);
   const [priceSummaries, setPriceSummaries] = useState<Map<number, CardPriceSummaryResponse>>(
@@ -158,54 +144,6 @@ export default function HomePage() {
       cancelled = true;
     };
   }, [popularCards]);
-
-  // 로그인 상태가 확정되면 내 워치리스트 전체를 한 번 불러와 하트 채움 여부/삭제용 id를 안다.
-  // 비로그인이면 빈 Map으로 남겨 하트가 전부 빈 상태로 보이게 한다(클릭하면 로그인으로 유도됨).
-  useEffect(() => {
-    if (authStatus !== "authenticated") {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- 로그아웃 시 직전 사용자의 워치리스트 흔적을 즉시 비운다.
-      setMyWatchlist(new Map());
-      return;
-    }
-    let cancelled = false;
-
-    fetchWatchlist()
-      .then((list) => {
-        if (!cancelled) setMyWatchlist(new Map(list.map((w) => [w.cardId, w.id])));
-      })
-      .catch(() => {
-        // 조회 실패는 조용히 무시 — 하트는 빈 상태로 보이고, 실제 등록 시도 자체는 그대로 동작한다.
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [authStatus]);
-
-  // 토글 결과 status를 그대로 돌려준다 — 하트 펀치를 "서버가 등록을 확정한 뒤"에만
-  // 재생하기 위해 호출부(버튼)가 이 값을 보고 분기한다.
-  const handleHeartClick = async (cardId: number): Promise<QuickWatchlistToggleStatus> => {
-    setWatchlistError(null);
-    const watchlistId = myWatchlist.get(cardId) ?? null;
-    const result = await toggle(cardId, watchlistId);
-    if (result.status === "added") {
-      setMyWatchlist((m) => new Map(m).set(cardId, result.watchlistId));
-      showToast(WATCHLIST_ADDED_TOAST, WATCHLIST_ADDED_TOAST_MS);
-    } else if (result.status === "removed") {
-      setMyWatchlist((m) => {
-        const next = new Map(m);
-        next.delete(cardId);
-        return next;
-      });
-      showToast(WATCHLIST_REMOVED_TOAST);
-    } else if (result.status === "error") {
-      setWatchlistError({ cardId, message: result.message });
-      setTimeout(() => {
-        setWatchlistError((cur) => (cur?.cardId === cardId ? null : cur));
-      }, 3000);
-    }
-    return result.status;
-  };
 
   return (
     <main className="main-content">
@@ -381,7 +319,9 @@ export default function HomePage() {
                           // 서버가 등록을 확정한 뒤에만 펀치(useHeartPunch 주석 참고) —
                           // 클릭 시점 상태로 미리 재생하면 등록이 실패해도 하트가 튀어올라
                           // 성공한 것처럼 보인다.
-                          if ((await handleHeartClick(c.id)) === "added") triggerPunch(c.id);
+                          const status = await handleHeartClick(c.id);
+                          if (status === "added") triggerPunch(c.id);
+                          showWatchlistToggleToast(status, showToast);
                         }}
                         disabled={pendingCardId === c.id}
                         aria-label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}

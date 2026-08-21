@@ -18,3 +18,15 @@ export const WATCHLIST_ADDED_TOAST_MS = 4000;
 export const WATCHLIST_REMOVED_TOAST: ToastState = {
   message: "관심 해제했습니다",
 };
+
+// 토글 결과 status를 그에 맞는 토스트로 옮기는 매핑. 토스트를 띄우는 주체는 여전히 화면이지만
+// (showToast를 화면이 넘긴다), "어떤 status에 어떤 문구·시간"이라는 대응 관계까지 화면마다
+// 복사돼 있으면 문구를 한 곳에 모아둔 의미가 없어져서 여기 같이 둔다.
+// redirected(비로그인 → 로그인 이동)와 error(각 화면이 카드 옆에 직접 표시)는 토스트가 없다.
+export function showWatchlistToggleToast(
+  status: "added" | "removed" | "redirected" | "error",
+  showToast: (next: ToastState, durationMs?: number) => void,
+) {
+  if (status === "added") showToast(WATCHLIST_ADDED_TOAST, WATCHLIST_ADDED_TOAST_MS);
+  else if (status === "removed") showToast(WATCHLIST_REMOVED_TOAST);
+}
