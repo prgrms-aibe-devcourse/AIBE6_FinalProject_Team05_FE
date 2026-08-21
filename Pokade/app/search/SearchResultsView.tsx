@@ -1,18 +1,20 @@
-import { Dispatch, SetStateAction, useEffect, useRef } from "react";
+import { Dispatch, FormEvent, SetStateAction, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import CardImage from "@/components/CardImage";
 import { CardFacetOption, CardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
 import { highlightMatch } from "@/lib/highlightMatch";
 import { pickDisplayName } from "@/lib/pickDisplayName";
 import { PriceBasis, resolvePriceDisplay, resolveSortablePrice } from "@/lib/priceDisplay";
-import { isPriceSort, LANGUAGE_OPTIONS, PRICE_MAX, UiSort } from "./constants";
+import { addRecentSearch } from "@/lib/recentSearches";
+import { isPriceSort, LANGUAGE_OPTIONS, MARKET_PAGE_SIZE, PRICE_MAX, UiSort } from "./constants";
 import SearchFilterSidebar from "./SearchFilterSidebar";
 
 type LoadState = "loading" | "error" | "ready";
 
-// size 파라미터를 넘기지 않을 때 BE 기본 페이지 size(cardApi.ts 주석 참고)와 맞춘 스켈레톤 칸 수.
-const SEARCH_SKELETON_COUNT = 20;
+// page.tsx가 실제로 요청하는 페이지 size(MARKET_PAGE_SIZE, #187)와 맞춘 스켈레톤 칸 수.
+const SEARCH_SKELETON_COUNT = MARKET_PAGE_SIZE;
 
 // 검색 타일 가격 아래 보조텍스트 — resolvePriceDisplay의 label(문장형, "S등급 상품가" 등)과
 // 별도로 짧게 줄인 배지 문구. 홈/워치리스트 등 다른 화면은 여전히 기존 label을 그대로 쓰므로
@@ -67,6 +69,7 @@ interface SearchResultsViewProps {
   loadState: LoadState;
   errorMessage: string;
   cards: CardSearchItem[];
+  hasFuzzyMatch: boolean;
   priceSummaries: Map<number, CardPriceSummaryResponse>;
   totalElements: number;
   totalPages: number;
@@ -149,6 +152,7 @@ export default function SearchResultsView({
   loadState,
   errorMessage,
   cards,
+  hasFuzzyMatch,
   priceSummaries,
   totalElements,
   totalPages,
@@ -157,6 +161,7 @@ export default function SearchResultsView({
   resetFilters,
   setReloadKey,
 }: SearchResultsViewProps) {
+  const router = useRouter();
   const filterPanelRef = useRef<HTMLDivElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const prevFilterOpenRef = useRef(filterOpen);
@@ -169,6 +174,25 @@ export default function SearchResultsView({
     }
     prevFilterOpenRef.current = filterOpen;
   }, [filterOpen]);
+
+  // 헤더 검색창(components/Header.tsx)과 별개로, 마켓 화면 안에서도 바로 검색할 수 있게 하는
+  // 보조 입력창 — 자동완성 없이 제출 시 곧바로 /search?q=로 이동하는 단순한 형태로만 둔다
+  // (자동완성까지 필요하면 헤더 쪽 로직을 공용 훅으로 뽑아야 하는데, 지금은 그 정도 중복을
+  // 감당할 이유가 없다). 최근 검색어 목록은 헤더와 동일하게 공유한다.
+  const [searchInput, setSearchInput] = useState(q);
+  const [prevQ, setPrevQ] = useState(q);
+  if (q !== prevQ) {
+    setPrevQ(q);
+    setSearchInput(q);
+  }
+
+  const handleSearchSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    const trimmed = searchInput.trim();
+    if (!trimmed) return;
+    addRecentSearch(trimmed);
+    router.push(`/search?q=${encodeURIComponent(trimmed)}`);
+  };
 
   // 가격순 — BE 화이트리스트에 없어(constants.ts의 UiSort 주석 참고) 서버 정렬 대신 이미 로드된
   // 현재 페이지 카드만 여기서 재정렬한다. 가격 정보가 없는 카드(priceDisplay가 null인 경우)는
@@ -221,6 +245,41 @@ export default function SearchResultsView({
 
       {/* results grid */}
       <div>
+        <form
+          onSubmit={handleSearchSubmit}
+          className="mb-4 flex items-center gap-2 rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-2.5"
+        >
+          <button type="submit" aria-label="검색" className="flex flex-shrink-0 items-center">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#9A9AA2"
+              strokeWidth="2"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4-4" />
+            </svg>
+          </button>
+          <input
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="카드 이름으로 검색"
+            spellCheck={false}
+            className="w-full border-none bg-transparent text-[13.5px] text-ink outline-none"
+          />
+        </form>
+
+        {/* 오타 등으로 정확 일치 결과가 없어 유사검색으로 대체됐을 때만 노출(#187) — q가 없거나
+            (필터 검색) 결과가 비어 있으면(빈 상태 문구가 대신 노출) 굳이 같이 보여줄 필요가 없다. */}
+        {q && hasFuzzyMatch && loadState === "ready" && cards.length > 0 && (
+          <div className="mb-4 rounded-[10px] bg-lavender px-3.5 py-2.5 text-[12.5px] font-semibold text-secondary">
+            {`"${q}"에 대한 정확한 검색 결과가 없어, 비슷한 카드를 보여드려요.`}
+          </div>
+        )}
+
         <div className="mb-4 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             {!q && (
