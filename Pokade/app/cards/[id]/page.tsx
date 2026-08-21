@@ -92,6 +92,14 @@ function computeGradeSummary(
   return summary;
 }
 
+// "yyyy-MM-ddTHH:mm:ss" → "YYYY.MM.DD" 표시 (app/listings/me/page.tsx의 formatDate와 동일 규칙).
+function formatTradedAt(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`;
+}
+
 // 선택된 변형(없으면 카드 대표 이미지)의 대표 이미지 — 구매 흐름(handleBuy)과 본문 렌더링에서 공유.
 function resolveMainImageSrc(card: CardDetailResponse, variantId: number | null): string | undefined {
   const selectedVariant = card.variants.find((v) => v.id === variantId) ?? null;
@@ -125,6 +133,13 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   const [chartData, setChartData] = useState<TradeSummaryResponse[]>([]);
   const [chartLoadState, setChartLoadState] = useState<RelatedLoadState>("loading");
   const [chartError, setChartError] = useState<ApiError | null>(null);
+
+  // 최근 체결 내역 섹션 — 위 chartData(가격 추이 그래프용, 추정치 혼합·리샘플링됨)와 달리
+  // 실제 체결 건을 그대로 나열하므로 별도로 조회한다. 기간은 항상 30일로 고정(차트 탭과 무관).
+  const [recentTrades, setRecentTrades] = useState<TradeSummaryResponse[]>([]);
+  const [recentTradesLoadState, setRecentTradesLoadState] = useState<RelatedLoadState>("loading");
+  const [recentTradesError, setRecentTradesError] = useState<ApiError | null>(null);
+  const [tradeGradeFilter, setTradeGradeFilter] = useState<GradeKey | "ALL">("ALL");
   // GET /api/listings는 (summary/trades와 달리) 아직 인증이 필요해 401이 날 수 있다 —
   // "매물 없음"과 "조회 권한 없음"을 구분해서 보여주기 위한 별도 상태.
   const [listingsError, setListingsError] = useState<ApiError | null>(null);
@@ -420,6 +435,31 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
       cancelled = true;
     };
   }, [cardId, loadState, chartPeriod]);
+
+  useEffect(() => {
+    if (loadState !== "ready" || cardId == null) return;
+    let cancelled = false;
+
+    fetchPriceChart(cardId, "30d")
+      .then((res) => {
+        if (cancelled) return;
+        setRecentTrades(res);
+        setRecentTradesError(null);
+        setRecentTradesLoadState("ready");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setRecentTrades([]);
+        setRecentTradesError(
+          err instanceof ApiError ? err : new ApiError(0, "UNKNOWN", "체결 내역을 불러오지 못했습니다."),
+        );
+        setRecentTradesLoadState("ready");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cardId, loadState]);
 
   return (
     <main className="main-content bg-neutral px-4 pb-14 pt-8 sm:px-10">

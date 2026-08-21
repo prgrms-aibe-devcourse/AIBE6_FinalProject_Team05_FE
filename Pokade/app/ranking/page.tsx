@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import CardImage from "@/components/CardImage";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { fetchPriceRanking } from "@/lib/cardApi";
+import { fetchPriceRanking, fetchPriceSummaries } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
-import { PriceRankingResponse, RankingType } from "@/types/price";
+import { CardPriceSummaryResponse, PriceRankingResponse, RankingType } from "@/types/price";
 
 type LoadState = "loading" | "error" | "ready";
 
@@ -21,6 +21,9 @@ export default function RankingPage() {
   const authStatus = useRequireAuth();
   const [type, setType] = useState<RankingType>("rise");
   const [items, setItems] = useState<PriceRankingResponse[]>([]);
+  // item.price는 등락률 계산에 쓰인 "최근 7일 S등급 평균 체결가"라 실제 지금 시점의 즉시구매가와
+  // 다를 수 있다 - "현재 시세" 컬럼에는 이 배치 조회로 얻은 실제 현재가(buyPrice)를 보여준다.
+  const [currentPrices, setCurrentPrices] = useState<Map<number, CardPriceSummaryResponse>>(new Map());
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
@@ -30,10 +33,18 @@ export default function RankingPage() {
     let cancelled = false;
 
     fetchPriceRanking(type)
-      .then((res) => {
+      .then(async (res) => {
         if (cancelled) return;
         setItems(res);
         setLoadState("ready");
+        // 실제 현재가 조회는 등락률 랭킹 자체와 독립된 정보라, 실패해도 랭킹 표시를 막지 않는다
+        // (currentPrices가 비어있으면 아래 렌더에서 item.price로 자연히 폴백).
+        try {
+          const summaries = await fetchPriceSummaries(res.map((item) => item.cardId), { grade: "S" });
+          if (!cancelled) setCurrentPrices(summaries);
+        } catch {
+          // 무시 - 폴백으로 처리됨
+        }
       })
       .catch((err) => {
         if (cancelled) return;
@@ -153,6 +164,9 @@ export default function RankingPage() {
             {items.map((item, i) => {
               const isRise = item.changeRate >= 0;
               const changeCls = isRise ? "text-primary" : "text-secondary";
+              // 배치 조회가 아직 안 왔거나 그 카드에 지금 활성 S등급 매물이 없으면(buyPrice null),
+              // 등락률 계산에 쓰인 최근 7일 평균가로 폴백한다 - 빈 칸보다는 근사치가 낫다.
+              const currentPrice = currentPrices.get(item.cardId)?.buyPrice ?? item.price;
               return (
                 <Link
                   key={item.cardId}
@@ -178,7 +192,7 @@ export default function RankingPage() {
                       {item.cardName ?? "이름 없는 카드"}
                     </div>
                   </div>
-                  <div className="text-sm font-bold">{item.price.toLocaleString("ko-KR")}원</div>
+                  <div className="text-sm font-bold">{currentPrice.toLocaleString("ko-KR")}원</div>
                   <div className={`text-[13.5px] font-bold ${changeCls}`}>
                     {isRise ? "▲" : "▼"} {Math.abs(item.changeRate).toFixed(2)}%
                   </div>
