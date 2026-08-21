@@ -200,18 +200,28 @@ function LoggedInRight({
                         />
                         {/* /app/notifications/page.tsx와 동일한 정책 — cardImageUrl 있으면 카드
                             썸네일, 없으면(또는 조회 실패) 기존 타입 아이콘. 좁은 드롭다운이라도
-                            34px 그대로 유지(전체 목록과 다른 크기 분기를 또 만들지 않는다). */}
+                            34px 그대로 유지(전체 목록과 다른 크기 분기를 또 만들지 않는다).
+                            썸네일이 있어도 종류를 구분할 수 있도록, 우하단에 타입 아이콘을 작은
+                            원형 배지로 겹쳐 그린다(overflow-hidden 밖이라 안 잘림). */}
                         {n.cardImageUrl ? (
-                          <div className="relative h-[34px] w-[34px] flex-shrink-0 overflow-hidden rounded-[9px] bg-[#F2F2F5]">
-                            {/* 실제 카드 이미지를 대조해 보면 일러스트 프레임이 카드 세로 기준
-                                대략 5~51% 지점에 있다 — object-top으로 상단부터 잘라낸 뒤 그
-                                프레임만 꽉 채우도록 scale+origin으로 확대한다. */}
-                            <CardImage
-                              src={n.cardImageUrl}
-                              alt=""
-                              rounded="rounded-[9px]"
-                              className="origin-[50%_19%] scale-150 object-top"
-                            />
+                          <div className="relative h-[34px] w-[34px] flex-shrink-0">
+                            <div className="h-full w-full overflow-hidden rounded-[9px] bg-[#F2F2F5]">
+                              {/* 실제 카드 이미지를 대조해 보면 일러스트 프레임이 카드 세로 기준
+                                  대략 5~51% 지점에 있다 — object-top으로 상단부터 잘라낸 뒤 그
+                                  프레임만 꽉 채우도록 scale+origin으로 확대한다. */}
+                              <CardImage
+                                src={n.cardImageUrl}
+                                alt=""
+                                rounded="rounded-[9px]"
+                                className="origin-[50%_19%] scale-150 object-top"
+                              />
+                            </div>
+                            <div
+                              className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white"
+                              style={{ background: style.tint }}
+                            >
+                              {notifStyle(n.type, 10).icon}
+                            </div>
                           </div>
                         ) : (
                           <div
