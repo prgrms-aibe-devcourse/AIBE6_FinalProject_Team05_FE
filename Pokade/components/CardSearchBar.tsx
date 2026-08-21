@@ -6,12 +6,7 @@ import CardImage from "@/components/CardImage";
 import { fetchCardsByKeywordPage } from "@/lib/cardApi";
 import { highlightMatch } from "@/lib/highlightMatch";
 import { pickDisplayName } from "@/lib/pickDisplayName";
-import {
-  addRecentSearch,
-  clearRecentSearches,
-  getRecentSearches,
-  removeRecentSearch,
-} from "@/lib/recentSearches";
+import { useRecentSearchesStore } from "@/store/useRecentSearchesStore";
 import { CardResponse } from "@/types/card";
 
 // 자동완성 API 호출 최소 글자 수 — 1글자는 노이즈가 많아 2글자부터 호출한다.
@@ -30,9 +25,9 @@ export function SearchBar({ width = "w-60" }: { width?: string }) {
 function SearchBarShell({ width = "w-60" }: { width?: string }) {
   return (
     <div
-      className={`flex items-center gap-2 rounded-[9px] border border-[#ECECEF] bg-neutral px-3 py-2 ${width}`}
+      className={`flex items-center gap-2 rounded-[9px] border border-[#DDDDE3] bg-neutral px-3.5 py-2.5 ${width}`}
     >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9A9AA2" strokeWidth="2">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9A9AA2" strokeWidth="2">
         <circle cx="11" cy="11" r="7" />
         <path d="M21 21l-4-4" />
       </svg>
@@ -75,8 +70,12 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const listboxId = useId();
 
-  // 최근 검색어 — 포커스 전에는 렌더되지 않으므로 lazy init으로 즉시 로드해도 하이드레이션에 영향 없음.
-  const [recentSearches, setRecentSearches] = useState<string[]>(() => getRecentSearches());
+  // 최근 검색어 — 헤더/마켓의 모든 SearchBar 인스턴스가 store를 공유해서, 한쪽에서 검색/삭제하면
+  // 새로고침 없이 다른 인스턴스에도 즉시 반영된다(useRecentSearchesStore 참고).
+  const recentSearches = useRecentSearchesStore((s) => s.terms);
+  const addRecentSearchTerm = useRecentSearchesStore((s) => s.add);
+  const removeRecentSearchTerm = useRecentSearchesStore((s) => s.remove);
+  const clearRecentSearchesAll = useRecentSearchesStore((s) => s.clear);
 
   // 하이라이트가 방향키로 이동할 때 드롭다운 밖으로 벗어나면 보이는 위치까지 스크롤.
   useEffect(() => {
@@ -139,7 +138,7 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
     const trimmed = term.trim();
     if (!trimmed) return; // 빈 검색어는 BE가 400을 반환하므로 요청 자체를 막는다.
     inputRef.current?.blur();
-    setRecentSearches(addRecentSearch(trimmed));
+    addRecentSearchTerm(trimmed);
     router.push(`/search?q=${encodeURIComponent(trimmed)}`);
   };
 
@@ -149,17 +148,16 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
     inputRef.current?.blur();
     setQuery("");
     setSuggestions([]);
-    setRecentSearches(addRecentSearch(card.nameKo ?? card.name));
+    addRecentSearchTerm(card.nameKo ?? card.name);
     router.push(`/cards/${card.id}`);
   };
 
   const handleClearRecent = () => {
-    clearRecentSearches();
-    setRecentSearches([]);
+    clearRecentSearchesAll();
   };
 
   const handleRemoveRecent = (term: string) => {
-    setRecentSearches(removeRecentSearch(term));
+    removeRecentSearchTerm(term);
   };
 
   // 입력값 지우기 — "다시 시작할래" 의미이므로 ESC로 닫힌 상태였더라도 드롭다운을 다시 열 수 있게 강제로 리셋한다.
@@ -203,12 +201,12 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
           e.preventDefault();
           submit();
         }}
-        className="flex items-center gap-2 rounded-[9px] border border-[#ECECEF] bg-neutral px-3 py-2"
+        className="flex items-center gap-2 rounded-[9px] border border-[#DDDDE3] bg-neutral px-3.5 py-2.5 transition focus-within:border-primary"
       >
         <button type="submit" aria-label="검색" className="flex flex-shrink-0 items-center">
           <svg
-            width="16"
-            height="16"
+            width="18"
+            height="18"
             viewBox="0 0 24 24"
             fill="none"
             stroke="#9A9AA2"
