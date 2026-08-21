@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import GradeBadge, { GRADE_DESCRIPTIONS } from "@/components/GradeBadge";
+import GradeBadge from "@/components/GradeBadge";
 import type { Grade } from "@/components/GradeBadge";
 import ConditionBar from "@/components/ConditionBar";
 import PixelCharizard from "@/components/PixelCharizard";
@@ -90,6 +90,13 @@ function ShootingGuide() {
     </div>
   );
 }
+
+// 등급별 기준 설명 — BE(AiGradeService의 Vision 프롬프트)가 안내하는 PSA 상당 등급 기준과 동일한 문구.
+const GRADE_DESCRIPTIONS: Record<Grade, string> = {
+  S: "PSA 9~10 상당 — 민트 상태. 결함 없이 날카로운 모서리와 깨끗한 엣지, 중앙 정렬.",
+  A: "PSA 7~8 상당 — 엑셀런트~니어민트. 경미한 결함이나 약간의 모서리·엣지 마모 허용.",
+  B: "PSA 5~6 상당 — 굿~엑셀런트. 눈에 띄는 결함이 있으나 감상에는 무리 없는 수준.",
+};
 
 // 세부 점수 4항목이 각각 무엇을 보는지 — ResultView의 점수 라벨과 그대로 매칭되어야 함
 const SCORE_INFO: { label: string; desc: string }[] = [
