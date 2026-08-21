@@ -431,11 +431,14 @@ export default function SearchResultsView({
                   key={c.id}
                   className="relative flex flex-col overflow-hidden rounded-[13px] border border-[#EDEDF0] transition hover:-translate-y-[3px] hover:shadow-lift"
                 >
-                  <Link href={`/cards/${c.id}`} className="flex flex-1 cursor-pointer flex-col">
+                  {/* 링크 범위는 이미지+이름/세트/타입까지 — 가격 줄은 아래에서 Link 밖 형제로
+                      분리했다(#235). 하트를 카드 아트 위에 겹치지 않게 가격 옆으로 옮기려면
+                      하트가 <a> 안에 들어가면 안 되기 때문이다(interactive content 중첩 금지). */}
+                  <Link href={`/cards/${c.id}`} className="flex cursor-pointer flex-col">
                     <div className="relative aspect-[5/7] w-full bg-[#F2F2F5]">
                       <CardImage src={c.imageUrl} alt={displayName} label="카드" />
                     </div>
-                    <div className="flex flex-1 flex-col p-3">
+                    <div className="flex flex-col p-3 pb-0">
                       <div className="text-[13.5px] font-bold">
                         {q ? highlightMatch(displayName, q) : displayName}
                       </div>
@@ -460,52 +463,60 @@ export default function SearchResultsView({
                           ))}
                         </div>
                       )}
-                      <div className="mt-auto pt-2.5">
-                        {priceDisplay ? (
-                          <>
-                            <div className="text-[11px] text-[#9A9AA2]">
-                              {BASIS_BADGE_LABEL[priceDisplay.basis]}
-                              {otherGradesCount > 0 && ` · 외 ${otherGradesCount}개 등급`}
-                            </div>
-                            <div className="text-[15px] font-extrabold text-ink">
-                              {priceDisplay.price}
-                            </div>
-                          </>
-                        ) : (
-                          <div className="text-[15px] font-extrabold text-ink">
-                            <span className="text-[13px] font-semibold text-[#9A9AA2]">
-                              가격 정보 없음
-                            </span>
-                          </div>
-                        )}
-                      </div>
                     </div>
                   </Link>
-                  <button
-                    type="button"
-                    onClick={() => onHeartClick(c.id)}
-                    disabled={watchlistPendingCardId === c.id}
-                    aria-label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}
-                    className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#EDEDF0] bg-white/90 hover:border-primary hover:bg-[#FFF5F5] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      stroke="#EE1515"
-                      strokeWidth="2"
-                      fill={myWatchlist.has(c.id) ? "#EE1515" : "none"}
+                  {/* 가격 + 하트 한 줄 — Link 밖이라 <a> 안에 <button>이 중첩되지 않고,
+                      하트를 눌러도 카드 상세로 새지 않는다. mt-auto가 이 줄에 있어야
+                      타일 높이가 달라도 가격 줄이 항상 바닥에 붙는다. */}
+                  <div className="mt-auto flex items-end justify-between gap-2 p-3 pt-2.5">
+                    <div className="min-w-0">
+                      {priceDisplay ? (
+                        <>
+                          <div className="text-[11px] text-[#9A9AA2]">
+                            {BASIS_BADGE_LABEL[priceDisplay.basis]}
+                            {otherGradesCount > 0 && ` · 외 ${otherGradesCount}개 등급`}
+                          </div>
+                          <div className="text-[15px] font-extrabold text-ink">
+                            {priceDisplay.price}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-[13px] font-semibold text-[#9A9AA2]">
+                          가격 정보 없음
+                        </div>
+                      )}
+                    </div>
+                    {/* 시각 크기는 32px 그대로 두고 -m-1.5/p-1.5로 히트 영역만 44px로 넓힌다
+                        (터치 타겟 최소 44px). 레이아웃에 영향이 없도록 음수 마진으로 상쇄한다. */}
+                    <button
+                      type="button"
+                      onClick={() => onHeartClick(c.id)}
+                      disabled={watchlistPendingCardId === c.id}
+                      aria-label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}
+                      className="-m-1.5 flex flex-shrink-0 items-center justify-center p-1.5 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      <path
-                        d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
-                        transform="translate(-3 0)"
-                      />
-                    </svg>
-                  </button>
+                      <span className="flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#EDEDF0] bg-white transition hover:border-primary hover:bg-[#FFF5F5]">
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          stroke="#EE1515"
+                          strokeWidth="2"
+                          fill={myWatchlist.has(c.id) ? "#EE1515" : "none"}
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
+                            transform="translate(-3 0)"
+                          />
+                        </svg>
+                      </span>
+                    </button>
+                  </div>
                   {watchlistError?.cardId === c.id && (
                     <div
                       role="alert"
-                      className="absolute right-2 top-11 z-10 max-w-[130px] rounded-lg bg-[#3A3A3E] px-2.5 py-1.5 text-[11px] font-semibold leading-snug text-white shadow-lg"
+                      className="absolute bottom-2 right-2 z-10 max-w-[130px] rounded-lg bg-[#3A3A3E] px-2.5 py-1.5 text-[11px] font-semibold leading-snug text-white shadow-lg"
                     >
                       {watchlistError.message}
                     </div>
