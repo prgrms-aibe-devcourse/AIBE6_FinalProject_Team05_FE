@@ -7,13 +7,13 @@ import ConditionBar from "@/components/ConditionBar";
 import CardImage from "@/components/CardImage";
 import HeroTiltCard from "@/components/HeroTiltCard";
 import ImageLightbox from "@/components/ImageLightbox";
-import AddWatchlistModal from "@/components/AddWatchlistModal";
 import { CardSearchItem, toCardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
 import { fetchCards, fetchCardsByKeywordPage, fetchPriceSummaries } from "@/lib/cardApi";
 import { fetchWatchlistCounts } from "@/lib/watchlistApi";
 import { ApiError } from "@/lib/apiClient";
 import { resolvePriceDisplay } from "@/lib/priceDisplay";
+import { useQuickWatchlistAdd } from "@/hooks/useQuickWatchlistAdd";
 
 const TICKER = [
   { name: "리자몽 ex SAR", price: "₩142,000", chg: "▲ 3.2%", up: true },
@@ -64,7 +64,10 @@ type LoadState = "loading" | "error" | "ready";
 
 export default function HomePage() {
   const [liked, setLiked] = useState<Record<number, boolean>>({});
-  const [watchlistCardId, setWatchlistCardId] = useState<number | null>(null);
+  const [watchlistError, setWatchlistError] = useState<{ cardId: number; message: string } | null>(
+    null,
+  );
+  const { addToWatchlist, pendingCardId } = useQuickWatchlistAdd();
 
   const [popularCards, setPopularCards] = useState<CardSearchItem[]>([]);
   const [priceSummaries, setPriceSummaries] = useState<Map<number, CardPriceSummaryResponse>>(
@@ -158,6 +161,19 @@ export default function HomePage() {
     };
   }, [popularCards]);
 
+  const handleWatchlistClick = async (cardId: number) => {
+    setWatchlistError(null);
+    const result = await addToWatchlist(cardId);
+    if (result.status === "added" || result.status === "duplicate") {
+      setLiked((s) => ({ ...s, [cardId]: true }));
+    } else if (result.status === "error") {
+      setWatchlistError({ cardId, message: result.message });
+      setTimeout(() => {
+        setWatchlistError((cur) => (cur?.cardId === cardId ? null : cur));
+      }, 3000);
+    }
+  };
+
   return (
     <main className="main-content">
       {/* HERO */}
@@ -212,13 +228,6 @@ export default function HomePage() {
         onClose={() => setIsHeroCardOpen(false)}
         imageSrc={HERO_CARD.image}
         alt={HERO_CARD.alt}
-      />
-
-      <AddWatchlistModal
-        isOpen={watchlistCardId != null}
-        onClose={() => setWatchlistCardId(null)}
-        cardId={watchlistCardId ?? 0}
-        onSuccess={(created) => setLiked((s) => ({ ...s, [created.cardId]: true }))}
       />
 
       {/* TICKER */}
@@ -328,14 +337,14 @@ export default function HomePage() {
                       </div>
                     </Link>
                     <button
-                      onClick={() => setWatchlistCardId(c.id)}
+                      onClick={() => handleWatchlistClick(c.id)}
+                      disabled={pendingCardId === c.id}
                       aria-label={
                         watchlistCounts.get(c.id)
                           ? `관심 등록 (관심 ${watchlistCounts.get(c.id)!.toLocaleString("ko-KR")}명)`
                           : "관심 등록"
                       }
-                      aria-haspopup="dialog"
-                      className="absolute bottom-3.5 right-3.5 flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#EDEDF0] bg-white hover:border-primary hover:bg-[#FFF5F5]"
+                      className="absolute bottom-3.5 right-3.5 flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#EDEDF0] bg-white hover:border-primary hover:bg-[#FFF5F5] disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <svg
                         width="18"
@@ -359,6 +368,14 @@ export default function HomePage() {
                         </span>
                       )}
                     </button>
+                    {watchlistError?.cardId === c.id && (
+                      <div
+                        role="alert"
+                        className="absolute bottom-14 right-3.5 z-10 max-w-[150px] rounded-lg bg-[#3A3A3E] px-2.5 py-1.5 text-[11px] font-semibold leading-snug text-white shadow-lg"
+                      >
+                        {watchlistError.message}
+                      </div>
+                    )}
                   </div>
                 );
               })}
