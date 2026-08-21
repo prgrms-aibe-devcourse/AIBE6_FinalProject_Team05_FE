@@ -6,7 +6,6 @@ import { Suspense, useEffect, useState } from "react";
 import CardImage from "@/components/CardImage";
 import PriceChart from "@/components/PriceChart";
 import ImageLightbox from "@/components/ImageLightbox";
-import AddWatchlistModal from "@/components/AddWatchlistModal";
 import IconTooltip from "@/components/IconTooltip";
 import Toast from "@/components/Toast";
 import RelatedCardsSection from "./RelatedCardsSection";
@@ -129,12 +128,9 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
   const [copied, triggerCopied] = useTimedFlag(2000);
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  // 목표가 설정/수정 모달(AddWatchlistModal의 edit 모드) 오픈 여부 — 등록 자체는 useQuickWatchlistToggle이
-  // 즉시 처리하므로, 이 모달은 "이미 등록된 카드의 목표가를 나중에 설정"하는 선택적 진입점 전용이다.
-  const [watchlistModalOpen, setWatchlistModalOpen] = useState(false);
-  // 목표가 저장 성공 flash("저장됨"). 등록/해제 자체의 피드백은 아래 useToast가 따로 담당한다.
-  const [watchlistAdded, triggerWatchlistAdded] = useTimedFlag(2000);
-  // 이 카드가 이미 내 워치리스트에 있는지 + 목표가 수정 모달의 초기값으로 쓸 현재 목표가.
+  // 이 카드가 이미 내 워치리스트에 있는지(하트 채움 여부 판정용). 목표가는 이 화면에서 더 이상
+  // 수정하지 않고 /watchlist에서만 다룬다(#235) — 등록 직후 토스트가 "관심 목록 →"으로 그 경로를
+  // 안내하므로, 카드 상세에는 관심 등록/해제 하나만 남긴다.
   const [myWatchlist, setMyWatchlist] = useState<Pick<
     WatchlistResponse,
     "id" | "targetBuyPrice" | "targetSellPrice"
@@ -761,70 +757,48 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                                   ? `관심 등록 (${watchlistCount.toLocaleString("ko-KR")})`
                                   : "관심 등록"
                             }
-                            className={`flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-[11px] border-[1.5px] transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                            className={`flex h-[44px] min-w-[44px] flex-shrink-0 items-center justify-center gap-1.5 rounded-full border-[1.5px] px-3 transition disabled:cursor-not-allowed disabled:opacity-60 ${
                               myWatchlist
                                 ? "border-primary bg-lavender"
                                 : "border-[#DDDDE3] bg-white hover:border-primary hover:bg-[#FFF5F5]"
                             }`}
                           >
-                            <svg
+                            {/* 아이콘과 숫자를 한 덩어리로 감싸 함께 튀게 한다 — 버튼 자체에
+                                애니메이션을 걸면 테두리/배경까지 같이 흔들려 과해 보인다. */}
+                            <span
                               key={punchKey(cardId ?? -1)}
-                              className={punchClass(cardId ?? -1)}
-                              width="20"
-                              height="20"
-                              viewBox="0 0 24 24"
-                              stroke="#EE1515"
-                              strokeWidth="2"
-                              fill={myWatchlist ? "#EE1515" : "none"}
-                              aria-hidden="true"
+                              className={`flex items-center gap-1.5 ${punchClass(cardId ?? -1)}`}
                             >
-                              <path
-                                d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
-                                transform="translate(-3 0)"
-                              />
-                            </svg>
+                              <svg
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                stroke="#EE1515"
+                                strokeWidth="2"
+                                fill={myWatchlist ? "#EE1515" : "none"}
+                                aria-hidden="true"
+                              >
+                                <path
+                                  d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
+                                  transform="translate(-3 0)"
+                                />
+                              </svg>
+                              {/* 0/조회 실패(null)는 표시할 의미 있는 숫자가 없다고 보고 숨긴다 —
+                                  신규 카드에 "0"이 찍혀 위축감을 주는 것도 피한다.
+                                  개수는 버튼의 aria-label에 이미 들어 있어 여기선 aria-hidden. */}
+                              {!!watchlistCount && (
+                                <span
+                                  aria-hidden="true"
+                                  className={`text-[12.5px] font-semibold ${
+                                    myWatchlist ? "text-primary" : "text-[#9A9AA2]"
+                                  }`}
+                                >
+                                  {watchlistCount.toLocaleString("ko-KR")}
+                                </span>
+                              )}
+                            </span>
                           </button>
                         </IconTooltip>
-                        {/* 0/조회 실패(null)는 표시할 의미 있는 숫자가 없다고 보고 숨긴다 —
-                          신규 카드에 "0"이 찍혀 위축감을 주는 것도 피한다. */}
-                        {/* 옆 하트와 같은 key/class를 써서 등록 순간 둘이 한 동작으로 같이 튄다.
-                            ±1 변화라 숫자를 굴리는 카운트업은 눈에 띄지 않아 펀치로 대신한다(#235). */}
-                        {!!watchlistCount && (
-                          <span
-                            key={punchKey(cardId ?? -1)}
-                            className={`text-[12.5px] font-semibold text-[#9A9AA2] ${punchClass(cardId ?? -1)}`}
-                          >
-                            {watchlistCount.toLocaleString("ko-KR")}
-                          </span>
-                        )}
-                        {myWatchlist && (
-                          <button
-                            type="button"
-                            onClick={() => setWatchlistModalOpen(true)}
-                            aria-label="목표가 설정"
-                            className="flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-[11px] border-[1.5px] border-[#DDDDE3] bg-white text-[#8A8A92] transition hover:border-primary hover:text-primary"
-                          >
-                            <svg
-                              width="16"
-                              height="16"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              aria-hidden="true"
-                            >
-                              <path d="M12 20h9" />
-                              <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z" />
-                            </svg>
-                          </button>
-                        )}
-                        {watchlistAdded && (
-                          <span className="whitespace-nowrap text-[12.5px] font-bold text-primary">
-                            저장됨
-                          </span>
-                        )}
                       </div>
                       {watchlistToggleError && (
                         <span role="alert" className="text-[12px] font-semibold text-primary">
@@ -964,25 +938,6 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                   imageSrc={mainImageSrc}
                   alt={displayName}
                 />
-
-                {myWatchlist && (
-                  <AddWatchlistModal
-                    isOpen={watchlistModalOpen}
-                    onClose={() => setWatchlistModalOpen(false)}
-                    mode="edit"
-                    watchlistId={myWatchlist.id}
-                    initialTargetBuyPrice={myWatchlist.targetBuyPrice}
-                    initialTargetSellPrice={myWatchlist.targetSellPrice}
-                    onSuccess={(updated) => {
-                      setMyWatchlist({
-                        id: updated.id,
-                        targetBuyPrice: updated.targetBuyPrice,
-                        targetSellPrice: updated.targetSellPrice,
-                      });
-                      triggerWatchlistAdded();
-                    }}
-                  />
-                )}
               </>
             );
           })()}
