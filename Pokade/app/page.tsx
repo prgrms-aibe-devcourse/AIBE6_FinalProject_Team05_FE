@@ -16,7 +16,10 @@ import { fetchWatchlist } from "@/lib/watchlistApi";
 import { ApiError } from "@/lib/apiClient";
 import { resolvePriceDisplay } from "@/lib/priceDisplay";
 import { useHeartPunch } from "@/hooks/useHeartPunch";
-import { useQuickWatchlistToggle } from "@/hooks/useQuickWatchlistToggle";
+import {
+  QuickWatchlistToggleStatus,
+  useQuickWatchlistToggle,
+} from "@/hooks/useQuickWatchlistToggle";
 import { useToast } from "@/hooks/useToast";
 import {
   WATCHLIST_ADDED_TOAST,
@@ -179,7 +182,9 @@ export default function HomePage() {
     };
   }, [authStatus]);
 
-  const handleHeartClick = async (cardId: number) => {
+  // 토글 결과 status를 그대로 돌려준다 — 하트 펀치를 "서버가 등록을 확정한 뒤"에만
+  // 재생하기 위해 호출부(버튼)가 이 값을 보고 분기한다.
+  const handleHeartClick = async (cardId: number): Promise<QuickWatchlistToggleStatus> => {
     setWatchlistError(null);
     const watchlistId = myWatchlist.get(cardId) ?? null;
     const result = await toggle(cardId, watchlistId);
@@ -199,6 +204,7 @@ export default function HomePage() {
         setWatchlistError((cur) => (cur?.cardId === cardId ? null : cur));
       }, 3000);
     }
+    return result.status;
   };
 
   return (
@@ -371,10 +377,11 @@ export default function HomePage() {
                       className="absolute bottom-3.5 right-3.5"
                     >
                       <button
-                        onClick={() => {
-                          // 등록 방향일 때만 펀치(useHeartPunch 주석 참고).
-                          if (!myWatchlist.has(c.id)) triggerPunch(c.id);
-                          handleHeartClick(c.id);
+                        onClick={async () => {
+                          // 서버가 등록을 확정한 뒤에만 펀치(useHeartPunch 주석 참고) —
+                          // 클릭 시점 상태로 미리 재생하면 등록이 실패해도 하트가 튀어올라
+                          // 성공한 것처럼 보인다.
+                          if ((await handleHeartClick(c.id)) === "added") triggerPunch(c.id);
                         }}
                         disabled={pendingCardId === c.id}
                         aria-label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}

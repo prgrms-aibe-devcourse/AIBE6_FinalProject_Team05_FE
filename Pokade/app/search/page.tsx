@@ -10,7 +10,10 @@ import { CardSort, fetchCardFacets, fetchCardsPage, fetchPriceSummaries } from "
 import { ApiError } from "@/lib/apiClient";
 import { fetchWatchlist } from "@/lib/watchlistApi";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
-import { useQuickWatchlistToggle } from "@/hooks/useQuickWatchlistToggle";
+import {
+  QuickWatchlistToggleStatus,
+  useQuickWatchlistToggle,
+} from "@/hooks/useQuickWatchlistToggle";
 import { useToast } from "@/hooks/useToast";
 import {
   WATCHLIST_ADDED_TOAST,
@@ -345,7 +348,9 @@ function SearchDashboard() {
     page,
   ]);
 
-  const handleHeartClick = async (cardId: number) => {
+  // 토글 결과 status를 그대로 돌려준다 — 하트 펀치를 "서버가 등록을 확정한 뒤"에만
+  // 재생하기 위해 호출부(SearchResultsView의 하트 버튼)가 이 값을 보고 분기한다.
+  const handleHeartClick = async (cardId: number): Promise<QuickWatchlistToggleStatus> => {
     setWatchlistError(null);
     const watchlistId = myWatchlist.get(cardId) ?? null;
     const result = await toggleWatchlist(cardId, watchlistId);
@@ -365,6 +370,7 @@ function SearchDashboard() {
         setWatchlistError((cur) => (cur?.cardId === cardId ? null : cur));
       }, 3000);
     }
+    return result.status;
   };
 
   // 페이지 번호/이전·다음 버튼 클릭 시에만 맨 위로 스크롤 — 필터/정렬 변경으로

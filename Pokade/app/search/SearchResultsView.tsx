@@ -3,6 +3,7 @@ import Link from "next/link";
 import CardImage from "@/components/CardImage";
 import IconTooltip from "@/components/IconTooltip";
 import { useHeartPunch } from "@/hooks/useHeartPunch";
+import { QuickWatchlistToggleStatus } from "@/hooks/useQuickWatchlistToggle";
 import { CardFacetOption, CardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
 import { highlightMatch } from "@/lib/highlightMatch";
@@ -80,7 +81,8 @@ interface SearchResultsViewProps {
   myWatchlist: Map<number, number>;
   watchlistPendingCardId: number | null;
   watchlistError: { cardId: number; message: string } | null;
-  onHeartClick: (cardId: number) => void;
+  // 등록/해제 결과를 돌려받아야 "등록 확정" 시에만 하트 펀치를 재생할 수 있다.
+  onHeartClick: (cardId: number) => Promise<QuickWatchlistToggleStatus | null>;
 }
 
 // 페이지네이션 윈도우 — 전체 페이지를 다 그리지 않고 현재 페이지 주변 + 처음/끝만 노출,
@@ -500,11 +502,11 @@ export default function SearchResultsView({
                     >
                       <button
                         type="button"
-                        onClick={() => {
-                          // 등록 방향일 때만 펀치 — API 응답을 기다리면 반응이 늦어 보여서
-                          // 클릭 시점의 상태로 바로 재생한다.
-                          if (!myWatchlist.has(c.id)) triggerPunch(c.id);
-                          onHeartClick(c.id);
+                        onClick={async () => {
+                          // 서버가 등록을 확정한 뒤에만 펀치(useHeartPunch 주석 참고) —
+                          // 클릭 시점 상태로 미리 재생하면 등록이 실패해도 하트가 튀어올라
+                          // 성공한 것처럼 보인다.
+                          if ((await onHeartClick(c.id)) === "added") triggerPunch(c.id);
                         }}
                         disabled={watchlistPendingCardId === c.id}
                         aria-label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}

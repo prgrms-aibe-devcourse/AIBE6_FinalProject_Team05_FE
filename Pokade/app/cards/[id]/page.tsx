@@ -40,7 +40,10 @@ import { loginUrlFor } from "@/lib/authRedirect";
 import { toKrw } from "@/lib/currency";
 import { useTimedFlag } from "@/hooks/useTimedFlag";
 import { useHeartPunch } from "@/hooks/useHeartPunch";
-import { useQuickWatchlistToggle } from "@/hooks/useQuickWatchlistToggle";
+import {
+  QuickWatchlistToggleStatus,
+  useQuickWatchlistToggle,
+} from "@/hooks/useQuickWatchlistToggle";
 import { useToast } from "@/hooks/useToast";
 import {
   WATCHLIST_ADDED_TOAST,
@@ -131,10 +134,9 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   // 이 카드가 이미 내 워치리스트에 있는지(하트 채움 여부 판정용). 목표가는 이 화면에서 더 이상
   // 수정하지 않고 /watchlist에서만 다룬다(#235) — 등록 직후 토스트가 "관심 목록 →"으로 그 경로를
   // 안내하므로, 카드 상세에는 관심 등록/해제 하나만 남긴다.
-  const [myWatchlist, setMyWatchlist] = useState<Pick<
-    WatchlistResponse,
-    "id" | "targetBuyPrice" | "targetSellPrice"
-  > | null>(null);
+  // 삭제에 필요한 id만 들고 있는다 — 목표가는 담기더라도 읽는 곳이 없어 그만큼 낡은 값이
+  // 남을 뿐이라, 이 화면이 실제로 쓰는 필드까지만 좁힌다.
+  const [myWatchlist, setMyWatchlist] = useState<Pick<WatchlistResponse, "id"> | null>(null);
   const [watchlistToggleError, setWatchlistToggleError] = useState<string | null>(null);
   const { toast, showToast } = useToast();
   const { triggerPunch, punchKey, punchClass } = useHeartPunch();
@@ -386,15 +388,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
       .then((list) => {
         if (cancelled) return;
         const found = list.find((w) => w.cardId === cardId);
-        setMyWatchlist(
-          found
-            ? {
-                id: found.id,
-                targetBuyPrice: found.targetBuyPrice,
-                targetSellPrice: found.targetSellPrice,
-              }
-            : null,
-        );
+        setMyWatchlist(found ? { id: found.id } : null);
       })
       .catch(() => {
         if (!cancelled) setMyWatchlist(null);
@@ -405,12 +399,15 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     };
   }, [cardId, loadState, userStatus]);
 
-  const handleWatchlistToggle = async () => {
-    if (cardId == null) return;
+  // 토글 결과 status를 그대로 돌려준다 — 하트 펀치를 "서버가 등록을 확정한 뒤"에만
+  // 재생하기 위해 호출부(버튼)가 이 값을 보고 분기한다.
+  // cardId가 아직 없어 토글 자체를 건너뛴 경우는 null(=재생 안 함).
+  const handleWatchlistToggle = async (): Promise<QuickWatchlistToggleStatus | null> => {
+    if (cardId == null) return null;
     setWatchlistToggleError(null);
     const result = await toggleWatchlist(cardId, myWatchlist?.id ?? null, selectedVariantId);
     if (result.status === "added") {
-      setMyWatchlist({ id: result.watchlistId, targetBuyPrice: null, targetSellPrice: null });
+      setMyWatchlist({ id: result.watchlistId });
       // 관심수 재조회 없이 즉시 +1 — 다른 탭에서 이미 등록된 카드를 모르고 등록 시도한
       // DUPLICATE_WATCHLIST 경합처럼 드문 경우엔 실제보다 1 높게 보일 수 있지만,
       // 다음 새로고침/재조회 시 정확한 값으로 맞춰지는 일시적 드리프트라 지금은 감내한다.
@@ -424,6 +421,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
       setWatchlistToggleError(result.message);
       setTimeout(() => setWatchlistToggleError(null), 3000);
     }
+    return result.status;
   };
 
   useEffect(() => {
@@ -847,10 +845,12 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                         >
                           <button
                             type="button"
-                            onClick={() => {
-                              // 등록 방향일 때만 펀치(useHeartPunch 주석 참고).
-                              if (!myWatchlist && cardId != null) triggerPunch(cardId);
-                              handleWatchlistToggle();
+                            onClick={async () => {
+                              // 서버가 등록을 확정한 뒤에만 펀치(useHeartPunch 주석 참고) —
+                              // 클릭 시점 상태로 미리 재생하면 등록이 실패해도 하트가 튀어올라
+                              // 성공한 것처럼 보인다.
+                              const status = await handleWatchlistToggle();
+                              if (status === "added" && cardId != null) triggerPunch(cardId);
                             }}
                             disabled={watchlistPendingCardId === cardId}
                             aria-label={
