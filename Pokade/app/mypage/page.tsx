@@ -156,7 +156,7 @@ export default function MyPage() {
               href="/listings/me"
               className="mt-3 flex items-center justify-between rounded-[18px] border border-[#EDEDF0] bg-white px-8 py-6 shadow-card transition hover:bg-[#FAFAFB]"
             >
-              <span className="text-[15px] font-bold">내 매물</span>
+              <span className="text-[15px] font-bold">내 상품</span>
               <span aria-hidden="true" className="text-[18px] leading-none text-[#B0B0B8]">
                 ›
               </span>
