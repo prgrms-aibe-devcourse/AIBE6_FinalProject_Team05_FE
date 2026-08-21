@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useChat } from "@/hooks/useChat";
 import { MAX_CHAT_MESSAGE_LENGTH } from "@/types/chat";
+import RankingList from "@/components/RankingList";
 
 interface MockMessage {
   me: boolean;
@@ -231,8 +232,12 @@ export default function ChatPage() {
                       </div>
                     ) : (
                       <div key={i} className="max-w-[78%] self-start">
-                        <div className="whitespace-pre-line rounded-[3px_14px_14px_14px] border border-[#EDEDF0] bg-white px-4 py-3.5 text-sm leading-normal">
-                          {m.content}
+                        <div className="overflow-hidden rounded-[3px_14px_14px_14px] border border-[#EDEDF0] bg-white text-sm leading-normal">
+                          {m.rankingItems ? (
+                            <RankingList items={m.rankingItems} size="default" />
+                          ) : (
+                            <div className="whitespace-pre-line px-4 py-3.5">{m.content}</div>
+                          )}
                         </div>
                         {m.disclaimer && (
                           <div className="mt-1.5 rounded-lg border border-[#F5D9A8] bg-[#FFF7E8] px-3 py-2 text-xs font-semibold text-[#9A6A00]">

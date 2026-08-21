@@ -380,13 +380,14 @@ function NewListingForm() {
                           : "시세 정보 없음"}
                     </span>
                   </div>
+                  {/* type="number"는 천 단위 콤마를 표시할 수 없어 text로 두고, 상태에는 숫자만 담는다
+                      (app/listings/me/page.tsx의 가격 수정 입력과 같은 방식). */}
                   <input
                     id="price"
-                    type="number"
-                    min={1}
-                    step={100}
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
+                    type="text"
+                    inputMode="numeric"
+                    value={price ? Number(price).toLocaleString("ko-KR") : ""}
+                    onChange={(e) => setPrice(e.target.value.replace(/[^0-9]/g, ""))}
                     placeholder="판매 가격 (원)"
                     className={inputCls}
                   />

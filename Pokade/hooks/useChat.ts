@@ -2,15 +2,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useUserStore } from "@/store/useUserStore";
 import { loginUrlFor } from "@/lib/authRedirect";
-import { getChatSessionId } from "@/lib/chatSession";
+import { getChatSessionId, pushToImportQueue } from "@/lib/chatSession";
 import { fetchChatHistory, fetchQuickQuestions, sendChatQuery } from "@/lib/chatApi";
 import { ApiError } from "@/lib/apiClient";
-import { QuickQuestion } from "@/types/chat";
+import { QuickQuestion, RankingItem } from "@/types/chat";
 
 export interface ChatUiMessage {
   role: "user" | "assistant";
   content: string;
   disclaimer?: string | null;
+  rankingItems?: RankingItem[] | null;
 }
 
 const RETRY_ERROR_MESSAGE = "답변을 가져오지 못했어요. 잠시 후 다시 시도해 주세요.";
@@ -29,6 +30,7 @@ export function useChat({ eagerHistory = true }: UseChatOptions = {}) {
   const pathname = usePathname();
   const isLoggedIn = useUserStore((s) => s.isLoggedIn);
   const authStatus = useUserStore((s) => s.status);
+  const chatHistoryVersion = useUserStore((s) => s.chatHistoryVersion);
 
   // 지연 초기화라서 클라이언트 첫 렌더에서 바로 실제 sessionId를 얻는다(effect 불필요) -
   // SSR 시점 값("")은 화면에 그려지지 않고 API 호출용으로만 쓰여서 하이드레이션 불일치가 없다.
@@ -74,6 +76,14 @@ export function useChat({ eagerHistory = true }: UseChatOptions = {}) {
     loadHistory();
   }, [eagerHistory, loadHistory]);
 
+  // 비로그인 이력 이관 성공 시 chatHistoryVersion이 올라옴 → 이력을 다시 불러온다.
+  // userSentRef 보호는 loadHistory 내부에서 처리하므로 여기선 ref만 리셋하고 호출.
+  useEffect(() => {
+    if (chatHistoryVersion === 0) return;
+    historyLoadedRef.current = false;
+    loadHistory();
+  }, [chatHistoryVersion, loadHistory]);
+
   const goToLogin = useCallback(() => {
     router.push(loginUrlFor(pathname));
   }, [router, pathname]);
@@ -88,6 +98,14 @@ export function useChat({ eagerHistory = true }: UseChatOptions = {}) {
         return;
       }
 
+      // 비로그인 프리셋 클릭 — 나중에 로그인 시 이관할 수 있도록 큐에 기록.
+      // quickQuestions에서 question 텍스트로 presetId를 찾는다.
+      // how-to-use 등 서버가 처리 안 하는 presetId는 pushToImportQueue 내부에서 걸러진다.
+      if (!isLoggedIn && isPreset) {
+        const preset = quickQuestions.find((q) => q.question === text);
+        if (preset) pushToImportQueue(preset.id);
+      }
+
       userSentRef.current = true;
       setError(null);
       setRateLimited(false);
@@ -97,7 +115,12 @@ export function useChat({ eagerHistory = true }: UseChatOptions = {}) {
         const res = await sendChatQuery(sessionId, text);
         setMessages((prev) => [
           ...prev,
-          { role: "assistant", content: res.answer, disclaimer: res.disclaimer },
+          {
+            role: "assistant",
+            content: res.answer ?? "",
+            disclaimer: res.disclaimer,
+            rankingItems: res.rankingItems ?? null,
+          },
         ]);
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) {

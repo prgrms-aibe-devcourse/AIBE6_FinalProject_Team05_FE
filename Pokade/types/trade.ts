@@ -1,15 +1,12 @@
 // com.pokade.domain.trade.entity.TradeStatus 미러링.
 export type TradeStatus =
-  | "PENDING"
-  | "SHIPPED_TO_PLATFORM"
-  | "INSPECTED"
-  | "DELIVERED"
-  | "COMPLETED"
-  | "CANCELLED";
+  "PENDING" | "SHIPPED_TO_PLATFORM" | "INSPECTED" | "DELIVERED" | "COMPLETED" | "CANCELLED";
 
-// POST /api/trades 요청 바디 — com.pokade.domain.trade.dto.TradeCreateRequest 미러링.
-export interface TradeCreateRequest {
-  listingId: number;
+// POST /api/trades/ready 응답 — com.pokade.domain.trade.dto.TradeReadyResponse 미러링.
+// 결제창을 띄우기 전 주문만 먼저 만든 상태라, 이 시점엔 아직 매물이 잠기지 않는다.
+export interface TradeReadyResponse {
+  orderId: string;
+  amount: number;
 }
 
 // POST/GET/PATCH /api/trades 응답 — com.pokade.domain.trade.dto.TradeResponse 미러링.
@@ -36,4 +33,24 @@ export interface TradeResponse {
 export function parseTradeId(id: string): number | null {
   const n = Number(id);
   return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+// 마이페이지 거래 내역에서 이 거래에 대한 내 입장 — 같은 거래도 보는 사람에 따라 달라지므로
+// 저장된 값이 아니라 서버가 조회자 기준으로 계산해 내려준다.
+export type TradeRole = "BUY" | "SELL";
+
+// GET /api/users/me/trades 응답 항목 — com.pokade.domain.trade.dto.MyTradeResponse 미러링.
+// 상대방은 id만 온다(닉네임 없음) — BE에서 cross-domain 조회와 N+1을 피하려고 의도적으로 뺐다.
+export interface MyTradeResponse {
+  tradeId: number;
+  listingId: number;
+  cardId: number;
+  cardName: string | null;
+  cardImageUrl: string | null;
+  price: number;
+  status: TradeStatus;
+  role: TradeRole;
+  counterpartyId: number;
+  createdAt: string;
+  completedAt: string | null; // COMPLETED가 아니면 null
 }

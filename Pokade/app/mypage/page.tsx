@@ -3,62 +3,27 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { useUserStore } from "@/store/useUserStore";
-import { getMyInfo, updateNickname, cancelWithdrawal } from "@/lib/authApi";
+import { getMyInfo, cancelWithdrawal } from "@/lib/authApi";
 import { authErrorMessage } from "@/lib/authErrorMessages";
 import { MyInfo } from "@/types/auth";
-import { getMyProfile } from "@/lib/profileApi";
-import { MyProfile } from "@/types/profile";
-
-const PROVIDER_LABELS: Record<MyProfile["provider"], string> = {
-  LOCAL: "이메일",
-  GOOGLE: "구글",
-  KAKAO: "카카오",
-};
-
-function providerLabel(provider: MyProfile["provider"]): string {
-  return PROVIDER_LABELS[provider];
-}
-
-// LocalDateTime 문자열("2026-08-17T11:22:33")을 YYYY. MM. DD. 로 표시
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("ko-KR", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-}
+import MyTradesSection from "./MyTradesSection";
+import Avatar from "@/components/Avatar";
 
 export default function MyPage() {
   const authStatus = useRequireAuth();
-  const setNickname = useUserStore((s) => s.setNickname);
 
-  const [profile, setProfile] = useState<MyProfile | null>(null);
   const [info, setInfo] = useState<MyInfo | null>(null);
   const [loadError, setLoadError] = useState(false);
-
-  const [editingNick, setEditingNick] = useState(false);
-  const [nickInput, setNickInput] = useState("");
-  const [nickSaving, setNickSaving] = useState(false);
-  const [nickError, setNickError] = useState<string | null>(null);
   const [canceling, setCanceling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoadError(false);
     setInfo(null);
-    setProfile(null);
     try {
       setInfo(await getMyInfo());
     } catch {
       setLoadError(true);
-      return; // 기본 정보가 없으면 에러 화면이므로 상세는 요청하지 않는다
-    }
-    // 상세는 부가 정보라 실패해도 마이페이지 렌더를 막지 않는다 (해당 줄만 비워둠).
-    try {
-      setProfile(await getMyProfile());
-    } catch {
-      setProfile(null);
     }
   }, []);
 
@@ -67,50 +32,6 @@ export default function MyPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 마운트/재시도 시 조회 상태 초기화 후 페치
     load();
   }, [authStatus, load]);
-
-  function startEdit() {
-    setNickError(null);
-    setNickInput(info?.nickname ?? "");
-    setEditingNick(true);
-  }
-
-  function cancelEdit() {
-    setEditingNick(false);
-    setNickError(null);
-  }
-
-  async function saveNick() {
-    if (nickSaving) return;
-    setNickError(null);
-    const next = nickInput.trim();
-    if (next.length < 2 || next.length > 20) {
-      setNickError("닉네임은 2자 이상 20자 이하로 입력해 주세요.");
-      return;
-    }
-    if (next === info?.nickname) {
-      setEditingNick(false);
-      return;
-    }
-    setNickSaving(true);
-    try {
-      await updateNickname(next);
-      setNickname(next);
-      setInfo((prev) => (prev ? { ...prev, nickname: next } : prev));
-      setEditingNick(false);
-    } catch (e) {
-      setNickError(authErrorMessage(e, "닉네임 변경에 실패했습니다."));
-    } finally {
-      setNickSaving(false);
-    }
-  }
-
-  const inputCls = "rounded-[10px] border border-[#DDDDE3] px-3 py-2 text-[14px] outline-none";
-  const smallBtn = (variant: "primary" | "ghost") =>
-    `rounded-[9px] px-3 py-2 text-[13px] font-bold ${
-      variant === "primary"
-        ? "border-2 border-primary-dark bg-primary text-white shadow-tactile"
-        : "border border-[#DDDDE3] text-[#6E6E76] hover:bg-[#F4F4F6]"
-    }`;
 
   if (authStatus !== "authenticated") {
     return (
@@ -139,8 +60,6 @@ export default function MyPage() {
       setCanceling(false);
     }
   }
-
-  const isLocal = info?.provider === "LOCAL";
 
   return (
     <main className="main-content bg-neutral px-10 py-12">
@@ -196,119 +115,71 @@ export default function MyPage() {
           </div>
         ) : (
           <>
-            <section className="rounded-[18px] border border-[#EDEDF0] bg-white px-8 py-7 shadow-card">
-              <h2 className="text-[17px] font-extrabold">내 정보</h2>
-              <div className="mt-4 space-y-4 text-[14px]">
-                <div className="flex items-center justify-between">
-                  <span className="text-[#8A8A92]">이메일</span>
-                  <span className="font-semibold">{info.email}</span>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="shrink-0 text-[#8A8A92]">닉네임</span>
-                    {editingNick ? (
-                      <div className="flex flex-1 items-center justify-end gap-2">
-                        <input
-                          value={nickInput}
-                          onChange={(e) => setNickInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && !e.nativeEvent.isComposing) saveNick();
-                            if (e.key === "Escape") cancelEdit();
-                          }}
-                          aria-label="닉네임"
-                          autoComplete="off"
-                          placeholder="2~20자"
-                          className={`${inputCls} w-[160px]`}
-                          autoFocus
-                        />
-                        <button
-                          onClick={saveNick}
-                          disabled={nickSaving}
-                          className={smallBtn("primary")}
-                        >
-                          {nickSaving ? "저장 중…" : "저장"}
-                        </button>
-                        <button
-                          onClick={cancelEdit}
-                          disabled={nickSaving}
-                          className={smallBtn("ghost")}
-                        >
-                          취소
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2.5">
-                        <span className="font-semibold">{info.nickname}</span>
-                        <button onClick={startEdit} className={smallBtn("ghost")}>
-                          변경
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  {nickError && (
-                    <p
-                      role="alert"
-                      className="mt-2 text-right text-[12.5px] font-semibold text-[#C21414]"
-                    >
-                      {nickError}
-                    </p>
-                  )}
-                </div>
-
-                {profile && (
-                  <>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[#8A8A92]">연락처</span>
-                      <span className="font-semibold">
-                        {profile.phoneNumber ?? "등록되지 않음"}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-[#8A8A92]">가입 경로</span>
-                      <span className="font-semibold">
-                        {profile.socialLinked ? providerLabel(profile.provider) : "이메일"}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-[#8A8A92]">가입일</span>
-                      <span className="font-semibold">{formatDate(profile.joinedAt)}</span>
-                    </div>
-                  </>
-                )}
-
-                <div className="flex items-center justify-between">
-                  <span className="text-[#8A8A92]">포인트</span>
-                  <span className="font-semibold">
-                    {info.pointBalance.toLocaleString("ko-KR")} P
-                  </span>
-                </div>
+            {/* flex-wrap이 없으면 좁은 화면에서 링크 영역(flex-shrink-0)이 자리를 지키느라
+                닉네임·포인트 영역이 너비 0으로 짜부라져 글자가 세로로 쪼개진다. */}
+            <section className="mb-3 flex flex-wrap items-center gap-4 rounded-[18px] border border-[#EDEDF0] bg-white px-8 py-6 shadow-card">
+              <Avatar
+                path={info.profileImageUrl}
+                nickname={info.nickname}
+                size={56}
+                className="bg-[#F2F2F5] text-[20px] font-extrabold text-[#B0B0B8]"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[17px] font-extrabold">{info.nickname}</p>
+                <p className="mt-0.5 text-[13px] text-[#8A8A92]">
+                  보유 포인트 {info.pointBalance.toLocaleString("ko-KR")} P
+                </p>
+              </div>
+              {/* 공개 프로필은 남에게 내가 어떻게 보이는지 확인하는 통로, 설정은 계정 영역으로 가는
+                  통로다. 계정 설정이 /settings로 빠지면서 마이페이지에서 갈 길이 없어져 함께 둔다.
+                  userId는 스토어가 아니라 이 화면이 직접 조회한 info에서 가져오므로
+                  세션 복원 상태를 신경 쓸 필요가 없다. */}
+              <div className="flex flex-shrink-0 gap-2">
+                <Link
+                  href={`/users/${info.userId}`}
+                  className="rounded-[9px] border border-[#DDDDE3] px-3 py-2 text-[13px] font-bold text-[#6E6E76] hover:bg-[#F4F4F6] hover:text-ink"
+                >
+                  공개 프로필 보기
+                </Link>
+                <Link
+                  href="/settings"
+                  className="rounded-[9px] border border-[#DDDDE3] px-3 py-2 text-[13px] font-bold text-[#6E6E76] hover:bg-[#F4F4F6] hover:text-ink"
+                >
+                  설정
+                </Link>
               </div>
             </section>
-            {info.status === "ACTIVE" && (
-              <Link
-                href="/mypage/withdrawal"
-                className="mt-3 flex items-center justify-between rounded-[18px] border border-[#EDEDF0] bg-white px-8 py-6 shadow-card transition hover:bg-[#FAFAFB]"
-              >
-                <span className="text-[15px] font-bold text-[#C21414]">회원 탈퇴</span>
-                <span aria-hidden="true" className="text-[18px] leading-none text-[#B0B0B8]">
-                  ›
-                </span>
-              </Link>
-            )}
-            {isLocal && (
-              <Link
-                href="/mypage/password"
-                className="mt-5 flex items-center justify-between rounded-[18px] border border-[#EDEDF0] bg-white px-8 py-6 shadow-card transition hover:bg-[#FAFAFB]"
-              >
-                <span className="text-[15px] font-bold">비밀번호 변경</span>
-                <span aria-hidden="true" className="text-[18px] leading-none text-[#B0B0B8]">
-                  ›
-                </span>
-              </Link>
-            )}
+
+            <MyTradesSection />
+
+            <Link
+              href="/listings/me"
+              className="mt-3 flex items-center justify-between rounded-[18px] border border-[#EDEDF0] bg-white px-8 py-6 shadow-card transition hover:bg-[#FAFAFB]"
+            >
+              <span className="text-[15px] font-bold">내 상품</span>
+              <span aria-hidden="true" className="text-[18px] leading-none text-[#B0B0B8]">
+                ›
+              </span>
+            </Link>
+            <Link
+              href="/watchlist"
+              className="mt-3 flex items-center justify-between rounded-[18px] border border-[#EDEDF0] bg-white px-8 py-6 shadow-card transition hover:bg-[#FAFAFB]"
+            >
+              <span className="text-[15px] font-bold">워치리스트</span>
+              <span aria-hidden="true" className="text-[18px] leading-none text-[#B0B0B8]">
+                ›
+              </span>
+            </Link>
+
+            <Link
+              href="/mypage/inquiries"
+              className="mt-3 flex items-center justify-between rounded-[18px] border border-[#EDEDF0] bg-white px-8 py-6 shadow-card transition hover:bg-[#FAFAFB]"
+            >
+              <span className="text-[15px] font-bold">1:1 문의 내역</span>
+              <span aria-hidden="true" className="text-[18px] leading-none text-[#B0B0B8]">
+                ›
+              </span>
+            </Link>
           </>
         )}
       </div>

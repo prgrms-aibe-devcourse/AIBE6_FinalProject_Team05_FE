@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import AdminSidebar from "@/components/AdminSidebar";
-import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { deliverTrade, fetchPendingTrades, inspectTrade } from "@/lib/adminApi";
 import { ApiError } from "@/lib/apiClient";
 import { TradeResponse } from "@/types/trade";
@@ -85,8 +84,6 @@ function TradeTable({
 }
 
 export default function AdminTradesPage() {
-  useRequireAuth();
-
   const [trades, setTrades] = useState<TradeResponse[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");

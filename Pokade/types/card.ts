@@ -4,6 +4,8 @@ export interface CardResponse {
   externalId: string;
   name: string;
   nameKo?: string | null;
+  // 언어(국가판) 코드 — 실제 존재 값은 EN/JA뿐(#263, 다른 값 없음 확인됨).
+  languageCode: string;
   setName: string;
   rarity: string;
   supertype: string;
@@ -14,6 +16,11 @@ export interface CardResponse {
   // 판매 중인 매물의 등급 목록. BE가 GRADE_DISPLAY_ORDER(S>A>B) 순으로 정렬해서 내려준다.
   // 매물이 없으면 빈 배열.
   grades: string[];
+  // 오타 등으로 정확 일치 결과가 없어 유사검색으로 대체된 항목이면 true(#187). 정확 검색이거나
+  // /api/cards, /api/cards/{id}/related처럼 유사검색을 적용하지 않는 응답에서는 항상 false로
+  // 온다 — 다만 FE는 이 값을 신뢰해 안내 문구 표시 여부를 결정하지 않고, 키워드 검색(q) 경로인지
+  // 자체로 한 번 더 걸러낸다(app/search/page.tsx의 hasFuzzyMatch 계산 참고).
+  fuzzyMatch: boolean;
 }
 
 // 화면(카드 검색 그리드)이 쓰는 형태.
@@ -26,14 +33,26 @@ export interface CardSearchItem {
   set: string;
   imageUrl: string;
   types: string[];
+  // CardResponse.grades 그대로 — 검색 타일이 "다른 등급도 있음" 힌트를 보여줄 때 쓴다.
+  grades: string[];
+  // CardResponse.languageCode 그대로 — 검색 타일 언어 배지에 쓴다.
+  languageCode: string;
+}
+
+// #263 — 타입/레어도 옵션 하나에 딸린 결과 개수. count는 전체 기준 고정 집계로,
+// 다른 필터를 선택해도 바뀌지 않는다(BE CardFacetsResponse.FacetOption 주석 참고) — FE는
+// 이 값을 그대로 표시만 하고 재계산하지 않는다.
+export interface CardFacetOption {
+  value: string;
+  count: number;
 }
 
 // GET /api/cards/facets 응답 — 검색 필터(세트/타입/레어도) 체크박스가 쓰는 옵션 목록.
 // expansions는 series 그룹 최신순 → 그룹 내부 이름순으로 이미 정렬돼 내려온다(FE 재정렬 금지).
 export interface CardFacetsResponse {
-  types: string[];
-  rarities: string[];
-  expansions: { id: string; name: string; series: string }[];
+  types: CardFacetOption[];
+  rarities: CardFacetOption[];
+  expansions: { id: string; name: string; series: string; count: number }[];
 }
 
 export function toCardSearchItem(card: CardResponse): CardSearchItem {
@@ -45,6 +64,8 @@ export function toCardSearchItem(card: CardResponse): CardSearchItem {
     set: `${card.setName} · ${card.rarity}`,
     imageUrl: card.imageMedium || card.imageSmall,
     types: card.types,
+    grades: card.grades,
+    languageCode: card.languageCode,
   };
 }
 
@@ -94,6 +115,8 @@ export interface CardDetailResponse {
   externalId: string;
   name: string;
   nameKo?: string | null;
+  // 언어(국가판) 코드 — CardResponse.languageCode와 동일(#263, EN/JA만 존재).
+  languageCode: string;
   setName: string;
   rarity: string;
   supertype: string;

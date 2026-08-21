@@ -30,6 +30,9 @@ const GRADE_COLORS: Record<string, string> = {
 
 const GRADE_LABELS: Record<string, string> = {
   RAW: "미등급",
+  PSA10: "PSA 10",
+  PSA9: "PSA 9",
+  PSA8: "PSA 8",
 };
 
 // 전체 보기(등급 섞어서) 탭의 내부 키 — 실제 등급 값과 겹치지 않도록 별도 상수로 관리.

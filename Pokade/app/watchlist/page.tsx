@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import AddWatchlistModal from "@/components/AddWatchlistModal";
 import CardImage from "@/components/CardImage";
+import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
 import { resolvePriceDisplay } from "@/lib/priceDisplay";
@@ -41,6 +42,59 @@ function statusOf(item: WatchlistResponse): Status {
   return item.targetReached ? "목표도달" : "대기중";
 }
 
+// AddWatchlistModal과 동일한 오버레이 패턴(backdrop 클릭/ESC로 닫기, stopPropagation) —
+// 이 화면 한 곳에만 쓰이는 확인 모달이라 components/로 공용화하지 않고 로컬로 둔다.
+function DeleteConfirmModal({
+  cardName,
+  submitting,
+  onCancel,
+  onConfirm,
+}: {
+  cardName: string;
+  submitting: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  useEscapeAndScrollLock(true, onCancel);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      onClick={onCancel}
+      role="dialog"
+      aria-modal="true"
+      aria-label="워치리스트 삭제 확인"
+    >
+      <div
+        className="w-full max-w-[360px] rounded-2xl bg-white p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="m-0 text-[16px] font-extrabold">워치리스트에서 삭제</h2>
+        <p className="mb-5 mt-2 text-[13.5px] leading-relaxed text-[#5A5A62]">
+          <b className="font-bold text-ink">{cardName}</b>을(를) 워치리스트에서 삭제하시겠어요?
+        </p>
+        <div className="flex gap-2.5">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex-1 rounded-[10px] border-[1.5px] border-[#DDDDE3] bg-white py-2.5 text-[13.5px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            disabled={submitting}
+            onClick={onConfirm}
+            className="flex-1 rounded-[10px] bg-primary py-2.5 text-[13.5px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {submitting ? "삭제 중..." : "삭제"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // targetBuyPrice/targetSellPrice 중 최소 하나는 항상 있다(둘 다 없으면 BE가 400).
 // 둘 다 등록된 경우 하나만 보여주면 다른 쪽 목표가가 화면에서 사라지므로, 있는 것을 모두 반환한다.
 function formatTargets(item: WatchlistResponse): { label: string; value: string }[] {
@@ -70,6 +124,7 @@ export default function WatchlistPage() {
   const [sort, setSort] = useState<Sort>("oldest");
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<WatchlistResponse | null>(null);
   const [editingItem, setEditingItem] = useState<WatchlistResponse | null>(null);
   const [resendingId, setResendingId] = useState<number | null>(null);
   const [resendError, setResendError] = useState<string | null>(null);
@@ -86,9 +141,7 @@ export default function WatchlistPage() {
       })
       .catch((err) => {
         if (cancelled) return;
-        setErrorMessage(
-          err instanceof ApiError ? err.message : "워치리스트 조회에 실패했습니다.",
-        );
+        setErrorMessage(err instanceof ApiError ? err.message : "워치리스트 조회에 실패했습니다.");
         setLoadState("error");
       });
 
@@ -121,26 +174,31 @@ export default function WatchlistPage() {
         : "border-[#E4E4E9] bg-white font-semibold text-[#7A7A82]"
     }`;
 
+  // 확인은 DeleteConfirmModal(커스텀 모달)이 담당 — 여기서는 이미 확인된 삭제만 수행한다.
   const handleDelete = async (id: number) => {
-    if (!window.confirm("워치리스트에서 삭제하시겠어요?")) return;
     setDeletingId(id);
     setDeleteError(null);
     try {
       await deleteWatchlistItem(id);
       setRows((prev) => prev.filter((r) => r.id !== id));
+      setDeleteTarget(null);
     } catch (err) {
       setDeleteError(err instanceof ApiError ? err.message : "삭제에 실패했습니다.");
+      setDeleteTarget(null);
     } finally {
       setDeletingId(null);
     }
   };
 
-  // PATCH 응답(WatchlistResponse.of)은 cardName/setName/imageUrl/currentPrice/changeRate/targetReached가
-  // 전부 비워져서 온다 — 통째로 교체하면 목록에 이미 표시 중인 시세·등락률·상태 배지가 사라지므로
-  // targetBuyPrice/targetSellPrice/isNotified만 반영하고 나머지 필드는 기존 값을 유지한다.
-  // isNotified도 반영하는 이유: 목표가가 실제로 바뀐 수정에서도 BE가 isNotified를 함께 리셋하고,
-  // 재알림 요청(resendNotification)에서도 이 값이 false로 바뀌어 오기 때문 — 두 호출부(수정 모달의
-  // onSuccess, 재알림 버튼)가 이 함수를 공유한다.
+  // PATCH 응답(WatchlistResponse.of)은 cardName/setName/imageUrl/currentPrice/changeRate가
+  // 전부 비워져서 온다 — 통째로 교체하면 목록에 이미 표시 중인 시세·등락률 배지가 사라지므로
+  // targetBuyPrice/targetSellPrice/isNotified/targetReached만 반영하고 나머지 필드는 기존
+  // 값을 유지한다. isNotified를 반영하는 이유: 목표가가 실제로 바뀐 수정에서도 BE가
+  // isNotified를 함께 리셋하고, 재알림 요청(resendNotification)에서도 이 값이 false로
+  // 바뀌어 오기 때문 — 두 호출부(수정 모달의 onSuccess, 재알림 버튼)가 이 함수를 공유한다.
+  // targetReached는 BE #250부터 실제 계산값이 온다(과거엔 항상 false 하드코딩이라 반영해도
+  // 의미가 없어 제외했었음) — 이제 반영하지 않으면 목표가 수정 직후 "대기중/목표도달" 배지가
+  // 새로고침 전까지 낡은 값으로 남는다.
   const applyWatchlistUpdate = (updated: WatchlistResponse) => {
     setRows((prev) =>
       prev.map((r) =>
@@ -150,6 +208,7 @@ export default function WatchlistPage() {
               targetBuyPrice: updated.targetBuyPrice,
               targetSellPrice: updated.targetSellPrice,
               isNotified: updated.isNotified,
+              targetReached: updated.targetReached,
             }
           : r,
       ),
@@ -287,137 +346,143 @@ export default function WatchlistPage() {
               </div>
             ) : (
               <div className="overflow-hidden rounded-2xl border border-[#EDEDF0] bg-white">
-                <div className="grid grid-cols-[2.4fr_1fr_1fr_1fr_1fr_0.6fr] gap-4 border-b border-[#EDEDF0] bg-[#FAFAFB] px-[22px] py-3.5 text-xs font-bold text-[#9A9AA2]">
-                  <div>카드</div>
-                  <div>현재 시세</div>
-                  <div>목표가</div>
-                  <div>등락</div>
-                  <div>상태</div>
-                  <div />
-                </div>
-                {sorted.map((row, i) => {
-                  const displayName = row.cardNameKo ?? row.cardName ?? "알 수 없는 카드";
-                  const priceLabel =
-                    resolvePriceDisplay(row.currentPrice ?? undefined)?.price ?? "정보 없음";
-                  const targets = formatTargets(row);
-                  const status = statusOf(row);
-                  const changeRate = row.changeRate;
-                  const isRise = changeRate != null && changeRate >= 0;
-                  const changeCls = isRise ? "text-primary" : "text-secondary";
-                  return (
-                    <div
-                      key={row.id}
-                      className={`grid grid-cols-[2.4fr_1fr_1fr_1fr_1fr_0.6fr] items-center gap-4 px-[22px] py-4 hover:bg-[#FAFAFB] ${
-                        i < sorted.length - 1 ? "border-b border-[#F2F2F5]" : ""
-                      }`}
-                    >
-                      <Link
-                        href={`/cards/${row.cardId}`}
-                        className="flex items-center gap-3 hover:text-primary"
-                      >
-                        <div className="relative h-14 w-10 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
-                          <CardImage src={row.imageUrl ?? undefined} alt={displayName} />
-                        </div>
-                        <div>
-                          <div className="text-sm font-bold">{displayName}</div>
-                          <div className="text-xs text-[#9A9AA2]">{row.setName ?? "-"}</div>
-                        </div>
-                      </Link>
-                      <div className="text-sm font-bold">{priceLabel}</div>
-                      <div className="text-sm text-[#4B4B52]">
-                        {targets.length > 0 ? (
-                          targets.map((t) => (
-                            <div key={t.label}>
-                              {t.label}: {t.value}
-                            </div>
-                          ))
-                        ) : (
-                          <div>-</div>
-                        )}
-                      </div>
-                      <div
-                        className={`text-[13.5px] font-bold ${
-                          changeRate != null && changeRate !== 0 ? changeCls : "text-[#9A9AA2]"
-                        }`}
-                      >
-                        {changeRate != null && changeRate !== 0
-                          ? `${isRise ? "▲" : "▼"} ${Math.abs(changeRate).toFixed(2)}%`
-                          : "-"}
-                      </div>
-                      <div>
-                        <span
-                          className={`rounded-full px-[11px] py-[5px] text-xs font-bold ${STATUS_CLS[status]}`}
-                        >
-                          {status}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-end gap-3">
-                        <button
-                          type="button"
-                          aria-label={`${displayName} 목표가 수정`}
-                          onClick={() => setEditingItem(row)}
-                          className="text-[#C7C7CE] hover:text-primary"
-                        >
-                          <svg
-                            width="17"
-                            height="17"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden="true"
-                          >
-                            <path d="M12 20h9" />
-                            <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z" />
-                          </svg>
-                        </button>
-                        {row.isNotified && (
-                          <button
-                            type="button"
-                            aria-label={`${displayName} 알림 다시 받기`}
-                            disabled={resendingId === row.id}
-                            onClick={() => handleResendNotification(row.id)}
-                            className="text-[#C7C7CE] hover:text-primary disabled:opacity-50"
-                          >
-                            <svg
-                              width="17"
-                              height="17"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              aria-hidden="true"
-                            >
-                              <path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-                              <path d="M13.73 21a2 2 0 01-3.46 0" />
-                            </svg>
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          aria-label={`${displayName} 워치리스트에서 삭제`}
-                          disabled={deletingId === row.id}
-                          onClick={() => handleDelete(row.id)}
-                          className="text-[#C7C7CE] hover:text-primary disabled:opacity-50"
-                        >
-                          <svg
-                            width="18"
-                            height="18"
-                            viewBox="0 0 24 24"
-                            fill="currentColor"
-                            aria-hidden="true"
-                          >
-                            <path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
-                          </svg>
-                        </button>
-                      </div>
+                {/* 좁은 화면에서 grid-cols가 찌그러지는 대신 테이블 박스 안에서만 가로 스크롤되도록
+                    분리된 스크롤 컨테이너 — min-w는 6개 컬럼이 한 줄로 안 뭉개지는 최소 폭. */}
+                <div className="overflow-x-auto">
+                  <div className="min-w-[760px]">
+                    <div className="grid grid-cols-[2.4fr_1fr_1fr_1fr_1fr_0.6fr] gap-4 border-b border-[#EDEDF0] bg-[#FAFAFB] px-[22px] py-3.5 text-xs font-bold text-[#9A9AA2]">
+                      <div>카드</div>
+                      <div>현재 시세</div>
+                      <div>목표가</div>
+                      <div>등락</div>
+                      <div>상태</div>
+                      <div />
                     </div>
-                  );
-                })}
+                    {sorted.map((row, i) => {
+                      const displayName = row.cardNameKo ?? row.cardName ?? "알 수 없는 카드";
+                      const priceLabel =
+                        resolvePriceDisplay(row.currentPrice ?? undefined)?.price ?? "정보 없음";
+                      const targets = formatTargets(row);
+                      const status = statusOf(row);
+                      const changeRate = row.changeRate;
+                      const isRise = changeRate != null && changeRate >= 0;
+                      const changeCls = isRise ? "text-primary" : "text-secondary";
+                      return (
+                        <div
+                          key={row.id}
+                          className={`grid grid-cols-[2.4fr_1fr_1fr_1fr_1fr_0.6fr] items-center gap-4 px-[22px] py-4 hover:bg-[#FAFAFB] ${
+                            i < sorted.length - 1 ? "border-b border-[#F2F2F5]" : ""
+                          }`}
+                        >
+                          <Link
+                            href={`/cards/${row.cardId}`}
+                            className="flex items-center gap-3 hover:text-primary"
+                          >
+                            <div className="relative h-14 w-10 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
+                              <CardImage src={row.imageUrl ?? undefined} alt={displayName} />
+                            </div>
+                            <div>
+                              <div className="text-sm font-bold">{displayName}</div>
+                              <div className="text-xs text-[#9A9AA2]">{row.setName ?? "-"}</div>
+                            </div>
+                          </Link>
+                          <div className="text-sm font-bold">{priceLabel}</div>
+                          <div className="text-sm text-[#4B4B52]">
+                            {targets.length > 0 ? (
+                              targets.map((t) => (
+                                <div key={t.label}>
+                                  {t.label}: {t.value}
+                                </div>
+                              ))
+                            ) : (
+                              <div>-</div>
+                            )}
+                          </div>
+                          <div
+                            className={`text-[13.5px] font-bold ${
+                              changeRate != null && changeRate !== 0 ? changeCls : "text-[#9A9AA2]"
+                            }`}
+                          >
+                            {changeRate != null && changeRate !== 0
+                              ? `${isRise ? "▲" : "▼"} ${Math.abs(changeRate).toFixed(2)}%`
+                              : "-"}
+                          </div>
+                          <div>
+                            <span
+                              className={`rounded-full px-[11px] py-[5px] text-xs font-bold ${STATUS_CLS[status]}`}
+                            >
+                              {status}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-end gap-3">
+                            <button
+                              type="button"
+                              aria-label={`${displayName} 목표가 수정`}
+                              onClick={() => setEditingItem(row)}
+                              className="-m-3.5 p-3.5 text-[#C7C7CE] hover:text-primary"
+                            >
+                              <svg
+                                width="17"
+                                height="17"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                aria-hidden="true"
+                              >
+                                <path d="M12 20h9" />
+                                <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z" />
+                              </svg>
+                            </button>
+                            {row.isNotified && (
+                              <button
+                                type="button"
+                                aria-label={`${displayName} 알림 다시 받기`}
+                                disabled={resendingId === row.id}
+                                onClick={() => handleResendNotification(row.id)}
+                                className="-m-3.5 p-3.5 text-[#C7C7CE] hover:text-primary disabled:opacity-50"
+                              >
+                                <svg
+                                  width="17"
+                                  height="17"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  aria-hidden="true"
+                                >
+                                  <path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                                  <path d="M13.73 21a2 2 0 01-3.46 0" />
+                                </svg>
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              aria-label={`${displayName} 워치리스트에서 삭제`}
+                              disabled={deletingId === row.id}
+                              onClick={() => setDeleteTarget(row)}
+                              className="-m-3.5 p-3.5 text-[#C7C7CE] hover:text-primary disabled:opacity-50"
+                            >
+                              <svg
+                                width="18"
+                                height="18"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                                aria-hidden="true"
+                              >
+                                <path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             )}
           </>
@@ -433,6 +498,15 @@ export default function WatchlistPage() {
           initialTargetBuyPrice={editingItem.targetBuyPrice}
           initialTargetSellPrice={editingItem.targetSellPrice}
           onSuccess={handleUpdateSuccess}
+        />
+      )}
+
+      {deleteTarget && (
+        <DeleteConfirmModal
+          cardName={deleteTarget.cardNameKo ?? deleteTarget.cardName ?? "이 카드"}
+          submitting={deletingId === deleteTarget.id}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => handleDelete(deleteTarget.id)}
         />
       )}
     </main>

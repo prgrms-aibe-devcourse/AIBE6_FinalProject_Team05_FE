@@ -6,6 +6,11 @@ import { fetchNotifications, markNotificationRead } from "@/lib/watchlistApi";
 import { NotificationResponse } from "@/types/notification";
 
 const POLL_INTERVAL_MS = 30_000;
+// 헤더 알림 벨(배지+드롭다운)이 들고 있을 알림 수 — BE #162 페이지네이션 기본값(20)과 맞춘다.
+// 이 화면은 "최근 알림 피드"라 전체 목록이 필요 없고, /notifications 전체보기 페이지가 나머지를
+// 페이지 단위로 따로 가져온다(app/notifications/page.tsx). 안읽음 배지·모두읽음 처리도 이 범위
+// 안에서만 정확하다 — 안읽은 알림이 20개를 넘는 극단적인 경우까지는 이번 범위에서 다루지 않는다.
+const FEED_SIZE = 20;
 const SSE_URL = `${API_BASE_URL}/api/notifications/subscribe`;
 // 이 횟수만큼 SSE 재연결을 시도하다 실패하면 폴링으로 완전히 넘어간다 — 네트워크 일시
 // 오류는 몇 번 더 시도해볼 가치가 있지만, 무한 재시도는 폴링 없이 알림이 멎는 상태를 만든다.
@@ -15,8 +20,10 @@ const SSE_MAX_RETRIES = 3;
 const SSE_POLL_RETRY_INTERVAL_MS = 5 * 60_000;
 
 type LoadState = "loading" | "error" | "ready";
-// SSE로 실시간 수신 중인지, 폴링으로 대체 중인지 — Header 알림 벨의 상태 인디케이터가 구독한다.
-// pollTimer 등 다른 모듈 변수와 달리 이 값은 UI가 반응해야 해서 store state로 둔다.
+// SSE로 실시간 수신 중인지, 폴링으로 대체 중인지 — 전환 로직 자체(재연결 시도, 폴링 폴백)는
+// 그대로 필요하지만, 이 값을 보여주던 Header 알림 벨의 점 인디케이터는 너무 작아 알아보기
+// 어렵고 SSE/폴링이라는 구현 디테일이 사용자에겐 무의미해서 제거했다(#173) — 지금은 UI 소비처
+// 없이 내부 전환 로직에서만 쓰인다.
 type ConnectionMode = "sse" | "polling";
 
 interface NotificationState {
@@ -68,10 +75,10 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
     if (inFlightGeneration === generation) return; // 같은 세대에서 이미 진행 중이면 스킵
     const myGeneration = generation;
     inFlightGeneration = myGeneration;
-    fetchNotifications()
+    fetchNotifications({ size: FEED_SIZE })
       .then((data) => {
         if (myGeneration !== generation) return; // 그 사이 stop()으로 세대가 바뀜 — 낡은 응답 무시
-        set({ notifications: data, loadState: "ready" });
+        set({ notifications: data.content, loadState: "ready" });
       })
       .catch((err) => {
         if (myGeneration !== generation) return;

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import AdminSidebar from "@/components/AdminSidebar";
-import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { fetchListingReports, hideListing } from "@/lib/adminApi";
 import { ApiError } from "@/lib/apiClient";
 import { ReportResponse, ReportStatus } from "@/types/adminReport";
@@ -32,7 +31,6 @@ function formatDateTime(iso: string) {
 }
 
 export default function AdminListingReportsPage() {
-  useRequireAuth();
   const [reports, setReports] = useState<ReportResponse[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");

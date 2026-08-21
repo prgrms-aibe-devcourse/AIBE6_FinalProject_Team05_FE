@@ -1,6 +1,7 @@
 import { apiGet, PageResponse } from "@/lib/apiClient";
-import { CardDetailResponse, CardFacetsResponse, CardResponse } from "@/types/card";
+import { CardDetailResponse, CardFacetOption, CardFacetsResponse, CardResponse } from "@/types/card";
 import {
+  BuyOfferOrderbookEntryResponse,
   ChartPeriod,
   CardPricePointResponse,
   CardPriceSummaryResponse,
@@ -22,6 +23,9 @@ export interface CardSearchFilters {
   expansionId?: string;
   types?: string[];
   rarity?: string[];
+  // 언어(국가판) 코드 — 실제 존재 값은 EN/JA뿐(#263). types/rarity와 동일하게 값 화이트리스트
+  // 없이 BE가 그대로 IN절로 필터링하므로 FE도 별도 검증 없이 그대로 넘긴다.
+  languages?: string[];
   minPrice?: number;
   maxPrice?: number; // minPrice > maxPrice면 BE가 400(INVALID_INPUT) 반환.
   sort?: CardSort;
@@ -42,6 +46,7 @@ export async function fetchCardsPage(
   if (filters.expansionId) query.set("expansionId", filters.expansionId);
   if (filters.types?.length) query.set("types", filters.types.join(","));
   if (filters.rarity?.length) query.set("rarity", filters.rarity.join(","));
+  if (filters.languages?.length) query.set("languages", filters.languages.join(","));
   if (filters.minPrice != null) query.set("minPrice", String(filters.minPrice));
   if (filters.maxPrice != null) query.set("maxPrice", String(filters.maxPrice));
   if (filters.sort) query.set("sort", filters.sort);
@@ -55,9 +60,46 @@ export async function fetchCards(filters: CardSearchFilters = {}): Promise<CardR
   return page.content;
 }
 
+// Redis 캐시에 남은 구버전 응답 대응 — 원소가 문자열(구형 포맷)이면 { value, count: 0 }으로
+// 변환하고, count가 숫자가 아니면(undefined/null 포함) 0으로 보정한다.
+function normalizeFacetOptions(options: unknown): CardFacetOption[] {
+  if (!Array.isArray(options)) return [];
+  return options.map((opt) => {
+    if (typeof opt === "string") return { value: opt, count: 0 };
+    const o = (opt ?? {}) as { value?: unknown; count?: unknown };
+    return {
+      value: typeof o.value === "string" ? o.value : "",
+      count: typeof o.count === "number" && Number.isFinite(o.count) ? o.count : 0,
+    };
+  });
+}
+
+// expansions는 {id, name, series, count} 형태라 구형 문자열 배열 포맷 자체가 존재할 수 없다 —
+// count(및 series) 누락/비정상 값만 방어한다. id가 없는 원소는 화면에서 키로 쓸 수 없어 제외한다.
+function normalizeExpansionOptions(options: unknown): CardFacetsResponse["expansions"] {
+  if (!Array.isArray(options)) return [];
+  return options
+    .map((opt) => (opt ?? {}) as { id?: unknown; name?: unknown; series?: unknown; count?: unknown })
+    .filter((opt): opt is { id: string; name?: unknown; series?: unknown; count?: unknown } =>
+      typeof opt.id === "string",
+    )
+    .map((opt) => ({
+      id: opt.id,
+      name: typeof opt.name === "string" ? opt.name : "",
+      series: typeof opt.series === "string" ? opt.series : "기타",
+      count: typeof opt.count === "number" && Number.isFinite(opt.count) ? opt.count : 0,
+    }));
+}
+
 // GET /api/cards/facets — 검색 필터 UI(세트/타입/레어도)가 쓰는 옵션 목록.
+// 구버전 캐시(count 없음/문자열 배열) 응답이 섞여 있어도 안전하도록 정규화해서 반환한다.
 export async function fetchCardFacets(): Promise<CardFacetsResponse> {
-  return apiGet<CardFacetsResponse>("/api/cards/facets");
+  const data = await apiGet<CardFacetsResponse>("/api/cards/facets");
+  return {
+    types: normalizeFacetOptions(data?.types),
+    rarities: normalizeFacetOptions(data?.rarities),
+    expansions: normalizeExpansionOptions(data?.expansions),
+  };
 }
 
 // GET /api/cards/search?q= — 이름 키워드 검색. q가 blank면 BE가 400(INVALID_INPUT) 반환.
@@ -128,6 +170,12 @@ export async function fetchPriceSummaries(
   return new Map(results.flat().map((summary) => [summary.cardId, summary]));
 }
 
+// GET /api/prices/{cardId}/trades — 최근 체결 내역. BE가 최신순(confirmedAt DESC)으로 이미
+// 정렬해서 상위 20건 고정 반환한다(RECENT_TRADES_LIMIT) — 페이지네이션 파라미터 없음, FE 재정렬 불필요.
+export async function fetchCardTrades(cardId: number): Promise<TradeSummaryResponse[]> {
+  return apiGet<TradeSummaryResponse[]>(`/api/prices/${cardId}/trades`);
+}
+
 // GET /api/prices/{cardId}/chart?period= — 기간별 체결가 추이 (오래된순, TradeSummaryResponse 재사용).
 // grade별 필터링은 BE가 안 하므로(팀 결정, CLAUDE.md 참고) grade는 응답 그대로 두고 FE에서 묶어서 그린다.
 export async function fetchPriceChart(
@@ -169,4 +217,18 @@ export async function fetchPriceRanking(type: RankingType): Promise<PriceRanking
 // GET /api/listings?cardId= — 판매 중(ACTIVE) 매물 목록, 가격 오름차순.
 export async function fetchActiveListings(cardId: number): Promise<ListingSummaryResponse[]> {
   return apiGet<ListingSummaryResponse[]>(`/api/listings?cardId=${cardId}`);
+}
+
+// GET /api/prices/{cardId}/buy-offers — 활성 구매입찰(매수 호가) 목록, 가격 내림차순.
+// 판매 매물의 orderbook(GET /api/listings/{cardId}/orderbook)과 대응되는 매수 쪽. 로그인 필요(401 가능).
+// variantId 생략 시 BE가 대표 판본(primary) 기준으로 응답한다.
+export async function fetchBuyOfferOrderbook(
+  cardId: number,
+  options?: { variantId?: number; grade?: ListingGrade },
+): Promise<BuyOfferOrderbookEntryResponse[]> {
+  const query = new URLSearchParams();
+  if (options?.variantId != null) query.set("variantId", String(options.variantId));
+  if (options?.grade) query.set("grade", options.grade);
+  const qs = query.toString();
+  return apiGet<BuyOfferOrderbookEntryResponse[]>(`/api/prices/${cardId}/buy-offers${qs ? `?${qs}` : ""}`);
 }

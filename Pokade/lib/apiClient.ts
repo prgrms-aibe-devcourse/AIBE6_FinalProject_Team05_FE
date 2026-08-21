@@ -2,6 +2,7 @@ import { getAccessToken, setAccessToken } from "@/lib/authToken";
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 const REQUEST_TIMEOUT_MS = 10000; // 10초 — 일반 CRUD 기준
+const PROFILE_UPLOAD_TIMEOUT_MS = 30_000; // 5MB 이미지 1장 + S3 업로드 — AI 진단(3분)과 달리 추론이 없다
 
 // AI 등급 진단(POST /api/ai/grade)은 이미지 6장 업로드 후 S3 업로드 6회 + 서버측 품질검사 +
 // Vision 모델 호출이 동기로 실행돼 수십 초~2분이 걸린다. 기본 10초로는 브라우저가 먼저
@@ -19,13 +20,17 @@ export interface ApiEnvelope<T> {
   data: T;
 }
 
-// Spring Data Page<T> JSON 직렬화 형태.
+// Spring Data Page<T> JSON 직렬화 형태 — 실제 응답엔 pageable/sort/empty 등 더 있지만
+// 이 프로젝트에서 쓰는 필드만 추린다. first/last는 prev/next 버튼 disabled 판정에 쓴다
+// (number+totalPages로 직접 계산해도 되지만, BE가 이미 계산해 내려주는 값을 신뢰하는 쪽이 더 명확).
 export interface PageResponse<T> {
   content: T[];
   totalElements: number;
   totalPages: number;
   number: number;
   size: number;
+  first: boolean;
+  last: boolean;
 }
 
 export class ApiError extends Error {
@@ -173,6 +178,20 @@ export async function apiPostFormRaw<T>(path: string, formData: FormData): Promi
     UPLOAD_TIMEOUT_MS, // 업로드 + AI 추론이 10초를 크게 넘긴다
   );
   return (await res.json()) as T;
+}
+
+export async function apiPostForm<T>(path: string, formData: FormData): Promise<T> {
+  const res = await request(
+    path,
+    {
+      method: "POST",
+      body: formData,
+    },
+    true,
+    PROFILE_UPLOAD_TIMEOUT_MS, // 5MB 이미지 1장 + S3 업로드
+  );
+  const text = await res.text();
+  return text ? (JSON.parse(text) as ApiEnvelope<T>).data : (undefined as T);
 }
 
 // ApiResponse 래퍼 없이 raw body를 그대로 내려주는 POST 엔드포인트용 (예: POST /api/chat/query).
