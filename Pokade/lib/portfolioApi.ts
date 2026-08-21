@@ -5,6 +5,7 @@ import {
   PortfolioItemPnlResponse,
   PortfolioItemResponse,
   PortfolioItemUpdateRequest,
+  PortfolioSetCompletionResponse,
   PortfolioSummaryResponse,
 } from "@/types/portfolio";
 
@@ -44,10 +45,16 @@ export async function fetchPortfolioPnl(id: number): Promise<PortfolioItemPnlRes
   return apiGet<PortfolioItemPnlResponse>(`/api/portfolio/${id}/pnl`);
 }
 
-// GET /api/portfolio/analytics — 평가액 기준 세트별·레어도별 구성 비율(내림차순). 시세 없는 항목은 제외되며,
-// 계산 가능한 항목이 하나도 없으면 bySet/byRarity 모두 빈 배열.
+// GET /api/portfolio/analytics — 보유 수량 기준 세트별·레어도별 구성 비율(내림차순). 시세 유무와 무관하게
+// 항상 계산되며, 보유 카드가 하나도 없을 때만 bySet/byRarity 모두 빈 배열.
 export async function fetchPortfolioAnalytics(): Promise<PortfolioAnalyticsResponse> {
   return apiGet<PortfolioAnalyticsResponse>("/api/portfolio/analytics");
+}
+
+// GET /api/portfolio/set-completion — 보유한 세트별 수집 완성도(완성도 내림차순). expansion 정보가 없는
+// 카드는 전체 카드 수를 알 수 없어 제외되며, 그런 카드만 있으면 빈 배열.
+export async function fetchPortfolioSetCompletion(): Promise<PortfolioSetCompletionResponse[]> {
+  return apiGet<PortfolioSetCompletionResponse[]>("/api/portfolio/set-completion");
 }
 
 // POST /api/portfolio/from-grade/{resultId} — AI 진단 결과(FR-AI-04)를 도감에 등록.

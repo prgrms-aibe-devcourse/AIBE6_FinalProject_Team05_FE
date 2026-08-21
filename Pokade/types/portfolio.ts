@@ -66,3 +66,14 @@ export interface PortfolioAnalyticsResponse {
   bySet: PortfolioAnalyticsItemResponse[];
   byRarity: PortfolioAnalyticsItemResponse[];
 }
+
+// GET /api/portfolio/set-completion 응답 항목 — com.pokade.domain.portfolio.dto.PortfolioSetCompletionResponse 미러링.
+// ownedCount는 해당 세트에서 보유 중인 서로 다른 카드 수(수량 무시), totalCount는 세트 전체 카드 수.
+// expansion 정보가 없는 카드는 백엔드에서 이미 제외되므로, 여기 담긴 세트는 전부 완성도 계산이 가능하다.
+export interface PortfolioSetCompletionResponse {
+  expansionId: string;
+  setName: string;
+  ownedCount: number;
+  totalCount: number;
+  completionRate: number;
+}
