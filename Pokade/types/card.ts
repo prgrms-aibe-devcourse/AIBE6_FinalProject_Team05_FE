@@ -126,7 +126,8 @@ export interface CardDetailResponse {
   imageSmall: string;
   imageMedium: string;
   imageLarge: string;
-  viewCount: number;
+  // 일부 카드는 프로덕션 데이터에 이 필드가 없을 수 있어(#긴급 핫픽스) null 허용.
+  viewCount: number | null;
   expansion: ExpansionSummary | null;
   variants: VariantSummary[];
 }
