@@ -106,6 +106,8 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const userStatus = useUserStore((s) => s.status);
+  const userId = useUserStore((s) => s.userId);
+  const userIdRestoring = useUserStore((s) => s.userIdRestoring);
 
   const [card, setCard] = useState<CardDetailResponse | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -519,6 +521,12 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
             // 등급을 선택했으면 그 등급의 실제 최저 매물가를 우선 보여준다 — 선택 전(또는 방금
             // 선택한 등급에 매물이 없어진 방어적 상황)에는 기존처럼 전체 등급 통틀어 최저가로 폴백.
             const displayBuyPrice = selectedOffer?.price ?? priceSummary?.buyPrice ?? null;
+            // userId 복원이 끝나기 전에는 판정을 내리지 않는다(trade-status 페이지와 동일한 이유) —
+            // 안 그러면 실제 판매자에게도 일시적으로 "내 매물 없음"으로 보일 수 있다.
+            const myListings =
+              userIdRestoring || userId == null
+                ? []
+                : activeListings.filter((l) => l.sellerId === userId);
 
             return (
               <>
@@ -754,6 +762,30 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                     </div>
                   </div>
                 </div>
+
+                {myListings.length > 0 && (
+                  <div className="rounded-2xl border border-[#EDEDF0] bg-white p-5">
+                    <div className="mb-2.5 text-[13px] font-bold text-ink">
+                      판매 중인 내 매물 ({myListings.length}개)
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {myListings.map((l) => (
+                        <span
+                          key={l.id}
+                          className="rounded-full border border-[#DDDDE3] bg-neutral px-3 py-1.5 text-[12.5px] font-semibold text-[#4B4B52]"
+                        >
+                          {l.grade ?? "미등급"} · {l.price.toLocaleString("ko-KR")}원
+                        </span>
+                      ))}
+                    </div>
+                    <Link
+                      href="/listings/me"
+                      className="mt-3 inline-block text-[12.5px] font-bold text-primary hover:text-primary-dark"
+                    >
+                      내 매물 관리 &gt;
+                    </Link>
+                  </div>
+                )}
 
                 <RelatedCardsSection cardId={cardId} />
 
