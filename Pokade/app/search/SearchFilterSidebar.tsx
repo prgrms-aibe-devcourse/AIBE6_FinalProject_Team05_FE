@@ -1,5 +1,4 @@
 import { Dispatch, RefObject, SetStateAction, useState } from "react";
-import { GRADE_DESCRIPTIONS } from "@/components/GradeBadge";
 import { CardFacetOption } from "@/types/card";
 import { LANGUAGE_OPTIONS, PRICE_MAX } from "./constants";
 
@@ -7,6 +6,13 @@ type LoadState = "loading" | "error" | "ready";
 
 const toggleValue = (list: string[], value: string) =>
   list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
+
+// 가격대 직접 입력 자릿수 제한(#187) — type="number" input은 "e"(지수 표기)나 임의로 긴 숫자를
+// 그대로 받아들여 blur 전까지 입력창이 보기 흉하게 늘어난다. PRICE_MAX(10,000,000)의 자릿수만큼만
+// 허용하고 숫자가 아닌 문자는 입력 즉시 제거한다 — blur 시점의 클램핑(handleMinChange 등)과는
+// 별개로, 타이핑 중에도 자릿수 자체를 여기서 먼저 제한한다.
+const PRICE_INPUT_MAX_LENGTH = String(PRICE_MAX).length;
+const sanitizePriceInput = (raw: string) => raw.replace(/\D/g, "").slice(0, PRICE_INPUT_MAX_LENGTH);
 
 // #142 레어도 중분류 — 배포 사이트(pokade.store)에서 실제 렌더링된 39개 레어도 값을 기준으로
 // 확정된 정적 매핑(하드코딩, 임의 변경 금지). 그룹 순서가 곧 화면에 표시되는 그룹 순서다.
@@ -134,19 +140,29 @@ export default function SearchFilterSidebar({
   resetFilters,
 }: SearchFilterSidebarProps) {
   // 슬라이더(range input)와 직접 입력(number input)이 공유하는 min/max 클램핑 로직 —
-  // 두 값이 서로를 앞지르지 않도록(min<=max) 여기서 한 번에 검증한다.
+  // 두 값이 서로를 앞지르지 않도록(min<=max) 여기서 한 번에 검증한다. 클램핑된 값이 기존
+  // priceMin/priceMax와 같으면(예: PRICE_MAX보다 큰 값을 입력) setPriceMin/Max가 상태를 바꾸지
+  // 않아 아래 prevPriceMin/Max 비교 기반 동기화가 발동하지 않는다 — 그래서 입력창 텍스트는
+  // 여기서 직접 클램핑된 값으로 맞춰, 화면에 클램핑 전 값이 남는 일이 없게 한다.
   const handleMinChange = (value: number) => {
+    const clamped = Math.min(Math.max(value, 0), priceMax);
     setActiveHandle("min");
-    setPriceMin(Math.min(Math.max(value, 0), priceMax));
+    setPriceMin(clamped);
+    setMinInputText(String(clamped));
   };
   const handleMaxChange = (value: number) => {
+    const clamped = Math.max(Math.min(value, PRICE_MAX), priceMin);
     setActiveHandle("max");
-    setPriceMax(Math.max(Math.min(value, PRICE_MAX), priceMin));
+    setPriceMax(clamped);
+    setMaxInputText(String(clamped));
   };
 
   // 직접 입력(number input) 전용 텍스트 상태 — 입력 중에는 클램핑 없이 자유롭게 두고,
-  // blur 시점에만 handleMinChange/handleMaxChange로 보정한다. 슬라이더 조작 등으로
-  // priceMin/priceMax가 바뀌면(타이핑 중이 아닌 한) 아래에서 표시 텍스트를 동기화한다.
+  // blur 시점에만 handleMinChange/handleMaxChange로 보정한다(위 두 함수가 클램핑된 값을
+  // 상태와 입력창 텍스트에 함께 반영하므로, 슬라이더 조작이나 blur 입력은 이 비교 블록 없이도
+  // 이미 텍스트가 맞다). 이 블록이 실제로 필요한 경우는 그 두 함수를 거치지 않고 priceMin/
+  // priceMax를 직접 바꾸는 외부 리셋뿐이다 — 필터 초기화(resetFilters)와 필터 칩 제거
+  // (FilterChip onRemove → setPriceRangeNow, page.tsx) — 이때만 아래에서 표시 텍스트를 동기화한다.
   // (렌더 중 조건부 setState — effect가 아니라 "prop 변경에 맞춰 state 조정하기" 패턴)
   const [minInputText, setMinInputText] = useState(String(priceMin));
   const [prevPriceMin, setPrevPriceMin] = useState(priceMin);
@@ -283,26 +299,6 @@ export default function SearchFilterSidebar({
         <div className="mb-4 flex items-center justify-between lg:relative">
           <span className="flex items-center gap-1.5 text-[15px] font-extrabold">
             <span id="filter-drawer-title">필터</span>
-            <span
-              tabIndex={0}
-              className="group relative inline-flex h-3.5 w-3.5 shrink-0 cursor-help items-center justify-center rounded-full bg-black/10 text-[8px] font-bold leading-none text-[#6B6B72] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#6B6B72] lg:static"
-            >
-              ?
-              <span
-                role="tooltip"
-                className="pointer-events-none absolute left-0 top-[calc(100%+6px)] z-20 w-max max-w-[calc(100vw-80px)] break-keep rounded-md bg-[#1A1A1E] px-2.5 py-1.5 text-[11px] font-medium leading-relaxed text-white opacity-0 shadow-lift transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100 lg:left-1/2 lg:max-w-[190px] lg:-translate-x-1/2"
-              >
-                <span className="mb-1 block">
-                  <b>S</b>: {GRADE_DESCRIPTIONS.S}
-                </span>
-                <span className="mb-1 block">
-                  <b>A</b>: {GRADE_DESCRIPTIONS.A}
-                </span>
-                <span className="block">
-                  <b>B</b>: {GRADE_DESCRIPTIONS.B}
-                </span>
-              </span>
-            </span>
           </span>
           <button
             type="button"
@@ -445,7 +441,7 @@ export default function SearchFilterSidebar({
               max={priceMax}
               step={10}
               value={minInputText}
-              onChange={(e) => setMinInputText(e.target.value)}
+              onChange={(e) => setMinInputText(sanitizePriceInput(e.target.value))}
               onBlur={(e) => handleMinChange(Number(e.target.value))}
               className="w-full min-w-0 border-none p-0 text-right text-[12.5px] font-bold text-ink outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
             />
@@ -464,7 +460,7 @@ export default function SearchFilterSidebar({
               max={PRICE_MAX}
               step={10}
               value={maxInputText}
-              onChange={(e) => setMaxInputText(e.target.value)}
+              onChange={(e) => setMaxInputText(sanitizePriceInput(e.target.value))}
               onBlur={(e) => handleMaxChange(Number(e.target.value))}
               className="w-full min-w-0 border-none p-0 text-right text-[12.5px] font-bold text-ink outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
             />

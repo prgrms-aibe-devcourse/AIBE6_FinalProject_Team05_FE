@@ -22,13 +22,6 @@ const GRADE_STYLE: Record<Grade, string> = {
   B: `${GRADE_BG.B} border-[#6B7280] text-[#1F2937]`,
 };
 
-// Grade 판정 기준 — /search 필터 사이드바의 등급 설명 툴팁 등에서 재사용.
-export const GRADE_DESCRIPTIONS: Record<Grade, string> = {
-  S: "최상급 상태 - 스크래치나 손상이 거의 없는 완벽한 상태",
-  A: "우수한 상태 - 미세한 사용감은 있으나 전반적으로 양호한 상태",
-  B: "양호한 상태 - 사용감이 있으나 게임/컬렉션에 적합한 상태",
-};
-
 export default function GradeBadge({
   grade,
   size = "md",

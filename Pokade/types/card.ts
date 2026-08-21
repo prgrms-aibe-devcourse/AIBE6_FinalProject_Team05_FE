@@ -16,6 +16,11 @@ export interface CardResponse {
   // 판매 중인 매물의 등급 목록. BE가 GRADE_DISPLAY_ORDER(S>A>B) 순으로 정렬해서 내려준다.
   // 매물이 없으면 빈 배열.
   grades: string[];
+  // 오타 등으로 정확 일치 결과가 없어 유사검색으로 대체된 항목이면 true(#187). 정확 검색이거나
+  // /api/cards, /api/cards/{id}/related처럼 유사검색을 적용하지 않는 응답에서는 항상 false로
+  // 온다 — 다만 FE는 이 값을 신뢰해 안내 문구 표시 여부를 결정하지 않고, 키워드 검색(q) 경로인지
+  // 자체로 한 번 더 걸러낸다(app/search/page.tsx의 hasFuzzyMatch 계산 참고).
+  fuzzyMatch: boolean;
 }
 
 // 화면(카드 검색 그리드)이 쓰는 형태.
