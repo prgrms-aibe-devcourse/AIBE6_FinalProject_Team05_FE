@@ -92,11 +92,11 @@ function ActivityTable({ tab, rows, emptyMessage }: { tab: Tab; rows: Row[]; emp
         {rows.map((r) => (
           <tr key={r.key} className="border-t border-[#F5F5F7]">
             <td className="py-1.5 font-bold">{GRADE_LABELS[r.grade]}</td>
-            <td className="py-1.5 text-right font-bold text-ink">{r.price.toLocaleString("ko-KR")}원</td>
+            <td className="py-1.5 text-right font-bold tabular-nums text-ink">{r.price.toLocaleString("ko-KR")}원</td>
             {tab === "trades" ? (
-              <td className="py-1.5 text-right text-[#8A8A92]">{r.dateLabel}</td>
+              <td className="py-1.5 text-right tabular-nums text-[#8A8A92]">{r.dateLabel}</td>
             ) : (
-              <td className="py-1.5 text-right text-[#8A8A92]">{r.quantity}개</td>
+              <td className="py-1.5 text-right tabular-nums text-[#8A8A92]">{r.quantity}개</td>
             )}
           </tr>
         ))}
