@@ -1,13 +1,16 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import GradeBadge, { GRADE_DESCRIPTIONS } from "@/components/GradeBadge";
+import CardImage from "@/components/CardImage";
+import GradeBadge from "@/components/GradeBadge";
 import type { Grade } from "@/components/GradeBadge";
 import ConditionBar from "@/components/ConditionBar";
 import PixelCharizard from "@/components/PixelCharizard";
 import { apiPostFormRaw, ApiError, PageResponse } from "@/lib/apiClient";
 import { fetchGradeHistory } from "@/lib/aiApi";
+import { addPortfolioItemFromGrade } from "@/lib/portfolioApi";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import type { GradeResponse } from "@/types/ai";
 
@@ -90,6 +93,13 @@ function ShootingGuide() {
     </div>
   );
 }
+
+// 등급별 기준 설명 — BE(AiGradeService의 Vision 프롬프트)가 안내하는 PSA 상당 등급 기준과 동일한 문구.
+const GRADE_DESCRIPTIONS: Record<Grade, string> = {
+  S: "PSA 9~10 상당 — 민트 상태. 결함 없이 날카로운 모서리와 깨끗한 엣지, 중앙 정렬.",
+  A: "PSA 7~8 상당 — 엑셀런트~니어민트. 경미한 결함이나 약간의 모서리·엣지 마모 허용.",
+  B: "PSA 5~6 상당 — 굿~엑셀런트. 눈에 띄는 결함이 있으나 감상에는 무리 없는 수준.",
+};
 
 // 세부 점수 4항목이 각각 무엇을 보는지 — ResultView의 점수 라벨과 그대로 매칭되어야 함
 const SCORE_INFO: { label: string; desc: string }[] = [
@@ -366,6 +376,14 @@ function UploadView({
   );
 }
 
+// 도감 등록(FR-AI-04) 진행 상태 — 판별 유니언으로 관리해 "등록 중이면서 이미 등록됨" 같은
+// 불가능한 조합이 애초에 만들어지지 않게 한다.
+type RegisterStatus =
+  | { kind: "idle" }
+  | { kind: "registering" }
+  | { kind: "registered" }
+  | { kind: "error"; message: string };
+
 function ResultView({
   result,
   onReset,
@@ -375,12 +393,35 @@ function ResultView({
   onReset: () => void;
   resetLabel?: string;
 }) {
+  const [registerStatus, setRegisterStatus] = useState<RegisterStatus>({ kind: "idle" });
+
   const scores: [string, number | null][] = [
     ["센터링", result.centeringScore],
     ["엣지", result.edgeScore],
     ["표면", result.surfaceScore],
     ["모서리", result.cornerScore],
   ];
+
+  // 정상 산출(SUCCESS) + 카드 인식(cardId) 둘 다 있어야 도감에 등록할 수 있다.
+  const canRegister = result.status === "SUCCESS" && result.cardId != null;
+
+  const handleRegister = async () => {
+    setRegisterStatus({ kind: "registering" });
+    try {
+      await addPortfolioItemFromGrade(result.gradeResultId);
+      setRegisterStatus({ kind: "registered" });
+    } catch (e) {
+      // 이미 등록된 결과(409)를 재조회해서 다시 눌렀을 때도 에러가 아니라 "등록됨"으로 보여준다.
+      if (e instanceof ApiError && e.code === "GRADE_RESULT_ALREADY_REGISTERED") {
+        setRegisterStatus({ kind: "registered" });
+        return;
+      }
+      setRegisterStatus({
+        kind: "error",
+        message: e instanceof ApiError ? e.message : "도감 등록에 실패했습니다.",
+      });
+    }
+  };
 
   return (
     <div className="rounded-2xl border border-[#EDEDF0] bg-white p-[30px]">
@@ -408,6 +449,30 @@ function ResultView({
           AI 신뢰도 {result.confidence.toFixed(1)}%
         </div>
       )}
+      {result.status === "SUCCESS" && (
+        <div className="mt-[18px] flex items-center gap-3 rounded-[11px] border border-[#EDEDF0] px-4 py-3">
+          {result.cardId != null ? (
+            <>
+              <div className="relative h-14 w-10 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
+                <CardImage src={result.cardImageSmall ?? undefined} alt={result.cardName ?? "카드"} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[12px] font-semibold text-[#8A8A92]">인식된 카드</div>
+                <div className="truncate text-[14px] font-bold">{result.cardName}</div>
+              </div>
+              {result.cardConfidence != null && (
+                <div className="flex-shrink-0 text-[12px] font-semibold text-[#9A9AA2]">
+                  인식 신뢰도 {result.cardConfidence.toFixed(0)}%
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-[13px] font-semibold text-[#8A8A92]">
+              카드를 인식하지 못해 도감에 바로 등록할 수 없어요. 도감 화면에서 직접 추가해 주세요.
+            </div>
+          )}
+        </div>
+      )}
       <div className="mt-[22px] rounded-[10px] bg-neutral px-[15px] py-3 text-[12.5px] leading-normal text-[#8A8A92]">
         {result.notice}
       </div>
@@ -416,6 +481,22 @@ function ResultView({
           ? `포인트 ${result.pointUsed}점이 사용되었습니다.`
           : "무료로 처리되었습니다."}
       </div>
+      {registerStatus.kind === "error" && (
+        <div
+          role="alert"
+          className="mt-[14px] rounded-[10px] border border-[#F6C6C6] bg-[#FFF1F1] px-4 py-3 text-[13px] font-semibold text-[#C21414]"
+        >
+          {registerStatus.message}
+        </div>
+      )}
+      {registerStatus.kind === "registered" && (
+        <div className="mt-[14px] rounded-[10px] border border-[#CDEAD9] bg-[#EEFBF3] px-4 py-3 text-[13px] font-semibold text-[#0F7A46]">
+          도감에 등록했어요.{" "}
+          <Link href="/portfolio" className="underline">
+            도감 보러가기
+          </Link>
+        </div>
+      )}
       <div className="mt-[18px] flex gap-3">
         <button
           onClick={onReset}
@@ -424,11 +505,20 @@ function ResultView({
           {resetLabel}
         </button>
         <button
-          disabled
-          title="FR-AI-04에서 연동 예정"
-          className="flex-1 cursor-not-allowed rounded-[11px] border-2 border-[#D6D6DC] bg-[#E4E4E8] py-3.5 text-[15.5px] font-bold text-[#A0A0A8]"
+          disabled={!canRegister || registerStatus.kind === "registering" || registerStatus.kind === "registered"}
+          title={!canRegister ? "카드를 인식하지 못해 등록할 수 없어요" : undefined}
+          onClick={handleRegister}
+          className={`flex-1 rounded-[11px] border-2 py-3.5 text-[15.5px] font-bold ${
+            canRegister && registerStatus.kind !== "registered"
+              ? "border-primary-dark bg-primary text-white shadow-tactile-sm active:translate-y-0.5 disabled:cursor-wait disabled:opacity-70"
+              : "cursor-not-allowed border-[#D6D6DC] bg-[#E4E4E8] text-[#A0A0A8]"
+          }`}
         >
-          도감에 등록하기
+          {registerStatus.kind === "registering"
+            ? "등록 중..."
+            : registerStatus.kind === "registered"
+              ? "등록 완료"
+              : "도감에 등록하기"}
         </button>
       </div>
     </div>
@@ -481,6 +571,7 @@ function HistoryView() {
   if (selected) {
     return (
       <ResultView
+        key={selected.gradeResultId}
         result={selected}
         onReset={() => setSelected(null)}
         resetLabel="목록으로 돌아가기"

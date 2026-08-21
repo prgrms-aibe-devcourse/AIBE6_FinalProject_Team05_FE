@@ -202,214 +202,269 @@ function NewListingForm() {
   }
 
   return (
-    <main className="main-content bg-neutral px-10 py-14">
-      <div className="mx-auto w-full max-w-[520px] rounded-[18px] border border-[#EDEDF0] bg-white px-[34px] py-9 shadow-card">
-        <h1 className="mb-6 text-[20px] font-extrabold tracking-[-0.5px]">상품 등록</h1>
+    <main className="main-content bg-neutral px-4 py-14 sm:px-10">
+      <div className="mx-auto w-full max-w-[880px]">
+        <h1 className="mb-7 text-[22px] font-extrabold tracking-[-0.5px]">상품 등록</h1>
 
-        <form onSubmit={handleSubmit}>
-          {/* 카드 선택 */}
-          <label htmlFor="card-search" className="mb-[7px] block text-[13px] font-bold text-[#4B4B52]">
-            카드
-          </label>
-          {selectedCard ? (
-            <div className="flex items-center gap-3 rounded-[11px] border border-[#DDDDE3] px-3.5 py-3">
-              <div className="relative h-14 w-10 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
-                <CardImage src={selectedCard.imageUrl} alt={selectedCard.name} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[14.5px] font-bold text-ink">
-                  {selectedCard.name}
+        <div className="grid gap-6 lg:grid-cols-[280px_1fr] lg:items-start">
+          {/* 좌측: 카드 미리보기 */}
+          <div className="rounded-[18px] border border-[#EDEDF0] bg-white p-6 lg:sticky lg:top-8">
+            {selectedCard ? (
+              <>
+                <div className="relative mx-auto aspect-[5/7] w-full max-w-[200px] overflow-hidden rounded-[13px] bg-[#F2F2F5]">
+                  <CardImage src={selectedCard.imageUrl} alt={selectedCard.name} />
                 </div>
-                <div className="truncate text-xs text-[#8A8A92]">{selectedCard.setName}</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedCard(null);
-                  setSelectedVariantId(null);
-                  setPriceSummary(null);
-                }}
-                className="flex-shrink-0 text-[12.5px] font-semibold text-[#8A8A92] hover:text-primary"
-              >
-                다시 선택
-              </button>
-            </div>
-          ) : (
-            <div className="relative">
-              <input
-                id="card-search"
-                type="text"
-                value={query}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  setQuery(next);
-                  // 새 검색어로 갈아탈 때 이전 검색 결과가 잠깐 그대로 보이는 것을 막는다 —
-                  // 디바운스가 끝나기 전까지는 목록/검색중 상태를 여기서 바로 초기화.
-                  setSuggestions([]);
-                  setSearching(next.trim().length >= MIN_QUERY_LENGTH);
-                }}
-                placeholder="카드 이름으로 검색 (2자 이상)"
-                className={inputCls}
-              />
-              {query.trim().length >= MIN_QUERY_LENGTH && (
-                <div className="absolute z-10 mt-1.5 w-full rounded-[11px] border border-[#EDEDF0] bg-white shadow-card">
-                  {searching ? (
-                    <div className="px-3.5 py-3 text-[13px] text-[#8A8A92]">검색 중...</div>
-                  ) : suggestions.length === 0 ? (
-                    <div className="px-3.5 py-3 text-[13px] text-[#8A8A92]">
-                      검색 결과가 없습니다.
-                    </div>
-                  ) : (
-                    suggestions.map((card) => (
-                      <button
-                        key={card.id}
-                        type="button"
-                        onClick={() => {
-                          setQuery("");
-                          setSuggestions([]);
-                          selectCardById(card.id);
-                        }}
-                        className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left hover:bg-neutral"
-                      >
-                        <div className="relative h-11 w-8 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
-                          <CardImage
-                            src={card.imageMedium || card.imageSmall}
-                            alt={card.nameKo ?? card.name}
-                          />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="truncate text-[13.5px] font-bold text-ink">
-                            {card.nameKo ?? card.name}
-                          </div>
-                          <div className="truncate text-xs text-[#8A8A92]">{card.setName}</div>
-                        </div>
-                      </button>
-                    ))
-                  )}
+                <div className="mt-4 text-center">
+                  <div className="text-[15.5px] font-extrabold text-ink">{selectedCard.name}</div>
+                  <div className="mt-1 text-[13px] text-[#8A8A92]">{selectedCard.setName}</div>
                 </div>
-              )}
-            </div>
-          )}
-
-          {selectedCard && selectedCard.variants.length > 1 && (
-            <>
-              <div className="h-4" />
-              <label className="mb-[7px] block text-[13px] font-bold text-[#4B4B52]">판본</label>
-              <div className="flex flex-wrap gap-1.5">
-                {selectedCard.variants.map((v) => (
-                  <button
-                    key={v.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedVariantId(v.id);
-                      setPriceSummaryLoading(true);
-                    }}
-                    className={`rounded-full border px-3 py-1.5 text-[12.5px] font-bold transition ${
-                      selectedVariantId === v.id
-                        ? "border-primary bg-primary text-white"
-                        : "border-[#DDDDE3] bg-white text-[#4B4B52] hover:border-primary hover:text-primary"
-                    }`}
+                <div className="my-4 h-px bg-[#EDEDF0]" />
+                <div className="text-center">
+                  <div className="text-[11.5px] font-semibold text-[#8A8A92]">현재 최저 시세</div>
+                  <div className="mt-1 text-[17px] font-extrabold text-primary">
+                    {priceSummaryLoading
+                      ? "조회 중..."
+                      : priceSummary?.buyPrice != null
+                        ? `${priceSummary.buyPrice.toLocaleString("ko-KR")}원`
+                        : "정보 없음"}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCard(null);
+                    setSelectedVariantId(null);
+                    setPriceSummary(null);
+                  }}
+                  className="mt-4 w-full rounded-[10px] border border-[#DDDDE3] py-2 text-[12.5px] font-semibold text-[#4B4B52] hover:border-primary hover:text-primary"
+                >
+                  다른 카드 선택
+                </button>
+              </>
+            ) : (
+              <div className="flex flex-col items-center py-6 text-center">
+                <div className="flex aspect-[5/7] w-full max-w-[160px] items-center justify-center rounded-[13px] bg-[#F2F2F5]">
+                  <svg
+                    width="34"
+                    height="34"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#C7C7CE"
+                    strokeWidth="1.6"
+                    aria-hidden="true"
                   >
-                    {variantLabel(v.variantName)}
-                  </button>
-                ))}
+                    <rect x="3" y="4" width="18" height="16" rx="2" />
+                    <path d="M3 15l4.5-4.5a1.5 1.5 0 0 1 2.12 0L13 13.9l2.5-2.5a1.5 1.5 0 0 1 2.12 0L21 15" />
+                  </svg>
+                </div>
+                <p className="mt-4 text-[12.5px] leading-relaxed text-[#9A9AA2]">
+                  오른쪽에서 카드를 검색해서
+                  <br />
+                  선택해 주세요.
+                </p>
               </div>
-            </>
-          )}
-
-          <div className="h-4" />
-
-          {/* 가격 */}
-          <div className="mb-[7px] flex items-center justify-between">
-            <label htmlFor="price" className="block text-[13px] font-bold text-[#4B4B52]">
-              가격
-            </label>
-            {selectedCard && (
-              <span className="text-[12px] font-semibold text-[#8A8A92]">
-                {priceSummaryLoading
-                  ? "시세 조회 중..."
-                  : priceSummary?.buyPrice != null
-                    ? `현재 최저 시세 ${priceSummary.buyPrice.toLocaleString("ko-KR")}원`
-                    : "시세 정보 없음"}
-              </span>
             )}
           </div>
-          <input
-            id="price"
-            type="number"
-            min={1}
-            step={100}
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            placeholder="판매 가격 (원)"
-            className={inputCls}
-          />
-          {priceOutlierWarning && (
-            <p className="mt-1.5 text-[12px] font-semibold text-[#C97A00]">
-              {priceOutlierWarning}
-            </p>
-          )}
 
-          <div className="h-4" />
+          {/* 우측: 입력 폼 */}
+          <div className="rounded-[18px] border border-[#EDEDF0] bg-white px-[30px] py-8 shadow-card">
+            <form onSubmit={handleSubmit}>
+              {!selectedCard && (
+                <>
+                  <label
+                    htmlFor="card-search"
+                    className="mb-[7px] block text-[13px] font-bold text-[#4B4B52]"
+                  >
+                    카드 검색
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="card-search"
+                      type="text"
+                      value={query}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        setQuery(next);
+                        // 새 검색어로 갈아탈 때 이전 검색 결과가 잠깐 그대로 보이는 것을 막는다 —
+                        // 디바운스가 끝나기 전까지는 목록/검색중 상태를 여기서 바로 초기화.
+                        setSuggestions([]);
+                        setSearching(next.trim().length >= MIN_QUERY_LENGTH);
+                      }}
+                      placeholder="카드 이름으로 검색 (2자 이상)"
+                      className={inputCls}
+                      autoFocus
+                    />
+                    {query.trim().length >= MIN_QUERY_LENGTH && (
+                      <div className="absolute z-10 mt-1.5 w-full rounded-[11px] border border-[#EDEDF0] bg-white shadow-card">
+                        {searching ? (
+                          <div className="px-3.5 py-3 text-[13px] text-[#8A8A92]">검색 중...</div>
+                        ) : suggestions.length === 0 ? (
+                          <div className="px-3.5 py-3 text-[13px] text-[#8A8A92]">
+                            검색 결과가 없습니다.
+                          </div>
+                        ) : (
+                          suggestions.map((card) => (
+                            <button
+                              key={card.id}
+                              type="button"
+                              onClick={() => {
+                                setQuery("");
+                                setSuggestions([]);
+                                selectCardById(card.id);
+                              }}
+                              className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left hover:bg-neutral"
+                            >
+                              <div className="relative h-11 w-8 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
+                                <CardImage
+                                  src={card.imageMedium || card.imageSmall}
+                                  alt={card.nameKo ?? card.name}
+                                />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="truncate text-[13.5px] font-bold text-ink">
+                                  {card.nameKo ?? card.name}
+                                </div>
+                                <div className="truncate text-xs text-[#8A8A92]">
+                                  {card.setName}
+                                </div>
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
 
-          {/* 등급 */}
-          <div className="mb-[7px] flex items-center gap-1.5">
-            <label htmlFor="grade" className="block text-[13px] font-bold text-[#4B4B52]">
-              등급 (선택)
-            </label>
-            <div className="group relative flex items-center">
-              <span className="flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-[#EDEDF0] text-[10.5px] font-bold text-[#8A8A92]">
-                ?
-              </span>
-              <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-64 -translate-x-1/2 rounded-[10px] border border-[#EDEDF0] bg-white p-3 text-[12px] leading-relaxed text-[#4B4B52] opacity-0 shadow-card transition group-hover:opacity-100">
-                {GRADE_OPTIONS.map((g) => (
-                  <p key={g} className="mb-1.5 last:mb-0">
-                    <span className="font-bold text-ink">{g}</span> — {GRADE_GUIDE[g]}
-                  </p>
-                ))}
-              </div>
-            </div>
+              {selectedCard && (
+                <>
+                  {selectedCard.variants.length > 1 && (
+                    <>
+                      <label className="mb-[7px] block text-[13px] font-bold text-[#4B4B52]">
+                        판본
+                      </label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedCard.variants.map((v) => (
+                          <button
+                            key={v.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedVariantId(v.id);
+                              setPriceSummaryLoading(true);
+                            }}
+                            className={`rounded-full border px-3 py-1.5 text-[12.5px] font-bold transition ${
+                              selectedVariantId === v.id
+                                ? "border-primary bg-primary text-white"
+                                : "border-[#DDDDE3] bg-white text-[#4B4B52] hover:border-primary hover:text-primary"
+                            }`}
+                          >
+                            {variantLabel(v.variantName)}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="h-5" />
+                    </>
+                  )}
+
+                  {/* 가격 */}
+                  <div className="mb-[7px] flex items-center justify-between">
+                    <label htmlFor="price" className="block text-[13px] font-bold text-[#4B4B52]">
+                      가격
+                    </label>
+                    <span className="text-[12px] font-semibold text-[#8A8A92]">
+                      {priceSummaryLoading
+                        ? "시세 조회 중..."
+                        : priceSummary?.buyPrice != null
+                          ? `현재 최저 시세 ${priceSummary.buyPrice.toLocaleString("ko-KR")}원`
+                          : "시세 정보 없음"}
+                    </span>
+                  </div>
+                  {/* type="number"는 천 단위 콤마를 표시할 수 없어 text로 두고, 상태에는 숫자만 담는다
+                      (app/listings/me/page.tsx의 가격 수정 입력과 같은 방식). */}
+                  <input
+                    id="price"
+                    type="text"
+                    inputMode="numeric"
+                    value={price ? Number(price).toLocaleString("ko-KR") : ""}
+                    onChange={(e) => setPrice(e.target.value.replace(/[^0-9]/g, ""))}
+                    placeholder="판매 가격 (원)"
+                    className={inputCls}
+                  />
+                  {priceOutlierWarning && (
+                    <p className="mt-1.5 text-[12px] font-semibold text-[#C97A00]">
+                      {priceOutlierWarning}
+                    </p>
+                  )}
+
+                  <div className="h-5" />
+
+                  {/* 등급 */}
+                  <div className="mb-[7px] flex items-center gap-1.5">
+                    <label htmlFor="grade" className="block text-[13px] font-bold text-[#4B4B52]">
+                      등급 (선택)
+                    </label>
+                    <div className="group relative flex items-center">
+                      <span className="flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-[#EDEDF0] text-[10.5px] font-bold text-[#8A8A92]">
+                        ?
+                      </span>
+                      <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-64 -translate-x-1/2 rounded-[10px] border border-[#EDEDF0] bg-white p-3 text-[12px] leading-relaxed text-[#4B4B52] opacity-0 shadow-card transition group-hover:opacity-100">
+                        {GRADE_OPTIONS.map((g) => (
+                          <p key={g} className="mb-1.5 last:mb-0">
+                            <span className="font-bold text-ink">{g}</span> — {GRADE_GUIDE[g]}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <select
+                    id="grade"
+                    value={grade}
+                    onChange={(e) => setGrade(e.target.value as ListingGrade | "")}
+                    className={inputCls}
+                  >
+                    <option value="">선택 안 함</option>
+                    {GRADE_OPTIONS.map((g) => (
+                      <option key={g} value={g}>
+                        {g}
+                      </option>
+                    ))}
+                  </select>
+                  {grade && (
+                    <p className="mt-1.5 text-[12px] leading-relaxed text-[#8A8A92]">
+                      {GRADE_GUIDE[grade]}
+                    </p>
+                  )}
+
+                  {error && <p className="mt-4 text-[12.5px] font-semibold text-primary">{error}</p>}
+
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="mt-6 w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3.5 text-[15.5px] font-bold text-white shadow-tactile transition active:translate-y-0.5 active:shadow-tactile-active disabled:opacity-60"
+                  >
+                    {submitting ? "등록 중..." : "상품 등록"}
+                  </button>
+                </>
+              )}
+
+              {!selectedCard && error && (
+                <p className="mt-4 text-[12.5px] font-semibold text-primary">{error}</p>
+              )}
+            </form>
+
+            {selectedCard && (
+              <p className="mt-4 text-center text-[13.5px] text-[#8A8A92]">
+                <Link
+                  href={`/cards/${selectedCard.id}`}
+                  className="font-bold text-primary hover:text-primary-dark"
+                >
+                  카드 상세로 돌아가기
+                </Link>
+              </p>
+            )}
           </div>
-          <select
-            id="grade"
-            value={grade}
-            onChange={(e) => setGrade(e.target.value as ListingGrade | "")}
-            className={inputCls}
-          >
-            <option value="">선택 안 함</option>
-            {GRADE_OPTIONS.map((g) => (
-              <option key={g} value={g}>
-                {g}
-              </option>
-            ))}
-          </select>
-          {grade && (
-            <p className="mt-1.5 text-[12px] leading-relaxed text-[#8A8A92]">
-              {GRADE_GUIDE[grade]}
-            </p>
-          )}
-
-          {error && <p className="mt-4 text-[12.5px] font-semibold text-primary">{error}</p>}
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="mt-6 w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3.5 text-[15.5px] font-bold text-white shadow-tactile transition active:translate-y-0.5 active:shadow-tactile-active disabled:opacity-60"
-          >
-            {submitting ? "등록 중..." : "상품 등록"}
-          </button>
-        </form>
-
-        {selectedCard && (
-          <p className="mt-4 text-center text-[13.5px] text-[#8A8A92]">
-            <Link
-              href={`/cards/${selectedCard.id}`}
-              className="font-bold text-primary hover:text-primary-dark"
-            >
-              카드 상세로 돌아가기
-            </Link>
-          </p>
-        )}
+        </div>
       </div>
     </main>
   );

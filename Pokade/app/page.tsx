@@ -568,21 +568,6 @@ export default function HomePage() {
           ))}
         </div>
       </section>
-
-      {/* FINAL CTA */}
-      <section className="bg-primary px-10 py-[60px] text-center">
-        <h2 className="m-0 text-[30px] font-extrabold leading-[1.3] tracking-[-0.8px] text-white">
-          지금 바로 내 카드의 가치를 확인하세요
-        </h2>
-        <p className="mt-3.5 text-[15.5px] text-[#FFD7D7]">가입 즉시 무료 AI 진단 3회 제공</p>
-        <Link
-          href="/signup"
-          className="mt-7 inline-block rounded-[11px] border-[1.5px] border-white bg-transparent px-[34px] py-[15px] text-base font-bold text-white transition hover:bg-white hover:text-primary"
-        >
-          무료로 시작하기
-        </Link>
-      </section>
-
       {toastMessage && (
         <div
           role="status"

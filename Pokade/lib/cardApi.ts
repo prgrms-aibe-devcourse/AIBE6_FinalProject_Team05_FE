@@ -6,6 +6,7 @@ import {
   CardResponse,
 } from "@/types/card";
 import {
+  BuyOfferOrderbookEntryResponse,
   ChartPeriod,
   CardPricePointResponse,
   CardPriceSummaryResponse,
@@ -227,4 +228,18 @@ export async function fetchPriceRanking(type: RankingType): Promise<PriceRanking
 // GET /api/listings?cardId= — 판매 중(ACTIVE) 매물 목록, 가격 오름차순.
 export async function fetchActiveListings(cardId: number): Promise<ListingSummaryResponse[]> {
   return apiGet<ListingSummaryResponse[]>(`/api/listings?cardId=${cardId}`);
+}
+
+// GET /api/prices/{cardId}/buy-offers — 활성 구매입찰(매수 호가) 목록, 가격 내림차순.
+// 판매 매물의 orderbook(GET /api/listings/{cardId}/orderbook)과 대응되는 매수 쪽. 로그인 필요(401 가능).
+// variantId 생략 시 BE가 대표 판본(primary) 기준으로 응답한다.
+export async function fetchBuyOfferOrderbook(
+  cardId: number,
+  options?: { variantId?: number; grade?: ListingGrade },
+): Promise<BuyOfferOrderbookEntryResponse[]> {
+  const query = new URLSearchParams();
+  if (options?.variantId != null) query.set("variantId", String(options.variantId));
+  if (options?.grade) query.set("grade", options.grade);
+  const qs = query.toString();
+  return apiGet<BuyOfferOrderbookEntryResponse[]>(`/api/prices/${cardId}/buy-offers${qs ? `?${qs}` : ""}`);
 }

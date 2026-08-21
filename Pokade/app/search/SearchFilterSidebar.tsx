@@ -7,10 +7,10 @@ type LoadState = "loading" | "error" | "ready";
 const toggleValue = (list: string[], value: string) =>
   list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 
-// 가격대 직접 입력 자릿수 제한(#187) — type="number" input은 "e"(지수 표기)나 임의로 긴 숫자를
-// 그대로 받아들여 blur 전까지 입력창이 보기 흉하게 늘어난다. PRICE_MAX(10,000,000)의 자릿수만큼만
-// 허용하고 숫자가 아닌 문자는 입력 즉시 제거한다 — blur 시점의 클램핑(handleMinChange 등)과는
-// 별개로, 타이핑 중에도 자릿수 자체를 여기서 먼저 제한한다.
+// 가격대 직접 입력 자릿수 제한(#187) — 숫자가 아닌 문자는 입력 즉시 제거하고 PRICE_MAX
+// (10,000,000)의 자릿수만큼만 허용한다. blur 시점의 클램핑(handleMinChange 등)과는 별개로,
+// 타이핑 중에도 자릿수 자체를 여기서 먼저 제한한다 — 콤마 포함 문자열이 들어와도 숫자 아닌
+// 문자를 먼저 걸러내므로 콤마 유무와 무관하게 항상 숫자 개수 기준으로 자른다.
 const PRICE_INPUT_MAX_LENGTH = String(PRICE_MAX).length;
 const sanitizePriceInput = (raw: string) => raw.replace(/\D/g, "").slice(0, PRICE_INPUT_MAX_LENGTH);
 
@@ -173,7 +173,7 @@ export default function SearchFilterSidebar({
   setLoadState,
   resetFilters,
 }: SearchFilterSidebarProps) {
-  // 슬라이더(range input)와 직접 입력(number input)이 공유하는 min/max 클램핑 로직 —
+  // 슬라이더(range input)와 직접 입력이 공유하는 min/max 클램핑 로직 —
   // 두 값이 서로를 앞지르지 않도록(min<=max) 여기서 한 번에 검증한다. 클램핑된 값이 기존
   // priceMin/priceMax와 같으면(예: PRICE_MAX보다 큰 값을 입력) setPriceMin/Max가 상태를 바꾸지
   // 않아 아래 prevPriceMin/Max 비교 기반 동기화가 발동하지 않는다 — 그래서 입력창 텍스트는

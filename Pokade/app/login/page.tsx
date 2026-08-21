@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useUserStore } from "@/store/useUserStore";
 import { ApiError } from "@/lib/apiClient";
-import { authErrorMessage } from "@/lib/authErrorMessages";
+import { authErrorMessage, oauthRedirectErrorMessage } from "@/lib/authErrorMessages";
 import { API_BASE_URL } from "@/lib/apiClient";
 
 // redirect 쿼리로 임의 도메인 이동(오픈 리다이렉트)을 허용하지 않도록, "/"로 시작하는
@@ -39,6 +39,24 @@ function LoginForm() {
       router.replace(sanitizeRedirect(searchParams.get("redirect")));
     }
   }, [authStatus, router, searchParams]);
+
+  // 소셜 로그인 실패 사유는 BE가 /login?error=...(&provider=) 로 붙여 보낸다.
+  // 초기화 함수로 한 번만 읽는다 - effect에서 setState 하면 URL을 지운 뒤라 값을 놓친다.
+  const [oauthNotice] = useState<string | null>(() =>
+    oauthRedirectErrorMessage(searchParams.get("error"), searchParams.get("provider")),
+  );
+
+  // 사유는 위에서 이미 읽었다. URL에 남겨두면 새로고침마다 다시 뜨므로 지운다.
+  // redirect는 보존한다 - 보호된 페이지로 가려다 실패한 경우 목적지를 잃으면 안 된다.
+  useEffect(() => {
+    if (authStatus === "authenticated") return; // 위 effect가 목적지로 보내므로 정리할 이유가 없다
+    if (!searchParams.get("error") && !searchParams.get("provider")) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("error");
+    params.delete("provider");
+    const qs = params.toString();
+    router.replace(qs ? `/login?${qs}` : "/login");
+  }, [authStatus, searchParams, router]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -89,6 +107,14 @@ function LoginForm() {
           </div>
           <p className="mt-2 text-sm text-[#8A8A92]">컬렉터를 위한 안전한 카드 거래</p>
         </div>
+        {oauthNotice && (
+          <p
+            role="alert"
+            className="mb-4 break-keep rounded-[11px] border border-[#FFD9D9] bg-[#FFF6F6] px-3.5 py-3 text-[13px] font-semibold text-primary"
+          >
+            {oauthNotice}
+          </p>
+        )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
@@ -122,7 +148,10 @@ function LoginForm() {
               className={inputCls}
             />
             {error && (
-              <p role="alert" className="mt-[9px] text-[12.5px] font-semibold text-primary">
+              <p
+                role="alert"
+                className="mt-[9px] whitespace-pre-line break-keep text-[12.5px] font-semibold text-primary"
+              >
                 {error}
               </p>
             )}

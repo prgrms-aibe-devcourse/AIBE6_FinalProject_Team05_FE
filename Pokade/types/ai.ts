@@ -18,4 +18,11 @@ export interface GradeResponse {
   retryAllowed: boolean;
   notice: string;
   createdAt: string;
+  // vision_card_id(externalId)로 해석된 카드 — 자체 DB에 없거나 인식 실패면 전부 null.
+  // cardId가 있어야 FR-AI-04(도감 등록)를 진행할 수 있다.
+  cardId: number | null;
+  cardName: string | null;
+  cardImageSmall: string | null;
+  // 카드 인식 신뢰도(%) — 등급 산출 신뢰도(confidence)와는 별개 지표.
+  cardConfidence: number | null;
 }
