@@ -405,9 +405,14 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     const result = await toggleWatchlist(cardId, myWatchlist?.id ?? null, selectedVariantId);
     if (result.status === "added") {
       setMyWatchlist({ id: result.watchlistId, targetBuyPrice: null, targetSellPrice: null });
+      // 관심수 재조회 없이 즉시 +1 — 다른 탭에서 이미 등록된 카드를 모르고 등록 시도한
+      // DUPLICATE_WATCHLIST 경합처럼 드문 경우엔 실제보다 1 높게 보일 수 있지만,
+      // 다음 새로고침/재조회 시 정확한 값으로 맞춰지는 일시적 드리프트라 지금은 감내한다.
+      setWatchlistCount((c) => (c ?? 0) + 1);
       showToast("관심 등록했습니다");
     } else if (result.status === "removed") {
       setMyWatchlist(null);
+      setWatchlistCount((c) => (c != null ? Math.max(0, c - 1) : c));
       showToast("관심 해제했습니다");
     } else if (result.status === "error") {
       setWatchlistToggleError(result.message);
@@ -839,6 +844,13 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                           />
                         </svg>
                       </button>
+                      {/* 0/조회 실패(null)는 표시할 의미 있는 숫자가 없다고 보고 숨긴다 —
+                          신규 카드에 "0"이 찍혀 위축감을 주는 것도 피한다. */}
+                      {!!watchlistCount && (
+                        <span className="text-[12.5px] font-semibold text-[#9A9AA2]">
+                          {watchlistCount.toLocaleString("ko-KR")}
+                        </span>
+                      )}
                       {myWatchlist && (
                         <button
                           type="button"
