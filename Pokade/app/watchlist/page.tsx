@@ -114,6 +114,19 @@ function formatTargets(item: WatchlistResponse): { label: string; value: string 
   return targets;
 }
 
+// 테이블 행(데스크톱)과 카드(모바일, <640px)가 같은 원본 데이터에서 같은 파생값을 쓰므로
+// 계산 자체는 여기서 한 번만 하고, 두 레이아웃은 이 값을 각자의 마크업으로만 배치한다.
+function rowDisplay(row: WatchlistResponse) {
+  const displayName = row.cardNameKo ?? row.cardName ?? "알 수 없는 카드";
+  const priceLabel = resolvePriceDisplay(row.currentPrice ?? undefined)?.price ?? "정보 없음";
+  const targets = formatTargets(row);
+  const status = statusOf(row);
+  const changeRate = row.changeRate;
+  const isRise = changeRate != null && changeRate >= 0;
+  const changeCls = isRise ? "text-primary" : "text-secondary";
+  return { displayName, priceLabel, targets, status, changeRate, isRise, changeCls };
+}
+
 export default function WatchlistPage() {
   const authStatus = useRequireAuth();
 
@@ -238,7 +251,7 @@ export default function WatchlistPage() {
   if (authStatus !== "authenticated") return null;
 
   return (
-    <main className="main-content bg-neutral px-10 pb-14 pt-9">
+    <main className="main-content bg-neutral px-4 pb-14 pt-9 sm:px-10">
       <div className="mx-auto max-w-[1200px]">
         <div className="mb-[22px] flex items-end justify-between">
           <div>
@@ -345,104 +358,87 @@ export default function WatchlistPage() {
                 해당 상태의 카드가 없습니다.
               </div>
             ) : (
-              <div className="overflow-hidden rounded-2xl border border-[#EDEDF0] bg-white">
-                {/* 좁은 화면에서 grid-cols가 찌그러지는 대신 테이블 박스 안에서만 가로 스크롤되도록
-                    분리된 스크롤 컨테이너 — min-w는 6개 컬럼이 한 줄로 안 뭉개지는 최소 폭. */}
-                <div className="overflow-x-auto">
-                  <div className="min-w-[760px]">
-                    <div className="grid grid-cols-[2.4fr_1fr_1fr_1fr_1fr_0.6fr] gap-4 border-b border-[#EDEDF0] bg-[#FAFAFB] px-[22px] py-3.5 text-xs font-bold text-[#9A9AA2]">
-                      <div>카드</div>
-                      <div>현재 시세</div>
-                      <div>목표가</div>
-                      <div>등락</div>
-                      <div>상태</div>
-                      <div />
-                    </div>
-                    {sorted.map((row, i) => {
-                      const displayName = row.cardNameKo ?? row.cardName ?? "알 수 없는 카드";
-                      const priceLabel =
-                        resolvePriceDisplay(row.currentPrice ?? undefined)?.price ?? "정보 없음";
-                      const targets = formatTargets(row);
-                      const status = statusOf(row);
-                      const changeRate = row.changeRate;
-                      const isRise = changeRate != null && changeRate >= 0;
-                      const changeCls = isRise ? "text-primary" : "text-secondary";
-                      return (
-                        <div
-                          key={row.id}
-                          className={`grid grid-cols-[2.4fr_1fr_1fr_1fr_1fr_0.6fr] items-center gap-4 px-[22px] py-4 hover:bg-[#FAFAFB] ${
-                            i < sorted.length - 1 ? "border-b border-[#F2F2F5]" : ""
-                          }`}
-                        >
-                          <Link
-                            href={`/cards/${row.cardId}`}
-                            className="flex items-center gap-3 hover:text-primary"
-                          >
-                            <div className="relative h-14 w-10 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
-                              <CardImage src={row.imageUrl ?? undefined} alt={displayName} />
-                            </div>
-                            <div>
-                              <div className="text-sm font-bold">{displayName}</div>
-                              <div className="text-xs text-[#9A9AA2]">{row.setName ?? "-"}</div>
-                            </div>
-                          </Link>
-                          <div className="text-sm font-bold">{priceLabel}</div>
-                          <div className="text-sm text-[#4B4B52]">
-                            {targets.length > 0 ? (
-                              targets.map((t) => (
-                                <div key={t.label}>
-                                  {t.label}: {t.value}
-                                </div>
-                              ))
-                            ) : (
-                              <div>-</div>
-                            )}
-                          </div>
+              <>
+                <div className="hidden overflow-hidden rounded-2xl border border-[#EDEDF0] bg-white sm:block">
+                  {/* 좁은 화면에서 grid-cols가 찌그러지는 대신 테이블 박스 안에서만 가로 스크롤되도록
+                    분리된 스크롤 컨테이너 — min-w는 6개 컬럼이 한 줄로 안 뭉개지는 최소 폭.
+                    다만 sm 미만은 이 스크롤로도 등락/상태/액션이 화면 밖으로 밀려 접근성이
+                    나빠서, 아래 카드 리스트로 통째로 전환한다(위 hidden sm:block). */}
+                  <div className="overflow-x-auto">
+                    <div className="min-w-[760px]">
+                      <div className="grid grid-cols-[2.4fr_1fr_1fr_1fr_1fr_0.6fr] gap-4 border-b border-[#EDEDF0] bg-[#FAFAFB] px-[22px] py-3.5 text-xs font-bold text-[#9A9AA2]">
+                        <div>카드</div>
+                        <div>현재 시세</div>
+                        <div>목표가</div>
+                        <div>등락</div>
+                        <div>상태</div>
+                        <div />
+                      </div>
+                      {sorted.map((row, i) => {
+                        const {
+                          displayName,
+                          priceLabel,
+                          targets,
+                          status,
+                          changeRate,
+                          isRise,
+                          changeCls,
+                        } = rowDisplay(row);
+                        return (
                           <div
-                            className={`text-[13.5px] font-bold ${
-                              changeRate != null && changeRate !== 0 ? changeCls : "text-[#9A9AA2]"
+                            key={row.id}
+                            className={`grid grid-cols-[2.4fr_1fr_1fr_1fr_1fr_0.6fr] items-center gap-4 px-[22px] py-4 hover:bg-[#FAFAFB] ${
+                              i < sorted.length - 1 ? "border-b border-[#F2F2F5]" : ""
                             }`}
                           >
-                            {changeRate != null && changeRate !== 0
-                              ? `${isRise ? "▲" : "▼"} ${Math.abs(changeRate).toFixed(2)}%`
-                              : "-"}
-                          </div>
-                          <div>
-                            <span
-                              className={`rounded-full px-[11px] py-[5px] text-xs font-bold ${STATUS_CLS[status]}`}
+                            <Link
+                              href={`/cards/${row.cardId}`}
+                              className="flex items-center gap-3 hover:text-primary"
                             >
-                              {status}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-end gap-3">
-                            <button
-                              type="button"
-                              aria-label={`${displayName} 목표가 수정`}
-                              onClick={() => setEditingItem(row)}
-                              className="-m-3.5 p-3.5 text-[#C7C7CE] hover:text-primary"
+                              <div className="relative h-14 w-10 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
+                                <CardImage src={row.imageUrl ?? undefined} alt={displayName} />
+                              </div>
+                              <div>
+                                <div className="text-sm font-bold">{displayName}</div>
+                                <div className="text-xs text-[#9A9AA2]">{row.setName ?? "-"}</div>
+                              </div>
+                            </Link>
+                            <div className="text-sm font-bold">{priceLabel}</div>
+                            <div className="text-sm text-[#4B4B52]">
+                              {targets.length > 0 ? (
+                                targets.map((t) => (
+                                  <div key={t.label}>
+                                    {t.label}: {t.value}
+                                  </div>
+                                ))
+                              ) : (
+                                <div>-</div>
+                              )}
+                            </div>
+                            <div
+                              className={`text-[13.5px] font-bold ${
+                                changeRate != null && changeRate !== 0
+                                  ? changeCls
+                                  : "text-[#9A9AA2]"
+                              }`}
                             >
-                              <svg
-                                width="17"
-                                height="17"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                aria-hidden="true"
+                              {changeRate != null && changeRate !== 0
+                                ? `${isRise ? "▲" : "▼"} ${Math.abs(changeRate).toFixed(2)}%`
+                                : "-"}
+                            </div>
+                            <div>
+                              <span
+                                className={`rounded-full px-[11px] py-[5px] text-xs font-bold ${STATUS_CLS[status]}`}
                               >
-                                <path d="M12 20h9" />
-                                <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z" />
-                              </svg>
-                            </button>
-                            {row.isNotified && (
+                                {status}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-end gap-3">
                               <button
                                 type="button"
-                                aria-label={`${displayName} 알림 다시 받기`}
-                                disabled={resendingId === row.id}
-                                onClick={() => handleResendNotification(row.id)}
-                                className="-m-3.5 p-3.5 text-[#C7C7CE] hover:text-primary disabled:opacity-50"
+                                aria-label={`${displayName} 목표가 수정`}
+                                onClick={() => setEditingItem(row)}
+                                className="-m-3.5 p-3.5 text-[#C7C7CE] hover:text-primary"
                               >
                                 <svg
                                   width="17"
@@ -455,35 +451,200 @@ export default function WatchlistPage() {
                                   strokeLinejoin="round"
                                   aria-hidden="true"
                                 >
-                                  <path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-                                  <path d="M13.73 21a2 2 0 01-3.46 0" />
+                                  <path d="M12 20h9" />
+                                  <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z" />
                                 </svg>
                               </button>
-                            )}
-                            <button
-                              type="button"
-                              aria-label={`${displayName} 관심 목록에서 삭제`}
-                              disabled={deletingId === row.id}
-                              onClick={() => setDeleteTarget(row)}
-                              className="-m-3.5 p-3.5 text-[#C7C7CE] hover:text-primary disabled:opacity-50"
-                            >
-                              <svg
-                                width="18"
-                                height="18"
-                                viewBox="0 0 24 24"
-                                fill="currentColor"
-                                aria-hidden="true"
+                              {row.isNotified && (
+                                <button
+                                  type="button"
+                                  aria-label={`${displayName} 알림 다시 받기`}
+                                  disabled={resendingId === row.id}
+                                  onClick={() => handleResendNotification(row.id)}
+                                  className="-m-3.5 p-3.5 text-[#C7C7CE] hover:text-primary disabled:opacity-50"
+                                >
+                                  <svg
+                                    width="17"
+                                    height="17"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    aria-hidden="true"
+                                  >
+                                    <path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                                    <path d="M13.73 21a2 2 0 01-3.46 0" />
+                                  </svg>
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                aria-label={`${displayName} 관심 목록에서 삭제`}
+                                disabled={deletingId === row.id}
+                                onClick={() => setDeleteTarget(row)}
+                                className="-m-3.5 p-3.5 text-[#C7C7CE] hover:text-primary disabled:opacity-50"
                               >
-                                <path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
-                              </svg>
-                            </button>
+                                <svg
+                                  width="18"
+                                  height="18"
+                                  viewBox="0 0 24 24"
+                                  fill="currentColor"
+                                  aria-hidden="true"
+                                >
+                                  <path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                                </svg>
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
-              </div>
+
+                {/* sm 미만 전용 — 위 테이블은 hidden sm:block, 이 카드 리스트는 sm:hidden.
+                  등락/상태/액션이 스크롤 없이도 한 화면에 다 보이도록 1열로 쌓는다. */}
+                <div className="flex flex-col gap-3 sm:hidden">
+                  {sorted.map((row) => {
+                    const {
+                      displayName,
+                      priceLabel,
+                      targets,
+                      status,
+                      changeRate,
+                      isRise,
+                      changeCls,
+                    } = rowDisplay(row);
+                    return (
+                      <div
+                        key={row.id}
+                        className="rounded-2xl border border-[#EDEDF0] bg-white p-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <Link
+                            href={`/cards/${row.cardId}`}
+                            className="flex items-center gap-3 hover:text-primary"
+                          >
+                            <div className="relative h-14 w-10 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
+                              <CardImage src={row.imageUrl ?? undefined} alt={displayName} />
+                            </div>
+                            <div>
+                              <div className="text-sm font-bold">{displayName}</div>
+                              <div className="text-xs text-[#9A9AA2]">{row.setName ?? "-"}</div>
+                            </div>
+                          </Link>
+                          <span
+                            className={`flex-shrink-0 rounded-full px-[11px] py-[5px] text-xs font-bold ${STATUS_CLS[status]}`}
+                          >
+                            {status}
+                          </span>
+                        </div>
+
+                        <div className="mt-3.5 flex flex-col gap-1.5 border-t border-[#F2F2F5] pt-3 text-[13px]">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[#9A9AA2]">현재 시세</span>
+                            <span className="font-bold">{priceLabel}</span>
+                          </div>
+                          {targets.length > 0 ? (
+                            targets.map((t) => (
+                              <div key={t.label} className="flex items-center justify-between">
+                                <span className="text-[#9A9AA2]">{t.label}</span>
+                                <span className="font-semibold text-[#4B4B52]">{t.value}</span>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="flex items-center justify-between">
+                              <span className="text-[#9A9AA2]">목표가</span>
+                              <span className="text-[#4B4B52]">-</span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between">
+                            <span className="text-[#9A9AA2]">등락</span>
+                            <span
+                              className={`font-bold ${
+                                changeRate != null && changeRate !== 0
+                                  ? changeCls
+                                  : "text-[#9A9AA2]"
+                              }`}
+                            >
+                              {changeRate != null && changeRate !== 0
+                                ? `${isRise ? "▲" : "▼"} ${Math.abs(changeRate).toFixed(2)}%`
+                                : "-"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="mt-3.5 flex items-center justify-end gap-3 border-t border-[#F2F2F5] pt-3">
+                          <button
+                            type="button"
+                            aria-label={`${displayName} 목표가 수정`}
+                            onClick={() => setEditingItem(row)}
+                            className="-m-2.5 p-2.5 text-[#C7C7CE] hover:text-primary"
+                          >
+                            <svg
+                              width="17"
+                              height="17"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden="true"
+                            >
+                              <path d="M12 20h9" />
+                              <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z" />
+                            </svg>
+                          </button>
+                          {row.isNotified && (
+                            <button
+                              type="button"
+                              aria-label={`${displayName} 알림 다시 받기`}
+                              disabled={resendingId === row.id}
+                              onClick={() => handleResendNotification(row.id)}
+                              className="-m-2.5 p-2.5 text-[#C7C7CE] hover:text-primary disabled:opacity-50"
+                            >
+                              <svg
+                                width="17"
+                                height="17"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                aria-hidden="true"
+                              >
+                                <path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                                <path d="M13.73 21a2 2 0 01-3.46 0" />
+                              </svg>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            aria-label={`${displayName} 관심 목록에서 삭제`}
+                            disabled={deletingId === row.id}
+                            onClick={() => setDeleteTarget(row)}
+                            className="-m-2.5 p-2.5 text-[#C7C7CE] hover:text-primary disabled:opacity-50"
+                          >
+                            <svg
+                              width="18"
+                              height="18"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                              aria-hidden="true"
+                            >
+                              <path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </>
         )}
