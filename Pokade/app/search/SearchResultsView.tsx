@@ -350,7 +350,7 @@ export default function SearchResultsView({
             {Array.from({ length: SEARCH_SKELETON_COUNT }).map((_, i) => (
               <div
                 key={i}
-                className="flex flex-col overflow-hidden rounded-[13px] border border-[#EDEDF0]"
+                className="flex flex-col overflow-hidden rounded-[14px] border border-[#EDEDF0]"
               >
                 <div className="aspect-[5/7] w-full animate-pulse bg-[#F2F2F5]" />
                 <div className="flex flex-1 flex-col gap-2 p-3">
@@ -429,7 +429,7 @@ export default function SearchResultsView({
               return (
                 <div
                   key={c.id}
-                  className="relative flex flex-col overflow-hidden rounded-[13px] border border-[#EDEDF0] transition hover:-translate-y-[3px] hover:shadow-lift"
+                  className="relative flex flex-col overflow-hidden rounded-[14px] border border-[#EDEDF0] transition hover:-translate-y-1 hover:shadow-lift"
                 >
                   {/* 링크 범위는 이미지+이름/세트/타입까지 — 가격 줄은 아래에서 Link 밖 형제로
                       분리했다(#235). 하트를 카드 아트 위에 겹치지 않게 가격 옆으로 옮기려면
