@@ -7,6 +7,7 @@ import CardImage from "@/components/CardImage";
 import PriceChart from "@/components/PriceChart";
 import ImageLightbox from "@/components/ImageLightbox";
 import AddWatchlistModal from "@/components/AddWatchlistModal";
+import Toast from "@/components/Toast";
 import RelatedCardsSection from "./RelatedCardsSection";
 import VariantPriceComparison from "./VariantPriceComparison";
 import OrderActivitySection from "./OrderActivitySection";
@@ -39,6 +40,12 @@ import { loginUrlFor } from "@/lib/authRedirect";
 import { toKrw } from "@/lib/currency";
 import { useTimedFlag } from "@/hooks/useTimedFlag";
 import { useQuickWatchlistToggle } from "@/hooks/useQuickWatchlistToggle";
+import { useToast } from "@/hooks/useToast";
+import {
+  WATCHLIST_ADDED_TOAST,
+  WATCHLIST_ADDED_TOAST_MS,
+  WATCHLIST_REMOVED_TOAST,
+} from "@/lib/watchlistToast";
 
 type LoadState = "loading" | "error" | "notfound" | "ready";
 type RelatedLoadState = "loading" | "ready";
@@ -110,14 +117,14 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   // 목표가 설정/수정 모달(AddWatchlistModal의 edit 모드) 오픈 여부 — 등록 자체는 useQuickWatchlistToggle이
   // 즉시 처리하므로, 이 모달은 "이미 등록된 카드의 목표가를 나중에 설정"하는 선택적 진입점 전용이다.
   const [watchlistModalOpen, setWatchlistModalOpen] = useState(false);
-  // 목표가 저장 성공 flash("저장됨"). 등록/해제 자체의 피드백은 toastMessage가 따로 담당한다.
+  // 목표가 저장 성공 flash("저장됨"). 등록/해제 자체의 피드백은 아래 useToast가 따로 담당한다.
   const [watchlistAdded, triggerWatchlistAdded] = useTimedFlag(2000);
   // 이 카드가 이미 내 워치리스트에 있는지 + 목표가 수정 모달의 초기값으로 쓸 현재 목표가.
   const [myWatchlist, setMyWatchlist] = useState<
     Pick<WatchlistResponse, "id" | "targetBuyPrice" | "targetSellPrice"> | null
   >(null);
   const [watchlistToggleError, setWatchlistToggleError] = useState<string | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const { toast, showToast } = useToast();
   const { toggle: toggleWatchlist, pendingCardId: watchlistPendingCardId } =
     useQuickWatchlistToggle();
 
@@ -381,13 +388,6 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     };
   }, [cardId, loadState, userStatus]);
 
-  const showToast = (message: string) => {
-    setToastMessage(message);
-    setTimeout(() => {
-      setToastMessage((cur) => (cur === message ? null : cur));
-    }, 2500);
-  };
-
   const handleWatchlistToggle = async () => {
     if (cardId == null) return;
     setWatchlistToggleError(null);
@@ -398,11 +398,11 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
       // DUPLICATE_WATCHLIST 경합처럼 드문 경우엔 실제보다 1 높게 보일 수 있지만,
       // 다음 새로고침/재조회 시 정확한 값으로 맞춰지는 일시적 드리프트라 지금은 감내한다.
       setWatchlistCount((c) => (c ?? 0) + 1);
-      showToast("관심 등록했습니다");
+      showToast(WATCHLIST_ADDED_TOAST, WATCHLIST_ADDED_TOAST_MS);
     } else if (result.status === "removed") {
       setMyWatchlist(null);
       setWatchlistCount((c) => (c != null ? Math.max(0, c - 1) : c));
-      showToast("관심 해제했습니다");
+      showToast(WATCHLIST_REMOVED_TOAST);
     } else if (result.status === "error") {
       setWatchlistToggleError(result.message);
       setTimeout(() => setWatchlistToggleError(null), 3000);
@@ -950,14 +950,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
           })()}
       </div>
 
-      {toastMessage && (
-        <div
-          role="status"
-          className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-5 py-3 text-[13.5px] font-bold text-white shadow-lg"
-        >
-          {toastMessage}
-        </div>
-      )}
+      <Toast toast={toast} />
     </main>
   );
 }

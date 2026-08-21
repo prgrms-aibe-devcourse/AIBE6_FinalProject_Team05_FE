@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { SearchBar } from "@/components/CardSearchBar";
+import Toast from "@/components/Toast";
 import { CardFacetsResponse, CardSearchItem, toCardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
 import { CardSort, fetchCardFacets, fetchCardsPage, fetchPriceSummaries } from "@/lib/cardApi";
@@ -10,6 +11,12 @@ import { ApiError } from "@/lib/apiClient";
 import { fetchWatchlist } from "@/lib/watchlistApi";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 import { useQuickWatchlistToggle } from "@/hooks/useQuickWatchlistToggle";
+import { useToast } from "@/hooks/useToast";
+import {
+  WATCHLIST_ADDED_TOAST,
+  WATCHLIST_ADDED_TOAST_MS,
+  WATCHLIST_REMOVED_TOAST,
+} from "@/lib/watchlistToast";
 import { useUserStore } from "@/store/useUserStore";
 import { isPriceSort, MARKET_PAGE_SIZE, PRICE_MAX, UiSort } from "./constants";
 import SearchResultsView from "./SearchResultsView";
@@ -45,7 +52,7 @@ function SearchDashboard() {
   const [watchlistError, setWatchlistError] = useState<{ cardId: number; message: string } | null>(
     null,
   );
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const { toast, showToast } = useToast();
   const { toggle: toggleWatchlist, pendingCardId: watchlistPendingCardId } =
     useQuickWatchlistToggle();
   const [priceMin, setPriceMin] = useState<number>(() => {
@@ -338,27 +345,20 @@ function SearchDashboard() {
     page,
   ]);
 
-  const showToast = (message: string) => {
-    setToastMessage(message);
-    setTimeout(() => {
-      setToastMessage((cur) => (cur === message ? null : cur));
-    }, 2500);
-  };
-
   const handleHeartClick = async (cardId: number) => {
     setWatchlistError(null);
     const watchlistId = myWatchlist.get(cardId) ?? null;
     const result = await toggleWatchlist(cardId, watchlistId);
     if (result.status === "added") {
       setMyWatchlist((m) => new Map(m).set(cardId, result.watchlistId));
-      showToast("관심 등록했습니다");
+      showToast(WATCHLIST_ADDED_TOAST, WATCHLIST_ADDED_TOAST_MS);
     } else if (result.status === "removed") {
       setMyWatchlist((m) => {
         const next = new Map(m);
         next.delete(cardId);
         return next;
       });
-      showToast("관심 해제했습니다");
+      showToast(WATCHLIST_REMOVED_TOAST);
     } else if (result.status === "error") {
       setWatchlistError({ cardId, message: result.message });
       setTimeout(() => {
@@ -461,14 +461,7 @@ function SearchDashboard() {
           onHeartClick={handleHeartClick}
         />
       </div>
-      {toastMessage && (
-        <div
-          role="status"
-          className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-5 py-3 text-[13.5px] font-bold text-white shadow-lg"
-        >
-          {toastMessage}
-        </div>
-      )}
+      <Toast toast={toast} />
     </main>
   );
 }
