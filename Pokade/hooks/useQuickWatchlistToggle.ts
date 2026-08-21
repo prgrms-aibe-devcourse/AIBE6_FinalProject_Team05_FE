@@ -71,8 +71,8 @@ export function useQuickWatchlistToggle() {
           err instanceof ApiError
             ? err.message
             : watchlistId != null
-              ? "워치리스트 삭제에 실패했습니다."
-              : "워치리스트 등록에 실패했습니다.",
+              ? "관심 해제에 실패했습니다."
+              : "관심 등록에 실패했습니다.",
       };
     } finally {
       setPendingCardId(null);

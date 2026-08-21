@@ -157,7 +157,7 @@ export default function NotificationsPage() {
           <div>
             <h1 className="m-0 text-[26px] font-extrabold tracking-[-0.6px]">알림</h1>
             <p className="mt-1.5 text-sm text-[#8A8A92]">
-              워치리스트·거래 등 전체 알림을 확인하세요
+              관심 등록·거래 등 전체 알림을 확인하세요
             </p>
           </div>
           {unreadCount > 0 && (

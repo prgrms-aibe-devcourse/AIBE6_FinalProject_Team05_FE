@@ -182,14 +182,14 @@ export default function HomePage() {
     const result = await toggle(cardId, watchlistId);
     if (result.status === "added") {
       setMyWatchlist((m) => new Map(m).set(cardId, result.watchlistId));
-      showToast("워치리스트에 등록했습니다");
+      showToast("관심 등록했습니다");
     } else if (result.status === "removed") {
       setMyWatchlist((m) => {
         const next = new Map(m);
         next.delete(cardId);
         return next;
       });
-      showToast("워치리스트에서 삭제했습니다");
+      showToast("관심 해제했습니다");
     } else if (result.status === "error") {
       setWatchlistError({ cardId, message: result.message });
       setTimeout(() => {

@@ -63,15 +63,15 @@ function DeleteConfirmModal({
       onClick={onCancel}
       role="dialog"
       aria-modal="true"
-      aria-label="워치리스트 삭제 확인"
+      aria-label="관심 목록 삭제 확인"
     >
       <div
         className="w-full max-w-[360px] rounded-2xl bg-white p-6"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="m-0 text-[16px] font-extrabold">워치리스트에서 삭제</h2>
+        <h2 className="m-0 text-[16px] font-extrabold">관심 목록에서 삭제</h2>
         <p className="mb-5 mt-2 text-[13.5px] leading-relaxed text-[#5A5A62]">
-          <b className="font-bold text-ink">{cardName}</b>을(를) 워치리스트에서 삭제하시겠어요?
+          <b className="font-bold text-ink">{cardName}</b>을(를) 관심 목록에서 삭제하시겠어요?
         </p>
         <div className="flex gap-2.5">
           <button
@@ -141,7 +141,7 @@ export default function WatchlistPage() {
       })
       .catch((err) => {
         if (cancelled) return;
-        setErrorMessage(err instanceof ApiError ? err.message : "워치리스트 조회에 실패했습니다.");
+        setErrorMessage(err instanceof ApiError ? err.message : "관심 목록 조회에 실패했습니다.");
         setLoadState("error");
       });
 
@@ -242,7 +242,7 @@ export default function WatchlistPage() {
       <div className="mx-auto max-w-[1200px]">
         <div className="mb-[22px] flex items-end justify-between">
           <div>
-            <h1 className="m-0 text-[26px] font-extrabold tracking-[-0.6px]">워치리스트</h1>
+            <h1 className="m-0 text-[26px] font-extrabold tracking-[-0.6px]">관심 목록</h1>
             <p className="mt-1.5 text-sm text-[#8A8A92]">
               관심 카드의 목표가 도달 알림을 관리하세요
             </p>
@@ -462,7 +462,7 @@ export default function WatchlistPage() {
                             )}
                             <button
                               type="button"
-                              aria-label={`${displayName} 워치리스트에서 삭제`}
+                              aria-label={`${displayName} 관심 목록에서 삭제`}
                               disabled={deletingId === row.id}
                               onClick={() => setDeleteTarget(row)}
                               className="-m-3.5 p-3.5 text-[#C7C7CE] hover:text-primary disabled:opacity-50"

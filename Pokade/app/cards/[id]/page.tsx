@@ -405,10 +405,10 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     const result = await toggleWatchlist(cardId, myWatchlist?.id ?? null, selectedVariantId);
     if (result.status === "added") {
       setMyWatchlist({ id: result.watchlistId, targetBuyPrice: null, targetSellPrice: null });
-      showToast("워치리스트에 등록했습니다");
+      showToast("관심 등록했습니다");
     } else if (result.status === "removed") {
       setMyWatchlist(null);
-      showToast("워치리스트에서 삭제했습니다");
+      showToast("관심 해제했습니다");
     } else if (result.status === "error") {
       setWatchlistToggleError(result.message);
       setTimeout(() => setWatchlistToggleError(null), 3000);
