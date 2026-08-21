@@ -1,7 +1,6 @@
 import { Dispatch, SetStateAction, useEffect, useRef } from "react";
 import Link from "next/link";
 import CardImage from "@/components/CardImage";
-import { SearchBar } from "@/components/CardSearchBar";
 import { CardFacetOption, CardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
 import { highlightMatch } from "@/lib/highlightMatch";
@@ -199,7 +198,9 @@ export default function SearchResultsView({
     <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[250px_1fr]">
       {/* filter sidebar — #308: 키워드(q) 검색 중에도 필터를 함께 적용할 수 있어 항상 노출한다.
           lg 미만에서는 사이드바 대신 "필터" 버튼으로 여는 바텀시트/드로어로 표시.
-          세트/타입/레어도/언어/가격대 필터 전체는 SearchFilterSidebar로 분리돼 있다(#142). */}
+          세트/타입/레어도/언어/가격대 필터 전체는 SearchFilterSidebar로 분리돼 있다(#142).
+          필터와 결과(카드 목록+페이지네이션)는 각자 자기 카드 스타일을 갖는다(SearchFilterSidebar.tsx
+          lg: 스타일, 아래 결과 컬럼 div 참고) — 이 grid 자체는 순수 레이아웃 컨테이너로만 쓴다. */}
       <SearchFilterSidebar
         filterOpen={filterOpen}
         setFilterOpen={setFilterOpen}
@@ -226,12 +227,9 @@ export default function SearchResultsView({
         resetFilters={resetFilters}
       />
 
-      {/* results grid */}
-      <div>
-        <div className="mb-4">
-          <SearchBar width="w-full" variant="market" />
-        </div>
-
+      {/* results grid — 카드 목록+페이지네이션 전용 카드. 필터 사이드바(SearchFilterSidebar.tsx)와
+          같은 톤(rounded-2xl/border-[#EDEDF0]/shadow-card)으로 나란히 놓인 별도 카드다. */}
+      <div className="rounded-2xl border border-[#EDEDF0] bg-white p-6 shadow-card">
         {/* 오타 등으로 정확 일치 결과가 없어 유사검색으로 대체됐을 때만 노출(#187) — q가 없거나
             (필터 검색) 결과가 비어 있으면(빈 상태 문구가 대신 노출) 굳이 같이 보여줄 필요가 없다. */}
         {q && hasFuzzyMatch && loadState === "ready" && cards.length > 0 && (
