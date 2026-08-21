@@ -716,7 +716,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                   </div>
 
                   <div className="rounded-2xl border border-[#EDEDF0] bg-white p-5">
-                    <OrderActivitySection cardId={cardId} />
+                    <OrderActivitySection cardId={cardId} variantId={selectedVariantId} />
                   </div>
                   </div>
                 </div>

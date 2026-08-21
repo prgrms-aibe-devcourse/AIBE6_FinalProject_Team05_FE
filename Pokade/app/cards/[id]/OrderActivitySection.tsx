@@ -8,6 +8,7 @@ import {
   GRADE_LABELS,
   GRADE_ORDER,
   GradeKey,
+  ListingGrade,
   ListingSummaryResponse,
   TradeSummaryResponse,
 } from "@/types/price";
@@ -35,8 +36,8 @@ function formatTradedAt(iso: string) {
   return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`;
 }
 
-function gradeKeyOf(grade: string | null): GradeKey {
-  return (grade ?? "RAW") as GradeKey;
+function gradeKeyOf(grade: ListingGrade | null): GradeKey {
+  return grade ?? "RAW";
 }
 
 type Row = {
@@ -241,10 +242,23 @@ const EMPTY_MESSAGE: Record<Tab, string> = {
   sell: "등록된 판매입찰이 없습니다.",
 };
 
+// 401/403이 아닌 실패(5xx, 네트워크 오류 등) 전용 메시지 — 위 EMPTY_MESSAGE와 구분해서 보여준다.
+const LOAD_ERROR_MESSAGE: Record<Tab, string> = {
+  trades: "체결 내역을 불러오지 못했습니다.",
+  buy: "구매입찰을 불러오지 못했습니다.",
+  sell: "판매입찰을 불러오지 못했습니다.",
+};
+
 // 크림(KREAM) 상품 상세의 "구매입찰/판매입찰" 탭을 참고 — 구매 박스(즉시구매가/등급 선택) 바로 아래
 // 작게 예시 5건만 보여주고, "전체 거래내역 보기"를 누르면 등급 필터가 있는 모달에서 전체를 볼 수 있다.
 // 세 데이터 모두 로그인이 필요한 API라(401 가능) 한 번에 조회해서 인증 여부를 공통으로 처리한다.
-export default function OrderActivitySection({ cardId }: { cardId: number }) {
+export default function OrderActivitySection({
+  cardId,
+  variantId,
+}: {
+  cardId: number;
+  variantId: number | null;
+}) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -262,6 +276,13 @@ export default function OrderActivitySection({ cardId }: { cardId: number }) {
   const [sellListings, setSellListings] = useState<ListingSummaryResponse[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [authError, setAuthError] = useState<ApiError | null>(null);
+  // 401/403이 아닌 실패(5xx, 네트워크 오류 등)를 탭별로 추적 — "내역이 없습니다"와 구분해서 보여줘야
+  // 실제로는 못 불러온 걸 "체결/입찰이 없다"로 오해하지 않는다.
+  const [sourceError, setSourceError] = useState<Record<Tab, boolean>>({
+    trades: false,
+    buy: false,
+    sell: false,
+  });
 
   useEscapeAndScrollLock(modalOpen, () => setModalOpen(false));
 
@@ -270,7 +291,7 @@ export default function OrderActivitySection({ cardId }: { cardId: number }) {
 
     Promise.allSettled([
       fetchPriceChart(cardId, "180d"),
-      fetchBuyOfferOrderbook(cardId),
+      fetchBuyOfferOrderbook(cardId, variantId != null ? { variantId } : undefined),
       fetchActiveListings(cardId),
     ]).then(([tradesResult, buyResult, sellResult]) => {
       if (cancelled) return;
@@ -279,6 +300,11 @@ export default function OrderActivitySection({ cardId }: { cardId: number }) {
       setRecentTrades(tradesResult.status === "fulfilled" ? [...tradesResult.value].reverse() : []);
       setBuyOffers(buyResult.status === "fulfilled" ? buyResult.value : []);
       setSellListings(sellResult.status === "fulfilled" ? sellResult.value : []);
+      setSourceError({
+        trades: tradesResult.status === "rejected",
+        buy: buyResult.status === "rejected",
+        sell: sellResult.status === "rejected",
+      });
 
       // 셋 중 하나라도 401/403이면 "로그인 필요" 안내를 우선 보여준다 — 세 API 모두 동일한
       // 인증 요건이라 개별 실패보다 공통 원인(비로그인)일 가능성이 높다.
@@ -294,7 +320,7 @@ export default function OrderActivitySection({ cardId }: { cardId: number }) {
     return () => {
       cancelled = true;
     };
-  }, [cardId]);
+  }, [cardId, variantId]);
 
   // compact 영역은 정렬 UI가 없으므로 항상 BE가 내려준 기본 순서(가격순 등) 그대로 보여준다.
   const compactAllRows = useMemo(
@@ -368,7 +394,12 @@ export default function OrderActivitySection({ cardId }: { cardId: number }) {
 
       {loadState === "ready" && !authError && (
         <>
-          <ActivityTable tab={tab} rows={compactRows} emptyMessage={EMPTY_MESSAGE[tab]} sortable={false} />
+          <ActivityTable
+            tab={tab}
+            rows={compactRows}
+            emptyMessage={sourceError[tab] ? LOAD_ERROR_MESSAGE[tab] : EMPTY_MESSAGE[tab]}
+            sortable={false}
+          />
 
           {compactAllRows.length > 0 && (
             <button
@@ -431,7 +462,7 @@ export default function OrderActivitySection({ cardId }: { cardId: number }) {
               <ActivityTable
                 tab={modalTab}
                 rows={modalRows}
-                emptyMessage={EMPTY_MESSAGE[modalTab]}
+                emptyMessage={sourceError[modalTab] ? LOAD_ERROR_MESSAGE[modalTab] : EMPTY_MESSAGE[modalTab]}
                 sortable={true}
                 sort={modalSort}
                 onToggleSort={(column) => setModalSort((prev) => toggleSortState(prev, column))}

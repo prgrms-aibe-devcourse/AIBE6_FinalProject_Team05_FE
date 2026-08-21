@@ -37,6 +37,10 @@ export default function RankingPage() {
         if (cancelled) return;
         setItems(res);
         setLoadState("ready");
+        // type 전환/재시도 시 이전 조회의 currentPrices가 남아있으면, 이번 배치 조회가 느리거나
+        // 실패했을 때 엉뚱한(이전) 시점의 값을 보여줄 수 있어 먼저 비운다 — 그래야 아래 렌더의
+        // item.price 폴백이 의도대로(값이 없으면 폴백) 동작한다.
+        setCurrentPrices(new Map());
         // 실제 현재가 조회는 등락률 랭킹 자체와 독립된 정보라, 실패해도 랭킹 표시를 막지 않는다
         // (currentPrices가 비어있으면 아래 렌더에서 item.price로 자연히 폴백).
         try {
