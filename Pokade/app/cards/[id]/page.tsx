@@ -734,81 +734,6 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                         </div>
                       </div>
 
-                      {/* -mt-2: 부모의 gap-4(16px)에서 8px을 되돌려 즉시구매가와의 간격을 좁힌다 —
-                          가격이 주인공이고 관심 등록은 보조 액션이라 너무 붙어 보이지 않을 만큼만. */}
-                      <div className="-mt-2 flex items-center gap-2">
-                        <IconTooltip
-                          label={myWatchlist ? "관심 해제" : "관심 등록"}
-                          placement="top"
-                          className="flex-shrink-0"
-                        >
-                          <button
-                            type="button"
-                            onClick={() => {
-                              // 등록 방향일 때만 펀치(useHeartPunch 주석 참고).
-                              if (!myWatchlist && cardId != null) triggerPunch(cardId);
-                              handleWatchlistToggle();
-                            }}
-                            disabled={watchlistPendingCardId === cardId}
-                            aria-label={
-                              myWatchlist
-                                ? watchlistCount
-                                  ? `관심 해제 (${watchlistCount.toLocaleString("ko-KR")})`
-                                  : "관심 해제"
-                                : watchlistCount
-                                  ? `관심 등록 (${watchlistCount.toLocaleString("ko-KR")})`
-                                  : "관심 등록"
-                            }
-                            // 보이는 알약은 32px로 줄이고, 버튼에는 -m-1.5/p-1.5로 사방 6px을 더해
-                            // 실제 터치 영역만 44px로 넓힌다(음수 마진으로 상쇄해 레이아웃은 그대로).
-                            // 마켓 타일 하트와 같은 방식.
-                            className="-m-1.5 flex flex-shrink-0 items-center p-1.5 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            <span
-                              className={`flex h-[32px] min-w-[32px] items-center justify-center gap-1 rounded-full border-[1.5px] px-2.5 transition ${
-                                myWatchlist
-                                  ? "border-primary bg-lavender"
-                                  : "border-[#DDDDE3] bg-white hover:border-primary hover:bg-[#FFF5F5]"
-                              }`}
-                            >
-                              {/* 아이콘과 숫자를 한 덩어리로 감싸 함께 튀게 한다 — 알약 자체에
-                                애니메이션을 걸면 테두리/배경까지 같이 흔들려 과해 보인다. */}
-                              <span
-                                key={punchKey(cardId ?? -1)}
-                                className={`flex items-center gap-1 ${punchClass(cardId ?? -1)}`}
-                              >
-                                <svg
-                                  width="16"
-                                  height="16"
-                                  viewBox="0 0 24 24"
-                                  stroke="#EE1515"
-                                  strokeWidth="2"
-                                  fill={myWatchlist ? "#EE1515" : "none"}
-                                  aria-hidden="true"
-                                >
-                                  <path
-                                    d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
-                                    transform="translate(-3 0)"
-                                  />
-                                </svg>
-                                {/* 0/조회 실패(null)는 표시할 의미 있는 숫자가 없다고 보고 숨긴다 —
-                                  신규 카드에 "0"이 찍혀 위축감을 주는 것도 피한다.
-                                  개수는 버튼의 aria-label에 이미 들어 있어 여기선 aria-hidden. */}
-                                {!!watchlistCount && (
-                                  <span
-                                    aria-hidden="true"
-                                    className={`text-[11.5px] font-semibold ${
-                                      myWatchlist ? "text-primary" : "text-[#9A9AA2]"
-                                    }`}
-                                  >
-                                    {watchlistCount.toLocaleString("ko-KR")}
-                                  </span>
-                                )}
-                              </span>
-                            </span>
-                          </button>
-                        </IconTooltip>
-                      </div>
                       {watchlistToggleError && (
                         <span role="alert" className="text-[12px] font-semibold text-primary">
                           {watchlistToggleError}
@@ -888,25 +813,110 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                         )}
                       </div>
 
-                      <button
-                        type="button"
-                        disabled={
-                          userStatus === "loading" || !selectedOffer || buyingListingId != null
-                        }
-                        onClick={() => {
-                          if (!selectedOffer) return;
-                          handleBuy(selectedOffer.listingId);
-                        }}
-                        className="mt-1 w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3.5 text-[15px] font-bold text-white shadow-tactile transition active:translate-y-0.5 active:shadow-tactile-active disabled:cursor-not-allowed disabled:border-[#DDDDE3] disabled:bg-neutral disabled:text-[#9A9AA2] disabled:shadow-none"
-                      >
-                        {userStatus === "loading"
-                          ? "인증 확인 중..."
-                          : buyingListingId != null
-                            ? "구매 중..."
-                            : selectedOffer
-                              ? "구매하기"
-                              : "등급을 선택하세요"}
-                      </button>
+                      {/* 구매하기(주된 액션)와 관심 등록(보조 액션)을 한 행에 둔다(#235) —
+                          둘 다 "이 카드 자체"에 대한 액션이라 나란히 두는 게 자연스럽고,
+                          가격은 옆에 아무것도 붙지 않아야 강조가 유지된다.
+                          flex-1/flex-shrink-0으로 구매 버튼이 남는 폭을 전부 가져간다.
+                          items-stretch: 한 행에 나란히 놓인 컨트롤은 높이를 공유해야 한 세트로 읽힌다 —
+                          하트만 낮추면 위아래 여백이 생겨 정렬선이 끊기고 덧붙인 것처럼 보인다(#235).
+                          위계는 높이가 아니라 폭(약 4:1)과 색(흰 배경·회색 1px vs 빨강·2px·shadow)으로 준다. */}
+                      <div className="mt-1 flex items-stretch gap-2">
+                        <button
+                          type="button"
+                          disabled={
+                            userStatus === "loading" || !selectedOffer || buyingListingId != null
+                          }
+                          onClick={() => {
+                            if (!selectedOffer) return;
+                            handleBuy(selectedOffer.listingId);
+                          }}
+                          className="flex-1 rounded-[11px] border-2 border-primary-dark bg-primary py-3.5 text-[15px] font-bold text-white shadow-tactile transition active:translate-y-0.5 active:shadow-tactile-active disabled:cursor-not-allowed disabled:border-[#DDDDE3] disabled:bg-neutral disabled:text-[#9A9AA2] disabled:shadow-none"
+                        >
+                          {userStatus === "loading"
+                            ? "인증 확인 중..."
+                            : buyingListingId != null
+                              ? "구매 중..."
+                              : selectedOffer
+                                ? "구매하기"
+                                : "등급을 선택하세요"}
+                        </button>
+                        <IconTooltip
+                          label={myWatchlist ? "관심 해제" : "관심 등록"}
+                          placement="top"
+                          className="flex-shrink-0"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // 등록 방향일 때만 펀치(useHeartPunch 주석 참고).
+                              if (!myWatchlist && cardId != null) triggerPunch(cardId);
+                              handleWatchlistToggle();
+                            }}
+                            disabled={watchlistPendingCardId === cardId}
+                            aria-label={
+                              myWatchlist
+                                ? watchlistCount
+                                  ? `관심 해제 (${watchlistCount.toLocaleString("ko-KR")})`
+                                  : "관심 해제"
+                                : watchlistCount
+                                  ? `관심 등록 (${watchlistCount.toLocaleString("ko-KR")})`
+                                  : "관심 등록"
+                            }
+                            // 높이는 부모 items-stretch로 구매 버튼과 정확히 같아진다 — 44px을 훌쩍
+                            // 넘으므로 예전의 음수 마진 트릭(-m/p) 없이도 터치 타겟이 충족된다.
+                            // 아이콘 위 / 숫자 아래로 쌓아(flex-col) 구매 버튼과 높이를 맞추며 생긴 세로
+                            // 여유를 쓰고, 그만큼 가로를 줄인다 — 숫자가 옆으로 붙지 않으니 폭은 min-w-11
+                            // (44px, 터치 타겟 최소값)에서 거의 고정된다. 세로는 stretch로 충분하지만
+                            // 가로는 이 바닥값이 없으면 44px을 못 채운다.
+                            // 모서리·테두리는 구매 박스 언어 그대로 — radius는 옆 구매 버튼과 같은 11px,
+                            // 테두리는 등급 선택 버튼과 같은 1px/#DDDDE3.
+                            className="flex flex-shrink-0 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <span
+                              className={`flex min-w-11 items-center justify-center rounded-[11px] border px-2 transition ${
+                                myWatchlist
+                                  ? "border-primary bg-lavender"
+                                  : "border-[#DDDDE3] bg-white hover:border-primary hover:bg-[#FFF5F5]"
+                              }`}
+                            >
+                              {/* 아이콘과 숫자를 한 덩어리로 감싸 함께 튀게 한다 — 알약 자체에
+                                  애니메이션을 걸면 테두리/배경까지 같이 흔들려 과해 보인다. */}
+                              <span
+                                key={punchKey(cardId ?? -1)}
+                                className={`flex flex-col items-center gap-0.5 ${punchClass(cardId ?? -1)}`}
+                              >
+                                <svg
+                                  width="16"
+                                  height="16"
+                                  viewBox="0 0 24 24"
+                                  stroke="#EE1515"
+                                  strokeWidth="2"
+                                  fill={myWatchlist ? "#EE1515" : "none"}
+                                  aria-hidden="true"
+                                >
+                                  <path
+                                    d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
+                                    transform="translate(-3 0)"
+                                  />
+                                </svg>
+                                {/* 0/조회 실패(null)는 표시할 의미 있는 숫자가 없다고 보고 숨긴다 —
+                                    신규 카드에 "0"이 찍혀 위축감을 주는 것도 피한다.
+                                    개수는 버튼의 aria-label에 이미 들어 있어 여기선 aria-hidden. */}
+                                {!!watchlistCount && (
+                                  <span
+                                    aria-hidden="true"
+                                    className={`text-[11.5px] font-semibold ${
+                                      myWatchlist ? "text-primary" : "text-[#9A9AA2]"
+                                    }`}
+                                  >
+                                    {watchlistCount.toLocaleString("ko-KR")}
+                                  </span>
+                                )}
+                              </span>
+                            </span>
+                          </button>
+                        </IconTooltip>
+                      </div>
                     </div>
 
                     <div className="rounded-2xl border border-[#EDEDF0] bg-white p-5">
