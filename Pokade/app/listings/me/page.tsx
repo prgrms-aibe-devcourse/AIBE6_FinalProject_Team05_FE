@@ -326,8 +326,14 @@ export default function MyListingsPage() {
                 className="flex flex-col gap-3 rounded-[14px] border border-[#EDEDF0] bg-white px-5 py-4"
               >
                 <div className="flex items-center gap-4">
+                  {/* 거래가 잡힌 상품은 카드 상세보다 거래 진행 상황이 먼저 궁금하므로 거래 상태
+                      화면으로 보낸다. ACTIVE 상품은 tradeId가 없어 기존대로 카드 상세로 간다. */}
                   <Link
-                    href={`/cards/${listing.cardId}`}
+                    href={
+                      listing.tradeId != null
+                        ? `/trade-status/${listing.tradeId}`
+                        : `/cards/${listing.cardId}`
+                    }
                     className="flex min-w-0 flex-1 items-center gap-4"
                   >
                     <div className="min-w-0 flex-1">

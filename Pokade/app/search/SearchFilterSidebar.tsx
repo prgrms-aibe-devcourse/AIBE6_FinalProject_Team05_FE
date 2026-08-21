@@ -7,12 +7,16 @@ type LoadState = "loading" | "error" | "ready";
 const toggleValue = (list: string[], value: string) =>
   list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 
-// 가격대 직접 입력 자릿수 제한(#187) — type="number" input은 "e"(지수 표기)나 임의로 긴 숫자를
-// 그대로 받아들여 blur 전까지 입력창이 보기 흉하게 늘어난다. PRICE_MAX(10,000,000)의 자릿수만큼만
-// 허용하고 숫자가 아닌 문자는 입력 즉시 제거한다 — blur 시점의 클램핑(handleMinChange 등)과는
-// 별개로, 타이핑 중에도 자릿수 자체를 여기서 먼저 제한한다.
+// 가격대 직접 입력 자릿수 제한(#187) — 숫자가 아닌 문자는 입력 즉시 제거하고 PRICE_MAX
+// (10,000,000)의 자릿수만큼만 허용한다. blur 시점의 클램핑(handleMinChange 등)과는 별개로,
+// 타이핑 중에도 자릿수 자체를 여기서 먼저 제한한다. 표시용 콤마도 여기서 함께 걸러지므로
+// 상태(minInputText/maxInputText)에는 항상 숫자만 남는다.
 const PRICE_INPUT_MAX_LENGTH = String(PRICE_MAX).length;
 const sanitizePriceInput = (raw: string) => raw.replace(/\D/g, "").slice(0, PRICE_INPUT_MAX_LENGTH);
+
+// 천 단위 콤마는 화면에 보일 때만 붙인다 — type="number"는 콤마를 표시할 수 없어 text로 두고,
+// 상태와 계산(handleMinChange 등)은 콤마 없는 숫자를 그대로 쓴다.
+const formatPriceInput = (digits: string) => (digits ? Number(digits).toLocaleString("ko-KR") : "");
 
 // #142 레어도 중분류 — 배포 사이트(pokade.store)에서 실제 렌더링된 39개 레어도 값을 기준으로
 // 확정된 정적 매핑(하드코딩, 임의 변경 금지). 그룹 순서가 곧 화면에 표시되는 그룹 순서다.
@@ -139,7 +143,7 @@ export default function SearchFilterSidebar({
   setLoadState,
   resetFilters,
 }: SearchFilterSidebarProps) {
-  // 슬라이더(range input)와 직접 입력(number input)이 공유하는 min/max 클램핑 로직 —
+  // 슬라이더(range input)와 직접 입력이 공유하는 min/max 클램핑 로직 —
   // 두 값이 서로를 앞지르지 않도록(min<=max) 여기서 한 번에 검증한다. 클램핑된 값이 기존
   // priceMin/priceMax와 같으면(예: PRICE_MAX보다 큰 값을 입력) setPriceMin/Max가 상태를 바꾸지
   // 않아 아래 prevPriceMin/Max 비교 기반 동기화가 발동하지 않는다 — 그래서 입력창 텍스트는
@@ -157,7 +161,7 @@ export default function SearchFilterSidebar({
     setMaxInputText(String(clamped));
   };
 
-  // 직접 입력(number input) 전용 텍스트 상태 — 입력 중에는 클램핑 없이 자유롭게 두고,
+  // 직접 입력 전용 텍스트 상태(숫자만 담고, 표시할 때만 콤마를 붙인다) — 입력 중에는 클램핑 없이 두고,
   // blur 시점에만 handleMinChange/handleMaxChange로 보정한다(위 두 함수가 클램핑된 값을
   // 상태와 입력창 텍스트에 함께 반영하므로, 슬라이더 조작이나 blur 입력은 이 비교 블록 없이도
   // 이미 텍스트가 맞다). 이 블록이 실제로 필요한 경우는 그 두 함수를 거치지 않고 priceMin/
@@ -435,15 +439,12 @@ export default function SearchFilterSidebar({
             <span className="shrink-0 text-[11px] font-semibold text-[#9A9AA2]">최소</span>
             <input
               id="price-min-input"
-              type="number"
+              type="text"
               inputMode="numeric"
-              min={0}
-              max={priceMax}
-              step={10}
-              value={minInputText}
+              value={formatPriceInput(minInputText)}
               onChange={(e) => setMinInputText(sanitizePriceInput(e.target.value))}
-              onBlur={(e) => handleMinChange(Number(e.target.value))}
-              className="w-full min-w-0 border-none p-0 text-right text-[12.5px] font-bold text-ink outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              onBlur={() => handleMinChange(Number(minInputText))}
+              className="w-full min-w-0 border-none p-0 text-right text-[12.5px] font-bold text-ink outline-none"
             />
             <span className="shrink-0 text-[11px] text-[#9A9AA2]">원</span>
           </label>
@@ -454,15 +455,12 @@ export default function SearchFilterSidebar({
             <span className="shrink-0 text-[11px] font-semibold text-[#9A9AA2]">최대</span>
             <input
               id="price-max-input"
-              type="number"
+              type="text"
               inputMode="numeric"
-              min={priceMin}
-              max={PRICE_MAX}
-              step={10}
-              value={maxInputText}
+              value={formatPriceInput(maxInputText)}
               onChange={(e) => setMaxInputText(sanitizePriceInput(e.target.value))}
-              onBlur={(e) => handleMaxChange(Number(e.target.value))}
-              className="w-full min-w-0 border-none p-0 text-right text-[12.5px] font-bold text-ink outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              onBlur={() => handleMaxChange(Number(maxInputText))}
+              className="w-full min-w-0 border-none p-0 text-right text-[12.5px] font-bold text-ink outline-none"
             />
             <span className="shrink-0 text-[11px] text-[#9A9AA2]">원</span>
           </label>
