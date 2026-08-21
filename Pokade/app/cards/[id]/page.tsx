@@ -40,6 +40,7 @@ import { useUserStore } from "@/store/useUserStore";
 import { loginUrlFor } from "@/lib/authRedirect";
 import { toKrw } from "@/lib/currency";
 import { useTimedFlag } from "@/hooks/useTimedFlag";
+import { useHeartPunch } from "@/hooks/useHeartPunch";
 import { useQuickWatchlistToggle } from "@/hooks/useQuickWatchlistToggle";
 import { useToast } from "@/hooks/useToast";
 import {
@@ -140,6 +141,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   > | null>(null);
   const [watchlistToggleError, setWatchlistToggleError] = useState<string | null>(null);
   const { toast, showToast } = useToast();
+  const { triggerPunch, punchProps } = useHeartPunch();
   const { toggle: toggleWatchlist, pendingCardId: watchlistPendingCardId } =
     useQuickWatchlistToggle();
 
@@ -744,7 +746,11 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                         >
                           <button
                             type="button"
-                            onClick={handleWatchlistToggle}
+                            onClick={() => {
+                              // 등록 방향일 때만 펀치(useHeartPunch 주석 참고).
+                              if (!myWatchlist && cardId != null) triggerPunch(cardId);
+                              handleWatchlistToggle();
+                            }}
                             disabled={watchlistPendingCardId === cardId}
                             aria-label={
                               myWatchlist
@@ -762,6 +768,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                             }`}
                           >
                             <svg
+                              {...punchProps(cardId ?? -1)}
                               width="20"
                               height="20"
                               viewBox="0 0 24 24"

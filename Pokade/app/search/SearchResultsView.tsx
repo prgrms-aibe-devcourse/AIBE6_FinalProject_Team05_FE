@@ -2,6 +2,7 @@ import { Dispatch, SetStateAction, useEffect, useRef } from "react";
 import Link from "next/link";
 import CardImage from "@/components/CardImage";
 import IconTooltip from "@/components/IconTooltip";
+import { useHeartPunch } from "@/hooks/useHeartPunch";
 import { CardFacetOption, CardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
 import { highlightMatch } from "@/lib/highlightMatch";
@@ -168,6 +169,7 @@ export default function SearchResultsView({
   watchlistError,
   onHeartClick,
 }: SearchResultsViewProps) {
+  const { triggerPunch, punchProps } = useHeartPunch();
   const filterPanelRef = useRef<HTMLDivElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const prevFilterOpenRef = useRef(filterOpen);
@@ -498,13 +500,19 @@ export default function SearchResultsView({
                     >
                       <button
                         type="button"
-                        onClick={() => onHeartClick(c.id)}
+                        onClick={() => {
+                          // 등록 방향일 때만 펀치 — API 응답을 기다리면 반응이 늦어 보여서
+                          // 클릭 시점의 상태로 바로 재생한다.
+                          if (!myWatchlist.has(c.id)) triggerPunch(c.id);
+                          onHeartClick(c.id);
+                        }}
                         disabled={watchlistPendingCardId === c.id}
                         aria-label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}
                         className="-m-1.5 flex flex-shrink-0 items-center justify-center p-1.5 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <span className="flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#EDEDF0] bg-white transition hover:border-primary hover:bg-[#FFF5F5]">
                           <svg
+                            {...punchProps(c.id)}
                             width="16"
                             height="16"
                             viewBox="0 0 24 24"

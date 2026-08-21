@@ -15,6 +15,7 @@ import { fetchCards, fetchCardsByKeywordPage, fetchPriceSummaries } from "@/lib/
 import { fetchWatchlist } from "@/lib/watchlistApi";
 import { ApiError } from "@/lib/apiClient";
 import { resolvePriceDisplay } from "@/lib/priceDisplay";
+import { useHeartPunch } from "@/hooks/useHeartPunch";
 import { useQuickWatchlistToggle } from "@/hooks/useQuickWatchlistToggle";
 import { useToast } from "@/hooks/useToast";
 import {
@@ -80,6 +81,7 @@ export default function HomePage() {
     null,
   );
   const { toast, showToast } = useToast();
+  const { triggerPunch, punchProps } = useHeartPunch();
   const { toggle, pendingCardId } = useQuickWatchlistToggle();
 
   const [popularCards, setPopularCards] = useState<CardSearchItem[]>([]);
@@ -369,12 +371,17 @@ export default function HomePage() {
                       className="absolute bottom-3.5 right-3.5"
                     >
                       <button
-                        onClick={() => handleHeartClick(c.id)}
+                        onClick={() => {
+                          // 등록 방향일 때만 펀치(useHeartPunch 주석 참고).
+                          if (!myWatchlist.has(c.id)) triggerPunch(c.id);
+                          handleHeartClick(c.id);
+                        }}
                         disabled={pendingCardId === c.id}
                         aria-label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}
                         className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#EDEDF0] bg-white hover:border-primary hover:bg-[#FFF5F5] disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <svg
+                          {...punchProps(c.id)}
                           width="18"
                           height="18"
                           viewBox="0 0 24 24"
