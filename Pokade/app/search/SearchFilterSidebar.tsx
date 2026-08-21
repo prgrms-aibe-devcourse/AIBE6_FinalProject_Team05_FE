@@ -9,14 +9,44 @@ const toggleValue = (list: string[], value: string) =>
 
 // 가격대 직접 입력 자릿수 제한(#187) — 숫자가 아닌 문자는 입력 즉시 제거하고 PRICE_MAX
 // (10,000,000)의 자릿수만큼만 허용한다. blur 시점의 클램핑(handleMinChange 등)과는 별개로,
-// 타이핑 중에도 자릿수 자체를 여기서 먼저 제한한다. 표시용 콤마도 여기서 함께 걸러지므로
-// 상태(minInputText/maxInputText)에는 항상 숫자만 남는다.
+// 타이핑 중에도 자릿수 자체를 여기서 먼저 제한한다 — 콤마 포함 문자열이 들어와도 숫자 아닌
+// 문자를 먼저 걸러내므로 콤마 유무와 무관하게 항상 숫자 개수 기준으로 자른다.
 const PRICE_INPUT_MAX_LENGTH = String(PRICE_MAX).length;
 const sanitizePriceInput = (raw: string) => raw.replace(/\D/g, "").slice(0, PRICE_INPUT_MAX_LENGTH);
 
-// 천 단위 콤마는 화면에 보일 때만 붙인다 — type="number"는 콤마를 표시할 수 없어 text로 두고,
-// 상태와 계산(handleMinChange 등)은 콤마 없는 숫자를 그대로 쓴다.
-const formatPriceInput = (digits: string) => (digits ? Number(digits).toLocaleString("ko-KR") : "");
+// 천단위 콤마 표시(#187 후속) — 자릿수 제한과 별개로, 입력창에는 항상 콤마 포맷으로 보여준다.
+const formatPriceDigits = (digits: string) =>
+  digits === "" ? "" : Number(digits).toLocaleString("ko-KR");
+
+// 콤마가 추가/제거되면서 커서가 엉뚱한 곳으로 튀는 걸 막기 위한 처리 — 리액트가 상태를 반영해
+// 다시 그리기 전에, 이 이벤트 핸들러 안에서 DOM value/커서를 먼저 동기적으로 맞춰버린다(그러면
+// 이후 리액트가 같은 문자열로 value를 다시 세팅해도 이미 같은 값이라 커서가 그대로 유지된다).
+// 커서 재계산은 "커서 앞에 숫자가 몇 개 있었는지"를 기준으로 한다 — 콤마 위치가 바뀌어도
+// 숫자 개수 기준 위치는 변하지 않으므로 이 값만 그대로 포맷된 문자열에 다시 적용하면 된다.
+const formatPriceInputChange = (e: React.ChangeEvent<HTMLInputElement>): string => {
+  const input = e.target;
+  const caret = input.selectionStart ?? input.value.length;
+  const digitsBeforeCaret = input.value.slice(0, caret).replace(/\D/g, "").length;
+  const digits = sanitizePriceInput(input.value);
+  const formatted = formatPriceDigits(digits);
+
+  let seen = 0;
+  let newCaret = formatted.length;
+  for (let i = 0; i < formatted.length; i++) {
+    if (/\d/.test(formatted[i])) {
+      seen++;
+      if (seen === digitsBeforeCaret) {
+        newCaret = i + 1;
+        break;
+      }
+    }
+  }
+  if (digitsBeforeCaret === 0) newCaret = 0;
+
+  input.value = formatted;
+  input.setSelectionRange(newCaret, newCaret);
+  return formatted;
+};
 
 // #142 레어도 중분류 — 배포 사이트(pokade.store)에서 실제 렌더링된 39개 레어도 값을 기준으로
 // 확정된 정적 매핑(하드코딩, 임의 변경 금지). 그룹 순서가 곧 화면에 표시되는 그룹 순서다.
@@ -152,34 +182,34 @@ export default function SearchFilterSidebar({
     const clamped = Math.min(Math.max(value, 0), priceMax);
     setActiveHandle("min");
     setPriceMin(clamped);
-    setMinInputText(String(clamped));
+    setMinInputText(clamped.toLocaleString("ko-KR"));
   };
   const handleMaxChange = (value: number) => {
     const clamped = Math.max(Math.min(value, PRICE_MAX), priceMin);
     setActiveHandle("max");
     setPriceMax(clamped);
-    setMaxInputText(String(clamped));
+    setMaxInputText(clamped.toLocaleString("ko-KR"));
   };
 
-  // 직접 입력 전용 텍스트 상태(숫자만 담고, 표시할 때만 콤마를 붙인다) — 입력 중에는 클램핑 없이 두고,
+  // 직접 입력(콤마 포맷 텍스트 입력) 전용 텍스트 상태 — 입력 중에는 클램핑 없이 자유롭게 두고,
   // blur 시점에만 handleMinChange/handleMaxChange로 보정한다(위 두 함수가 클램핑된 값을
   // 상태와 입력창 텍스트에 함께 반영하므로, 슬라이더 조작이나 blur 입력은 이 비교 블록 없이도
   // 이미 텍스트가 맞다). 이 블록이 실제로 필요한 경우는 그 두 함수를 거치지 않고 priceMin/
   // priceMax를 직접 바꾸는 외부 리셋뿐이다 — 필터 초기화(resetFilters)와 필터 칩 제거
   // (FilterChip onRemove → setPriceRangeNow, page.tsx) — 이때만 아래에서 표시 텍스트를 동기화한다.
   // (렌더 중 조건부 setState — effect가 아니라 "prop 변경에 맞춰 state 조정하기" 패턴)
-  const [minInputText, setMinInputText] = useState(String(priceMin));
+  const [minInputText, setMinInputText] = useState(priceMin.toLocaleString("ko-KR"));
   const [prevPriceMin, setPrevPriceMin] = useState(priceMin);
   if (priceMin !== prevPriceMin) {
     setPrevPriceMin(priceMin);
-    setMinInputText(String(priceMin));
+    setMinInputText(priceMin.toLocaleString("ko-KR"));
   }
 
-  const [maxInputText, setMaxInputText] = useState(String(priceMax));
+  const [maxInputText, setMaxInputText] = useState(priceMax.toLocaleString("ko-KR"));
   const [prevPriceMax, setPrevPriceMax] = useState(priceMax);
   if (priceMax !== prevPriceMax) {
     setPrevPriceMax(priceMax);
-    setMaxInputText(String(priceMax));
+    setMaxInputText(priceMax.toLocaleString("ko-KR"));
   }
 
   // 세트는 항상 series 기준 아코디언으로 묶어서 보여준다 — BE가 이미 series 그룹
@@ -441,9 +471,9 @@ export default function SearchFilterSidebar({
               id="price-min-input"
               type="text"
               inputMode="numeric"
-              value={formatPriceInput(minInputText)}
-              onChange={(e) => setMinInputText(sanitizePriceInput(e.target.value))}
-              onBlur={() => handleMinChange(Number(minInputText))}
+              value={minInputText}
+              onChange={(e) => setMinInputText(formatPriceInputChange(e))}
+              onBlur={(e) => handleMinChange(Number(sanitizePriceInput(e.target.value) || "0"))}
               className="w-full min-w-0 border-none p-0 text-right text-[12.5px] font-bold text-ink outline-none"
             />
             <span className="shrink-0 text-[11px] text-[#9A9AA2]">원</span>
@@ -457,9 +487,9 @@ export default function SearchFilterSidebar({
               id="price-max-input"
               type="text"
               inputMode="numeric"
-              value={formatPriceInput(maxInputText)}
-              onChange={(e) => setMaxInputText(sanitizePriceInput(e.target.value))}
-              onBlur={() => handleMaxChange(Number(maxInputText))}
+              value={maxInputText}
+              onChange={(e) => setMaxInputText(formatPriceInputChange(e))}
+              onBlur={(e) => handleMaxChange(Number(sanitizePriceInput(e.target.value) || "0"))}
               className="w-full min-w-0 border-none p-0 text-right text-[12.5px] font-bold text-ink outline-none"
             />
             <span className="shrink-0 text-[11px] text-[#9A9AA2]">원</span>

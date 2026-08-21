@@ -157,7 +157,7 @@ export default function NotificationsPage() {
           <div>
             <h1 className="m-0 text-[26px] font-extrabold tracking-[-0.6px]">알림</h1>
             <p className="mt-1.5 text-sm text-[#8A8A92]">
-              워치리스트·거래 등 전체 알림을 확인하세요
+              관심 등록·거래 등 전체 알림을 확인하세요
             </p>
           </div>
           {unreadCount > 0 && (
@@ -220,19 +220,29 @@ export default function NotificationsPage() {
                       {/* cardImageUrl이 있으면(카드 관련 알림) 타입 아이콘 대신 카드 썸네일을 보여준다 —
                           cardId가 아니라 cardImageUrl로 분기해야 "카드는 있었지만 조회 실패"인
                           경우도 안전하게 기존 아이콘으로 폴백한다. 박스 크기·위치는 그대로 둬서
-                          옆 삭제 버튼·클릭 영역과 겹칠 일이 없다. */}
+                          옆 삭제 버튼·클릭 영역과 겹칠 일이 없다. 썸네일이 있어도 종류는 구분할 수
+                          있도록 우하단에 타입 아이콘을 작은 원형 배지로 겹쳐 그린다(overflow-hidden
+                          밖에 배치해 안 잘림). */}
                       {n.cardImageUrl ? (
-                        <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-[10px] bg-[#F2F2F5]">
-                          {/* 실제 카드 이미지(images.scrydex.com) 여러 장을 대조해 보면 일러스트
-                              프레임이 카드 세로 기준 대략 5~51% 지점에 있다 — object-top으로 카드
-                              상단부터 잘라낸 뒤, 그 프레임만 꽉 채우도록 scale+origin으로 확대한다.
-                              CardImage 자체(검색 결과 등 다른 화면)는 그대로 둔다. */}
-                          <CardImage
-                            src={n.cardImageUrl}
-                            alt=""
-                            rounded="rounded-[10px]"
-                            className="origin-[50%_19%] scale-150 object-top"
-                          />
+                        <div className="relative h-10 w-10 flex-shrink-0">
+                          <div className="h-full w-full overflow-hidden rounded-[10px] bg-[#F2F2F5]">
+                            {/* 실제 카드 이미지(images.scrydex.com) 여러 장을 대조해 보면 일러스트
+                                프레임이 카드 세로 기준 대략 5~51% 지점에 있다 — object-top으로 카드
+                                상단부터 잘라낸 뒤, 그 프레임만 꽉 채우도록 scale+origin으로 확대한다.
+                                CardImage 자체(검색 결과 등 다른 화면)는 그대로 둔다. */}
+                            <CardImage
+                              src={n.cardImageUrl}
+                              alt=""
+                              rounded="rounded-[10px]"
+                              className="origin-[50%_19%] scale-150 object-top"
+                            />
+                          </div>
+                          <div
+                            className="absolute -bottom-1 -right-1 flex h-[18px] w-[18px] items-center justify-center rounded-full border-2 border-white"
+                            style={{ background: style.tint }}
+                          >
+                            {notifStyle(n.type, 11).icon}
+                          </div>
                         </div>
                       ) : (
                         <div

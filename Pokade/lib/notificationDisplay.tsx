@@ -2,15 +2,20 @@ import React from "react";
 import { NotificationType } from "@/types/notification";
 
 // 알림 드롭다운(Header)과 전체 알림 페이지(/notifications)가 공유하는 타입별 표시 매핑.
-export function notifStyle(type: NotificationType): { tint: string; icon: React.ReactNode } {
+// size: 카드 썸네일이 없을 때(기존 34~40px 아이콘 박스)는 기본값 17을 그대로 쓰고, 썸네일 위
+// 코너 배지로 겹쳐 그릴 때는 더 작게(size=10) 요청한다 — 아이콘 자체는 하나만 두고 크기만 다르게.
+export function notifStyle(
+  type: NotificationType,
+  size: number = 17,
+): { tint: string; icon: React.ReactNode } {
   switch (type) {
     case "PRICE_TARGET":
       return {
         tint: "#FFF6DA",
         icon: (
           <svg
-            width="17"
-            height="17"
+            width={size}
+            height={size}
             viewBox="0 0 24 24"
             fill="none"
             stroke="#B8860B"
@@ -27,8 +32,8 @@ export function notifStyle(type: NotificationType): { tint: string; icon: React.
         tint: "#EEF0FA",
         icon: (
           <svg
-            width="17"
-            height="17"
+            width={size}
+            height={size}
             viewBox="0 0 24 24"
             fill="none"
             stroke="#3B4CCA"
@@ -45,8 +50,8 @@ export function notifStyle(type: NotificationType): { tint: string; icon: React.
         tint: "#FFF3E0",
         icon: (
           <svg
-            width="17"
-            height="17"
+            width={size}
+            height={size}
             viewBox="0 0 24 24"
             fill="none"
             stroke="#C2790A"
@@ -63,8 +68,8 @@ export function notifStyle(type: NotificationType): { tint: string; icon: React.
         tint: "#EAF7EF",
         icon: (
           <svg
-            width="17"
-            height="17"
+            width={size}
+            height={size}
             viewBox="0 0 24 24"
             fill="none"
             stroke="#059669"
@@ -76,20 +81,24 @@ export function notifStyle(type: NotificationType): { tint: string; icon: React.
         ),
       };
     case "LISTING_AVAILABLE":
+      // 기존 4개(금색/남색/주황/초록)와 안 겹치는 청록 계열 — 재입고(새 상품)를 나타내는 상자 아이콘.
       return {
-        tint: "#EAF1FF",
+        tint: "#E3F6F5",
         icon: (
           <svg
-            width="17"
-            height="17"
+            width={size}
+            height={size}
             viewBox="0 0 24 24"
             fill="none"
-            stroke="#2563EB"
+            stroke="#0E7C86"
             strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
             aria-hidden="true"
           >
-            <path d="M20.6 13.4l-7.2 7.2a2 2 0 01-2.8 0L3.5 13.5V4h9.5l7.6 7.6a2 2 0 010 1.8z" />
-            <circle cx="7.8" cy="7.8" r="1.4" />
+            <path d="M21 8l-9-5-9 5v8l9 5 9-5V8z" />
+            <path d="M3 8l9 5 9-5" />
+            <path d="M12 13v8" />
           </svg>
         ),
       };
@@ -103,8 +112,8 @@ export function notifStyle(type: NotificationType): { tint: string; icon: React.
         tint: "#F2F2F5",
         icon: (
           <svg
-            width="17"
-            height="17"
+            width={size}
+            height={size}
             viewBox="0 0 24 24"
             fill="none"
             stroke="#8A8A92"

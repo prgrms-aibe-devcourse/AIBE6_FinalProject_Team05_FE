@@ -126,6 +126,7 @@ export interface CardDetailResponse {
   imageSmall: string;
   imageMedium: string;
   imageLarge: string;
+  viewCount: number;
   expansion: ExpansionSummary | null;
   variants: VariantSummary[];
 }

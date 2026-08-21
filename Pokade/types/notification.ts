@@ -1,4 +1,6 @@
 // com.pokade.domain.notification.entity.NotificationType 미러링.
+// BE는 LISTING_AVAILABLE(관심 카드에 매물 신규 등록)도 실제로 생성한다 — 예전에 이 유니온에서
+// 빠져 있어서 notifStyle()이 undefined를 반환하고 알림 목록/드롭다운이 그 지점에서 깨질 수 있었다.
 export type NotificationType =
   "PRICE_TARGET" | "TRADE_CONFIRMED" | "LISTING_STALE" | "INQUIRY_HANDLED" | "LISTING_AVAILABLE";
 

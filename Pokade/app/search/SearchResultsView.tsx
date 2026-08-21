@@ -1,13 +1,12 @@
-import { Dispatch, FormEvent, SetStateAction, useEffect, useRef, useState } from "react";
+import { Dispatch, SetStateAction, useEffect, useRef } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import CardImage from "@/components/CardImage";
+import { SearchBar } from "@/components/CardSearchBar";
 import { CardFacetOption, CardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
 import { highlightMatch } from "@/lib/highlightMatch";
 import { pickDisplayName } from "@/lib/pickDisplayName";
 import { PriceBasis, resolvePriceDisplay, resolveSortablePrice } from "@/lib/priceDisplay";
-import { addRecentSearch } from "@/lib/recentSearches";
 import { isPriceSort, LANGUAGE_OPTIONS, MARKET_PAGE_SIZE, PRICE_MAX, UiSort } from "./constants";
 import SearchFilterSidebar from "./SearchFilterSidebar";
 
@@ -77,6 +76,10 @@ interface SearchResultsViewProps {
   goToPage: (p: number) => void;
   resetFilters: () => void;
   setReloadKey: Dispatch<SetStateAction<number>>;
+  myWatchlist: Map<number, number>;
+  watchlistPendingCardId: number | null;
+  watchlistError: { cardId: number; message: string } | null;
+  onHeartClick: (cardId: number) => void;
 }
 
 // 페이지네이션 윈도우 — 전체 페이지를 다 그리지 않고 현재 페이지 주변 + 처음/끝만 노출,
@@ -160,8 +163,11 @@ export default function SearchResultsView({
   goToPage,
   resetFilters,
   setReloadKey,
+  myWatchlist,
+  watchlistPendingCardId,
+  watchlistError,
+  onHeartClick,
 }: SearchResultsViewProps) {
-  const router = useRouter();
   const filterPanelRef = useRef<HTMLDivElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const prevFilterOpenRef = useRef(filterOpen);
@@ -174,25 +180,6 @@ export default function SearchResultsView({
     }
     prevFilterOpenRef.current = filterOpen;
   }, [filterOpen]);
-
-  // 헤더 검색창(components/Header.tsx)과 별개로, 마켓 화면 안에서도 바로 검색할 수 있게 하는
-  // 보조 입력창 — 자동완성 없이 제출 시 곧바로 /search?q=로 이동하는 단순한 형태로만 둔다
-  // (자동완성까지 필요하면 헤더 쪽 로직을 공용 훅으로 뽑아야 하는데, 지금은 그 정도 중복을
-  // 감당할 이유가 없다). 최근 검색어 목록은 헤더와 동일하게 공유한다.
-  const [searchInput, setSearchInput] = useState(q);
-  const [prevQ, setPrevQ] = useState(q);
-  if (q !== prevQ) {
-    setPrevQ(q);
-    setSearchInput(q);
-  }
-
-  const handleSearchSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    const trimmed = searchInput.trim();
-    if (!trimmed) return;
-    addRecentSearch(trimmed);
-    router.push(`/search?q=${encodeURIComponent(trimmed)}`);
-  };
 
   // 가격순 — BE 화이트리스트에 없어(constants.ts의 UiSort 주석 참고) 서버 정렬 대신 이미 로드된
   // 현재 페이지 카드만 여기서 재정렬한다. 가격 정보가 없는 카드(priceDisplay가 null인 경우)는
@@ -209,68 +196,41 @@ export default function SearchResultsView({
     : cards;
 
   return (
-    <div
-      className={`grid items-start gap-6 ${q ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-[250px_1fr]"}`}
-    >
-      {/* filter sidebar — 키워드 검색 중에는 세트 필터와 동시 적용하지 않으므로 숨김.
+    <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[250px_1fr]">
+      {/* filter sidebar — #308: 키워드(q) 검색 중에도 필터를 함께 적용할 수 있어 항상 노출한다.
           lg 미만에서는 사이드바 대신 "필터" 버튼으로 여는 바텀시트/드로어로 표시.
           세트/타입/레어도/언어/가격대 필터 전체는 SearchFilterSidebar로 분리돼 있다(#142). */}
-      {!q && (
-        <SearchFilterSidebar
-          filterOpen={filterOpen}
-          setFilterOpen={setFilterOpen}
-          filterPanelRef={filterPanelRef}
-          selectedExpansionId={selectedExpansionId}
-          setSelectedExpansionId={setSelectedExpansionId}
-          selectedTypes={selectedTypes}
-          setSelectedTypes={setSelectedTypes}
-          selectedRarities={selectedRarities}
-          setSelectedRarities={setSelectedRarities}
-          selectedLanguages={selectedLanguages}
-          setSelectedLanguages={setSelectedLanguages}
-          setOptions={setOptions}
-          typeOptions={typeOptions}
-          rarityOptions={rarityOptions}
-          facetsLoading={facetsLoading}
-          priceMin={priceMin}
-          setPriceMin={setPriceMin}
-          priceMax={priceMax}
-          setPriceMax={setPriceMax}
-          activeHandle={activeHandle}
-          setActiveHandle={setActiveHandle}
-          setLoadState={setLoadState}
-          resetFilters={resetFilters}
-        />
-      )}
+      <SearchFilterSidebar
+        filterOpen={filterOpen}
+        setFilterOpen={setFilterOpen}
+        filterPanelRef={filterPanelRef}
+        selectedExpansionId={selectedExpansionId}
+        setSelectedExpansionId={setSelectedExpansionId}
+        selectedTypes={selectedTypes}
+        setSelectedTypes={setSelectedTypes}
+        selectedRarities={selectedRarities}
+        setSelectedRarities={setSelectedRarities}
+        selectedLanguages={selectedLanguages}
+        setSelectedLanguages={setSelectedLanguages}
+        setOptions={setOptions}
+        typeOptions={typeOptions}
+        rarityOptions={rarityOptions}
+        facetsLoading={facetsLoading}
+        priceMin={priceMin}
+        setPriceMin={setPriceMin}
+        priceMax={priceMax}
+        setPriceMax={setPriceMax}
+        activeHandle={activeHandle}
+        setActiveHandle={setActiveHandle}
+        setLoadState={setLoadState}
+        resetFilters={resetFilters}
+      />
 
       {/* results grid */}
       <div>
-        <form
-          onSubmit={handleSearchSubmit}
-          className="mb-4 flex items-center gap-2 rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-2.5"
-        >
-          <button type="submit" aria-label="검색" className="flex flex-shrink-0 items-center">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#9A9AA2"
-              strokeWidth="2"
-              aria-hidden="true"
-            >
-              <circle cx="11" cy="11" r="7" />
-              <path d="M21 21l-4-4" />
-            </svg>
-          </button>
-          <input
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="카드 이름으로 검색"
-            spellCheck={false}
-            className="w-full border-none bg-transparent text-[13.5px] text-ink outline-none"
-          />
-        </form>
+        <div className="mb-4">
+          <SearchBar width="w-full" variant="market" />
+        </div>
 
         {/* 오타 등으로 정확 일치 결과가 없어 유사검색으로 대체됐을 때만 노출(#187) — q가 없거나
             (필터 검색) 결과가 비어 있으면(빈 상태 문구가 대신 노출) 굳이 같이 보여줄 필요가 없다. */}
@@ -282,16 +242,14 @@ export default function SearchResultsView({
 
         <div className="mb-4 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            {!q && (
-              <button
-                ref={filterButtonRef}
-                type="button"
-                onClick={() => setFilterOpen(true)}
-                className="flex items-center gap-1 rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-2 text-[13px] font-bold text-[#4B4B52] lg:hidden"
-              >
-                필터
-              </button>
-            )}
+            <button
+              ref={filterButtonRef}
+              type="button"
+              onClick={() => setFilterOpen(true)}
+              className="flex items-center gap-1 rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-2 text-[13px] font-bold text-[#4B4B52] lg:hidden"
+            >
+              필터
+            </button>
             <span className="text-[13.5px] text-[#8A8A92]">
               <b className="text-ink">
                 {loadState === "ready"
@@ -303,91 +261,88 @@ export default function SearchResultsView({
               개의 카드
             </span>
           </div>
-          {/* 키워드 검색(q)은 BE에 sort 파라미터가 없어 정렬 옵션을 숨긴다 */}
-          {!q && (
-            <select
-              value={sort}
-              onChange={(e) => {
-                const next = e.target.value as UiSort;
-                // priceAsc/priceDesc는 BE에 안 보내는 FE 전용 값이라 실제로는 둘 다 기본 정렬
-                // (popular)로 조회한 뒤 클라이언트에서 재정렬만 한다 — popular↔priceAsc/priceDesc
-                // 간 전환처럼 BE 요청이 실제로 바뀌지 않을 때 setLoadState("loading")을 부르면
-                // 재요청이 없어 "ready"로 되돌아오지 못하고 로딩 상태에 그대로 갇힌다.
-                const apiSortChanged = (isPriceSort(sort) ? "popular" : sort) !==
-                  (isPriceSort(next) ? "popular" : next);
-                if (apiSortChanged) setLoadState("loading");
-                setSort(next);
-              }}
-              aria-label="정렬 기준"
-              className="cursor-pointer rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-2 text-[13px] outline-none"
-            >
-              <option value="popular">인기순</option>
-              <option value="latest">최신순</option>
-              <option value="name">이름순</option>
-              <option value="priceAsc">가격 낮은순</option>
-              <option value="priceDesc">가격 높은순</option>
-            </select>
-          )}
+          {/* #308: 필터+키워드 통합 검색에도 BE가 sort를 그대로 받으므로 q 유무와 무관하게 노출한다. */}
+          <select
+            value={sort}
+            onChange={(e) => {
+              const next = e.target.value as UiSort;
+              // priceAsc/priceDesc는 BE에 안 보내는 FE 전용 값이라 실제로는 둘 다 기본 정렬
+              // (popular)로 조회한 뒤 클라이언트에서 재정렬만 한다 — popular↔priceAsc/priceDesc
+              // 간 전환처럼 BE 요청이 실제로 바뀌지 않을 때 setLoadState("loading")을 부르면
+              // 재요청이 없어 "ready"로 되돌아오지 못하고 로딩 상태에 그대로 갇힌다.
+              const apiSortChanged =
+                (isPriceSort(sort) ? "popular" : sort) !== (isPriceSort(next) ? "popular" : next);
+              if (apiSortChanged) setLoadState("loading");
+              setSort(next);
+            }}
+            aria-label="정렬 기준"
+            className="cursor-pointer rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-2 text-[13px] outline-none"
+          >
+            <option value="popular">인기순</option>
+            <option value="latest">최신순</option>
+            <option value="name">이름순</option>
+            <option value="priceAsc">가격 낮은순</option>
+            <option value="priceDesc">가격 높은순</option>
+          </select>
         </div>
 
-        {!q &&
-          (selectedExpansionId ||
-            selectedTypes.length > 0 ||
-            selectedRarities.length > 0 ||
-            selectedLanguages.length > 0 ||
-            priceMin > 0 ||
-            priceMax < PRICE_MAX) && (
-            <div className="mb-4 flex flex-wrap gap-2">
-              {selectedExpansionId && (
-                <FilterChip
-                  label={
-                    setOptions.find((o) => o.expansionId === selectedExpansionId)?.label ??
-                    selectedExpansionId
-                  }
-                  onRemove={() => {
-                    setLoadState("loading");
-                    setSelectedExpansionId(null);
-                  }}
-                />
-              )}
-              {selectedTypes.map((t) => (
-                <FilterChip
-                  key={`type-${t}`}
-                  label={t}
-                  onRemove={() => {
-                    setLoadState("loading");
-                    setSelectedTypes(selectedTypes.filter((v) => v !== t));
-                  }}
-                />
-              ))}
-              {selectedRarities.map((r) => (
-                <FilterChip
-                  key={`rarity-${r}`}
-                  label={r}
-                  onRemove={() => {
-                    setLoadState("loading");
-                    setSelectedRarities(selectedRarities.filter((v) => v !== r));
-                  }}
-                />
-              ))}
-              {selectedLanguages.map((l) => (
-                <FilterChip
-                  key={`language-${l}`}
-                  label={LANGUAGE_OPTIONS.find((opt) => opt.value === l)?.label ?? l}
-                  onRemove={() => {
-                    setLoadState("loading");
-                    setSelectedLanguages(selectedLanguages.filter((v) => v !== l));
-                  }}
-                />
-              ))}
-              {(priceMin > 0 || priceMax < PRICE_MAX) && (
-                <FilterChip
-                  label={`${priceMin.toLocaleString("ko-KR")}원~${priceMax.toLocaleString("ko-KR")}원`}
-                  onRemove={() => setPriceRangeNow(0, PRICE_MAX)}
-                />
-              )}
-            </div>
-          )}
+        {(selectedExpansionId ||
+          selectedTypes.length > 0 ||
+          selectedRarities.length > 0 ||
+          selectedLanguages.length > 0 ||
+          priceMin > 0 ||
+          priceMax < PRICE_MAX) && (
+          <div className="mb-4 flex flex-wrap gap-2">
+            {selectedExpansionId && (
+              <FilterChip
+                label={
+                  setOptions.find((o) => o.expansionId === selectedExpansionId)?.label ??
+                  selectedExpansionId
+                }
+                onRemove={() => {
+                  setLoadState("loading");
+                  setSelectedExpansionId(null);
+                }}
+              />
+            )}
+            {selectedTypes.map((t) => (
+              <FilterChip
+                key={`type-${t}`}
+                label={t}
+                onRemove={() => {
+                  setLoadState("loading");
+                  setSelectedTypes(selectedTypes.filter((v) => v !== t));
+                }}
+              />
+            ))}
+            {selectedRarities.map((r) => (
+              <FilterChip
+                key={`rarity-${r}`}
+                label={r}
+                onRemove={() => {
+                  setLoadState("loading");
+                  setSelectedRarities(selectedRarities.filter((v) => v !== r));
+                }}
+              />
+            ))}
+            {selectedLanguages.map((l) => (
+              <FilterChip
+                key={`language-${l}`}
+                label={LANGUAGE_OPTIONS.find((opt) => opt.value === l)?.label ?? l}
+                onRemove={() => {
+                  setLoadState("loading");
+                  setSelectedLanguages(selectedLanguages.filter((v) => v !== l));
+                }}
+              />
+            ))}
+            {(priceMin > 0 || priceMax < PRICE_MAX) && (
+              <FilterChip
+                label={`${priceMin.toLocaleString("ko-KR")}원~${priceMax.toLocaleString("ko-KR")}원`}
+                onRemove={() => setPriceRangeNow(0, PRICE_MAX)}
+              />
+            )}
+          </div>
+        )}
 
         {loadState === "loading" && cards.length === 0 && (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
@@ -460,10 +415,8 @@ export default function SearchResultsView({
               // 등급만 "다른 등급"이고, 최근 체결가/참고시세가 기준이면(=활성 S등급 매물이 없다는
               // 뜻) 활성 매물이 있는 등급 전부가 화면에 보이는 값과는 다른 등급이다.
               const otherGradesCount = priceDisplay
-                ? (priceDisplay.basis === "sGrade"
-                    ? c.grades.filter((g) => g !== "S")
-                    : c.grades
-                  ).length
+                ? (priceDisplay.basis === "sGrade" ? c.grades.filter((g) => g !== "S") : c.grades)
+                    .length
                 : 0;
               // pickDisplayName이 받는 { name, nameKo } 형태로 원본 필드를 매핑한다 — 여기서
               // name은 병합된 c.name이 아니라 원본 영문명(c.nameEn)이어야 검색어와 정확히 대조된다.
@@ -473,60 +426,90 @@ export default function SearchResultsView({
               // alt와 화면 표시 텍스트가 항상 같은 언어를 가리키도록 한 번만 계산해 공유한다.
               const displayName = q ? pickDisplayName(rawNames, q) : c.name;
               return (
-                <Link
+                <div
                   key={c.id}
-                  href={`/cards/${c.id}`}
-                  className="flex cursor-pointer flex-col overflow-hidden rounded-[13px] border border-[#EDEDF0] transition hover:-translate-y-[3px] hover:shadow-lift"
+                  className="relative flex flex-col overflow-hidden rounded-[13px] border border-[#EDEDF0] transition hover:-translate-y-[3px] hover:shadow-lift"
                 >
-                  <div className="relative aspect-[5/7] w-full bg-[#F2F2F5]">
-                    <CardImage src={c.imageUrl} alt={displayName} label="카드" />
-                  </div>
-                  <div className="flex flex-1 flex-col p-3">
-                    <div className="text-[13.5px] font-bold">
-                      {q ? highlightMatch(displayName, q) : displayName}
+                  <Link href={`/cards/${c.id}`} className="flex flex-1 cursor-pointer flex-col">
+                    <div className="relative aspect-[5/7] w-full bg-[#F2F2F5]">
+                      <CardImage src={c.imageUrl} alt={displayName} label="카드" />
                     </div>
-                    <div className="mt-0.5 text-[11.5px] text-[#9A9AA2]">{c.set}</div>
-                    {/* EN(기본값)이 절대다수라 EN은 배지를 생략하고, 눈에 띄어야 하는 예외
+                    <div className="flex flex-1 flex-col p-3">
+                      <div className="text-[13.5px] font-bold">
+                        {q ? highlightMatch(displayName, q) : displayName}
+                      </div>
+                      <div className="mt-0.5 text-[11.5px] text-[#9A9AA2]">{c.set}</div>
+                      {/* EN(기본값)이 절대다수라 EN은 배지를 생략하고, 눈에 띄어야 하는 예외
                         (JA 등 비영어판)만 표시한다 — 대다수 카드에 불필요한 배지를 매번
                         노출하지 않으면서도 국가판이 다른 경우만 부각한다. */}
-                    {c.languageCode !== "EN" && (
-                      <span className="mt-1 inline-flex w-fit items-center rounded-full border border-[#DDDDE3] bg-white px-2 py-0.5 text-[10px] font-bold text-[#4B4B52]">
-                        {c.languageCode}
-                      </span>
-                    )}
-                    {c.types.length > 0 && (
-                      <div className="mt-1.5 flex flex-wrap gap-1">
-                        {c.types.map((t) => (
-                          <span
-                            key={t}
-                            className="rounded-full border border-[#D4D9F5] bg-lavender px-2 py-0.5 text-[10px] font-bold text-secondary"
-                          >
-                            {t}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    <div className="mt-auto pt-2.5">
-                      {priceDisplay ? (
-                        <>
-                          <div className="text-[11px] text-[#9A9AA2]">
-                            {BASIS_BADGE_LABEL[priceDisplay.basis]}
-                            {otherGradesCount > 0 && ` · 외 ${otherGradesCount}개 등급`}
-                          </div>
-                          <div className="text-[15px] font-extrabold text-ink">
-                            {priceDisplay.price}
-                          </div>
-                        </>
-                      ) : (
-                        <div className="text-[15px] font-extrabold text-ink">
-                          <span className="text-[13px] font-semibold text-[#9A9AA2]">
-                            가격 정보 없음
-                          </span>
+                      {c.languageCode !== "EN" && (
+                        <span className="mt-1 inline-flex w-fit items-center rounded-full border border-[#DDDDE3] bg-white px-2 py-0.5 text-[10px] font-bold text-[#4B4B52]">
+                          {c.languageCode}
+                        </span>
+                      )}
+                      {c.types.length > 0 && (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {c.types.map((t) => (
+                            <span
+                              key={t}
+                              className="rounded-full border border-[#D4D9F5] bg-lavender px-2 py-0.5 text-[10px] font-bold text-secondary"
+                            >
+                              {t}
+                            </span>
+                          ))}
                         </div>
                       )}
+                      <div className="mt-auto pt-2.5">
+                        {priceDisplay ? (
+                          <>
+                            <div className="text-[11px] text-[#9A9AA2]">
+                              {BASIS_BADGE_LABEL[priceDisplay.basis]}
+                              {otherGradesCount > 0 && ` · 외 ${otherGradesCount}개 등급`}
+                            </div>
+                            <div className="text-[15px] font-extrabold text-ink">
+                              {priceDisplay.price}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-[15px] font-extrabold text-ink">
+                            <span className="text-[13px] font-semibold text-[#9A9AA2]">
+                              가격 정보 없음
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </Link>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => onHeartClick(c.id)}
+                    disabled={watchlistPendingCardId === c.id}
+                    aria-label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}
+                    className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#EDEDF0] bg-white/90 hover:border-primary hover:bg-[#FFF5F5] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      stroke="#EE1515"
+                      strokeWidth="2"
+                      fill={myWatchlist.has(c.id) ? "#EE1515" : "none"}
+                    >
+                      <path
+                        d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
+                        transform="translate(-3 0)"
+                      />
+                    </svg>
+                  </button>
+                  {watchlistError?.cardId === c.id && (
+                    <div
+                      role="alert"
+                      className="absolute right-2 top-11 z-10 max-w-[130px] rounded-lg bg-[#3A3A3E] px-2.5 py-1.5 text-[11px] font-semibold leading-snug text-white shadow-lg"
+                    >
+                      {watchlistError.message}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
