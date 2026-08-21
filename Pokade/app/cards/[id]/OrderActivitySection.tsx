@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useMemo, useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   BuyOfferOrderbookEntryResponse,
   GRADE_LABELS,
@@ -65,7 +66,9 @@ function sortRows(rows: Row[], sort: SortState): Row[] {
   const factor = sort.direction === "asc" ? 1 : -1;
   const sorted = [...rows];
   sorted.sort((a, b) =>
-    sort.column === "price" ? (a.price - b.price) * factor : ((a.dateValue ?? 0) - (b.dateValue ?? 0)) * factor,
+    sort.column === "price"
+      ? (a.price - b.price) * factor
+      : ((a.dateValue ?? 0) - (b.dateValue ?? 0)) * factor,
   );
   return sorted;
 }
@@ -87,7 +90,12 @@ function groupByGradePrice(items: { grade: GradeKey; price: number }[]): Row[] {
   return Array.from(grouped.values());
 }
 
-function toRows(tab: Tab, trades: TradeSummaryResponse[], buys: BuyOfferOrderbookEntryResponse[], sells: ListingSummaryResponse[]): Row[] {
+function toRows(
+  tab: Tab,
+  trades: TradeSummaryResponse[],
+  buys: BuyOfferOrderbookEntryResponse[],
+  sells: ListingSummaryResponse[],
+): Row[] {
   if (tab === "trades") {
     return trades.map((t, i) => ({
       key: i,
@@ -134,7 +142,9 @@ function ActivityTable({
 }) {
   if (rows.length === 0) {
     return (
-      <div className="rounded-xl bg-neutral py-8 text-center text-[12.5px] text-[#9A9AA2]">{emptyMessage}</div>
+      <div className="rounded-xl bg-neutral py-8 text-center text-[12.5px] text-[#9A9AA2]">
+        {emptyMessage}
+      </div>
     );
   }
 
@@ -183,7 +193,9 @@ function ActivityTable({
         {rows.map((r) => (
           <tr key={r.key} className="border-t border-[#F5F5F7]">
             <td className="py-1.5 font-bold">{GRADE_LABELS[r.grade]}</td>
-            <td className="py-1.5 text-right font-bold tabular-nums text-ink">{r.price.toLocaleString("ko-KR")}원</td>
+            <td className="py-1.5 text-right font-bold tabular-nums text-ink">
+              {r.price.toLocaleString("ko-KR")}원
+            </td>
             {tab === "trades" ? (
               <td className="py-1.5 text-right tabular-nums text-[#8A8A92]">{r.dateLabel}</td>
             ) : (
@@ -205,6 +217,8 @@ function GradeFilterPills({
   value: GradeKey | "ALL";
   onChange: (g: GradeKey | "ALL") => void;
 }) {
+  const total = Array.from(counts.values()).reduce((sum, n) => sum + n, 0);
+
   return (
     <div className="mb-3 flex flex-wrap gap-1.5">
       <button
@@ -216,7 +230,7 @@ function GradeFilterPills({
             : "border-[#DDDDE3] bg-white text-[#4B4B52] hover:border-primary hover:text-primary"
         }`}
       >
-        전체
+        전체 <span className="font-semibold text-[#9A9AA2]">{total}</span>
       </button>
       {GRADE_ORDER.filter((g) => (counts.get(g) ?? 0) > 0).map((g) => (
         <button
@@ -309,10 +323,15 @@ export default function OrderActivitySection({
       // 셋 중 하나라도 401/403이면 "로그인 필요" 안내를 우선 보여준다 — 세 API 모두 동일한
       // 인증 요건이라 개별 실패보다 공통 원인(비로그인)일 가능성이 높다.
       const firstAuthFailure = [tradesResult, buyResult, sellResult].find(
-        (r) => r.status === "rejected" && r.reason instanceof ApiError && (r.reason.status === 401 || r.reason.status === 403),
+        (r) =>
+          r.status === "rejected" &&
+          r.reason instanceof ApiError &&
+          (r.reason.status === 401 || r.reason.status === 403),
       );
       setAuthError(
-        firstAuthFailure && firstAuthFailure.status === "rejected" ? (firstAuthFailure.reason as ApiError) : null,
+        firstAuthFailure && firstAuthFailure.status === "rejected"
+          ? (firstAuthFailure.reason as ApiError)
+          : null,
       );
       setLoadState("ready");
     });
@@ -346,9 +365,18 @@ export default function OrderActivitySection({
 
   const modalRows = useMemo(() => {
     const filtered =
-      modalGradeFilter === "ALL" ? modalBaseRows : modalBaseRows.filter((r) => r.grade === modalGradeFilter);
+      modalGradeFilter === "ALL"
+        ? modalBaseRows
+        : modalBaseRows.filter((r) => r.grade === modalGradeFilter);
     return sortRows(filtered, modalSort);
   }, [modalBaseRows, modalGradeFilter, modalSort]);
+
+  // 탭 옆에 보여줄 전체 개수 — 그룹핑 전 원본 건수(가격대 개수가 아니라 실제 등록된 건수 총합).
+  const tabCounts: Record<Tab, number> = {
+    trades: recentTrades.length,
+    buy: buyOffers.length,
+    sell: sellListings.length,
+  };
 
   // 모달은 항상 compact 영역이 보고 있던 탭에서 시작하되(둘러보던 맥락 유지), 그 이후로는
   // 서로 완전히 독립적으로 동작한다 — 모달 안에서 탭을 바꿔도 뒤쪽 compact 영역엔 영향 없음.
@@ -367,10 +395,20 @@ export default function OrderActivitySection({
             type="button"
             onClick={() => setTab(t.value)}
             className={`rounded-[8px] px-2.5 py-1 text-[11.5px] font-bold transition ${
-              tab === t.value ? "bg-primary text-white" : "text-[#8A8A92] hover:bg-neutral hover:text-ink"
+              tab === t.value
+                ? "bg-primary text-white"
+                : "text-[#8A8A92] hover:bg-neutral hover:text-ink"
             }`}
           >
             {t.label}
+            {t.value === "trades" && (
+              <>
+                {" "}
+                <span className={tab === t.value ? "text-white/75" : "text-[#B4B4BB]"}>
+                  {tabCounts[t.value]}
+                </span>
+              </>
+            )}
           </button>
         ))}
       </div>
@@ -386,7 +424,10 @@ export default function OrderActivitySection({
       {loadState === "ready" && authError && (
         <div className="flex flex-col items-center gap-1.5 rounded-xl bg-neutral py-6 text-center text-[12px] text-[#9A9AA2]">
           <span>입찰·체결 내역은 로그인 후 확인할 수 있습니다.</span>
-          <Link href={loginUrlFor(pathname, searchParams)} className="text-[12px] font-bold text-primary hover:text-primary-dark">
+          <Link
+            href={loginUrlFor(pathname, searchParams)}
+            className="text-[12px] font-bold text-primary hover:text-primary-dark"
+          >
             로그인하기
           </Link>
         </div>
@@ -413,64 +454,82 @@ export default function OrderActivitySection({
         </>
       )}
 
-      {modalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => setModalOpen(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-label="전체 거래내역"
-        >
+      {modalOpen &&
+        createPortal(
           <div
-            className="flex max-h-[80vh] w-full max-w-[480px] flex-col rounded-2xl bg-white p-6"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            onClick={() => setModalOpen(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-label="전체 거래내역"
           >
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-[16px] font-extrabold">전체 거래내역</h2>
-              <button
-                type="button"
-                onClick={() => setModalOpen(false)}
-                aria-label="닫기"
-                className="flex h-8 w-8 items-center justify-center rounded-full text-[18px] font-bold text-[#9A9AA2] hover:bg-neutral"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="mb-3 flex gap-1.5 border-b border-[#F0F0F3] pb-3">
-              {TABS.map((t) => (
+            <div
+              className="flex max-h-[80vh] w-full max-w-[480px] flex-col rounded-2xl bg-white p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-[16px] font-extrabold">전체 거래내역</h2>
                 <button
-                  key={t.value}
                   type="button"
-                  onClick={() => {
-                    setModalTab(t.value);
-                    setModalGradeFilter("ALL");
-                    setModalSort(null);
-                  }}
-                  className={`rounded-[9px] px-3.5 py-1.5 text-[13px] font-bold transition ${
-                    modalTab === t.value ? "bg-primary text-white" : "text-[#8A8A92] hover:bg-neutral hover:text-ink"
-                  }`}
+                  onClick={() => setModalOpen(false)}
+                  aria-label="닫기"
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-[18px] font-bold text-[#9A9AA2] hover:bg-neutral"
                 >
-                  {t.label}
+                  ×
                 </button>
-              ))}
-            </div>
+              </div>
 
-            <GradeFilterPills counts={modalGradeCounts} value={modalGradeFilter} onChange={setModalGradeFilter} />
+              <div className="mb-3 flex gap-1.5 border-b border-[#F0F0F3] pb-3">
+                {TABS.map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => {
+                      setModalTab(t.value);
+                      setModalGradeFilter("ALL");
+                      setModalSort(null);
+                    }}
+                    className={`rounded-[9px] px-3.5 py-1.5 text-[13px] font-bold transition ${
+                      modalTab === t.value
+                        ? "bg-primary text-white"
+                        : "text-[#8A8A92] hover:bg-neutral hover:text-ink"
+                    }`}
+                  >
+                    {t.label}
+                    {t.value === "trades" && (
+                      <>
+                        {" "}
+                        <span className={modalTab === t.value ? "text-white/75" : "text-[#B4B4BB]"}>
+                          {tabCounts[t.value]}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                ))}
+              </div>
 
-            <div className="overflow-y-auto">
-              <ActivityTable
-                tab={modalTab}
-                rows={modalRows}
-                emptyMessage={sourceError[modalTab] ? LOAD_ERROR_MESSAGE[modalTab] : EMPTY_MESSAGE[modalTab]}
-                sortable={true}
-                sort={modalSort}
-                onToggleSort={(column) => setModalSort((prev) => toggleSortState(prev, column))}
+              <GradeFilterPills
+                counts={modalGradeCounts}
+                value={modalGradeFilter}
+                onChange={setModalGradeFilter}
               />
+
+              <div className="overflow-y-auto">
+                <ActivityTable
+                  tab={modalTab}
+                  rows={modalRows}
+                  emptyMessage={
+                    sourceError[modalTab] ? LOAD_ERROR_MESSAGE[modalTab] : EMPTY_MESSAGE[modalTab]
+                  }
+                  sortable={true}
+                  sort={modalSort}
+                  onToggleSort={(column) => setModalSort((prev) => toggleSortState(prev, column))}
+                />
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
