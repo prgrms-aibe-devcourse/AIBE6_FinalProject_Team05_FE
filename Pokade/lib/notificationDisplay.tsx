@@ -75,6 +75,48 @@ export function notifStyle(type: NotificationType): { tint: string; icon: React.
           </svg>
         ),
       };
+    case "LISTING_AVAILABLE":
+      return {
+        tint: "#EAF1FF",
+        icon: (
+          <svg
+            width="17"
+            height="17"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#2563EB"
+            strokeWidth="2"
+            aria-hidden="true"
+          >
+            <path d="M20.6 13.4l-7.2 7.2a2 2 0 01-2.8 0L3.5 13.5V4h9.5l7.6 7.6a2 2 0 010 1.8z" />
+            <circle cx="7.8" cy="7.8" r="1.4" />
+          </svg>
+        ),
+      };
+    default: {
+      // 타입에 값을 추가하면 여기서 컴파일이 막힌다 - 분기를 빠뜨릴 수 없다.
+      const exhaustive: never = type;
+      void exhaustive;
+      // BE가 FE 타입에 없는 값을 내려보내는 경우(저장소가 달라 미러링이 어긋날 수 있다)
+      // 화면을 죽이지 않고 기본 스타일로 렌더한다.
+      return {
+        tint: "#F2F2F5",
+        icon: (
+          <svg
+            width="17"
+            height="17"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#8A8A92"
+            strokeWidth="2"
+            aria-hidden="true"
+          >
+            <path d="M18 8a6 6 0 10-12 0c0 7-3 8-3 8h18s-3-1-3-8" />
+            <path d="M13.7 21a2 2 0 01-3.4 0" />
+          </svg>
+        ),
+      };
+    }
   }
 }
 
