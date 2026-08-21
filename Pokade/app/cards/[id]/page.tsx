@@ -9,9 +9,13 @@ import ImageLightbox from "@/components/ImageLightbox";
 import AddWatchlistModal from "@/components/AddWatchlistModal";
 import RelatedCardsSection from "./RelatedCardsSection";
 import VariantPriceComparison from "./VariantPriceComparison";
+import OrderActivitySection from "./OrderActivitySection";
 import { CardDetailResponse, parseCardId, variantLabel } from "@/types/card";
 import {
   ChartPeriod,
+  GRADE_LABELS,
+  GRADE_ORDER,
+  GradeKey,
   ListingGrade,
   ListingSummaryResponse,
   PriceStatsResponse,
@@ -36,8 +40,6 @@ import { useTimedFlag } from "@/hooks/useTimedFlag";
 type LoadState = "loading" | "error" | "notfound" | "ready";
 type RelatedLoadState = "loading" | "ready";
 
-type GradeKey = ListingGrade | "RAW";
-
 // 등급별 최저가 매물 — 구매하기 버튼이 어떤 매물(listingId)을 살지 알아야 해서 가격뿐 아니라 id도 들고 있는다.
 // count: 해당 등급에 몇 명의 판매자(매물)가 있는지 — 최저가 1건으로 압축되면서 사라지는 정보라 별도로 센다.
 interface GradeOffer {
@@ -45,9 +47,6 @@ interface GradeOffer {
   price: number;
   count: number;
 }
-
-// PSA10 > PSA9 > PSA8 > S > A > B > 미등급 순으로 구매 박스에 노출.
-const GRADE_ORDER: GradeKey[] = ["PSA10", "PSA9", "PSA8", "S", "A", "B", "RAW"];
 
 // grade-chart 보완 대상 후보 등급 — RAW(미등급)는 ListingGrade가 아니라 제외.
 const CHART_FALLBACK_GRADES: ListingGrade[] = ["PSA10", "PSA9", "PSA8", "S", "A", "B"];
@@ -61,16 +60,6 @@ const MIN_REAL_POINTS_PER_GRADE = 6;
 // 등급도 이 시점들에 각각 가장 가까운 거래 1개씩만 뽑아 점을 찍는다 — 매일 거래돼도 점이
 // 365개로 늘어나지 않게, 그리고 등급마다 기준 시점이 정확히 같아서 마우스오버가 항상 정확하게 맞는다.
 const REFERENCE_OFFSET_DAYS = [180, 90, 30, 14, 7, 1, 0];
-
-const GRADE_LABELS: Record<GradeKey, string> = {
-  PSA10: "PSA10",
-  PSA9: "PSA9",
-  PSA8: "PSA8",
-  S: "S",
-  A: "A",
-  B: "B",
-  RAW: "미등급",
-};
 
 function computeGradeSummary(
   listings: ListingSummaryResponse[],
@@ -597,7 +586,8 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                     />
                   </div>
 
-                  <div className="flex flex-col gap-4 rounded-2xl border border-[#EDEDF0] bg-white p-5 lg:sticky lg:top-8 lg:self-start">
+                  <div className="flex flex-col gap-4 lg:sticky lg:top-8 lg:self-start">
+                  <div className="flex flex-col gap-4 rounded-2xl border border-[#EDEDF0] bg-white p-5">
                     <div>
                       <div className="text-[12px] font-semibold text-[#8A8A92]">즉시구매가</div>
                       <div className="mt-1 text-[24px] font-extrabold text-primary">
@@ -723,6 +713,11 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                         </span>
                       )}
                     </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-[#EDEDF0] bg-white p-5">
+                    <OrderActivitySection cardId={cardId} variantId={selectedVariantId} />
+                  </div>
                   </div>
                 </div>
 
