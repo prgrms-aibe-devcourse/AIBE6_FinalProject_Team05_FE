@@ -16,17 +16,41 @@ type SearchBarVariant = "default" | "market";
 
 // variant="market": 마켓 페이지(/search) 상단 "카드 검색" 카드(흰 배경) 안에 놓이므로,
 // 자체 배경/그림자를 넣으면 흰 카드 안에 흰 카드가 겹치는 이중 박싱이 된다 — 배경 없이
-// 테두리(입력 필드라는 걸 alert 없이도 알 수 있게)와 44px 터치 타겟 패딩만 남긴다.
+// 테두리(입력 필드라는 걸 alert 없이도 알 수 있게)만 남긴다. 대신 오른쪽 제출 버튼을
+// 빨간 CTA로 올려서(#235) 눌러야 할 대상이 무엇인지 분명히 한다 — 입체감(shadow-tactile)은
+// 이 프로젝트에서 "누를 수 있는 것"에만 쓰는 표시라 입력 필드 본체에는 넣지 않는다.
 // 헤더는 기존 스타일(variant="default") 그대로 유지 — 이번 개선 범위가 아니다.
 const CONTAINER_STYLES: Record<SearchBarVariant, string> = {
-  default: "border-[#DDDDE3] bg-neutral px-3.5 py-2.5",
-  market: "border-[#DDDDE3] px-4 py-3",
+  default: "rounded-[9px] border-[#DDDDE3] bg-neutral px-3.5 py-2.5",
+  market: "rounded-[11px] border-[#DDDDE3] p-1.5",
 };
 const FOCUS_STYLES: Record<SearchBarVariant, string> = {
   default: "transition focus-within:border-primary",
   market:
     "transition-[box-shadow,border-color] duration-200 focus-within:border-primary focus-within:shadow-[0_0_0_4px_rgba(238,21,21,0.08)]",
 };
+
+// 마켓 전용 제출 버튼 — 포인트 충전 CTA(app/mypage/points/charge/page.tsx)와 같은 언어.
+// 44x44라 터치 타겟도 그대로 만족한다.
+const MARKET_SUBMIT_BUTTON =
+  "flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[9px] border-2 border-primary-dark bg-primary text-white shadow-tactile-sm transition active:translate-y-0.5 active:shadow-tactile-active";
+
+function SearchIcon({ stroke, size = 18 }: { stroke: string; size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={stroke}
+      strokeWidth="2"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="M21 21l-4-4" />
+    </svg>
+  );
+}
 
 export function SearchBar({
   width = "w-60",
@@ -52,18 +76,21 @@ function SearchBarShell({
   variant?: SearchBarVariant;
 }) {
   return (
-    <div
-      className={`flex items-center gap-2 rounded-[9px] border ${CONTAINER_STYLES[variant]} ${width}`}
-    >
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9A9AA2" strokeWidth="2">
-        <circle cx="11" cy="11" r="7" />
-        <path d="M21 21l-4-4" />
-      </svg>
+    <div className={`flex items-center gap-2 border ${CONTAINER_STYLES[variant]} ${width}`}>
+      {variant === "default" && <SearchIcon stroke="#9A9AA2" />}
       <input
         placeholder="카드 이름으로 검색"
         disabled
-        className="w-full border-none bg-transparent text-[13.5px] text-ink outline-none"
+        className={`w-full border-none bg-transparent text-[13.5px] text-ink outline-none ${
+          variant === "market" ? "pl-2.5" : ""
+        }`}
       />
+      {/* 실제 폼(SearchBarInner)과 높이가 같아야 로딩→실제 전환 시 튀지 않는다. */}
+      {variant === "market" && (
+        <span className={MARKET_SUBMIT_BUTTON}>
+          <SearchIcon stroke="#FFFFFF" />
+        </span>
+      )}
     </div>
   );
 }
@@ -235,21 +262,15 @@ function SearchBarInner({
           e.preventDefault();
           submit();
         }}
-        className={`flex items-center gap-2 rounded-[9px] border ${CONTAINER_STYLES[variant]} ${FOCUS_STYLES[variant]}`}
+        className={`flex items-center gap-2 border ${CONTAINER_STYLES[variant]} ${FOCUS_STYLES[variant]}`}
       >
-        <button type="submit" aria-label="검색" className="flex flex-shrink-0 items-center">
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#9A9AA2"
-            strokeWidth="2"
-          >
-            <circle cx="11" cy="11" r="7" />
-            <path d="M21 21l-4-4" />
-          </svg>
-        </button>
+        {/* 헤더(default)는 기존처럼 왼쪽 돋보기가 곧 제출 버튼이다. 마켓은 이 자리를 비우고
+            아래 오른쪽에 빨간 CTA 제출 버튼을 둔다(#235). */}
+        {variant === "default" && (
+          <button type="submit" aria-label="검색" className="flex flex-shrink-0 items-center">
+            <SearchIcon stroke="#9A9AA2" />
+          </button>
+        )}
         <input
           ref={inputRef}
           value={query}
@@ -267,7 +288,9 @@ function SearchBarInner({
               ? `${listboxId}-option-${highlightedIndex}`
               : undefined
           }
-          className="w-full border-none bg-transparent text-[13.5px] text-ink outline-none"
+          className={`w-full border-none bg-transparent text-[13.5px] text-ink outline-none ${
+            variant === "market" ? "pl-2.5" : ""
+          }`}
         />
         {query.length > 0 && (
           <button
@@ -287,6 +310,11 @@ function SearchBarInner({
             >
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
+          </button>
+        )}
+        {variant === "market" && (
+          <button type="submit" aria-label="검색" className={MARKET_SUBMIT_BUTTON}>
+            <SearchIcon stroke="#FFFFFF" />
           </button>
         )}
       </form>
