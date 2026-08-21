@@ -229,7 +229,7 @@ export default function SearchResultsView({
       {/* results grid */}
       <div>
         <div className="mb-4">
-          <SearchBar width="w-full" />
+          <SearchBar width="w-full" variant="market" />
         </div>
 
         {/* 오타 등으로 정확 일치 결과가 없어 유사검색으로 대체됐을 때만 노출(#187) — q가 없거나

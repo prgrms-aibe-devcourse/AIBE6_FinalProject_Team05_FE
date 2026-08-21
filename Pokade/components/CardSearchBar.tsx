@@ -12,20 +12,47 @@ import { CardResponse } from "@/types/card";
 // 자동완성 API 호출 최소 글자 수 — 1글자는 노이즈가 많아 2글자부터 호출한다.
 const MIN_QUERY_LENGTH = 2;
 
-export function SearchBar({ width = "w-60" }: { width?: string }) {
+type SearchBarVariant = "default" | "market";
+
+// variant="market": 마켓 페이지(bg-neutral) 위에서 검색창이 필터 사이드바(bg-white 패널)와
+// 같은 톤으로 보이도록, 그리고 44px 터치 타겟을 확보하도록 별도 스타일을 준다. 헤더는 기존
+// 스타일(variant="default") 그대로 유지 — 이번 개선 범위가 아니다.
+const CONTAINER_STYLES: Record<SearchBarVariant, string> = {
+  default: "border-[#DDDDE3] bg-neutral px-3.5 py-2.5",
+  market: "border-[#DDDDE3] bg-white px-4 py-3 shadow-card",
+};
+const FOCUS_STYLES: Record<SearchBarVariant, string> = {
+  default: "transition focus-within:border-primary",
+  market:
+    "transition-[box-shadow,border-color] duration-200 focus-within:border-primary focus-within:shadow-[0_0_0_4px_rgba(238,21,21,0.08)]",
+};
+
+export function SearchBar({
+  width = "w-60",
+  variant = "default",
+}: {
+  width?: string;
+  variant?: SearchBarVariant;
+}) {
   // useSearchParams는 Suspense 경계가 필요 — Header는 모든 페이지에 걸쳐있으므로
   // 이 부분만 분리해 나머지 정적 페이지의 prerender를 막지 않는다.
   return (
-    <Suspense fallback={<SearchBarShell width={width} />}>
-      <SearchBarInner width={width} />
+    <Suspense fallback={<SearchBarShell width={width} variant={variant} />}>
+      <SearchBarInner width={width} variant={variant} />
     </Suspense>
   );
 }
 
-function SearchBarShell({ width = "w-60" }: { width?: string }) {
+function SearchBarShell({
+  width = "w-60",
+  variant = "default",
+}: {
+  width?: string;
+  variant?: SearchBarVariant;
+}) {
   return (
     <div
-      className={`flex items-center gap-2 rounded-[9px] border border-[#DDDDE3] bg-neutral px-3.5 py-2.5 ${width}`}
+      className={`flex items-center gap-2 rounded-[9px] border ${CONTAINER_STYLES[variant]} ${width}`}
     >
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9A9AA2" strokeWidth="2">
         <circle cx="11" cy="11" r="7" />
@@ -40,7 +67,13 @@ function SearchBarShell({ width = "w-60" }: { width?: string }) {
   );
 }
 
-function SearchBarInner({ width = "w-60" }: { width?: string }) {
+function SearchBarInner({
+  width = "w-60",
+  variant = "default",
+}: {
+  width?: string;
+  variant?: SearchBarVariant;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -201,7 +234,7 @@ function SearchBarInner({ width = "w-60" }: { width?: string }) {
           e.preventDefault();
           submit();
         }}
-        className="flex items-center gap-2 rounded-[9px] border border-[#DDDDE3] bg-neutral px-3.5 py-2.5 transition focus-within:border-primary"
+        className={`flex items-center gap-2 rounded-[9px] border ${CONTAINER_STYLES[variant]} ${FOCUS_STYLES[variant]}`}
       >
         <button type="submit" aria-label="검색" className="flex flex-shrink-0 items-center">
           <svg
