@@ -27,6 +27,7 @@ import {
   fetchPriceSummary,
 } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
+import { fetchWatchlistCounts } from "@/lib/watchlistApi";
 import { readyTradePurchase } from "@/lib/tradeApi";
 import { useUserStore } from "@/store/useUserStore";
 import { loginUrlFor } from "@/lib/authRedirect";
@@ -119,6 +120,8 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   const [priceSummary, setPriceSummary] = useState<PriceSummaryResponse | null>(null);
   // 비로그인이거나 체결 이력이 부족해 계산할 수 없으면 null — 뱃지 자체를 숨긴다(에러 UI 없음).
   const [priceStats, setPriceStats] = useState<PriceStatsResponse | null>(null);
+  // 관심수 조회 실패 시에도 null로 남겨 "관심 등록" 버튼 텍스트에서 숫자만 생략한다.
+  const [watchlistCount, setWatchlistCount] = useState<number | null>(null);
   const [activeListings, setActiveListings] = useState<ListingSummaryResponse[]>([]);
   const [selectedGrade, setSelectedGrade] = useState<GradeKey | null>(null);
   const [chartPeriod, setChartPeriod] = useState<ChartPeriod>("30d");
@@ -318,6 +321,26 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
       .catch(() => {
         if (cancelled) return;
         setPriceStats(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cardId, loadState]);
+
+  // "관심 등록" 버튼 옆 관심수. 조회 실패는 조용히 무시 — 버튼 자체는 그대로 정상 동작해야 한다.
+  useEffect(() => {
+    if (loadState !== "ready" || cardId == null) return;
+    let cancelled = false;
+
+    fetchWatchlistCounts([cardId])
+      .then((counts) => {
+        if (cancelled) return;
+        setWatchlistCount(counts.get(cardId) ?? null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setWatchlistCount(null);
       });
 
     return () => {
@@ -712,10 +735,16 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                       <button
                         type="button"
                         onClick={() => setWatchlistModalOpen(true)}
-                        aria-label="관심 등록"
+                        aria-label={
+                          watchlistCount
+                            ? `관심 등록 (${watchlistCount.toLocaleString("ko-KR")})`
+                            : "관심 등록"
+                        }
                         className="w-full rounded-[11px] border-[1.5px] border-[#DDDDE3] bg-white py-2.5 text-[13.5px] font-bold text-[#4B4B52] transition hover:border-primary hover:text-primary"
                       >
-                        관심 등록
+                        {watchlistCount
+                          ? `관심 등록 (${watchlistCount.toLocaleString("ko-KR")})`
+                          : "관심 등록"}
                       </button>
                       {watchlistAdded && (
                         <span className="whitespace-nowrap text-[12.5px] font-bold text-primary">
