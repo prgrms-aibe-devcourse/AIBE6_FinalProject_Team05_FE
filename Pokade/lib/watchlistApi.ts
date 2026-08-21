@@ -1,6 +1,7 @@
 import { apiDelete, apiGet, apiPatch, apiPost, PageResponse } from "@/lib/apiClient";
 import { NotificationResponse } from "@/types/notification";
 import {
+  WatchlistCountResponse,
   WatchlistCreateRequest,
   WatchlistResponse,
   WatchlistUpdateRequest,
@@ -33,6 +34,30 @@ export async function updateWatchlist(
 // DELETE /api/watchlist/{id} — 본인 소유가 아니거나 없는 id면 404(WATCHLIST_NOT_FOUND).
 export async function deleteWatchlistItem(id: number): Promise<void> {
   return apiDelete(`/api/watchlist/${id}`);
+}
+
+// BE 배치 한도(WatchlistService.MAX_COUNT_CARD_IDS)와 일치 — 초과분은 여러 번 나눠 호출한다.
+const WATCHLIST_COUNTS_BATCH_SIZE = 100;
+
+// GET /api/watchlist/counts?cardIds=1,2,3 — 카드별 관심(워치리스트) 등록 수 배치 조회.
+// 인증 불필요(비로그인도 허용). 요청에 넣은 cardId는 등록 수가 0이어도 응답에 포함되므로
+// Map으로 변환해서 반환한다(호출부는 없는 카드는 그냥 undefined로 처리하면 됨).
+export async function fetchWatchlistCounts(cardIds: number[]): Promise<Map<number, number>> {
+  const distinctIds = Array.from(new Set(cardIds));
+  if (distinctIds.length === 0) return new Map();
+
+  const chunks: number[][] = [];
+  for (let i = 0; i < distinctIds.length; i += WATCHLIST_COUNTS_BATCH_SIZE) {
+    chunks.push(distinctIds.slice(i, i + WATCHLIST_COUNTS_BATCH_SIZE));
+  }
+
+  const results = await Promise.all(
+    chunks.map((chunk) =>
+      apiGet<WatchlistCountResponse[]>(`/api/watchlist/counts?cardIds=${chunk.join(",")}`),
+    ),
+  );
+
+  return new Map(results.flat().map((r) => [r.cardId, r.count]));
 }
 
 // GET /api/notifications — 로그인한 유저의 알림 목록. #162부터 Pageable을 받아 Page<NotificationResponse>를
