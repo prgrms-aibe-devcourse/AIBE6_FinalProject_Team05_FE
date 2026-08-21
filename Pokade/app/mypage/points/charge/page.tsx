@@ -19,6 +19,7 @@ type Step = "input" | "widget";
 export default function PointChargePage() {
   const status = useRequireAuth();
   const userId = useUserStore((s) => s.userId);
+  const pointBalance = useUserStore((s) => s.pointBalance);
 
   const [step, setStep] = useState<Step>("input");
   // 입력창은 문자열로 들고 있는다 - amount를 number 상태로 직접 바인딩하면 전부 지웠을 때
@@ -99,6 +100,13 @@ export default function PointChargePage() {
         </Link>
 
         <h1 className="m-0 mb-5 text-[22px] font-extrabold tracking-[-0.5px]">포인트 충전</h1>
+
+        {pointBalance !== null && (
+          <div className="mb-4 flex items-center justify-between rounded-[12px] border border-[#EDEDF0] bg-white px-5 py-3.5 shadow-card">
+            <span className="text-[13px] font-semibold text-[#8A8A92]">현재 보유 포인트</span>
+            <span className="text-[15px] font-extrabold text-primary">{pointBalance.toLocaleString("ko-KR")} P</span>
+          </div>
+        )}
 
         <div className="rounded-[18px] border border-[#EDEDF0] bg-white p-7 shadow-card">
           <label className="mb-2 block text-[13px] font-bold text-[#4B4B52]">충전 금액</label>
