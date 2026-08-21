@@ -584,11 +584,10 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                         (chartError?.status === 401 || chartError?.status === 403)
                       }
                     />
-
-                    <OrderActivitySection cardId={cardId} />
                   </div>
 
-                  <div className="flex flex-col gap-4 rounded-2xl border border-[#EDEDF0] bg-white p-5 lg:sticky lg:top-8 lg:self-start">
+                  <div className="flex flex-col gap-4 lg:sticky lg:top-8 lg:self-start">
+                  <div className="flex flex-col gap-4 rounded-2xl border border-[#EDEDF0] bg-white p-5">
                     <div>
                       <div className="text-[12px] font-semibold text-[#8A8A92]">즉시구매가</div>
                       <div className="mt-1 text-[24px] font-extrabold text-primary">
@@ -714,6 +713,11 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                         </span>
                       )}
                     </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-[#EDEDF0] bg-white p-5">
+                    <OrderActivitySection cardId={cardId} />
+                  </div>
                   </div>
                 </div>
 
