@@ -210,7 +210,7 @@ export default function ChangePasswordPage() {
                 autoComplete="new-password"
               />
               {passwordMismatch && (
-                <p className="mt-[7px] text-[12px] font-semibold text-primary">
+                <p role="alert" className="mt-[7px] text-[12px] font-semibold text-primary">
                   비밀번호가 일치하지 않습니다.
                 </p>
               )}
