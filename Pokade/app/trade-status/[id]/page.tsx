@@ -80,6 +80,9 @@ export default function TradeStatusPage() {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [actionSubmitting, setActionSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
+
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     if (userStatus !== "authenticated" || tradeId == null) return;
@@ -104,7 +107,7 @@ export default function TradeStatusPage() {
     return () => {
       cancelled = true;
     };
-  }, [userStatus, tradeId]);
+  }, [userStatus, tradeId, retryKey]);
 
   const handleShip = async () => {
     if (!trade) return;
@@ -141,6 +144,7 @@ export default function TradeStatusPage() {
     try {
       const updated = await cancelTrade(trade.id);
       setTrade(updated);
+      setConfirmingCancel(false);
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : "거래 취소에 실패했습니다.");
     } finally {
@@ -178,26 +182,64 @@ export default function TradeStatusPage() {
         <h1 className="mb-6 text-[26px] font-extrabold tracking-[-0.6px]">거래 상세</h1>
 
         {loadState === "loading" && (
-          <div className="rounded-2xl border border-[#EDEDF0] bg-white py-14 text-center text-[13.5px] text-[#9A9AA2]">
-            불러오는 중...
+          <div className="flex flex-col gap-5">
+            <div className="h-[70px] animate-pulse rounded-2xl border border-[#EDEDF0] bg-[#F2F2F5]" />
+            <div className="h-[92px] animate-pulse rounded-2xl border border-[#EDEDF0] bg-[#F2F2F5]" />
+            <div className="rounded-2xl border border-[#EDEDF0] bg-white p-6">
+              <div className="flex gap-4">
+                <div className="h-[100px] w-[72px] flex-shrink-0 animate-pulse rounded-[10px] bg-[#F2F2F5]" />
+                <div className="flex-1 space-y-2.5 pt-1">
+                  <div className="h-4 w-2/3 animate-pulse rounded bg-[#F2F2F5]" />
+                  <div className="h-6 w-1/3 animate-pulse rounded bg-[#F2F2F5]" />
+                </div>
+              </div>
+              <div className="my-5 h-px bg-[#EDEDF0]" />
+              <div className="space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-4 animate-pulse rounded bg-[#F2F2F5]" />
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
         {loadState === "notfound" && (
           <div className="rounded-2xl border border-[#EDEDF0] bg-white py-14 text-center text-[13.5px] text-[#9A9AA2]">
-            거래를 찾을 수 없습니다.
+            <p>거래를 찾을 수 없습니다.</p>
+            <Link
+              href="/listings/me"
+              className="mt-3 inline-block text-[12.5px] font-bold text-primary hover:text-primary-dark"
+            >
+              내 상품으로 돌아가기
+            </Link>
           </div>
         )}
 
         {loadState === "forbidden" && (
           <div className="rounded-2xl border border-[#EDEDF0] bg-white py-14 text-center text-[13.5px] text-[#9A9AA2]">
-            본인의 거래만 확인할 수 있습니다.
+            <p>본인의 거래만 확인할 수 있습니다.</p>
+            <Link
+              href="/listings/me"
+              className="mt-3 inline-block text-[12.5px] font-bold text-primary hover:text-primary-dark"
+            >
+              내 상품으로 돌아가기
+            </Link>
           </div>
         )}
 
         {loadState === "error" && (
           <div className="rounded-2xl border border-[#F6C6C6] bg-[#FFF1F1] py-14 text-center text-[13.5px] text-[#C21414]">
-            거래 정보를 불러오지 못했습니다.
+            <p>거래 정보를 불러오지 못했습니다.</p>
+            <button
+              type="button"
+              onClick={() => {
+                setLoadState("loading");
+                setRetryKey((k) => k + 1);
+              }}
+              className="mt-3 font-bold text-[#C21414] underline hover:no-underline"
+            >
+              다시 시도
+            </button>
           </div>
         )}
 
@@ -365,6 +407,12 @@ export default function TradeStatusPage() {
                     <span className="font-bold">{formatDateTime(trade.confirmedAt)}</span>
                   </div>
                 )}
+                {trade.settledAt && (
+                  <div className="flex justify-between">
+                    <span className="text-[#8A8A92]">정산일</span>
+                    <span className="font-bold">{formatDateTime(trade.settledAt)}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -396,14 +444,38 @@ export default function TradeStatusPage() {
                     {actionSubmitting ? "처리 중..." : "구매 확정"}
                   </button>
                 )}
-                <button
-                  type="button"
-                  disabled={actionSubmitting}
-                  onClick={handleCancel}
-                  className="w-full rounded-xl border-[1.5px] border-[#DDDDE3] bg-white py-[15px] text-[15px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary disabled:opacity-60"
-                >
-                  거래 취소
-                </button>
+                {confirmingCancel ? (
+                  <div className="flex items-center gap-2 rounded-xl border-[1.5px] border-[#F6C6C6] bg-[#FFF1F1] px-4 py-3">
+                    <span className="flex-1 text-[13px] font-semibold text-[#C21414]">
+                      정말 거래를 취소하시겠어요?
+                    </span>
+                    <button
+                      type="button"
+                      disabled={actionSubmitting}
+                      onClick={handleCancel}
+                      className="rounded-[9px] border-2 border-primary-dark bg-primary px-3 py-1.5 text-[12.5px] font-bold text-white disabled:opacity-60"
+                    >
+                      {actionSubmitting ? "취소 중..." : "취소하기"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={actionSubmitting}
+                      onClick={() => setConfirmingCancel(false)}
+                      className="rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#4B4B52]"
+                    >
+                      돌아가기
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={actionSubmitting}
+                    onClick={() => setConfirmingCancel(true)}
+                    className="w-full rounded-xl border-[1.5px] border-[#DDDDE3] bg-white py-[15px] text-[15px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary disabled:opacity-60"
+                  >
+                    거래 취소
+                  </button>
+                )}
               </div>
             )}
           </div>

@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/apiClient";
+import { apiDelete, apiGet, apiPost, apiPut, PageResponse } from "@/lib/apiClient";
 import {
   ListingCreateRequest,
   ListingResponse,
@@ -12,10 +12,19 @@ export async function createListing(request: ListingCreateRequest): Promise<List
   return apiPost<ListingResponse>("/api/listings", request);
 }
 
-// GET /api/listings/me?status= — 내 매물 조회 (인증 필요). status 생략 시 전체 상태 조회.
-export async function fetchMyListings(status?: ListingStatus): Promise<ListingSummaryResponse[]> {
-  const query = status ? `?status=${status}` : "";
-  return apiGet<ListingSummaryResponse[]>(`/api/listings/me${query}`);
+export type MyListingsSort = "createdAt,desc" | "createdAt,asc" | "price,asc" | "price,desc";
+
+// GET /api/listings/me?status=&page=&size=&sort= — 내 매물 페이징 조회 (인증 필요).
+// status 생략 시 전체 상태 조회, page는 0-indexed(Spring Pageable 관례).
+export async function fetchMyListings(
+  status?: ListingStatus,
+  page = 0,
+  size = 10,
+  sort: MyListingsSort = "createdAt,desc",
+): Promise<PageResponse<ListingSummaryResponse>> {
+  const query = new URLSearchParams({ page: String(page), size: String(size), sort });
+  if (status) query.set("status", status);
+  return apiGet<PageResponse<ListingSummaryResponse>>(`/api/listings/me?${query.toString()}`);
 }
 
 // PUT /api/listings/{id} — 매물 가격 수정. 본인 소유 + ACTIVE 상태에서만 가능(그 외 400/403/404).

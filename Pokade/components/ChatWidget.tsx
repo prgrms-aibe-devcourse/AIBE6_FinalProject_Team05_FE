@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useChat } from "@/hooks/useChat";
 import { MAX_CHAT_MESSAGE_LENGTH } from "@/types/chat";
+import RankingList from "@/components/RankingList";
 
 // 풋터와 위젯 사이에 남길 최소 여백(px).
 const FOOTER_MARGIN = 16;
@@ -59,12 +60,17 @@ function ChatWidgetPanel() {
       setFooterClearance(Math.max(0, window.innerHeight - rect.top + FOOTER_MARGIN));
     }
 
-    updateClearance();
+    // 초기 측정을 requestAnimationFrame으로 한 프레임 지연 —
+    // 마운트 직후(예: 로그인 페이지 Suspense 경계로 인해 LoginForm이 아직 미렌더된 상태)엔
+    // flexbox 레이아웃이 확장되기 전이라 footer.top이 잘못 측정된다.
+    // rAF 이후엔 브라우저가 레이아웃을 완료한 뒤 측정하므로 올바른 값을 얻는다.
+    const rafId = requestAnimationFrame(updateClearance);
     window.addEventListener("scroll", updateClearance, { passive: true });
     window.addEventListener("resize", updateClearance);
     const resizeObserver = new ResizeObserver(updateClearance);
     resizeObserver.observe(document.body);
     return () => {
+      cancelAnimationFrame(rafId);
       window.removeEventListener("scroll", updateClearance);
       window.removeEventListener("resize", updateClearance);
       resizeObserver.disconnect();
@@ -154,8 +160,12 @@ function ChatWidgetPanel() {
                 </div>
               ) : (
                 <div key={i} className="max-w-[85%] self-start">
-                  <div className="whitespace-pre-line rounded-[3px_12px_12px_12px] border border-[#EDEDF0] bg-white px-3 py-2.5 text-[13px] leading-normal">
-                    {m.content}
+                  <div className="overflow-hidden rounded-[3px_12px_12px_12px] border border-[#EDEDF0] bg-white text-[13px] leading-normal">
+                    {m.rankingItems ? (
+                      <RankingList items={m.rankingItems} size="compact" />
+                    ) : (
+                      <div className="whitespace-pre-line px-3 py-2.5">{m.content}</div>
+                    )}
                   </div>
                   {m.disclaimer && (
                     <div className="mt-1 rounded-lg border border-[#F5D9A8] bg-[#FFF7E8] px-2.5 py-1.5 text-[11px] font-semibold text-[#9A6A00]">

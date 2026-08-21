@@ -3,6 +3,8 @@ import * as authApi from "@/lib/authApi";
 import { setAccessToken } from "@/lib/authToken";
 import { MyInfo } from "@/types/auth";
 import { reissueAccessToken, ApiError } from "@/lib/apiClient";
+import { importChatHistory } from "@/lib/chatApi";
+import { getChatSessionId, peekImportQueue, removeImportQueueEntries } from "@/lib/chatSession";
 
 /**
  * 유저 세션 전역 상태.
@@ -19,6 +21,8 @@ interface UserState {
   email: string | null;
   profileImageUrl: string | null; // 서버 상대 경로, 이미지 없으면 null
   role: "user" | "admin" | null;
+  // 비로그인 프리셋 이관 성공 시 증가 — useChat이 구독해 이력을 자동 재로드함.
+  chatHistoryVersion: number;
   accountStatus: MyInfo["status"] | null;
   provider: MyInfo["provider"] | null;
   login: (email: string, password: string) => Promise<void>;
@@ -40,6 +44,21 @@ function toStoreRole(role: MyInfo["role"]): "user" | "admin" {
   return role === "ADMIN" ? "admin" : "user";
 }
 
+// 비로그인 프리셋 큐 → 서버 이관 (best-effort, 실패해도 로그인을 막지 않음).
+// loginWithToken에서만 호출 — restoreSession(새로고침)에서는 호출하지 않는다.
+async function flushChatImportQueue(set: (partial: Partial<UserState>) => void): Promise<void> {
+  const entries = peekImportQueue();
+  if (entries.length === 0) return;
+  try {
+    await importChatHistory(getChatSessionId(), entries);
+    removeImportQueueEntries(entries);
+    // useChat이 구독해 이력을 자동 재로드하도록 버전을 올린다
+    set({ chatHistoryVersion: Date.now() });
+  } catch {
+    // 실패 시 큐 보존 — 다음 로그인 때 재시도
+  }
+}
+
 export const useUserStore = create<UserState>((set, get) => ({
   isLoggedIn: false,
   status: "loading",
@@ -49,6 +68,7 @@ export const useUserStore = create<UserState>((set, get) => ({
   email: null,
   profileImageUrl: null,
   role: null,
+  chatHistoryVersion: 0,
   accountStatus: null,
   provider: null,
 
@@ -70,6 +90,8 @@ export const useUserStore = create<UserState>((set, get) => ({
         accountStatus: me.status,
         provider: me.provider,
       });
+      // 비로그인 때 쌓아둔 프리셋 클릭 이력을 서버로 이관 (best-effort, fire-and-forget)
+      flushChatImportQueue(set).catch(() => {});
     } catch (err) {
       // 프로필 조회 실패 → 토큰 + 인증 상태를 함께 롤백(부분 상태 불일치 방지)
       setAccessToken(null);

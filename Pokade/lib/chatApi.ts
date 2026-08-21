@@ -1,5 +1,11 @@
 import { apiGetRaw, apiPostRaw, PageResponse } from "@/lib/apiClient";
-import { ChatHistoryItem, ChatQueryResponse, QuickQuestion } from "@/types/chat";
+import {
+  ChatHistoryImportEntry,
+  ChatHistoryImportResponse,
+  ChatHistoryItem,
+  ChatQueryResponse,
+  QuickQuestion,
+} from "@/types/chat";
 
 // 자유 입력 또는 FAQ 프리셋 질문(question 값 그대로)을 그대로 보낸다.
 // 비로그인 + 프리셋이 아닌 메시지는 BE가 401을 반환한다.
@@ -9,6 +15,14 @@ export async function sendChatQuery(sessionId: string, message: string): Promise
 
 export async function fetchQuickQuestions(): Promise<QuickQuestion[]> {
   return apiGetRaw<QuickQuestion[]>("/api/chat/quick-questions");
+}
+
+// 로그인 사용자 전용 — 비로그인 프리셋 클릭 이력을 계정에 이관.
+export async function importChatHistory(
+  sessionId: string,
+  entries: ChatHistoryImportEntry[],
+): Promise<ChatHistoryImportResponse> {
+  return apiPostRaw<ChatHistoryImportResponse>("/api/chat/history/import", { sessionId, entries });
 }
 
 // 로그인 사용자 전용 — 비로그인 호출은 BE가 401을 반환한다.
