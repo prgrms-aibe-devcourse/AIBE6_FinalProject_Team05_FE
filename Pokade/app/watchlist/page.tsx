@@ -286,10 +286,10 @@ export default function WatchlistPage() {
               목표가에 도달하면 알림을 보내드립니다.
             </p>
             <Link
-              href="/"
+              href="/search?sort=popular"
               className="mt-[26px] inline-block rounded-[11px] border-2 border-primary-dark bg-primary px-[26px] py-3 text-[14.5px] font-bold text-white shadow-tactile-sm hover:text-white"
             >
-              카드 둘러보기
+              인기 카드 보기
             </Link>
           </div>
         )}
