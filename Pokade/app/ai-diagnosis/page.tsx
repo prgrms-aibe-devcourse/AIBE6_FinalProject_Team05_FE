@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import GradeBadge from "@/components/GradeBadge";
+import type { Grade } from "@/components/GradeBadge";
 import ConditionBar from "@/components/ConditionBar";
 import PixelCharizard from "@/components/PixelCharizard";
 import { apiPostFormRaw, ApiError, PageResponse } from "@/lib/apiClient";
@@ -21,6 +22,133 @@ const SLOTS: { field: string; label: string }[] = [
 ];
 
 const HISTORY_PAGE_SIZE = 10;
+
+// 테스트 계정이 직접 사진을 찍지 않고도 진단을 시연해볼 수 있도록 public에 미리 넣어둔 데모 이미지
+const DEMO_PHOTO_URLS: Record<string, string> = {
+  front: "/demo/ai-diagnosis/front.png",
+  back: "/demo/ai-diagnosis/back.png",
+  corner_tl: "/demo/ai-diagnosis/corner_tl.png",
+  corner_tr: "/demo/ai-diagnosis/corner_tr.png",
+  corner_bl: "/demo/ai-diagnosis/corner_bl.png",
+  corner_br: "/demo/ai-diagnosis/corner_br.png",
+};
+
+async function loadDemoPhotos(): Promise<File[]> {
+  return Promise.all(
+    SLOTS.map(async ({ field }) => {
+      const res = await fetch(DEMO_PHOTO_URLS[field]);
+      if (!res.ok) throw new Error(`데모 이미지를 불러오지 못했습니다: ${field}`);
+      const blob = await res.blob();
+      return new File([blob], `${field}.png`, { type: blob.type || "image/png" });
+    }),
+  );
+}
+
+// 슬롯별로 어떻게 찍어야 하는지 — 데모 사진을 예시로 보여주는 촬영 가이드 섹션에서 사용
+const GUIDE_TIPS: Record<string, string> = {
+  front: "카드 전체가 프레임 안에 들어오도록 반듯하게 촬영해주세요.",
+  back: "뒷면도 앞면과 같은 각도로, 빛 반사 없이 촬영해주세요.",
+  corner_tl: "모서리를 가까이 확대해 마모·꺾임이 잘 보이게 찍어주세요.",
+  corner_tr: "모서리를 가까이 확대해 마모·꺾임이 잘 보이게 찍어주세요.",
+  corner_bl: "모서리를 가까이 확대해 마모·꺾임이 잘 보이게 찍어주세요.",
+  corner_br: "모서리를 가까이 확대해 마모·꺾임이 잘 보이게 찍어주세요.",
+};
+
+function ShootingGuide() {
+  return (
+    <div className="mt-5 rounded-2xl border border-[#EDEDF0] bg-white p-[30px]">
+      <span className="inline-block rounded-md bg-[#FFF3CE] px-3 py-1.5 text-xs font-extrabold tracking-[1px] text-[#8A6A00]">
+        촬영 가이드
+      </span>
+      <h2 className="mb-1 mt-3 text-base font-extrabold">이렇게 6장을 찍어주세요</h2>
+      <p className="mb-5 text-[13px] text-[#8A8A92]">
+        아래 예시처럼 앞·뒷면 전체 사진과 네 모서리 확대 사진을 준비하면 AI가 더 정확하게 분석합니다.
+      </p>
+      <div className="flex flex-col gap-3.5">
+        {SLOTS.map(({ field, label }) => (
+          <div
+            key={field}
+            className="flex items-center gap-5 rounded-[11px] border border-[#EDEDF0] p-4"
+          >
+            <div className="relative aspect-[3/4] w-[200px] flex-shrink-0 overflow-hidden rounded-[9px] bg-[#F2F2F5]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={DEMO_PHOTO_URLS[field]}
+                alt={`${label} 촬영 예시`}
+                className="h-full w-full object-cover"
+              />
+            </div>
+            <div>
+              <div className="text-[15px] font-bold">{label}</div>
+              <p className="mt-1.5 text-[13.5px] leading-relaxed text-[#8A8A92]">
+                {GUIDE_TIPS[field]}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// 등급별 기준 설명 — BE(AiGradeService의 Vision 프롬프트)가 안내하는 PSA 상당 등급 기준과 동일한 문구.
+const GRADE_DESCRIPTIONS: Record<Grade, string> = {
+  S: "PSA 9~10 상당 — 민트 상태. 결함 없이 날카로운 모서리와 깨끗한 엣지, 중앙 정렬.",
+  A: "PSA 7~8 상당 — 엑셀런트~니어민트. 경미한 결함이나 약간의 모서리·엣지 마모 허용.",
+  B: "PSA 5~6 상당 — 굿~엑셀런트. 눈에 띄는 결함이 있으나 감상에는 무리 없는 수준.",
+};
+
+// 세부 점수 4항목이 각각 무엇을 보는지 — ResultView의 점수 라벨과 그대로 매칭되어야 함
+const SCORE_INFO: { label: string; desc: string }[] = [
+  { label: "센터링", desc: "카드 프레임 안에서 그림·테두리가 정중앙에 위치했는지" },
+  { label: "엣지", desc: "가장자리의 닳음, 화이트닝(테두리 흰 선) 정도" },
+  { label: "표면", desc: "스크래치, 눌림 자국 등 표면 손상 정도" },
+  { label: "모서리", desc: "네 모서리의 마모·꺾임 정도" },
+];
+
+function GradeInfo() {
+  return (
+    <div className="mb-5 rounded-2xl border border-[#EDEDF0] bg-white p-[30px]">
+      <span className="inline-block rounded-md bg-[#FFF3CE] px-3 py-1.5 text-xs font-extrabold tracking-[1px] text-[#8A6A00]">
+        등급 안내
+      </span>
+      <h2 className="mb-1 mt-3 text-base font-extrabold">등급과 신뢰도, 이렇게 봐주세요</h2>
+      <p className="mb-5 text-[13px] leading-relaxed text-[#8A8A92]">
+        PSA 등급을 받기엔 애매하거나, 정식 감정 비용이 부담스러운 카드도 괜찮습니다. AI 진단은 낮은
+        등급의 카드도 부담 없이 가볍게 측정해볼 수 있도록 만들어졌습니다.
+      </p>
+
+      <div className="mb-6 flex flex-col gap-3">
+        {(["S", "A", "B"] as Grade[]).map((g) => (
+          <div
+            key={g}
+            className="flex items-center gap-3.5 rounded-[11px] border border-[#EDEDF0] p-3.5"
+          >
+            <GradeBadge grade={g} size="lg" />
+            <p className="text-[13px] text-[#4B4B52]">{GRADE_DESCRIPTIONS[g]}</p>
+          </div>
+        ))}
+      </div>
+
+      <h3 className="mb-2.5 text-[13.5px] font-bold">세부 점수 항목</h3>
+      <div className="mb-6 grid grid-cols-2 gap-3">
+        {SCORE_INFO.map(({ label, desc }) => (
+          <div key={label} className="rounded-[11px] border border-[#EDEDF0] p-3.5">
+            <div className="text-[12.5px] font-bold text-[#4B4B52]">{label}</div>
+            <p className="mt-1 text-[12px] leading-relaxed text-[#8A8A92]">{desc}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-[10px] bg-neutral px-4 py-3.5 text-[12.5px] leading-relaxed text-[#8A8A92]">
+        <b className="text-[#4B4B52]">AI 신뢰도란?</b> AI가 업로드된 사진에서 카드 상태를 얼마나
+        명확하게 인식했는지 나타내는 지표입니다. 빛 반사, 초점 흐림, 각도 문제로 사진이 불명확하면
+        신뢰도가 낮게 나올 수 있으며, 이 경우 결과의 정확도도 함께 낮아질 수 있습니다. 신뢰도가
+        낮다면 촬영 가이드를 참고해 다시 촬영해보시는 걸 권장합니다.
+      </div>
+    </div>
+  );
+}
 
 // 진단 흐름의 상태를 하나의 판별 유니언으로 관리 — 서로 동시에 있을 수 없는 값들을 분리된 state로 두면
 // 항상 함께 세팅해야 하는 규칙이 컴파일러가 아닌 개발자 주의에만 의존하게 됨
@@ -74,6 +202,9 @@ function UploadView({
 }) {
   const [photos, setPhotos] = useState<(File | null)[]>(Array(6).fill(null));
   const [previews, setPreviews] = useState<(string | null)[]>(Array(6).fill(null));
+  const [demoLoading, setDemoLoading] = useState(false);
+  const [demoError, setDemoError] = useState<string | null>(null);
+  const [demoNotice, setDemoNotice] = useState<string | null>(null);
   const count = photos.filter(Boolean).length;
   const canStart = photos.every(Boolean) && !loading;
 
@@ -91,6 +222,7 @@ function UploadView({
   }, []);
 
   const setAt = (i: number, file: File | null) => {
+    setDemoNotice(null);
     setPhotos((prev) => {
       const next = [...prev];
       next[i] = file;
@@ -110,12 +242,56 @@ function UploadView({
     e.target.value = "";
   };
 
+  const onLoadDemo = async () => {
+    // 이미 채워둔(직접 찍었거나 이전 데모로 채운) 사진이 있으면 그냥 덮어써서 조용히 실패하는 대신
+    // 먼저 지워달라고 안내한다.
+    if (count > 0) {
+      setDemoNotice("이미 카드 사진이 채워져 있어요. 사진을 모두 지운 뒤 다시 눌러주세요.");
+      return;
+    }
+    setDemoLoading(true);
+    setDemoError(null);
+    setDemoNotice(null);
+    // 로컬 이미지라 순식간에 끝나 "불러오는 중" 문구가 한 프레임만 반짝이고 사라져 보인다 —
+    // 최소 노출 시간을 둬 로딩 상태가 실제로 인지되도록 한다.
+    const minDuration = new Promise((resolve) => setTimeout(resolve, 400));
+    try {
+      const [files] = await Promise.all([loadDemoPhotos(), minDuration]);
+      files.forEach((file, i) => setAt(i, file));
+    } catch (e) {
+      setDemoError(e instanceof Error ? e.message : "데모 사진을 불러오지 못했습니다.");
+    } finally {
+      setDemoLoading(false);
+    }
+  };
+
   return (
     <div className="rounded-2xl border border-[#EDEDF0] bg-white p-[30px]">
-      <h2 className="mb-1 mt-0 text-base font-extrabold">카드 사진 업로드</h2>
-      <p className="mb-5 text-[13px] text-[#8A8A92]">
-        앞면·뒷면·모서리 4곳을 촬영해 올려주세요 (6장 모두 필요)
-      </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="mb-1 mt-0 text-base font-extrabold">카드 사진 업로드</h2>
+          <p className="mb-5 text-[13px] text-[#8A8A92]">
+            앞면·뒷면·모서리 4곳을 촬영해 올려주세요 (6장 모두 필요)
+          </p>
+        </div>
+        <button
+          onClick={onLoadDemo}
+          disabled={demoLoading || loading}
+          className="shrink-0 whitespace-nowrap rounded-[9px] border border-[#DDDDE3] bg-white px-3.5 py-2 text-[12.5px] font-bold text-[#4B4B52] transition hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {demoLoading ? "불러오는 중..." : "테스트 해보기"}
+        </button>
+      </div>
+      {demoNotice && (
+        <div className="mb-5 rounded-xl border border-[#DDDDE3] bg-neutral px-4 py-3.5 text-[13.5px] font-bold text-[#4B4B52]">
+          {demoNotice}
+        </div>
+      )}
+      {demoError && (
+        <div className="mb-5 rounded-xl border border-[#F6C6C6] bg-[#FFF1F1] px-4 py-3.5 text-[13.5px] font-bold text-[#C21414]">
+          {demoError}
+        </div>
+      )}
       {error && (
         <div className="mb-5 rounded-xl border border-[#F6C6C6] bg-[#FFF1F1] px-4 py-3.5 text-[13.5px] font-bold text-[#C21414]">
           {error}
@@ -131,7 +307,7 @@ function UploadView({
           previews[i] ? (
             <div
               key={i}
-              className="relative aspect-[3/4] overflow-hidden rounded-[11px] bg-[#F2F2F5]"
+              className="relative aspect-[3/4] animate-fade-in overflow-hidden rounded-[11px] bg-[#F2F2F5]"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -515,12 +691,16 @@ function AIDiagnosisContent() {
         ) : status.kind === "success" ? (
           <ResultView result={status.data} onReset={handleReset} />
         ) : (
-          <UploadView
-            onSubmit={handleSubmit}
-            loading={loading}
-            error={status.kind === "error" ? status.message : null}
-            isRetry={status.kind === "qualityFail"}
-          />
+          <>
+            <GradeInfo />
+            <UploadView
+              onSubmit={handleSubmit}
+              loading={loading}
+              error={status.kind === "error" ? status.message : null}
+              isRetry={status.kind === "qualityFail"}
+            />
+            <ShootingGuide />
+          </>
         )}
       </div>
     </main>
