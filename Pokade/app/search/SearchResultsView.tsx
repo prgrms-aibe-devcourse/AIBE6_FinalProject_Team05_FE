@@ -169,7 +169,7 @@ export default function SearchResultsView({
   watchlistError,
   onHeartClick,
 }: SearchResultsViewProps) {
-  const { triggerPunch, punchProps } = useHeartPunch();
+  const { triggerPunch, punchKey, punchClass } = useHeartPunch();
   const filterPanelRef = useRef<HTMLDivElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const prevFilterOpenRef = useRef(filterOpen);
@@ -355,11 +355,11 @@ export default function SearchResultsView({
                 key={i}
                 className="flex flex-col overflow-hidden rounded-[14px] border border-[#EDEDF0]"
               >
-                <div className="aspect-[5/7] w-full animate-pulse bg-[#F2F2F5]" />
+                <div className="skeleton-shimmer aspect-[5/7] w-full" />
                 <div className="flex flex-1 flex-col gap-2 p-3">
-                  <div className="h-[13.5px] w-3/4 animate-pulse rounded bg-[#F2F2F5]" />
-                  <div className="h-[11.5px] w-1/2 animate-pulse rounded bg-[#F2F2F5]" />
-                  <div className="mt-auto h-[15px] w-2/3 animate-pulse rounded bg-[#F2F2F5]" />
+                  <div className="skeleton-shimmer h-[13.5px] w-3/4 rounded" />
+                  <div className="skeleton-shimmer h-[11.5px] w-1/2 rounded" />
+                  <div className="skeleton-shimmer mt-auto h-[15px] w-2/3 rounded" />
                 </div>
               </div>
             ))}
@@ -512,7 +512,8 @@ export default function SearchResultsView({
                       >
                         <span className="flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#EDEDF0] bg-white transition hover:border-primary hover:bg-[#FFF5F5]">
                           <svg
-                            {...punchProps(c.id)}
+                            key={punchKey(c.id)}
+                            className={punchClass(c.id)}
                             width="16"
                             height="16"
                             viewBox="0 0 24 24"

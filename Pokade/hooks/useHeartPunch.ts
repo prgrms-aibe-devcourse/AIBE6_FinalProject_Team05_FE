@@ -34,15 +34,18 @@ export function useHeartPunch() {
     timeoutRef.current = setTimeout(() => setPunch(null), PUNCH_CLEAR_MS);
   }, []);
 
-  // 하트 아이콘(svg)에 그대로 펼쳐 넣는다 — key로 리마운트, className으로 재생.
-  // motion-safe: prefers-reduced-motion을 켠 사용자에게는 클래스 자체가 적용되지 않는다.
-  const punchProps = useCallback(
-    (id: number) =>
-      punch?.id === id
-        ? { key: `punch-${punch.n}`, className: "motion-safe:animate-heart-punch" }
-        : { key: "idle", className: "" },
+  // key와 className을 따로 돌려준다 — 한 객체로 묶어 {...spread} 하면 React가 key를 props로
+  // 취급해 "key prop is being spread into JSX" 경고를 내고 리마운트도 일어나지 않는다.
+  const punchKey = useCallback(
+    (id: number) => (punch?.id === id ? `punch-${punch.n}` : "idle"),
     [punch],
   );
 
-  return { triggerPunch, punchProps };
+  // motion-safe: prefers-reduced-motion을 켠 사용자에게는 클래스 자체가 적용되지 않는다.
+  const punchClass = useCallback(
+    (id: number) => (punch?.id === id ? "motion-safe:animate-heart-punch" : ""),
+    [punch],
+  );
+
+  return { triggerPunch, punchKey, punchClass };
 }

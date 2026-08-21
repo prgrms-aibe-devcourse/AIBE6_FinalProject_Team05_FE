@@ -141,7 +141,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   > | null>(null);
   const [watchlistToggleError, setWatchlistToggleError] = useState<string | null>(null);
   const { toast, showToast } = useToast();
-  const { triggerPunch, punchProps } = useHeartPunch();
+  const { triggerPunch, punchKey, punchClass } = useHeartPunch();
   const { toggle: toggleWatchlist, pendingCardId: watchlistPendingCardId } =
     useQuickWatchlistToggle();
 
@@ -768,7 +768,8 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                             }`}
                           >
                             <svg
-                              {...punchProps(cardId ?? -1)}
+                              key={punchKey(cardId ?? -1)}
+                              className={punchClass(cardId ?? -1)}
                               width="20"
                               height="20"
                               viewBox="0 0 24 24"

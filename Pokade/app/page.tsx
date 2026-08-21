@@ -81,7 +81,7 @@ export default function HomePage() {
     null,
   );
   const { toast, showToast } = useToast();
-  const { triggerPunch, punchProps } = useHeartPunch();
+  const { triggerPunch, punchKey, punchClass } = useHeartPunch();
   const { toggle, pendingCardId } = useQuickWatchlistToggle();
 
   const [popularCards, setPopularCards] = useState<CardSearchItem[]>([]);
@@ -381,7 +381,8 @@ export default function HomePage() {
                         className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#EDEDF0] bg-white hover:border-primary hover:bg-[#FFF5F5] disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <svg
-                          {...punchProps(c.id)}
+                          key={punchKey(c.id)}
+                          className={punchClass(c.id)}
                           width="18"
                           height="18"
                           viewBox="0 0 24 24"
