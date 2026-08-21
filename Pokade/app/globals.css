@@ -58,6 +58,37 @@
   }
 }
 
+/* 알림 벨 흔들림 — SSE로 새 알림이 "지금 막" 도착한 순간에만 한 번 재생한다(#235).
+   최초 로드/폴링(배열 통째 교체)은 도착이 아니므로 트리거하지 않는다 — 자세한 구분은
+   store/useNotificationStore.ts의 arrivalSeq 주석 참고.
+   transform만 움직여 리플로우가 없고, shimmer와 같은 이유로 Tailwind config가 아니라 여기 둔다. */
+@media (prefers-reduced-motion: no-preference) {
+  .bell-shake {
+    transform-origin: 50% 10%; /* 종 꼭대기를 축으로 매달린 것처럼 흔들리게 */
+    animation: bellShake 600ms ease-in-out;
+  }
+  @keyframes bellShake {
+    0% {
+      transform: rotate(0deg);
+    }
+    20% {
+      transform: rotate(-12deg);
+    }
+    40% {
+      transform: rotate(10deg);
+    }
+    60% {
+      transform: rotate(-6deg);
+    }
+    80% {
+      transform: rotate(3deg);
+    }
+    100% {
+      transform: rotate(0deg);
+    }
+  }
+}
+
 /* Thin scrollbar for chat panes */
 .chat-scroll::-webkit-scrollbar {
   width: 8px;
