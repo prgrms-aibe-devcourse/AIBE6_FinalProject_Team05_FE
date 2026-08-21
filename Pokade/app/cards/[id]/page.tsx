@@ -734,7 +734,9 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      {/* -mt-2: 부모의 gap-4(16px)에서 8px을 되돌려 즉시구매가와의 간격을 좁힌다 —
+                          가격이 주인공이고 관심 등록은 보조 액션이라 너무 붙어 보이지 않을 만큼만. */}
+                      <div className="-mt-2 flex items-center gap-2">
                         <IconTooltip
                           label={myWatchlist ? "관심 해제" : "관심 등록"}
                           placement="top"
@@ -757,45 +759,52 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                                   ? `관심 등록 (${watchlistCount.toLocaleString("ko-KR")})`
                                   : "관심 등록"
                             }
-                            className={`flex h-[44px] min-w-[44px] flex-shrink-0 items-center justify-center gap-1.5 rounded-full border-[1.5px] px-3 transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                              myWatchlist
-                                ? "border-primary bg-lavender"
-                                : "border-[#DDDDE3] bg-white hover:border-primary hover:bg-[#FFF5F5]"
-                            }`}
+                            // 보이는 알약은 32px로 줄이고, 버튼에는 -m-1.5/p-1.5로 사방 6px을 더해
+                            // 실제 터치 영역만 44px로 넓힌다(음수 마진으로 상쇄해 레이아웃은 그대로).
+                            // 마켓 타일 하트와 같은 방식.
+                            className="-m-1.5 flex flex-shrink-0 items-center p-1.5 disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            {/* 아이콘과 숫자를 한 덩어리로 감싸 함께 튀게 한다 — 버튼 자체에
-                                애니메이션을 걸면 테두리/배경까지 같이 흔들려 과해 보인다. */}
                             <span
-                              key={punchKey(cardId ?? -1)}
-                              className={`flex items-center gap-1.5 ${punchClass(cardId ?? -1)}`}
+                              className={`flex h-[32px] min-w-[32px] items-center justify-center gap-1 rounded-full border-[1.5px] px-2.5 transition ${
+                                myWatchlist
+                                  ? "border-primary bg-lavender"
+                                  : "border-[#DDDDE3] bg-white hover:border-primary hover:bg-[#FFF5F5]"
+                              }`}
                             >
-                              <svg
-                                width="20"
-                                height="20"
-                                viewBox="0 0 24 24"
-                                stroke="#EE1515"
-                                strokeWidth="2"
-                                fill={myWatchlist ? "#EE1515" : "none"}
-                                aria-hidden="true"
+                              {/* 아이콘과 숫자를 한 덩어리로 감싸 함께 튀게 한다 — 알약 자체에
+                                애니메이션을 걸면 테두리/배경까지 같이 흔들려 과해 보인다. */}
+                              <span
+                                key={punchKey(cardId ?? -1)}
+                                className={`flex items-center gap-1 ${punchClass(cardId ?? -1)}`}
                               >
-                                <path
-                                  d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
-                                  transform="translate(-3 0)"
-                                />
-                              </svg>
-                              {/* 0/조회 실패(null)는 표시할 의미 있는 숫자가 없다고 보고 숨긴다 —
+                                <svg
+                                  width="16"
+                                  height="16"
+                                  viewBox="0 0 24 24"
+                                  stroke="#EE1515"
+                                  strokeWidth="2"
+                                  fill={myWatchlist ? "#EE1515" : "none"}
+                                  aria-hidden="true"
+                                >
+                                  <path
+                                    d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
+                                    transform="translate(-3 0)"
+                                  />
+                                </svg>
+                                {/* 0/조회 실패(null)는 표시할 의미 있는 숫자가 없다고 보고 숨긴다 —
                                   신규 카드에 "0"이 찍혀 위축감을 주는 것도 피한다.
                                   개수는 버튼의 aria-label에 이미 들어 있어 여기선 aria-hidden. */}
-                              {!!watchlistCount && (
-                                <span
-                                  aria-hidden="true"
-                                  className={`text-[12.5px] font-semibold ${
-                                    myWatchlist ? "text-primary" : "text-[#9A9AA2]"
-                                  }`}
-                                >
-                                  {watchlistCount.toLocaleString("ko-KR")}
-                                </span>
-                              )}
+                                {!!watchlistCount && (
+                                  <span
+                                    aria-hidden="true"
+                                    className={`text-[11.5px] font-semibold ${
+                                      myWatchlist ? "text-primary" : "text-[#9A9AA2]"
+                                    }`}
+                                  >
+                                    {watchlistCount.toLocaleString("ko-KR")}
+                                  </span>
+                                )}
+                              </span>
                             </span>
                           </button>
                         </IconTooltip>
