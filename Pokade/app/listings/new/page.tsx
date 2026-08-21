@@ -6,8 +6,6 @@ import Link from "next/link";
 import CardImage from "@/components/CardImage";
 import GradeMarketReference from "@/components/GradeMarketReference";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { ApiError } from "@/lib/apiClient";
-import { createListing } from "@/lib/listingApi";
 import { fetchCardDetail, fetchCardsByKeywordPage, fetchPriceSummary } from "@/lib/cardApi";
 import {
   CardDetailResponse,
@@ -77,7 +75,6 @@ function NewListingForm() {
   const [priceSummary, setPriceSummary] = useState<PriceSummaryResponse | null>(null);
   const [priceSummaryLoading, setPriceSummaryLoading] = useState(false);
 
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // 진행 중인 카드 상세 조회 중 가장 마지막 요청만 상태에 반영하기 위한 순번 —
@@ -171,7 +168,7 @@ function NewListingForm() {
     };
   }, [query]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -185,20 +182,15 @@ function NewListingForm() {
       return;
     }
 
-    setSubmitting(true);
-    try {
-      await createListing({
-        cardId: selectedCard.id,
-        variantId: selectedVariantId ?? undefined,
-        price: priceNumber,
-        grade: grade || undefined,
-      });
-      router.push(`/cards/${selectedCard.id}`);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "상품 등록에 실패했습니다.");
-    } finally {
-      setSubmitting(false);
-    }
+    // 실제 등록(createListing)은 여기서 하지 않는다 - 정산계좌/반송주소를 받는 주문서
+    // 단계(/listings/new/order)로 이동해서, 그 화면에서 최종 제출한다.
+    const params = new URLSearchParams({
+      cardId: String(selectedCard.id),
+      price: String(priceNumber),
+    });
+    if (selectedVariantId != null) params.set("variantId", String(selectedVariantId));
+    if (grade) params.set("grade", grade);
+    router.push(`/listings/new/order?${params.toString()}`);
   };
 
   if (status !== "authenticated") return null;
@@ -424,10 +416,9 @@ function NewListingForm() {
 
           <button
             type="submit"
-            disabled={submitting}
             className="mt-6 w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3.5 text-[15.5px] font-bold text-white shadow-tactile transition active:translate-y-0.5 active:shadow-tactile-active disabled:opacity-60"
           >
-            {submitting ? "등록 중..." : "상품 등록"}
+            다음
           </button>
         </form>
 

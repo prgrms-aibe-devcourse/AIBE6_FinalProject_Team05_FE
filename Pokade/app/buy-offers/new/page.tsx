@@ -6,8 +6,6 @@ import Link from "next/link";
 import CardImage from "@/components/CardImage";
 import GradeMarketReference from "@/components/GradeMarketReference";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { ApiError } from "@/lib/apiClient";
-import { createBuyOffer } from "@/lib/buyOfferApi";
 import { fetchCardDetail, fetchCardsByKeywordPage, fetchPriceSummary } from "@/lib/cardApi";
 import {
   CardDetailResponse,
@@ -80,7 +78,6 @@ function NewBuyOfferForm() {
   const [priceSummary, setPriceSummary] = useState<PriceSummaryResponse | null>(null);
   const [priceSummaryLoading, setPriceSummaryLoading] = useState(false);
 
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const selectRequestIdRef = useRef(0);
@@ -166,7 +163,7 @@ function NewBuyOfferForm() {
     };
   }, [query]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -180,20 +177,15 @@ function NewBuyOfferForm() {
       return;
     }
 
-    setSubmitting(true);
-    try {
-      await createBuyOffer({
-        cardId: selectedCard.id,
-        variantId: selectedVariantId ?? undefined,
-        price: priceNumber,
-        grade: grade || undefined,
-      });
-      router.push(`/cards/${selectedCard.id}`);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "구매입찰 등록에 실패했습니다.");
-    } finally {
-      setSubmitting(false);
-    }
+    // 실제 등록(readyBuyOffer)은 여기서 하지 않는다 - 받는사람 정보를 받는 주문서 단계
+    // (/buy-offers/new/order)로 이동해서, 그 화면에서 결제 준비→체결까지 이어간다.
+    const params = new URLSearchParams({
+      cardId: String(selectedCard.id),
+      price: String(priceNumber),
+    });
+    if (selectedVariantId != null) params.set("variantId", String(selectedVariantId));
+    if (grade) params.set("grade", grade);
+    router.push(`/buy-offers/new/order?${params.toString()}`);
   };
 
   if (status !== "authenticated") return null;
@@ -414,10 +406,9 @@ function NewBuyOfferForm() {
 
           <button
             type="submit"
-            disabled={submitting}
             className="mt-6 w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3.5 text-[15.5px] font-bold text-white shadow-tactile transition active:translate-y-0.5 active:shadow-tactile-active disabled:opacity-60"
           >
-            {submitting ? "등록 중..." : "입찰 등록"}
+            다음
           </button>
         </form>
 

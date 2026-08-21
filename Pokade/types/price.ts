@@ -104,11 +104,18 @@ export interface ListingSummaryResponse {
 }
 
 // POST /api/listings 요청 바디 — com.pokade.domain.listing.dto.ListingCreateRequest 미러링.
+// 정산계좌/반송주소 6개 필드는 "주문서" 단계(app/listings/new/order)에서 입력받아 이 시점에 함께 보낸다.
 export interface ListingCreateRequest {
   cardId: number;
   variantId?: number;
   price: number;
   grade?: ListingGrade;
+  settlementBankName: string;
+  settlementAccountNumber: string;
+  settlementAccountHolder: string;
+  returnRecipientName: string;
+  returnRecipientPhone: string;
+  returnAddress: string;
 }
 
 // PUT /api/listings/{id} 요청 바디 — com.pokade.domain.listing.dto.ListingUpdateRequest 미러링.
@@ -133,18 +140,37 @@ export interface ListingResponse {
   price: number;
   grade: ListingGrade | null;
   status: ListingStatus;
+  settlementBankName: string | null;
+  settlementAccountNumber: string | null;
+  settlementAccountHolder: string | null;
+  returnRecipientName: string | null;
+  returnRecipientPhone: string | null;
+  returnAddress: string | null;
   createdAt: string;
 }
 
-// POST /api/buy-offers 요청 바디 — com.pokade.domain.price.dto.BuyOfferCreateRequest 미러링.
-export interface BuyOfferCreateRequest {
+// POST /api/buy-offers/ready 요청 바디 — com.pokade.domain.price.dto.BuyOfferReadyRequest 미러링.
+// 구매입찰은 등록과 동시에 토스 에스크로 결제를 진행하므로, 등록 정보와 받는사람 정보를 한 번에 보낸다.
+export interface BuyOfferReadyRequest {
   cardId: number;
   variantId?: number;
   price: number;
   grade?: ListingGrade;
+  // 입찰가+배송비 중 결제 전에 미리 차감할 포인트 액수 — 0이면 포인트 미사용.
+  pointsToUse: number;
+  recipientName: string;
+  recipientPhone: string;
+  recipientAddress: string;
 }
 
-// POST /api/buy-offers 응답 — com.pokade.domain.price.dto.BuyOfferResponse 미러링.
+// POST /api/buy-offers/ready 응답 — com.pokade.domain.price.dto.BuyOfferReadyResponse 미러링.
+// amount는 입찰가 + 배송비에서 pointsToUse를 뺀 실제 결제(토스) 금액 — 포인트로 전액을 충당하면 0.
+export interface BuyOfferReadyResponse {
+  orderId: string;
+  amount: number;
+}
+
+// POST /api/buy-offers/confirm-payment 응답 — com.pokade.domain.price.dto.BuyOfferResponse 미러링.
 // status는 BE에서 아직 별도 enum이 아니라 문자열("ACTIVE" 고정)로 내려온다.
 export interface BuyOfferResponse {
   id: number;
@@ -154,5 +180,8 @@ export interface BuyOfferResponse {
   price: number;
   grade: ListingGrade | null;
   status: string;
+  recipientName: string | null;
+  recipientPhone: string | null;
+  recipientAddress: string | null;
   createdAt: string;
 }
