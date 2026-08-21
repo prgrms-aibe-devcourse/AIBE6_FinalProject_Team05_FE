@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AddPortfolioItemModal from "@/components/AddPortfolioItemModal";
 import CompositionChart from "@/components/portfolio/CompositionChart";
 import DexBanner from "@/components/portfolio/DexBanner";
@@ -47,7 +47,13 @@ export default function PortfolioPage() {
   const [pnlErrorByItemId, setPnlErrorByItemId] = useState<Record<number, string>>({});
   const [pnlLoadingId, setPnlLoadingId] = useState<number | null>(null);
 
+  // loadAll()은 최초 진입 시 한 번만 불리지만, 응답이 늦게 오면 그 사이 사용자가 카드를
+  // 추가/수정/삭제한 결과를 오래된 스냅샷으로 덮어쓸 수 있다. 요청마다 세대 번호를 매겨,
+  // 가장 최근에 시작한 요청의 응답만 반영한다.
+  const loadRequestIdRef = useRef(0);
+
   const loadAll = () => {
+    const requestId = ++loadRequestIdRef.current;
     setLoadState("loading");
     Promise.all([
       fetchPortfolio(),
@@ -56,6 +62,7 @@ export default function PortfolioPage() {
       fetchPortfolioSetCompletion(),
     ])
       .then(([portfolioItems, summaryResult, analyticsResult, setCompletionResult]) => {
+        if (requestId !== loadRequestIdRef.current) return;
         setItems(portfolioItems);
         setSummary(summaryResult);
         setAnalytics(analyticsResult);
@@ -63,6 +70,7 @@ export default function PortfolioPage() {
         setLoadState("ready");
       })
       .catch((err) => {
+        if (requestId !== loadRequestIdRef.current) return;
         setErrorMessage(err instanceof ApiError ? err.message : "포트폴리오 조회에 실패했습니다.");
         setLoadState("error");
       });
@@ -74,6 +82,8 @@ export default function PortfolioPage() {
   }, [authStatus]);
 
   const handleAddSuccess = (created: PortfolioItemResponse) => {
+    // 아직 끝나지 않은 초기 조회(loadAll)가 나중에 도착해도 이 로컬 변경을 덮어쓰지 않도록 무효화한다.
+    loadRequestIdRef.current += 1;
     setItems((prev) => [created, ...prev]);
     // 총평가액/구성비율/세트 완성도는 새 항목이 반영돼야 하므로 다시 조회한다.
     fetchPortfolioSummary().then(setSummary).catch(() => {});
@@ -82,7 +92,20 @@ export default function PortfolioPage() {
   };
 
   const handleUpdateSuccess = (updated: PortfolioItemResponse) => {
+    loadRequestIdRef.current += 1;
     setItems((prev) => prev.map((it) => (it.id === updated.id ? updated : it)));
+    // 취득가/수량이 바뀌면 이전에 캐싱해둔 손익이 더 이상 유효하지 않으므로 지운다 —
+    // 안 지우면 상세 모달이 수정 전 손익을 계속 보여준다.
+    setPnlByItemId((prev) => {
+      const next = { ...prev };
+      delete next[updated.id];
+      return next;
+    });
+    setPnlErrorByItemId((prev) => {
+      const next = { ...prev };
+      delete next[updated.id];
+      return next;
+    });
     setEditingItem(null);
     fetchPortfolioSummary().then(setSummary).catch(() => {});
     fetchPortfolioAnalytics().then(setAnalytics).catch(() => {});
@@ -90,6 +113,9 @@ export default function PortfolioPage() {
 
   const handleDelete = async (id: number) => {
     if (!window.confirm("도감에서 삭제하시겠어요?")) return;
+    // 확인을 누른 뒤에만 상세 모달을 닫는다 — 취소하면 보던 카드 정보가 그대로 남아있어야 한다.
+    setSelectedItem(null);
+    loadRequestIdRef.current += 1;
     setDeletingId(id);
     setActionError(null);
     try {
@@ -214,10 +240,7 @@ export default function PortfolioPage() {
             setEditingItem(selectedItem);
             setSelectedItem(null);
           }}
-          onDelete={() => {
-            setSelectedItem(null);
-            handleDelete(selectedItem.id);
-          }}
+          onDelete={() => handleDelete(selectedItem.id)}
         />
       )}
     </main>

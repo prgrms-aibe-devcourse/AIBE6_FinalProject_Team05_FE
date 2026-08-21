@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import CardImage from "@/components/CardImage";
 import { formatKrw } from "@/lib/portfolioFormat";
 import { variantLabel } from "@/types/card";
@@ -26,12 +27,25 @@ export default function PortfolioDetailModal({
   onDelete: () => void;
 }) {
   const displayName = item.cardName ?? "알 수 없는 카드";
+
+  // 배경(그리드) 클릭을 막지는 못하지만(포커스 트랩은 별도 과제), 최소한 Escape로는 닫을 수 있게 한다.
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   return (
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 px-4"
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="portfolio-detail-modal-title"
         className="w-full max-w-[360px] overflow-hidden rounded-lg border border-[#E3E3E8] bg-white"
         onClick={(e) => e.stopPropagation()}
       >
@@ -54,7 +68,9 @@ export default function PortfolioDetailModal({
           </button>
         </div>
         <div className="p-5">
-          <div className="text-[16px] font-extrabold">{displayName}</div>
+          <div id="portfolio-detail-modal-title" className="text-[16px] font-extrabold">
+            {displayName}
+          </div>
           {item.variantName && (
             <div className="mt-0.5 text-[12.5px] text-[#9A9AA2]">{variantLabel(item.variantName)}</div>
           )}

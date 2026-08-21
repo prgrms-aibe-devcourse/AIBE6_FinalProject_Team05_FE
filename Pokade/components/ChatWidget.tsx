@@ -69,7 +69,7 @@ function ChatWidgetPanel() {
     <div className="sticky inset-x-0 bottom-0 z-[100] h-0 overflow-visible">
       <div className="pointer-events-none absolute inset-x-0 bottom-6 flex flex-col items-end gap-4 px-6">
         {open && (
-          <div className="pointer-events-auto flex h-[420px] w-[340px] flex-col overflow-hidden rounded-2xl border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]">
+          <div className="pointer-events-auto flex h-[420px] w-[340px] max-w-[calc(100vw-3rem)] flex-col overflow-hidden rounded-2xl border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]">
             <div className="flex items-center justify-between border-b border-[#F0F0F0] px-4 py-3">
               <div className="flex items-center gap-2">
                 <div className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-primary text-xs font-extrabold text-white">
@@ -182,6 +182,7 @@ function ChatWidgetPanel() {
                   type="button"
                   onClick={handleSubmit}
                   disabled={sending || rateLimited || (isLoggedIn && !draft.trim())}
+                  aria-label="메시지 전송"
                   className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border-2 border-primary-dark bg-primary text-white disabled:opacity-50"
                 >
                   <svg
