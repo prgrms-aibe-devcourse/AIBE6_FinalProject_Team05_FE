@@ -3,18 +3,22 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AddressSearchField from "@/components/AddressSearchField";
+import BankSelector from "@/components/BankSelector";
 import CardImage from "@/components/CardImage";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
 import { fetchCardDetail } from "@/lib/cardApi";
 import { createListing } from "@/lib/listingApi";
+import { formatPhoneNumber } from "@/lib/phoneFormat";
 import { parseCardId } from "@/types/card";
 import { GRADE_LABELS, GradeKey, ListingGrade } from "@/types/price";
 
-// 검수비/수수료/배송비 정책이 아직 확정되지 않아 임시로 하드코딩 — 정책 확정 시 이 상수만 교체하면 된다.
+// 검수비/배송비 정책이 아직 확정되지 않아 임시로 하드코딩 — 정책 확정 시 이 상수만 교체하면 된다.
 const INSPECTION_FEE_LABEL = "무료";
-const SELLER_COMMISSION_LABEL = "무료";
 const SHIPPING_LABEL = "선불 · 판매자 부담";
+// 판매 수수료 3% — 정산금액 표시용(실제 결제/정산 로직은 아직 없어 판매 희망가에서 뺀 값을
+// 안내 목적으로만 보여준다).
+const SELLER_COMMISSION_RATE = 0.03;
 
 interface CardContext {
   displayName: string;
@@ -94,6 +98,9 @@ function NewListingOrderForm() {
       </main>
     );
   }
+
+  const commission = Math.round(price * SELLER_COMMISSION_RATE);
+  const settlementAmount = price - commission;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -185,17 +192,8 @@ function NewListingOrderForm() {
           <section className={sectionCls}>
             <h2 className={sectionTitleCls}>판매 정산 계좌</h2>
 
-            <label htmlFor="bank-name" className={labelCls}>
-              은행명
-            </label>
-            <input
-              id="bank-name"
-              type="text"
-              value={settlementBankName}
-              onChange={(e) => setSettlementBankName(e.target.value)}
-              placeholder="예) 국민은행"
-              className={inputCls}
-            />
+            <label className={labelCls}>은행명</label>
+            <BankSelector value={settlementBankName} onChange={setSettlementBankName} inputCls={inputCls} />
 
             <div className="h-4" />
 
@@ -252,8 +250,9 @@ function NewListingOrderForm() {
             <input
               id="return-phone"
               type="text"
+              inputMode="numeric"
               value={returnRecipientPhone}
-              onChange={(e) => setReturnRecipientPhone(e.target.value)}
+              onChange={(e) => setReturnRecipientPhone(formatPhoneNumber(e.target.value))}
               placeholder="010-0000-0000"
               className={inputCls}
             />
@@ -277,8 +276,8 @@ function NewListingOrderForm() {
                 <dd className="text-[14px] font-bold">{INSPECTION_FEE_LABEL}</dd>
               </div>
               <div className="flex items-center justify-between">
-                <dt className="text-[13px] font-semibold text-[#8A8A92]">수수료</dt>
-                <dd className="text-[14px] font-bold">{SELLER_COMMISSION_LABEL}</dd>
+                <dt className="text-[13px] font-semibold text-[#8A8A92]">수수료(3%)</dt>
+                <dd className="text-[14px] font-bold">-{commission.toLocaleString("ko-KR")}원</dd>
               </div>
               <div className="flex items-center justify-between">
                 <dt className="text-[13px] font-semibold text-[#8A8A92]">배송비</dt>
@@ -288,7 +287,7 @@ function NewListingOrderForm() {
               <div className="flex items-center justify-between">
                 <dt className="text-[14px] font-bold text-ink">정산금액</dt>
                 <dd className="text-[18px] font-extrabold text-primary">
-                  {price.toLocaleString("ko-KR")}원
+                  {settlementAmount.toLocaleString("ko-KR")}원
                 </dd>
               </div>
             </dl>

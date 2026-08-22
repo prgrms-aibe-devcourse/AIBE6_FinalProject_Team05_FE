@@ -3,11 +3,13 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AddressSearchField from "@/components/AddressSearchField";
+import BankSelector from "@/components/BankSelector";
 import CardImage from "@/components/CardImage";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { fulfillBuyOffer } from "@/lib/buyOfferApi";
 import { ApiError } from "@/lib/apiClient";
 import { fetchCardDetail } from "@/lib/cardApi";
+import { formatPhoneNumber } from "@/lib/phoneFormat";
 import { parseCardId } from "@/types/card";
 
 interface CardContext {
@@ -17,6 +19,9 @@ interface CardContext {
   printedNumber: string;
   imageUrl: string;
 }
+
+// 판매 수수료 3% — listings/new/order와 동일(실제 결제/정산 로직은 아직 없어 안내 목적으로만 뺀다).
+const SELLER_COMMISSION_RATE = 0.03;
 
 // useSearchParams는 정적 프리렌더 시 Suspense 경계를 요구함(next build에서 강제됨)
 export default function BuyOfferFulfillOrderPage() {
@@ -87,6 +92,10 @@ function BuyOfferFulfillOrderForm() {
       </main>
     );
   }
+
+  // 판매 수수료 3% — 정산금액 표시용(/listings/new/order와 동일한 안내 목적 계산).
+  const commission = Math.round(price * SELLER_COMMISSION_RATE);
+  const settlementAmount = price - commission;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -174,17 +183,8 @@ function BuyOfferFulfillOrderForm() {
           <section className={sectionCls}>
             <h2 className={sectionTitleCls}>판매 정산 계좌</h2>
 
-            <label htmlFor="bank-name" className={labelCls}>
-              은행명
-            </label>
-            <input
-              id="bank-name"
-              type="text"
-              value={settlementBankName}
-              onChange={(e) => setSettlementBankName(e.target.value)}
-              placeholder="예) 국민은행"
-              className={inputCls}
-            />
+            <label className={labelCls}>은행명</label>
+            <BankSelector value={settlementBankName} onChange={setSettlementBankName} inputCls={inputCls} />
 
             <div className="h-4" />
 
@@ -241,8 +241,9 @@ function BuyOfferFulfillOrderForm() {
             <input
               id="return-phone"
               type="text"
+              inputMode="numeric"
               value={returnRecipientPhone}
-              onChange={(e) => setReturnRecipientPhone(e.target.value)}
+              onChange={(e) => setReturnRecipientPhone(formatPhoneNumber(e.target.value))}
               placeholder="010-0000-0000"
               className={inputCls}
             />
@@ -261,11 +262,15 @@ function BuyOfferFulfillOrderForm() {
                 <dt className="text-[13px] font-semibold text-[#8A8A92]">체결 가격</dt>
                 <dd className="text-[14px] font-bold">{price.toLocaleString("ko-KR")}원</dd>
               </div>
+              <div className="flex items-center justify-between">
+                <dt className="text-[13px] font-semibold text-[#8A8A92]">수수료(3%)</dt>
+                <dd className="text-[14px] font-bold">-{commission.toLocaleString("ko-KR")}원</dd>
+              </div>
               <div className="my-1 h-px bg-[#EDEDF0]" />
               <div className="flex items-center justify-between">
                 <dt className="text-[14px] font-bold text-ink">정산금액</dt>
                 <dd className="text-[18px] font-extrabold text-primary">
-                  {price.toLocaleString("ko-KR")}원
+                  {settlementAmount.toLocaleString("ko-KR")}원
                 </dd>
               </div>
             </dl>
