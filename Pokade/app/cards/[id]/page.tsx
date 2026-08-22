@@ -5,12 +5,15 @@ import { usePathname, useParams, useRouter, useSearchParams } from "next/navigat
 import { Suspense, useEffect, useState } from "react";
 import CardImage from "@/components/CardImage";
 import PriceChart from "@/components/PriceChart";
+import Toast from "@/components/Toast";
+import IconTooltip from "@/components/IconTooltip";
 import ImageLightbox from "@/components/ImageLightbox";
 import AddWatchlistModal from "@/components/AddWatchlistModal";
 import RelatedCardsSection from "./RelatedCardsSection";
 import VariantPriceComparison from "./VariantPriceComparison";
 import OrderActivitySection from "./OrderActivitySection";
 import GradeGuideModal from "./GradeGuideModal";
+import TradeMethodModal from "./TradeMethodModal";
 import { CardDetailResponse, parseCardId, variantLabel } from "@/types/card";
 import {
   BuyOfferOrderbookEntryResponse,
@@ -90,23 +93,31 @@ function computeGradeSummary(
     const key: GradeKey = l.grade ?? "RAW";
     const current = summary[key];
     if (current == null || l.price < current.price) {
-      summary[key] = { listingId: l.id, price: l.price };
+      summary[key] = { listingId: l.id, price: l.price, count: (current?.count ?? 0) + 1 };
+    } else {
+      summary[key] = { ...current, count: current.count + 1 };
     }
   }
   return summary;
 }
 
 // 등급별 최고가 구매입찰 — 판매 모드일 때 등급 그리드에 "이 등급을 지금 팔면 대략 얼마 받을 수
-// 있는지" 참고용으로 보여준다(가격 자체가 아니라 시세 힌트라 listingId 같은 매칭 대상은 필요 없음).
+// 있는지" 참고용으로 보여주고, 즉시판매(#238) 선택 시 정확히 이 구매입찰에 매칭시켜야 하므로
+// buyOfferId도 함께 들고 있는다.
+interface BuyOfferSummaryEntry {
+  buyOfferId: number;
+  price: number;
+}
+
 function computeBuyOfferSummary(
   buyOffers: BuyOfferOrderbookEntryResponse[],
-): Partial<Record<GradeKey, number>> {
-  const summary: Partial<Record<GradeKey, number>> = {};
+): Partial<Record<GradeKey, BuyOfferSummaryEntry>> {
+  const summary: Partial<Record<GradeKey, BuyOfferSummaryEntry>> = {};
   for (const o of buyOffers) {
     const key: GradeKey = o.grade ?? "RAW";
     const current = summary[key];
-    if (current == null || o.price > current) {
-      summary[key] = o.price;
+    if (current == null || o.price > current.price) {
+      summary[key] = { buyOfferId: o.buyOfferId, price: o.price };
     }
   }
   return summary;
@@ -147,9 +158,15 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   const [watchlistAdded, triggerWatchlistAdded] = useTimedFlag(2000);
   // 등급 선택에서 "판매"/"구매입찰 등록"을 누르면 등급 안내 모달을 먼저 보여주고, 확인 시 이
   // target에 맞는 등록 페이지로 이동한다. 모달 자체는 어디로 갈지 모르므로 여기서 target을 들고 있는다.
-  const [gradeGuideTarget, setGradeGuideTarget] = useState<"buy" | "sell" | "buy-offer" | null>(
-    null,
-  );
+  const [gradeGuideTarget, setGradeGuideTarget] = useState<
+    "buy" | "sell" | "buy-offer" | "sell-instant" | null
+  >(null);
+  // 등급에 상대편 주문(매물/구매입찰)이 이미 있어도, 그 가격에 즉시 거래할지 원하는 가격에 직접
+  // 입찰/등록할지 먼저 물어본다(#238) — 등급 안내 모달보다 앞선 단계라 별도 state로 관리한다.
+  const [tradeMethodChoice, setTradeMethodChoice] = useState<{
+    mode: "buy" | "sell";
+    matchedPrice: number;
+  } | null>(null);
   // 등급별 가격을 그냥 보여주면 그게 구매가인지 판매가인지 헷갈린다는 피드백 반영 — 먼저
   // "구매/판매" 중 하나를 고르게 하고, 그 다음에야 등급 그리드(와 그 안의 가격 의미)가 나타난다.
   const [tradeIntent, setTradeIntent] = useState<"buy" | "sell" | null>(null);
@@ -203,6 +220,8 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   // 등급 안내 모달의 확인 버튼.
   // - "buy": 선택된 매물을 들고 즉시구매 주문서(/trades/checkout/order)로 이동한다 - 실제 ready
   //   호출/결제는 그 페이지(받는사람 정보 입력 이후)에서 이어간다.
+  // - "sell-instant": TradeMethodModal에서 "즉시판매"를 선택했을 때 - matchedBuyOfferId로 특정된
+  //   구매입찰에 매칭시키는 주문서(/buy-offers/fulfill/order)로 이동한다(#238).
   // - "sell"/"buy-offer": 지금 선택된 카드/판본/등급을 쿼리로 넘겨서 판매(/listings/new) 또는
   //   구매입찰(/buy-offers/new) 등록 페이지로 이동한다. RAW(미등급)는 "선택 안 함"과 같은 뜻이라
   //   grade 파라미터 자체를 안 붙인다(두 등록 페이지 모두 grade 생략을 "선택 안 함"으로 처리).
@@ -233,6 +252,33 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
       }
       if (selectedGrade) orderParams.set("grade", GRADE_LABELS[selectedGrade]);
       router.push(`/trades/checkout/order?${orderParams.toString()}`);
+      return;
+    }
+
+    if (gradeGuideTarget === "sell-instant") {
+      if (userStatus === "loading") return;
+      if (userStatus !== "authenticated") {
+        setGradeGuideTarget(null);
+        router.push(loginUrlFor(pathname, searchParams));
+        return;
+      }
+      // 안내 모달을 여는 시점의 buyOfferSummary를 그대로 다시 계산 - buyOffers는 그 사이 안 바뀐다.
+      const buyOfferSummary = computeBuyOfferSummary(buyOffers);
+      const bid = selectedGrade ? buyOfferSummary[selectedGrade] : undefined;
+      setGradeGuideTarget(null);
+      if (!bid) return;
+
+      const orderParams = new URLSearchParams({
+        buyOfferId: String(bid.buyOfferId),
+        cardId: String(cardId),
+        price: String(bid.price),
+      });
+      if (card) {
+        const cardImage = resolveMainImageSrc(card, selectedVariantId);
+        if (cardImage) orderParams.set("cardImage", cardImage);
+      }
+      if (selectedGrade) orderParams.set("grade", GRADE_LABELS[selectedGrade]);
+      router.push(`/buy-offers/fulfill/order?${orderParams.toString()}`);
       return;
     }
 
@@ -607,7 +653,12 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
             const displayName = card.nameKo ?? card.name;
             const mainImageSrc = resolveMainImageSrc(card, selectedVariantId);
             const gradeSummary = computeGradeSummary(activeListings);
+            const buyOfferSummary = computeBuyOfferSummary(buyOffers);
             const selectedOffer = selectedGrade ? gradeSummary[selectedGrade] : undefined;
+            // 선택된 등급에 매물이 없으면 "구매하기" 대신 그 등급으로 구매입찰을 미리 걸 수
+            // 있게 한다 — 재고가 생기길 기다리지 않고 원하는 가격에 예약해두는 흐름.
+            const showBuyOfferCta =
+              tradeIntent === "buy" && selectedGrade != null && !selectedOffer;
             // 등급을 선택했으면 그 등급의 실제 최저 매물가를 우선 보여준다 — 선택 전(또는 방금
             // 선택한 등급에 매물이 없어진 방어적 상황)에는 기존처럼 전체 등급 통틀어 최저가로 폴백.
             const displayBuyPrice = selectedOffer?.price ?? priceSummary?.buyPrice ?? null;
@@ -754,29 +805,6 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                         </span>
                       )}
 
-                      {buyError && (
-                        <div className="rounded-xl border border-[#F6C6C6] bg-[#FFF1F1] px-3.5 py-2.5 text-[12.5px] font-semibold text-[#C21414]">
-                          {buyError}
-                        </div>
-                      )}
-                    <div className="flex flex-col gap-4 rounded-2xl border border-[#EDEDF0] bg-white p-5">
-                      <div>
-                        <div className="text-[12px] font-semibold text-[#8A8A92]">즉시구매가</div>
-                        <div className="mt-1 text-[24px] font-extrabold text-primary">
-                          {priceLoadState === "loading" ? (
-                            <span className="text-[14px] font-semibold text-[#9A9AA2]">
-                              불러오는 중...
-                            </span>
-                          ) : displayBuyPrice != null ? (
-                            `${displayBuyPrice.toLocaleString("ko-KR")}원`
-                          ) : (
-                            <span className="text-[14px] font-semibold text-[#9A9AA2]">
-                              상품 없음
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
                       <div className="border-t border-[#F5F5F7] pt-4">
                         {tradeIntent === null ? (
                           <>
@@ -823,82 +851,6 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                                 ← 다시 선택
                               </button>
                             </div>
-                      <div className="border-t border-[#F5F5F7] pt-4">
-                        <div className="mb-2.5 text-[12.5px] font-bold text-ink">등급 선택</div>
-
-                        {priceLoadState === "loading" && (
-                          <div className="grid grid-cols-2 gap-2">
-                            {Array.from({ length: 6 }).map((_, i) => (
-                              <div
-                                key={i}
-                                className="h-[52px] animate-pulse rounded-xl bg-[#F2F2F5]"
-                              />
-                            ))}
-                          </div>
-                        )}
-                            {priceLoadState === "loading" && (
-                              <div className="grid grid-cols-2 gap-2">
-                                {Array.from({ length: 6 }).map((_, i) => (
-                                  <div
-                                    key={i}
-                                    className="h-[52px] animate-pulse rounded-xl bg-[#F2F2F5]"
-                                  />
-                                ))}
-                              </div>
-                            )}
-
-                        {priceLoadState === "ready" &&
-                          listingsError &&
-                          (listingsError.status === 401 || listingsError.status === 403 ? (
-                            <div className="flex flex-col items-center gap-2 rounded-xl bg-neutral py-8 text-center text-[13px] text-[#9A9AA2]">
-                              <span>등급별 상품은 로그인 후 확인할 수 있습니다.</span>
-                              <Link
-                                href={loginUrlFor(pathname, searchParams)}
-                                className="text-[12.5px] font-bold text-primary hover:text-primary-dark"
-                              >
-                                로그인하기
-                              </Link>
-                            </div>
-                          ) : (
-                            <div className="rounded-xl bg-neutral py-8 text-center text-[13px] text-[#9A9AA2]">
-                              상품 정보를 불러오지 못했습니다.
-                            </div>
-                          ))}
-
-                        {priceLoadState === "ready" && !listingsError && (
-                          <div className="grid grid-cols-2 gap-2">
-                            {GRADE_ORDER.map((grade) => {
-                              const offer = gradeSummary[grade];
-                              const hasStock = offer != null;
-                              const isSelected = selectedGrade === grade;
-                              return (
-                                <button
-                                  key={grade}
-                                  type="button"
-                                  disabled={!hasStock}
-                                  onClick={() => setSelectedGrade(grade)}
-                                  className={`flex flex-col items-center gap-0.5 rounded-xl border px-2 py-2.5 transition ${
-                                    isSelected
-                                      ? "border-primary bg-lavender"
-                                      : hasStock
-                                        ? "border-[#DDDDE3] bg-white hover:border-primary"
-                                        : "cursor-not-allowed border-[#EDEDF0] bg-neutral opacity-50"
-                                  }`}
-                                >
-                                  <span className="text-[12px] font-extrabold text-ink">
-                                    {GRADE_LABELS[grade]}
-                                  </span>
-                                  <span className="text-[11px] font-semibold text-[#8A8A92]">
-                                    {hasStock
-                                      ? `${offer.price.toLocaleString("ko-KR")}원 · ${offer.count}개`
-                                      : "상품 없음"}
-                                  </span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
                             {priceLoadState === "ready" &&
                               tradeIntent === "buy" &&
                               (listingsError ? (
@@ -994,8 +946,8 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                                         </span>
                                         <span className="text-[11px] font-semibold text-[#8A8A92]">
                                           {bid != null
-                                            ? `구매입찰 ${bid.toLocaleString("ko-KR")}원`
-                                            : "구매입찰 없음"}
+                                            ? `${bid.price.toLocaleString("ko-KR")}원`
+                                            : "상품 없음"}
                                         </span>
                                       </button>
                                     );
@@ -1006,10 +958,10 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                         )}
                       </div>
 
-                      {/* 구매하기(주된 액션)와 관심 등록(보조 액션)을 한 행에 둔다(#235) —
-                          둘 다 "이 카드 자체"에 대한 액션이라 나란히 두는 게 자연스럽고,
-                          가격은 옆에 아무것도 붙지 않아야 강조가 유지된다.
-                          flex-1/flex-shrink-0으로 구매 버튼이 남는 폭을 전부 가져간다.
+                      {/* 주된 액션(구매하기/판매하기, tradeIntent에 따라 바뀜)과 관심 등록(보조
+                          액션)을 한 행에 둔다(#235) — 둘 다 "이 카드 자체"에 대한 액션이라 나란히
+                          두는 게 자연스럽고, 가격은 옆에 아무것도 붙지 않아야 강조가 유지된다.
+                          flex-1/flex-shrink-0으로 주 버튼이 남는 폭을 전부 가져간다.
                           items-stretch: 한 행에 나란히 놓인 컨트롤은 높이를 공유해야 한 세트로 읽힌다 —
                           하트만 낮추면 위아래 여백이 생겨 정렬선이 끊기고 덧붙인 것처럼 보인다(#235).
                           위계는 높이가 아니라 폭(약 4:1)과 색(흰 배경·회색 1px vs 빨강·2px·shadow)으로 준다. */}
@@ -1017,20 +969,44 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                         <button
                           type="button"
                           disabled={
-                            userStatus === "loading" || !selectedOffer || buyingListingId != null
+                            userStatus === "loading" ||
+                            (tradeIntent === "sell"
+                              ? selectedGrade == null
+                              : !showBuyOfferCta && !selectedOffer)
                           }
                           onClick={() => {
+                            if (tradeIntent === "sell") {
+                              if (selectedGrade == null) return;
+                              const matchedBid = buyOfferSummary[selectedGrade];
+                              if (matchedBid) {
+                                // 이미 구매입찰이 있어도 즉시판매/매물 등록 중 고를 수 있게 한 번 더
+                                // 물어본다(#238).
+                                setTradeMethodChoice({ mode: "sell", matchedPrice: matchedBid.price });
+                                return;
+                              }
+                              setGradeGuideTarget("sell");
+                              return;
+                            }
+                            if (showBuyOfferCta) {
+                              setGradeGuideTarget("buy-offer");
+                              return;
+                            }
                             if (!selectedOffer) return;
-                            handleBuy(selectedOffer.listingId);
+                            // 이미 매물이 있어도 즉시구매/구매입찰 중 고를 수 있게 한 번 더 물어본다(#238).
+                            setTradeMethodChoice({ mode: "buy", matchedPrice: selectedOffer.price });
                           }}
                           className="flex-1 rounded-[11px] border-2 border-primary-dark bg-primary py-3.5 text-[15px] font-bold text-white shadow-tactile transition active:translate-y-0.5 active:shadow-tactile-active disabled:cursor-not-allowed disabled:border-[#DDDDE3] disabled:bg-neutral disabled:text-[#9A9AA2] disabled:shadow-none"
                         >
                           {userStatus === "loading"
                             ? "인증 확인 중..."
-                            : buyingListingId != null
-                              ? "구매 중..."
-                              : selectedOffer
-                                ? "구매하기"
+                            : tradeIntent === "sell"
+                              ? selectedGrade != null
+                                ? "판매하기"
+                                : "등급을 선택하세요"
+                              : showBuyOfferCta
+                                ? "구매입찰 등록"
+                                : selectedOffer
+                                  ? "구매하기"
                                 : "등급을 선택하세요"}
                         </button>
                         <IconTooltip
@@ -1112,53 +1088,6 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                           </button>
                         </IconTooltip>
                       </div>
-                    </div>
-                      {tradeIntent === "buy" &&
-                        (() => {
-                          // 선택된 등급에 매물이 없으면 "구매하기" 대신 그 등급으로 구매입찰을 미리
-                          // 걸 수 있게 한다 — 재고가 생기길 기다리지 않고 원하는 가격에 예약해두는 흐름.
-                          const showBuyOfferCta = selectedGrade != null && !selectedOffer;
-                          return (
-                            <button
-                              type="button"
-                              disabled={
-                                userStatus === "loading" || (!showBuyOfferCta && !selectedOffer)
-                              }
-                              onClick={() => {
-                                if (showBuyOfferCta) {
-                                  setGradeGuideTarget("buy-offer");
-                                  return;
-                                }
-                                if (!selectedOffer) return;
-                                setGradeGuideTarget("buy");
-                              }}
-                              className="mt-1 w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3.5 text-[15px] font-bold text-white shadow-tactile transition active:translate-y-0.5 active:shadow-tactile-active disabled:cursor-not-allowed disabled:border-[#DDDDE3] disabled:bg-neutral disabled:text-[#9A9AA2] disabled:shadow-none"
-                            >
-                              {userStatus === "loading"
-                                ? "인증 확인 중..."
-                                : showBuyOfferCta
-                                  ? "구매입찰 등록"
-                                  : selectedOffer
-                                    ? "구매하기"
-                                    : "등급을 선택하세요"}
-                            </button>
-                          );
-                        })()}
-
-                      {tradeIntent === "sell" && (
-                        <button
-                          type="button"
-                          disabled={userStatus === "loading" || selectedGrade == null}
-                          onClick={() => setGradeGuideTarget("sell")}
-                          className="mt-1 w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3.5 text-[15px] font-bold text-white shadow-tactile transition active:translate-y-0.5 active:shadow-tactile-active disabled:cursor-not-allowed disabled:border-[#DDDDE3] disabled:bg-neutral disabled:text-[#9A9AA2] disabled:shadow-none"
-                        >
-                          {userStatus === "loading"
-                            ? "인증 확인 중..."
-                            : selectedGrade != null
-                              ? "판매하기"
-                              : "등급을 선택하세요"}
-                        </button>
-                      )}
 
                       <div className="flex items-center gap-2">
                         <button
@@ -1229,6 +1158,23 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                   onClose={() => setGradeGuideTarget(null)}
                   onConfirm={confirmGradeGuide}
                 />
+
+                {tradeMethodChoice && (
+                  <TradeMethodModal
+                    isOpen
+                    mode={tradeMethodChoice.mode}
+                    matchedPrice={tradeMethodChoice.matchedPrice}
+                    onClose={() => setTradeMethodChoice(null)}
+                    onChooseInstant={() => {
+                      setTradeMethodChoice(null);
+                      setGradeGuideTarget(tradeMethodChoice.mode === "buy" ? "buy" : "sell-instant");
+                    }}
+                    onChooseAlternative={() => {
+                      setTradeMethodChoice(null);
+                      setGradeGuideTarget(tradeMethodChoice.mode === "buy" ? "buy-offer" : "sell");
+                    }}
+                  />
+                )}
               </>
             );
           })()}
