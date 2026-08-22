@@ -355,18 +355,37 @@ export default function WatchlistPage() {
                   </button>
                 ))}
               </div>
-              <select
-                aria-label="정렬"
-                value={sort}
-                onChange={(e) => setSort(e.target.value as Sort)}
-                className="rounded-[10px] border-[1.5px] border-[#E4E4E9] bg-white px-[15px] py-2 text-[13.5px] font-semibold text-[#7A7A82] outline-none focus:border-primary"
-              >
-                {SORT_OPTIONS.map(({ key, label }) => (
-                  <option key={key} value={key}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+              {/* 네이티브 화살표를 지우고(appearance-none) 프로젝트 인라인 SVG 컨벤션으로
+                  커스텀 chevron을 얹어 다른 커스텀 UI와 톤을 맞춘다. 펼쳐진 옵션 목록은
+                  네이티브 그대로 유지(이번 범위 밖). pr-9는 화살표가 텍스트를 가리지 않게 확보. */}
+              <div className="relative">
+                <select
+                  aria-label="정렬"
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value as Sort)}
+                  className="cursor-pointer appearance-none rounded-[10px] border-[1.5px] border-[#E4E4E9] bg-white py-2 pl-[15px] pr-9 text-[13.5px] font-semibold text-[#7A7A82] outline-none focus:border-primary"
+                >
+                  {SORT_OPTIONS.map(({ key, label }) => (
+                    <option key={key} value={key}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                <svg
+                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#7A7A82"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </div>
             </div>
 
             {deleteError && (
