@@ -16,6 +16,9 @@ export interface ToastState {
   href?: string;
   // 링크일 때 메시지 오른쪽에 붙는 짧은 라벨(예: "관심 목록").
   linkLabel?: string;
+  // 이동이 아니라 "방금 한 일을 되돌리기" 같은 동작이 필요할 때 쓴다(#238).
+  // href와 동시에 지정하지 않는다 — Toast.tsx가 href를 먼저 보고 링크로 렌더한다.
+  action?: { label: string; onClick: () => void };
 }
 
 // 토스트를 붙잡고 있는 주체. 포인터(hover)와 포커스(키보드)는 서로 독립적으로 들어오고

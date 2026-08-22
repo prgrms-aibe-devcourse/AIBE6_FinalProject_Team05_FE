@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import CardImage from "@/components/CardImage";
 import Pagination from "@/components/Pagination";
 import IconTooltip from "@/components/IconTooltip";
+import Toast from "@/components/Toast";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { useToast } from "@/hooks/useToast";
 import { selectUnreadCount, useNotificationStore } from "@/store/useNotificationStore";
 import { ApiError, PageResponse } from "@/lib/apiClient";
 import { deleteNotification, fetchNotifications, markNotificationRead } from "@/lib/watchlistApi";
@@ -20,6 +22,12 @@ import { NotificationResponse } from "@/types/notification";
 // BE #162 페이지네이션 기본값(size=20)과 맞춘다 — app/mypage/MyTradesSection.tsx와 동일하게
 // 서버가 잘라준 Page를 그대로 신뢰하고, 클라이언트에서 다시 자르지 않는다.
 const PAGE_SIZE = 20;
+
+// 삭제를 눌러도 이만큼은 서버에 반영하지 않고 되돌릴 기회를 준다(#238).
+// 이 화면의 다른 토스트보다 길게 잡았다 — 단순 알림(2.5초)이나 링크 토스트(4초)와 달리
+// "눈치채고 → 마우스를 옮겨 → 누르는" 시간이 필요하고, 반대로 더 길면 삭제가 확정됐는지
+// 아닌지 애매한 구간만 늘어난다. 토스트 표시 시간도 같은 값으로 맞춰 둘이 어긋나지 않게 한다.
+const UNDO_DELETE_MS = 5000;
 
 type LoadState = "loading" | "error" | "ready";
 
@@ -51,6 +59,15 @@ export default function NotificationsPage() {
     errorMessage: string;
   } | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
+  // 삭제를 눌렀지만 아직 서버에 반영하지 않은 항목들 — 목록에서는 즉시 감추되(낙관적) 실제
+  // DELETE는 타이머가 끝난 뒤에 보낸다(#238).
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<number>>(() => new Set());
+  // 타이머 핸들은 state가 아니라 ref에 둔다 — 렌더에 쓰이지 않고, 언마운트 cleanup이 "가장 마지막
+  // 값"을 봐야 하기 때문이다(state를 클로저로 잡으면 cleanup이 낡은 집합을 본다).
+  const pendingTimersRef = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+  // 지금 화면에 떠 있는 토스트가 어느 항목의 것인지 — 확정 시 그 토스트만 걷어내기 위해 필요.
+  const toastOwnerIdRef = useRef<number | null>(null);
+  const { toast, showToast, hideToast, pauseToast, resumeToast } = useToast();
 
   // Header가 이미 폴링/SSE를 시작했을 것이므로 대부분 no-op이지만, 직접 진입 등 마운트 순서를
   // 보장할 수 없는 경우를 대비한 방어 호출 — start()는 멱등이라 중복 호출해도 안전하다.
@@ -88,13 +105,33 @@ export default function NotificationsPage() {
     load();
   }, [load]);
 
+  // 화면을 벗어나는 순간 대기 중인 삭제를 즉시 확정한다(#238). 이게 없으면 사용자가 삭제를
+  // 누르고 5초 안에 다른 페이지로 이동했을 때 타이머만 사라져 삭제가 조용히 취소된다 —
+  // 되돌리기를 누른 적도 없는데 알림이 되살아나므로 버그로 읽힌다.
+  // 여기서는 API만 쏘고 state는 건드리지 않는다(언마운트된 컴포넌트라 의미가 없다).
+  // 한계: 탭을 닫거나 새로고침하면 이 cleanup이 돌기 전에 문서가 사라져 요청이 전송되지 않을
+  // 수 있다. 그 경우 알림이 남는 쪽으로 실패하므로(삭제가 안 될 뿐 데이터가 사라지진 않는다)
+  // 감수한다 — 인증 헤더가 필요해 sendBeacon으로는 대체할 수 없다.
+  useEffect(() => {
+    const timers = pendingTimersRef.current;
+    return () => {
+      timers.forEach((timer, id) => {
+        clearTimeout(timer);
+        deleteNotification(id).catch(() => {});
+      });
+      timers.clear();
+    };
+  }, []);
+
   // 지금 페이지(requestKey)에 대한 결과가 아니면(요청 중이거나 막 페이지가 바뀐 직후) 로딩으로 본다.
   const current = result?.key === requestKey ? result : null;
   const data = current?.data ?? null;
   const loadState: LoadState = current === null ? "loading" : data ? "ready" : "error";
   const errorMessage = current?.errorMessage ?? "";
 
-  const notifications = data?.content ?? [];
+  // 서버 응답에는 아직 남아 있지만 삭제 대기 중인 항목은 걸러낸다(#238) — 이 필터가 없으면
+  // 삭제 직후의 load()(다른 항목 읽음 처리 등으로도 돈다)가 방금 감춘 행을 도로 불러온다.
+  const notifications = (data?.content ?? []).filter((n) => !pendingDeleteIds.has(n.id));
 
   // 읽음 처리 후에는 항상 "이 페이지를 다시 불러오기 + 헤더 피드도 갱신"으로 정확성을 보장한다
   // (낙관적으로 로컬 배열만 patch하지 않는 이유: 이 화면의 data와 헤더 store의 notifications가
@@ -118,16 +155,76 @@ export default function NotificationsPage() {
     if (href != null) router.push(href);
   };
 
-  // 확인창 없이 즉시 삭제(결정된 방향) — 삭제한 알림이 안읽음이었어도 신경 쓰지 않고 항상
-  // load()+retryFeed()로 재조회한다(markOneRead와 같은 이유: 이 화면 상태와 헤더 store가
-  // 서로 다른 fetch 결과라 낙관적으로 손으로 맞추기보다 다시 불러오는 쪽이 항상 정확하다).
+  // 삭제는 확인창 없이 즉시 반응하되, 실제 DELETE는 UNDO_DELETE_MS만큼 미뤄 그 사이 되돌릴 수
+  // 있게 한다(#238). 확인창 대신 이 방식을 고른 이유: 알림 삭제는 저위험·고빈도 액션이라 매번
+  // 모달을 띄우면 성가시고, 되돌리기는 실수한 경우만 정확히 구제한다.
+  // BE DELETE가 하드 삭제라(deleteByIdAndUserId) 지운 뒤에 복구할 방법이 없다는 점도 이 방식을
+  // 택한 이유다 — 되돌리기는 "아직 안 지웠다"로만 구현할 수 있다.
+  const commitDelete = useCallback(
+    (id: number) => {
+      pendingTimersRef.current.delete(id);
+      setPendingDeleteIds((prev) => {
+        if (!prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      // 확정되는 순간 이 항목의 토스트는 걷는다 — 토스트는 hover/focus 중이면 자동 소멸이
+      // 멈추므로(useToast), 그대로 두면 이미 확정돼 눌러도 아무 일 없는 "실행취소" 버튼이
+      // 화면에 남는다.
+      if (toastOwnerIdRef.current === id) {
+        toastOwnerIdRef.current = null;
+        hideToast();
+      }
+      deleteNotification(id)
+        .then(() => {
+          load();
+          retryFeed();
+        })
+        .catch(() => {
+          // 실패했으면 서버엔 그대로 남아 있다 — 재조회하면 목록에 다시 나타난다.
+          load();
+          retryFeed();
+        });
+    },
+    [hideToast, load, retryFeed],
+  );
+
+  const undoDelete = useCallback(
+    (id: number) => {
+      const timer = pendingTimersRef.current.get(id);
+      if (timer == null) return; // 이미 확정됐으면 되돌릴 것이 없다
+      clearTimeout(timer);
+      pendingTimersRef.current.delete(id);
+      toastOwnerIdRef.current = null;
+      // 서버에서 지운 적이 없으므로 숨김만 풀면 원래 자리에 그대로 돌아온다.
+      setPendingDeleteIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      hideToast();
+    },
+    [hideToast],
+  );
+
   const handleDelete = (id: number) => {
-    deleteNotification(id)
-      .then(() => {
-        load();
-        retryFeed();
-      })
-      .catch(() => {});
+    if (pendingTimersRef.current.has(id)) return; // 연타 방어
+    setPendingDeleteIds((prev) => new Set(prev).add(id));
+    pendingTimersRef.current.set(
+      id,
+      setTimeout(() => commitDelete(id), UNDO_DELETE_MS),
+    );
+    // 여러 건을 연달아 지우면 토스트는 마지막 것만 보여준다(useToast가 하나만 들고 있다).
+    // 각 항목의 타이머는 서로 독립이라, 앞의 것들은 토스트 없이 제 시간에 확정된다.
+    toastOwnerIdRef.current = id;
+    showToast(
+      {
+        message: "알림을 삭제했습니다",
+        action: { label: "실행취소", onClick: () => undoDelete(id) },
+      },
+      UNDO_DELETE_MS,
+    );
   };
 
   // BE에 일괄 읽음 처리 엔드포인트가 없어(PATCH /{id}/read만 있음, NotificationController 확인됨)
@@ -322,6 +419,10 @@ export default function NotificationsPage() {
           </>
         )}
       </div>
+      {/* 삭제 되돌리기 토스트(#238). hover/focus 중에는 자동 소멸이 멈춰(useToast) 실행취소를
+          누를 시간을 뺏기지 않는다 — 대신 타이머가 끝나 삭제가 확정되면 commitDelete가 이
+          토스트를 직접 걷어낸다. */}
+      <Toast toast={toast} onPause={pauseToast} onResume={resumeToast} />
     </main>
   );
 }
