@@ -169,6 +169,22 @@ export default function AddWatchlistModal(props: AddWatchlistModalProps) {
   const hasExistingTarget = initialTargetBuyPrice != null || initialTargetSellPrice != null;
   const title = mode === "edit" ? (hasExistingTarget ? "목표가 수정" : "목표가 설정") : "관심 등록";
 
+  // 이미 설정돼 있던 목표가를 비워서 저장하려는 시도. BE는 안 보낸 필드를 "기존 값 유지"로 해석하므로
+  // (Watchlist.updateTargetPrices) 그대로 보내면 지운 값이 조용히 되살아난다 - 실패했다는 신호가
+  // 아무 데도 없어서, 아예 저장을 막고 이유를 알려준다. "목표가 지우기"는 지원하지 않기로 확정된 사양.
+  // 등록 모드에서는 initial*이 undefined라 항상 false지만, 규칙이 편집 전용임을 드러내려 mode도 함께 본다.
+  const clearedExistingTarget =
+    mode === "edit" &&
+    ((initialTargetBuyPrice != null && !buyPrice.trim()) ||
+      (initialTargetSellPrice != null && !sellPrice.trim()));
+
+  // 지우기 시도는 기존 "둘 다 비어있음" 가드와 겹칠 수 있다(원래 구매가만 있던 항목에서 그걸 비운 경우).
+  // 그때는 더 구체적인 원인인 이쪽을 보여준다 - 남은 케이스(원래 목표가가 없던 항목에서 둘 다 빈 채로
+  // 저장)는 handleSubmit의 기존 가드가 그대로 담당한다.
+  const notice = clearedExistingTarget
+    ? "목표가를 지우려면 삭제 후 다시 등록해주세요."
+    : error;
+
   // placeholder는 카드와 무관한 고정값(예: 100000) 대신 이 카드의 현재 시세를 예시로 쓴다 —
   // 자릿수 감이 바로 잡히고, 구매/판매 목표를 현재가 기준 위아래로 떠올리기 쉬워진다.
   // 시세를 모르는 카드(정보 없음)는 기존 고정 예시로 되돌아간다.
@@ -236,15 +252,15 @@ export default function AddWatchlistModal(props: AddWatchlistModalProps) {
             />
           </label>
 
-          {error && (
+          {notice && (
             <span role="alert" className="text-[12.5px] font-semibold text-primary">
-              {error}
+              {notice}
             </span>
           )}
 
           <button
             type="button"
-            disabled={submitting}
+            disabled={submitting || clearedExistingTarget}
             onClick={handleSubmit}
             className="mt-1 w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3 text-[14.5px] font-bold text-white shadow-tactile-sm active:translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
           >
