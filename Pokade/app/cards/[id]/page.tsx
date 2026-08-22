@@ -546,15 +546,38 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   return (
     <main className="main-content bg-neutral px-4 pb-14 pt-8 sm:px-10">
       <div className="mx-auto max-w-[1120px]">
-        <div className="mb-5 flex items-center justify-between">
-          <Link
-            href="/search"
-            onClick={goBackToSearch}
-            className="inline-block text-[13.5px] font-semibold text-[#8A8A92] hover:text-primary"
-          >
-            ← 카드 검색으로 돌아가기
-          </Link>
-          <div className="flex items-center gap-2">
+        <div className="mb-5 flex items-center justify-between gap-3">
+          {/* 카드 상세는 어느 경로로 들어와도 시맨틱상 "홈 > 마켓 > 카드" 계층에 속한다.
+              마켓 세그먼트는 goBackToSearch로 직전 검색(필터 포함)으로 복귀시킨다 —
+              기존 "← 카드 검색으로 돌아가기" 링크의 동작을 그대로 승계. */}
+          <nav aria-label="현재 위치" className="min-w-0">
+            <ol className="flex items-center gap-1.5 text-[13px] font-semibold text-[#8A8A92]">
+              <li className="shrink-0">
+                <Link href="/" className="hover:text-primary">
+                  홈
+                </Link>
+              </li>
+              <li aria-hidden="true" className="shrink-0 text-[#C7C7CE]">
+                ›
+              </li>
+              <li className="shrink-0">
+                <Link href="/search" onClick={goBackToSearch} className="hover:text-primary">
+                  마켓
+                </Link>
+              </li>
+              <li aria-hidden="true" className="shrink-0 text-[#C7C7CE]">
+                ›
+              </li>
+              <li
+                aria-current="page"
+                className="truncate font-bold text-ink"
+                title={card ? (card.nameKo ?? card.name) : undefined}
+              >
+                {card ? (card.nameKo ?? card.name) : "카드 상세"}
+              </li>
+            </ol>
+          </nav>
+          <div className="flex shrink-0 items-center gap-2">
             {copied && <span className="text-[12.5px] font-bold text-primary">복사됨</span>}
             <button
               type="button"
