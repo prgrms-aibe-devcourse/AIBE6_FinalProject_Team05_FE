@@ -8,7 +8,6 @@ import PriceChart from "@/components/PriceChart";
 import Toast from "@/components/Toast";
 import IconTooltip from "@/components/IconTooltip";
 import ImageLightbox from "@/components/ImageLightbox";
-import AddWatchlistModal from "@/components/AddWatchlistModal";
 import RelatedCardsSection from "./RelatedCardsSection";
 import VariantPriceComparison from "./VariantPriceComparison";
 import OrderActivitySection from "./OrderActivitySection";
@@ -154,8 +153,6 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
   const [copied, triggerCopied] = useTimedFlag(2000);
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [watchlistModalOpen, setWatchlistModalOpen] = useState(false);
-  const [watchlistAdded, triggerWatchlistAdded] = useTimedFlag(2000);
   // 등급 선택에서 "판매"/"구매입찰 등록"을 누르면 등급 안내 모달을 먼저 보여주고, 확인 시 이
   // target에 맞는 등록 페이지로 이동한다. 모달 자체는 어디로 갈지 모르므로 여기서 target을 들고 있는다.
   const [gradeGuideTarget, setGradeGuideTarget] = useState<
@@ -1089,21 +1086,6 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                         </IconTooltip>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setWatchlistModalOpen(true)}
-                          aria-label="관심 등록"
-                          className="w-full rounded-[11px] border-[1.5px] border-[#DDDDE3] bg-white py-2.5 text-[13.5px] font-bold text-[#4B4B52] transition hover:border-primary hover:text-primary"
-                        >
-                          관심 등록
-                        </button>
-                        {watchlistAdded && (
-                          <span className="whitespace-nowrap text-[12.5px] font-bold text-primary">
-                            등록됨
-                          </span>
-                        )}
-                      </div>
                     </div>
 
                     <div className="rounded-2xl border border-[#EDEDF0] bg-white p-5">
@@ -1143,14 +1125,6 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                   onClose={() => setLightboxOpen(false)}
                   imageSrc={mainImageSrc}
                   alt={displayName}
-                />
-
-                <AddWatchlistModal
-                  isOpen={watchlistModalOpen}
-                  onClose={() => setWatchlistModalOpen(false)}
-                  cardId={cardId}
-                  variantId={selectedVariantId}
-                  onSuccess={triggerWatchlistAdded}
                 />
 
                 <GradeGuideModal
