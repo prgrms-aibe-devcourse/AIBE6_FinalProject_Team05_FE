@@ -32,8 +32,10 @@ const FOCUS_STYLES: Record<SearchBarVariant, string> = {
 
 // 마켓 전용 제출 버튼 — 포인트 충전 CTA(app/mypage/points/charge/page.tsx)와 같은 언어.
 // 44x44라 터치 타겟도 그대로 만족한다.
+// rest(sm) → hover(살짝 부상) → active(눌림)의 3단 피드백. hover는 기존 shadow-tactile-hover
+// 토큰 재사용, transform/box-shadow만 움직여 200ms transition 안에서 매끄럽게 전환된다.
 const MARKET_SUBMIT_BUTTON =
-  "flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[9px] border-2 border-primary-dark bg-primary text-white shadow-tactile-sm transition active:translate-y-0.5 active:shadow-tactile-active";
+  "flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[9px] border-2 border-primary-dark bg-primary text-white shadow-tactile-sm transition hover:-translate-y-[1px] hover:shadow-tactile-hover active:translate-y-0.5 active:shadow-tactile-active";
 
 function SearchIcon({ stroke, size = 18 }: { stroke: string; size?: number }) {
   return (
@@ -78,12 +80,16 @@ function SearchBarShell({
   return (
     <div className={`flex items-center gap-2 border ${CONTAINER_STYLES[variant]} ${width}`}>
       {variant === "default" && <SearchIcon stroke="#9A9AA2" />}
+      {/* 마켓은 왼쪽에 장식용(비클릭) 돋보기 — 제출은 오른쪽 빨간 CTA가 맡는다. */}
+      {variant === "market" && (
+        <span className="flex flex-shrink-0 items-center pl-1.5" aria-hidden="true">
+          <SearchIcon stroke="#9A9AA2" />
+        </span>
+      )}
       <input
         placeholder="카드 이름으로 검색"
         disabled
-        className={`w-full border-none bg-transparent text-[13.5px] text-ink outline-none ${
-          variant === "market" ? "pl-2.5" : ""
-        }`}
+        className="w-full border-none bg-transparent text-[13.5px] text-ink outline-none"
       />
       {/* 실제 폼(SearchBarInner)과 높이가 같아야 로딩→실제 전환 시 튀지 않는다. */}
       {variant === "market" && (
@@ -271,6 +277,12 @@ function SearchBarInner({
             <SearchIcon stroke="#9A9AA2" />
           </button>
         )}
+        {/* 마켓은 왼쪽에 장식용(비클릭) 돋보기 — 제출은 오른쪽 빨간 CTA가 맡는다. */}
+        {variant === "market" && (
+          <span className="flex flex-shrink-0 items-center pl-1.5" aria-hidden="true">
+            <SearchIcon stroke="#9A9AA2" />
+          </span>
+        )}
         <input
           ref={inputRef}
           value={query}
@@ -288,9 +300,7 @@ function SearchBarInner({
               ? `${listboxId}-option-${highlightedIndex}`
               : undefined
           }
-          className={`w-full border-none bg-transparent text-[13.5px] text-ink outline-none ${
-            variant === "market" ? "pl-2.5" : ""
-          }`}
+          className="w-full border-none bg-transparent text-[13.5px] text-ink outline-none"
         />
         {query.length > 0 && (
           <button
