@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ToastState } from "@/hooks/useToast";
+import { ToastHoldSource, ToastState } from "@/hooks/useToast";
 
 // 화면 하단 중앙에 뜨는 알림. 홈/마켓/카드상세가 각자 갖고 있던 동일한 JSX를 하나로 합쳤다(#235).
 //
@@ -20,15 +20,17 @@ import { ToastState } from "@/hooks/useToast";
 // 읽히는 텍스트 노드만 aria-hidden으로 가리고, 링크에는 aria-label로 이름을 직접 준다.
 //
 // onPause/onResume: hover/focus가 안에 있는 동안 자동 소멸 타이머를 멈춘다(useToast.ts).
-// 없으면(전달 안 하면) 기존처럼 그냥 시간이 지나면 사라진다.
+// 없으면(전달 안 하면) 기존처럼 그냥 시간이 지나면 사라진다. 포인터(hover)와 포커스(키보드)는
+// 동시에 걸릴 수 있으므로 어느 축인지를 인자로 함께 넘긴다 — 마우스만 벗어났는데 포커스가 아직
+// 토스트 안에 있는 상태에서 타이머가 재개되면 안 되기 때문이다(CodeRabbit 리뷰).
 export default function Toast({
   toast,
   onPause,
   onResume,
 }: {
   toast: ToastState | null;
-  onPause?: () => void;
-  onResume?: () => void;
+  onPause?: (source: ToastHoldSource) => void;
+  onResume?: (source: ToastHoldSource) => void;
 }) {
   if (!toast) return null;
 
@@ -49,10 +51,15 @@ export default function Toast({
           focusout) 안쪽 링크로 Tab이 들어오고 나가는 것도 여기서 함께 잡힌다. */}
       <div
         className={base}
-        onMouseEnter={onPause}
-        onMouseLeave={onResume}
-        onFocus={onPause}
-        onBlur={onResume}
+        onMouseEnter={() => onPause?.("pointer")}
+        onMouseLeave={() => onResume?.("pointer")}
+        onFocus={() => onPause?.("focus")}
+        onBlur={(event) => {
+          // 토스트 "안에서" 포커스가 옮겨 다니는 것(focusout 직후 focusin)은 벗어남이 아니다 —
+          // 그대로 resume을 부르면 타이머가 잠깐 재시작됐다가 다시 멈추는 헛돌기가 생긴다.
+          if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+          onResume?.("focus");
+        }}
       >
         {toast.href ? (
           <Link
