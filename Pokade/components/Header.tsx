@@ -8,10 +8,15 @@ import CardImage from "@/components/CardImage";
 import Avatar from "@/components/Avatar";
 import { SearchBar } from "@/components/CardSearchBar";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
-import { notifStyle, formatNotifTime, notificationHref } from "@/lib/notificationDisplay";
+import {
+  notifStyle,
+  formatNotifTime,
+  notificationHref,
+  MARK_ALL_READ_BUTTON_CLASS,
+} from "@/lib/notificationDisplay";
 import { NotificationResponse } from "@/types/notification";
 import { useUserStore } from "@/store/useUserStore";
-import { useNotificationStore } from "@/store/useNotificationStore";
+import { selectUnreadCount, useNotificationStore } from "@/store/useNotificationStore";
 
 const NAV: { label: string; href: string }[] = [
   { label: "마켓", href: "/search" },
@@ -103,7 +108,7 @@ function LoggedInRight({
   //  붙일 수 없다 — prefers-reduced-motion 처리는 그 클래스 정의 자체가 미디어쿼리 안에 있다.)
   const arrivalSeq = useNotificationStore((s) => s.arrivalSeq);
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const unreadCount = useNotificationStore(selectUnreadCount);
   const notifLabel = unreadCount > 0 ? `안 읽은 알림 ${unreadCount}개` : "알림";
 
   return (
@@ -186,15 +191,21 @@ function LoggedInRight({
               aria-label="알림 목록"
               className="dropdown-pop-in pointer-events-auto absolute right-[44px] top-16 w-[344px] overflow-hidden rounded-[14px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]"
             >
-              <div className="flex items-center justify-between border-b border-[#F0F0F0] px-4 py-3.5">
+              <div className="flex min-h-[52px] items-center justify-between border-b border-[#F0F0F0] px-4 py-2">
                 <span className="text-[14.5px] font-extrabold">알림</span>
-                <button
-                  type="button"
-                  onClick={markAllRead}
-                  className="cursor-pointer text-xs font-bold text-secondary hover:text-secondary-dark"
-                >
-                  모두 읽음 처리
-                </button>
+                {/* 안읽음이 없으면 숨긴다(#238) — store의 markAllRead도 안읽음 0건이면 그대로
+                    return하므로, 예전에는 눌러도 아무 일이 없는 버튼이 늘 떠 있었다.
+                    전체 알림 페이지와 같은 기준(selectUnreadCount)을 쓴다.
+                    버튼이 사라져도 헤더 높이가 흔들리지 않도록 min-h를 준다. */}
+                {unreadCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={markAllRead}
+                    className={`cursor-pointer ${MARK_ALL_READ_BUTTON_CLASS}`}
+                  >
+                    모두 읽음 처리
+                  </button>
+                )}
               </div>
               {/* 340px 고정이던 시절엔 2줄 메시지(행 83px) 기준 4건밖에 안 보여, 피드가 들고 있는
                   20건 중 대부분이 스크롤 뒤에 숨었다(#238). 뷰포트에 맞춰 늘리되 상한을 둔다 —

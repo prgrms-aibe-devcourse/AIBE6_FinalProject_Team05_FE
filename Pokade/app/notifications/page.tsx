@@ -5,10 +5,15 @@ import { useRouter } from "next/navigation";
 import CardImage from "@/components/CardImage";
 import Pagination from "@/components/Pagination";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { useNotificationStore } from "@/store/useNotificationStore";
+import { selectUnreadCount, useNotificationStore } from "@/store/useNotificationStore";
 import { ApiError, PageResponse } from "@/lib/apiClient";
 import { deleteNotification, fetchNotifications, markNotificationRead } from "@/lib/watchlistApi";
-import { notifStyle, formatNotifTime, notificationHref } from "@/lib/notificationDisplay";
+import {
+  notifStyle,
+  formatNotifTime,
+  notificationHref,
+  MARK_ALL_READ_BUTTON_CLASS,
+} from "@/lib/notificationDisplay";
 import { NotificationResponse } from "@/types/notification";
 
 // BE #162 페이지네이션 기본값(size=20)과 맞춘다 — app/mypage/MyTradesSection.tsx와 동일하게
@@ -27,6 +32,11 @@ export default function NotificationsPage() {
   const authStatus = useRequireAuth();
   const startFeed = useNotificationStore((s) => s.start);
   const retryFeed = useNotificationStore((s) => s.retry);
+  // "모두 읽음 처리" 노출 기준(#238) — 예전에는 "지금 보고 있는 페이지"의 안읽음으로 판단해서,
+  // 1페이지에 안읽음이 7건 있어도 2페이지로 넘어가면 버튼이 사라졌다(전체에는 남아 있는데도).
+  // 헤더 벨 배지와 같은 값을 쓰면 페이지를 넘겨도 기준이 흔들리지 않고, 두 화면이 같은 순간에
+  // 같은 판단을 한다. store 피드(최신 20건) 범위라는 한계는 벨 배지와 동일하게 공유한다.
+  const feedUnreadCount = useNotificationStore(selectUnreadCount);
 
   const [page, setPage] = useState(0); // BE와 동일하게 0-based로 들고 다닌다.
   // app/mypage/MyTradesSection.tsx와 동일한 패턴 — "결과"를 요청 키(requestKey)와 한 덩어리로
@@ -84,11 +94,6 @@ export default function NotificationsPage() {
   const errorMessage = current?.errorMessage ?? "";
 
   const notifications = data?.content ?? [];
-  // "모두 읽음 처리" 버튼 노출 여부는 여전히 이 페이지 기준이다 — BE에 안읽음 개수만 알려주는
-  // API가 없어 페이지 단위로 판단할 수밖에 없다(다른 페이지에만 안읽음이 남아있는데 지금 페이지가
-  // 전부 읽음 처리된 극단적인 경우 버튼이 숨는 사각지대는 남지만, 눌렀을 때 실제로 처리되는 범위
-  // 자체는 markAllRead가 이제 전체 페이지를 훑으므로 항상 맞다).
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   // 읽음 처리 후에는 항상 "이 페이지를 다시 불러오기 + 헤더 피드도 갱신"으로 정확성을 보장한다
   // (낙관적으로 로컬 배열만 patch하지 않는 이유: 이 화면의 data와 헤더 store의 notifications가
@@ -161,12 +166,12 @@ export default function NotificationsPage() {
               관심 등록·거래 등 전체 알림을 확인하세요
             </p>
           </div>
-          {unreadCount > 0 && (
+          {feedUnreadCount > 0 && (
             <button
               type="button"
               onClick={markAllRead}
               disabled={markingAll}
-              className="text-xs font-bold text-secondary hover:text-secondary-dark disabled:cursor-not-allowed disabled:text-[#C9C9CF] disabled:hover:text-[#C9C9CF]"
+              className={`${MARK_ALL_READ_BUTTON_CLASS} disabled:cursor-not-allowed disabled:bg-transparent disabled:text-[#C9C9CF] disabled:hover:bg-transparent disabled:hover:text-[#C9C9CF]`}
             >
               {markingAll ? "처리 중..." : "모두 읽음 처리"}
             </button>
