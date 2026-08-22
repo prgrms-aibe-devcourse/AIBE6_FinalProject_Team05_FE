@@ -44,8 +44,16 @@ export default function SelectMenu<T extends string>({
   // 열릴 때: 활성 인덱스를 현재 선택으로 맞추고 목록에 포커스(키보드 조작 시작점).
   useEffect(() => {
     if (!open) return;
+    // 열려 있는 동안 options가 비면(외부에서 목록이 사라짐) 열림 상태를 정리한다 — render는
+    // early return으로 막혀도 open=true면 바깥클릭 리스너가 남고, options가 다시 채워질 때
+    // 사용자 동작 없이 메뉴가 열린 채 나타난다. setOpen(false)가 바깥클릭 effect의 cleanup
+    // (리스너 제거)까지 함께 유발한다.
+    if (options.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 빈 목록이면 열림 상태 정리
+      setOpen(false);
+      return;
+    }
     const idx = options.findIndex((o) => o.key === value);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 오픈 시점 1회 활성 인덱스 동기화
     setActiveIndex(idx < 0 ? 0 : idx);
     listRef.current?.focus();
   }, [open, value, options]);
