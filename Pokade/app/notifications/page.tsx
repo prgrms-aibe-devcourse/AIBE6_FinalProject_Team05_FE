@@ -206,18 +206,24 @@ export default function NotificationsPage() {
                   // 두면 그런 문제 없이 각자 독립적으로 클릭된다(stopPropagation 불필요).
                   <div
                     key={n.id}
-                    className={`group flex w-full items-center gap-[13px] px-5 py-4 hover:bg-[#FAFAFB] ${
+                    className={`group relative flex w-full items-center gap-[13px] px-5 py-4 hover:bg-[#FAFAFB] ${
                       i < notifications.length - 1 ? "border-b border-[#F5F5F7]" : ""
-                    } ${!n.isRead ? "bg-[#FFF7F7]" : ""}`}
+                    } ${!n.isRead ? "bg-[#FFF1F1]" : ""}`}
                   >
+                    {/* 안읽음 표시(#238) — 헤더 드롭다운(components/Header.tsx)과 같은 장치를 쓴다:
+                        행 왼쪽 끝 3px primary 바 + 보조 틴트. 예전 배경 틴트(#FFF7F7)는 흰 배경과
+                        1.06:1이라 사실상 안 보였고, 7px 점은 훑을 때 놓치기 쉬웠다. */}
+                    {!n.isRead && (
+                      <span
+                        aria-hidden="true"
+                        className="absolute inset-y-0 left-0 w-[3px] bg-primary"
+                      />
+                    )}
                     <button
                       type="button"
                       onClick={() => handleNotificationClick(n)}
                       className="flex min-w-0 flex-1 items-center gap-[13px] text-left"
                     >
-                      <span
-                        className={`h-[7px] w-[7px] flex-shrink-0 rounded-full ${!n.isRead ? "bg-primary" : "bg-transparent"}`}
-                      />
                       {/* cardImageUrl이 있으면(카드 관련 알림) 타입 아이콘 대신 카드 썸네일을 보여준다 —
                           cardId가 아니라 cardImageUrl로 분기해야 "카드는 있었지만 조회 실패"인
                           경우도 안전하게 기존 아이콘으로 폴백한다. 박스 크기·위치는 그대로 둬서
