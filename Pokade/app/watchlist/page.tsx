@@ -18,18 +18,24 @@ import { WatchlistResponse } from "@/types/watchlist";
 // 없어 2단계로 축소. isNotified(알림 발송 이력, 1회성 플래그)와 달리 targetReached는 매 조회
 // 시점 실시간 체결가 기준으로 재계산되는 값이라 — 알림이 이미 갔어도 그 뒤 가격이 범위를
 // 벗어나면 다시 false가 될 수 있다. 상태 배지는 "지금" 기준을 보여줘야 하므로 이 값을 쓴다.
-type Status = "대기중" | "목표도달";
+// 예전에는 targetReached만 보고 "대기중/목표도달" 둘로 나눴는데, 그러면 목표가를 아직 정하지
+// 않은 카드까지 "대기중"이 됐다(#238) — 알림이 올 수 없는 상태인데 기다리는 중인 것처럼 보인다.
+// 목표가 유무를 앞에서 한 번 더 갈라 세 상태로 만든다.
+type Status = "미설정" | "대기중" | "목표도달";
 const STATUS_CLS: Record<Status, string> = {
+  // 아직 아무것도 정하지 않은 중립 상태 — 앰버(대기중)와 확실히 구분되도록 회색 계열.
+  미설정: "bg-neutral text-[#8A8A92]",
   대기중: "bg-[#FFF3CE] text-[#8A6A00]",
   목표도달: "bg-[#E8F7EF] text-[#087a4e]",
 };
 
 type LoadState = "loading" | "error" | "ready";
-type Filter = "all" | "wait" | "reached";
+type Filter = "all" | "unset" | "wait" | "reached";
 type Sort = "oldest" | "latest";
 
 const TABS: { key: Filter; label: string }[] = [
   { key: "all", label: "전체" },
+  { key: "unset", label: "미설정" },
   { key: "wait", label: "대기중" },
   { key: "reached", label: "목표도달" },
 ];
@@ -41,7 +47,14 @@ const SORT_OPTIONS: { key: Sort; label: string }[] = [
   { key: "latest", label: "등록 최신순" },
 ];
 
+// 목표가를 하나도 정하지 않은 상태 — 하트만 눌러 등록하면(빠른 등록) 여기서 시작한다.
+// 배지와 필터 탭이 같은 기준을 쓰도록 판정을 한 곳에 둔다.
+function hasNoTarget(item: WatchlistResponse): boolean {
+  return item.targetBuyPrice == null && item.targetSellPrice == null;
+}
+
 function statusOf(item: WatchlistResponse): Status {
+  if (hasNoTarget(item)) return "미설정";
   return item.targetReached ? "목표도달" : "대기중";
 }
 
@@ -167,15 +180,19 @@ export default function WatchlistPage() {
     };
   }, [authStatus]);
 
+  // 탭과 배지가 어긋나지 않도록 둘 다 statusOf()를 기준으로 센다 — 예전에는 탭이
+  // targetReached만 봐서 "대기중" 탭 안에 목표가 미설정 카드가 섞여 있었다(#238).
   const counts: Record<Filter, number> = {
     all: rows.length,
-    wait: rows.filter((r) => !r.targetReached).length,
-    reached: rows.filter((r) => r.targetReached).length,
+    unset: rows.filter((r) => statusOf(r) === "미설정").length,
+    wait: rows.filter((r) => statusOf(r) === "대기중").length,
+    reached: rows.filter((r) => statusOf(r) === "목표도달").length,
   };
 
   const filtered = rows.filter((r) => {
-    if (filter === "wait") return !r.targetReached;
-    if (filter === "reached") return r.targetReached;
+    if (filter === "unset") return statusOf(r) === "미설정";
+    if (filter === "wait") return statusOf(r) === "대기중";
+    if (filter === "reached") return statusOf(r) === "목표도달";
     return true;
   });
 
@@ -184,8 +201,10 @@ export default function WatchlistPage() {
     return sort === "oldest" ? diff : -diff;
   });
 
+  // whitespace-nowrap이 없으면 좁은 화면에서 버튼이 눌려 "목표도달 1"이 글자 단위로 줄바꿈된다
+  // (360px 기준 탭 높이 79px → 탭이 하나 늘어난 뒤 119px). 아래 컨테이너의 flex-wrap과 한 쌍이다.
   const tabCls = (active: boolean) =>
-    `rounded-[10px] border-[1.5px] px-[15px] py-2 text-[13.5px] cursor-pointer ${
+    `shrink-0 whitespace-nowrap rounded-[10px] border-[1.5px] px-[15px] py-2 text-[13.5px] cursor-pointer ${
       active
         ? "border-primary bg-[#FFF5F5] font-bold text-primary"
         : "border-[#E4E4E9] bg-white font-semibold text-[#7A7A82]"
@@ -320,8 +339,10 @@ export default function WatchlistPage() {
 
         {loadState === "ready" && rows.length > 0 && (
           <>
-            <div className="mb-[18px] flex items-center justify-between">
-              <div className="flex gap-2">
+            {/* 탭이 4개로 늘면서(#238) 좁은 화면에서 한 줄에 안 들어간다 — 눌러서 찌그러뜨리는
+                대신 줄바꿈으로 흘린다(정렬 셀렉트도 자리가 없으면 아래 줄로 내려간다). */}
+            <div className="mb-[18px] flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap gap-2">
                 {TABS.map(({ key, label }) => (
                   <button
                     key={key}
