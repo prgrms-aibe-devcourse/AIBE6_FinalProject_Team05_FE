@@ -427,7 +427,11 @@ export default function Header() {
         <nav className="hidden items-center gap-[30px] text-[15px] font-semibold md:flex">
           {NAV.map((n) => {
             const isActive =
-              n.href !== "#" && (pathname === n.href || pathname.startsWith(n.href + "/"));
+              n.href !== "#" &&
+              (pathname === n.href ||
+                pathname.startsWith(n.href + "/") ||
+                // 카드 상세(/cards/[id])는 시맨틱상 마켓 하위라 "마켓"을 활성 처리한다.
+                (n.href === "/search" && pathname.startsWith("/cards/")));
             return (
               <Link
                 key={n.label}
@@ -544,7 +548,11 @@ export default function Header() {
               <nav className="flex flex-col gap-1">
                 {NAV.map((n) => {
                   const isActive =
-                    n.href !== "#" && (pathname === n.href || pathname.startsWith(n.href + "/"));
+                    n.href !== "#" &&
+                    (pathname === n.href ||
+                      pathname.startsWith(n.href + "/") ||
+                      // 카드 상세(/cards/[id])는 시맨틱상 마켓 하위라 "마켓"을 활성 처리한다.
+                      (n.href === "/search" && pathname.startsWith("/cards/")));
                   return (
                     <Link
                       key={n.label}
