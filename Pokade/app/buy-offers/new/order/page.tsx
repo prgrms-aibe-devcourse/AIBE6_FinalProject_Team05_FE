@@ -10,6 +10,7 @@ import { ApiError } from "@/lib/apiClient";
 import { getMyInfo } from "@/lib/authApi";
 import { confirmBuyOfferPayment, readyBuyOffer } from "@/lib/buyOfferApi";
 import { fetchCardDetail } from "@/lib/cardApi";
+import { formatPhoneNumber } from "@/lib/phoneFormat";
 import { parseCardId } from "@/types/card";
 import { GRADE_LABELS, GradeKey, ListingGrade } from "@/types/price";
 
@@ -119,9 +120,13 @@ function NewBuyOfferOrderForm() {
 
   const pointsInputExceedsBalance = pointBalance != null && Number(pointsToUseInput) > pointBalance;
   const pointsInputExceedsTotal = Number(pointsToUseInput) > totalAmount;
+  // 포인트 결제는 최소 단위가 1,000원 - mypage/points/charge와 동일한 정책.
+  const pointsInputIsStep = Number(pointsToUseInput) % 1000 === 0;
 
   const handleUseAllPoints = () => {
-    setPointsToUseInput(String(Math.min(pointBalance ?? 0, totalAmount)));
+    // 잔액/결제금액이 1,000원 단위가 아닐 수 있으므로, 전액 사용도 항상 유효한 값이 되도록 내림한다.
+    const max = Math.min(pointBalance ?? 0, totalAmount);
+    setPointsToUseInput(String(Math.floor(max / 1000) * 1000));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -138,6 +143,10 @@ function NewBuyOfferOrderForm() {
     }
     if (pointsInputExceedsTotal) {
       setError("결제 금액보다 많은 포인트를 사용할 수 없습니다.");
+      return;
+    }
+    if (!pointsInputIsStep) {
+      setError("포인트는 1,000원 단위로 입력해주세요.");
       return;
     }
 
@@ -249,8 +258,9 @@ function NewBuyOfferOrderForm() {
             <input
               id="recipient-phone"
               type="text"
+              inputMode="numeric"
               value={recipientPhone}
-              onChange={(e) => setRecipientPhone(e.target.value)}
+              onChange={(e) => setRecipientPhone(formatPhoneNumber(e.target.value))}
               placeholder="010-0000-0000"
               className={inputCls}
             />
@@ -285,11 +295,13 @@ function NewBuyOfferOrderForm() {
                 전액 사용
               </button>
             </div>
-            {(pointsInputExceedsBalance || pointsInputExceedsTotal) && (
+            {(pointsInputExceedsBalance || pointsInputExceedsTotal || !pointsInputIsStep) && (
               <p className="mt-1.5 text-[12px] font-semibold text-primary">
                 {pointsInputExceedsBalance
                   ? "보유 포인트보다 많이 사용할 수 없습니다."
-                  : "결제 금액보다 많은 포인트를 사용할 수 없습니다."}
+                  : pointsInputExceedsTotal
+                    ? "결제 금액보다 많은 포인트를 사용할 수 없습니다."
+                    : "포인트는 1,000원 단위로 입력해주세요."}
               </p>
             )}
           </section>
