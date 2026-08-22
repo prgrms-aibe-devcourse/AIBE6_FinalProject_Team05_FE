@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 import { ApiError } from "@/lib/apiClient";
+import { stripFieldPrefix } from "@/lib/apiErrorMessage";
 import { loginUrlFor } from "@/lib/authRedirect";
 import { addWatchlist, updateWatchlist } from "@/lib/watchlistApi";
 import { useUserStore } from "@/store/useUserStore";
@@ -128,11 +129,13 @@ export default function AddWatchlistModal(props: AddWatchlistModalProps) {
       onSuccess?.(result);
       onClose();
     } catch (err) {
-      // DUPLICATE_WATCHLIST/WATCHLIST_LIMIT_EXCEEDED/TARGET_PRICE_REQUIRED/WATCHLIST_NOT_FOUND 모두
-      // BE가 내려주는 msg를 그대로 사용자에게 보여준다(이미 사용자 친화적인 문구).
+      // DUPLICATE_WATCHLIST/WATCHLIST_LIMIT_EXCEEDED/TARGET_PRICE_REQUIRED/WATCHLIST_NOT_FOUND/
+      // INVALID_TARGET_PRICE_RANGE 모두 BE가 내려주는 msg를 그대로 보여준다(이미 사용자 친화적).
+      // 다만 bean validation(@Max 등)에서 온 것만 "targetBuyPrice: ..."처럼 필드명이 앞에 붙어
+      // 오므로 그 접두사만 걷어낸다(#238) — 나머지 메시지는 매칭되지 않아 그대로 통과한다.
       setError(
         err instanceof ApiError
-          ? err.message
+          ? stripFieldPrefix(err.message)
           : mode === "edit"
             ? "목표가 수정에 실패했습니다."
             : "관심 등록에 실패했습니다.",
