@@ -94,6 +94,13 @@ function LoggedInRight({
       return next;
     });
 
+  // 새 알림이 SSE로 도착한 순간에만 벨을 한 번 흔든다(#235). key가 바뀌면 svg가 리마운트돼
+  // CSS 애니메이션이 다시 재생된다. 0(=도착 이력 없음)일 때는 클래스를 붙이지 않아, 안 읽은
+  // 알림을 둔 채 페이지를 열어도 흔들리지 않는다.
+  // (bell-shake는 Tailwind 유틸리티가 아니라 globals.css의 커스텀 클래스라 motion-safe: 접두사를
+  //  붙일 수 없다 — prefers-reduced-motion 처리는 그 클래스 정의 자체가 미디어쿼리 안에 있다.)
+  const arrivalSeq = useNotificationStore((s) => s.arrivalSeq);
+
   const unreadCount = notifications.filter((n) => !n.isRead).length;
   const notifLabel = unreadCount > 0 ? `안 읽은 알림 ${unreadCount}개` : "알림";
 
@@ -108,6 +115,8 @@ function LoggedInRight({
         className="relative flex h-10 w-10 items-center justify-center rounded-[9px] bg-neutral transition-colors hover:bg-[#ECECEF]"
       >
         <svg
+          key={arrivalSeq}
+          className={arrivalSeq > 0 ? "bell-shake" : undefined}
           width="19"
           height="19"
           viewBox="0 0 24 24"

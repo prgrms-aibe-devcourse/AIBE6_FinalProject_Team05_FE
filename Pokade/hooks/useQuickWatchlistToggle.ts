@@ -13,6 +13,11 @@ export type QuickWatchlistToggleResult =
   | { status: "redirected" }
   | { status: "error"; message: string };
 
+// 호출부가 결과에 따라 후속 연출(하트 펀치 등)을 분기할 수 있도록 status만 따로 노출한다.
+// 페이지의 핸들러는 상태 갱신/토스트까지 마친 뒤 이 값을 그대로 돌려주고, 버튼 쪽은
+// "added"일 때만 애니메이션을 재생한다 — 등록 실패에도 하트가 튀어오르는 것을 막기 위함.
+export type QuickWatchlistToggleStatus = QuickWatchlistToggleResult["status"];
+
 // 하트/워치리스트 버튼 클릭 시 목표가 입력 모달(AddWatchlistModal) 없이 즉시 등록/삭제를 토글하는
 // 흐름(#199) — 목표가는 이후 /watchlist에서 입력한다(BE #308: 등록 시점엔 목표가 없어도 허용).
 // 호출부가 이미 워치리스트에 있는 카드의 watchlistId를 들고 있다가 넘겨주면 삭제로, null이면

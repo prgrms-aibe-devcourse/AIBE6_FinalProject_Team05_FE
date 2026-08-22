@@ -32,6 +32,63 @@
   @apply flex-shrink-0;
 }
 
+/* 로딩 스켈레톤 shimmer — 기존 스켈레톤 색(#F2F2F5) 위로 한 톤 밝은 #FAFAFB(이미 hover 배경으로
+   쓰는 값)가 좌→우로 스쳐 지나간다. 새 색을 들이지 않고 밝기 차이만 쓴다.
+   animate-pulse(투명도 깜빡임)를 "대체"한다 — 둘을 같이 걸면 한 요소가 두 가지로 움직여 과하다.
+   Tailwind config가 아니라 여기 둔 이유: 클래스 문자열이 content 스캔 대상에서 빠져 조용히
+   생성되지 않는 함정(하트 펀치 때 겪음)을 아예 피하려고. */
+.skeleton-shimmer {
+  background-color: #f2f2f5;
+}
+/* 모션 최소화 설정에서는 그라데이션/애니메이션을 아예 걸지 않아 단색 회색으로만 보이게 한다. */
+@media (prefers-reduced-motion: no-preference) {
+  .skeleton-shimmer {
+    background-image: linear-gradient(90deg, #f2f2f5 25%, #fafafb 50%, #f2f2f5 75%);
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  }
+  @keyframes skeleton-shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+}
+
+/* 알림 벨 흔들림 — SSE로 새 알림이 "지금 막" 도착한 순간에만 한 번 재생한다(#235).
+   최초 로드/폴링(배열 통째 교체)은 도착이 아니므로 트리거하지 않는다 — 자세한 구분은
+   store/useNotificationStore.ts의 arrivalSeq 주석 참고.
+   transform만 움직여 리플로우가 없고, shimmer와 같은 이유로 Tailwind config가 아니라 여기 둔다. */
+@media (prefers-reduced-motion: no-preference) {
+  .bell-shake {
+    transform-origin: 50% 10%; /* 종 꼭대기를 축으로 매달린 것처럼 흔들리게 */
+    animation: bell-shake 600ms ease-in-out;
+  }
+  @keyframes bell-shake {
+    0% {
+      transform: rotate(0deg);
+    }
+    20% {
+      transform: rotate(-12deg);
+    }
+    40% {
+      transform: rotate(10deg);
+    }
+    60% {
+      transform: rotate(-6deg);
+    }
+    80% {
+      transform: rotate(3deg);
+    }
+    100% {
+      transform: rotate(0deg);
+    }
+  }
+}
+
 /* Thin scrollbar for chat panes */
 .chat-scroll::-webkit-scrollbar {
   width: 8px;
@@ -45,34 +102,34 @@
    레시피 출처: github.com/MengTo/skills agent-skills/web-design/skeuomorphic-ui */
 .dex-shell {
   position: relative;
-  border: 1px solid #B80F0F;
-  background: #EE1515;
+  border: 1px solid #b80f0f;
+  background: #ee1515;
   box-shadow: inset 0 -2px 0 rgba(90, 10, 10, 0.35);
 }
 
 /* 배너 안쪽 "화면" — 어두운 패널에 얹힌 통계 텍스트 */
 .dex-screen {
-  background: #10152A;
+  background: #10152a;
   box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.05);
 }
 
 /* 렌즈 — 포켓덱스 좌상단 원형 조명을 흉내낸 파란 버튼 */
 .dex-lens {
-  background: #4AA8FF;
+  background: #4aa8ff;
   box-shadow: inset 0 -3px 6px rgba(10, 30, 70, 0.55);
 }
 
 /* 카드 슬롯 — 카드가 꽂혀 있는 오목한 트레이 */
 .dex-slot {
-  background: #D8DAE2;
+  background: #d8dae2;
   box-shadow: inset 0 3px 7px rgba(31, 41, 55, 0.3);
 }
 
 /* 도감 화면 — 빨간 쉘(dex-shell) 안쪽에서 실제 콘텐츠(그리드/통계)가 표시되는
    크고 밝은 스크린. 쉘이 화면 하단까지 감싸도록 이 패널도 함께 늘어난다. */
 .dex-page {
-  background: #F7F7FB;
-  border: 1px solid #E3E3F0;
+  background: #f7f7fb;
+  border: 1px solid #e3e3f0;
   box-shadow: inset 0 2px 8px rgba(20, 26, 52, 0.1);
 }
 

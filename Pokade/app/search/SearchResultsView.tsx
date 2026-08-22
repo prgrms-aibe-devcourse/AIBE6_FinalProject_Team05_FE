@@ -1,6 +1,9 @@
 import { Dispatch, SetStateAction, useEffect, useRef } from "react";
 import Link from "next/link";
 import CardImage from "@/components/CardImage";
+import IconTooltip from "@/components/IconTooltip";
+import { useHeartPunch } from "@/hooks/useHeartPunch";
+import { QuickWatchlistToggleStatus } from "@/hooks/useQuickWatchlistToggle";
 import { CardFacetOption, CardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
 import { highlightMatch } from "@/lib/highlightMatch";
@@ -78,7 +81,8 @@ interface SearchResultsViewProps {
   myWatchlist: Map<number, number>;
   watchlistPendingCardId: number | null;
   watchlistError: { cardId: number; message: string } | null;
-  onHeartClick: (cardId: number) => void;
+  // 등록/해제 결과를 돌려받아야 "등록 확정" 시에만 하트 펀치를 재생할 수 있다.
+  onHeartClick: (cardId: number) => Promise<QuickWatchlistToggleStatus | null>;
 }
 
 // 페이지네이션 윈도우 — 전체 페이지를 다 그리지 않고 현재 페이지 주변 + 처음/끝만 노출,
@@ -167,6 +171,7 @@ export default function SearchResultsView({
   watchlistError,
   onHeartClick,
 }: SearchResultsViewProps) {
+  const { triggerPunch, punchKey, punchClass } = useHeartPunch();
   const filterPanelRef = useRef<HTMLDivElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const prevFilterOpenRef = useRef(filterOpen);
@@ -195,7 +200,10 @@ export default function SearchResultsView({
     : cards;
 
   return (
-    <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[250px_1fr]">
+    // lg:items-stretch(#235): items-start면 필터 쪽 그리드 아이템이 콘텐츠 높이에 딱 맞아
+    // sticky가 움직일 여유(부모 높이 - 자기 높이)가 0이라 아예 고정되지 않는다. 데스크톱에서만
+    // 행 높이만큼 늘려 sticky에 이동 구간을 준다(필터 카드 자체는 max-h가 있어 안 늘어난다).
+    <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[250px_1fr] lg:items-stretch">
       {/* filter sidebar — #308: 키워드(q) 검색 중에도 필터를 함께 적용할 수 있어 항상 노출한다.
           lg 미만에서는 사이드바 대신 "필터" 버튼으로 여는 바텀시트/드로어로 표시.
           세트/타입/레어도/언어/가격대 필터 전체는 SearchFilterSidebar로 분리돼 있다(#142).
@@ -347,13 +355,13 @@ export default function SearchResultsView({
             {Array.from({ length: SEARCH_SKELETON_COUNT }).map((_, i) => (
               <div
                 key={i}
-                className="flex flex-col overflow-hidden rounded-[13px] border border-[#EDEDF0]"
+                className="flex flex-col overflow-hidden rounded-[14px] border border-[#EDEDF0]"
               >
-                <div className="aspect-[5/7] w-full animate-pulse bg-[#F2F2F5]" />
+                <div className="skeleton-shimmer aspect-[5/7] w-full" />
                 <div className="flex flex-1 flex-col gap-2 p-3">
-                  <div className="h-[13.5px] w-3/4 animate-pulse rounded bg-[#F2F2F5]" />
-                  <div className="h-[11.5px] w-1/2 animate-pulse rounded bg-[#F2F2F5]" />
-                  <div className="mt-auto h-[15px] w-2/3 animate-pulse rounded bg-[#F2F2F5]" />
+                  <div className="skeleton-shimmer h-[13.5px] w-3/4 rounded" />
+                  <div className="skeleton-shimmer h-[11.5px] w-1/2 rounded" />
+                  <div className="skeleton-shimmer mt-auto h-[15px] w-2/3 rounded" />
                 </div>
               </div>
             ))}
@@ -426,13 +434,16 @@ export default function SearchResultsView({
               return (
                 <div
                   key={c.id}
-                  className="relative flex flex-col overflow-hidden rounded-[13px] border border-[#EDEDF0] transition hover:-translate-y-[3px] hover:shadow-lift"
+                  className="relative flex flex-col overflow-hidden rounded-[14px] border border-[#EDEDF0] transition hover:-translate-y-1 hover:shadow-lift"
                 >
-                  <Link href={`/cards/${c.id}`} className="flex flex-1 cursor-pointer flex-col">
+                  {/* 링크 범위는 이미지+이름/세트/타입까지 — 가격 줄은 아래에서 Link 밖 형제로
+                      분리했다(#235). 하트를 카드 아트 위에 겹치지 않게 가격 옆으로 옮기려면
+                      하트가 <a> 안에 들어가면 안 되기 때문이다(interactive content 중첩 금지). */}
+                  <Link href={`/cards/${c.id}`} className="flex cursor-pointer flex-col">
                     <div className="relative aspect-[5/7] w-full bg-[#F2F2F5]">
                       <CardImage src={c.imageUrl} alt={displayName} label="카드" />
                     </div>
-                    <div className="flex flex-1 flex-col p-3">
+                    <div className="flex flex-col p-3 pb-0">
                       <div className="text-[13.5px] font-bold">
                         {q ? highlightMatch(displayName, q) : displayName}
                       </div>
@@ -457,52 +468,75 @@ export default function SearchResultsView({
                           ))}
                         </div>
                       )}
-                      <div className="mt-auto pt-2.5">
-                        {priceDisplay ? (
-                          <>
-                            <div className="text-[11px] text-[#9A9AA2]">
-                              {BASIS_BADGE_LABEL[priceDisplay.basis]}
-                              {otherGradesCount > 0 && ` · 외 ${otherGradesCount}개 등급`}
-                            </div>
-                            <div className="text-[15px] font-extrabold text-ink">
-                              {priceDisplay.price}
-                            </div>
-                          </>
-                        ) : (
-                          <div className="text-[15px] font-extrabold text-ink">
-                            <span className="text-[13px] font-semibold text-[#9A9AA2]">
-                              가격 정보 없음
-                            </span>
-                          </div>
-                        )}
-                      </div>
                     </div>
                   </Link>
-                  <button
-                    type="button"
-                    onClick={() => onHeartClick(c.id)}
-                    disabled={watchlistPendingCardId === c.id}
-                    aria-label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}
-                    className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#EDEDF0] bg-white/90 hover:border-primary hover:bg-[#FFF5F5] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      stroke="#EE1515"
-                      strokeWidth="2"
-                      fill={myWatchlist.has(c.id) ? "#EE1515" : "none"}
+                  {/* 가격 + 하트 한 줄 — Link 밖이라 <a> 안에 <button>이 중첩되지 않고,
+                      하트를 눌러도 카드 상세로 새지 않는다. mt-auto가 이 줄에 있어야
+                      타일 높이가 달라도 가격 줄이 항상 바닥에 붙는다. */}
+                  <div className="mt-auto flex items-end justify-between gap-2 p-3 pt-2.5">
+                    <div className="min-w-0">
+                      {priceDisplay ? (
+                        <>
+                          <div className="text-[11px] text-[#9A9AA2]">
+                            {BASIS_BADGE_LABEL[priceDisplay.basis]}
+                            {otherGradesCount > 0 && ` · 외 ${otherGradesCount}개 등급`}
+                          </div>
+                          <div className="text-[15px] font-extrabold text-ink">
+                            {priceDisplay.price}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-[13px] font-semibold text-[#9A9AA2]">
+                          가격 정보 없음
+                        </div>
+                      )}
+                    </div>
+                    {/* 시각 크기는 32px 그대로 두고 -m-1.5/p-1.5로 히트 영역만 44px로 넓힌다
+                        (터치 타겟 최소 44px). 레이아웃에 영향이 없도록 음수 마진으로 상쇄한다. */}
+                    {/* 툴팁은 위로 — 하트가 타일 맨 아래(가격 줄)에 있어 아래로 열면
+                        타일의 overflow-hidden에 잘린다. */}
+                    <IconTooltip
+                      label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}
+                      placement="top"
+                      className="flex-shrink-0"
                     >
-                      <path
-                        d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
-                        transform="translate(-3 0)"
-                      />
-                    </svg>
-                  </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          // 서버가 등록을 확정한 뒤에만 펀치(useHeartPunch 주석 참고) —
+                          // 클릭 시점 상태로 미리 재생하면 등록이 실패해도 하트가 튀어올라
+                          // 성공한 것처럼 보인다.
+                          if ((await onHeartClick(c.id)) === "added") triggerPunch(c.id);
+                        }}
+                        disabled={watchlistPendingCardId === c.id}
+                        aria-label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}
+                        className="-m-1.5 flex flex-shrink-0 items-center justify-center p-1.5 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <span className="flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#EDEDF0] bg-white transition hover:border-primary hover:bg-[#FFF5F5]">
+                          <svg
+                            key={punchKey(c.id)}
+                            className={punchClass(c.id)}
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            stroke="#EE1515"
+                            strokeWidth="2"
+                            fill={myWatchlist.has(c.id) ? "#EE1515" : "none"}
+                            aria-hidden="true"
+                          >
+                            <path
+                              d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
+                              transform="translate(-3 0)"
+                            />
+                          </svg>
+                        </span>
+                      </button>
+                    </IconTooltip>
+                  </div>
                   {watchlistError?.cardId === c.id && (
                     <div
                       role="alert"
-                      className="absolute right-2 top-11 z-10 max-w-[130px] rounded-lg bg-[#3A3A3E] px-2.5 py-1.5 text-[11px] font-semibold leading-snug text-white shadow-lg"
+                      className="absolute bottom-2 right-2 z-10 max-w-[130px] rounded-lg bg-[#3A3A3E] px-2.5 py-1.5 text-[11px] font-semibold leading-snug text-white shadow-lg"
                     >
                       {watchlistError.message}
                     </div>

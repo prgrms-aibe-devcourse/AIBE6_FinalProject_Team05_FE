@@ -327,7 +327,10 @@ export default function SearchFilterSidebar({
       <div
         ref={filterPanelRef}
         tabIndex={-1}
-        className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl border border-[#EDEDF0] bg-white p-[22px] outline-none lg:sticky lg:top-[88px] lg:max-h-none lg:w-auto lg:overflow-visible lg:rounded-2xl lg:shadow-card"
+        // lg의 max-h/overflow-y-auto(#235): sticky top-[88px]로 붙여둬도 필터 자체가 뷰포트보다
+        // 길면(아코디언을 펼치면 쉽게 그렇게 된다) 아래쪽이 화면 밖으로 나가 sticky가 무의미해진다.
+        // 헤더(88px) + 아래 여백(16px)을 뺀 높이로 잘라 필터가 자체 스크롤되게 한다.
+        className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl border border-[#EDEDF0] bg-white p-[22px] outline-none lg:sticky lg:top-[88px] lg:max-h-[calc(100vh-104px)] lg:w-auto lg:overflow-y-auto lg:rounded-2xl lg:shadow-card"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between lg:relative">
