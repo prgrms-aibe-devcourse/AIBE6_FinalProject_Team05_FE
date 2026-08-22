@@ -8,7 +8,7 @@ import CardImage from "@/components/CardImage";
 import Avatar from "@/components/Avatar";
 import { SearchBar } from "@/components/CardSearchBar";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
-import { notifStyle, formatNotifTime } from "@/lib/notificationDisplay";
+import { notifStyle, formatNotifTime, notificationHref } from "@/lib/notificationDisplay";
 import { NotificationResponse } from "@/types/notification";
 import { useUserStore } from "@/store/useUserStore";
 import { useNotificationStore } from "@/store/useNotificationStore";
@@ -70,14 +70,16 @@ function LoggedInRight({
   const markOneRead = useNotificationStore((s) => s.markOneRead);
   const markAllRead = useNotificationStore((s) => s.markAllRead);
 
-  // /app/notifications/page.tsx와 동일한 정책 — cardId가 있으면 읽음 여부와 무관하게 항상
-  // 카드 상세로 이동하고, 드롭다운은 페이지 전환 후 열려있지 않도록 닫는다. cardId가 없는
-  // 알림(문의 처리 등)은 기존처럼 읽음 처리만 하고 드롭다운은 그대로 둔다.
+  // 목적지 규칙은 /app/notifications/page.tsx와 공유한다(lib/notificationDisplay의
+  // notificationHref) — 읽음 여부와 무관하게 항상 이동하고, 드롭다운은 페이지 전환 후
+  // 열려있지 않도록 닫는다. 갈 곳이 없는 알림(href가 null)은 읽음 처리만 하고 드롭다운을
+  // 그대로 둔다.
   const handleNotificationClick = (n: NotificationResponse) => {
     markOneRead(n);
-    if (n.cardId != null) {
+    const href = notificationHref(n);
+    if (href != null) {
       setOpen(null);
-      router.push(`/cards/${n.cardId}`);
+      router.push(href);
     }
   };
 

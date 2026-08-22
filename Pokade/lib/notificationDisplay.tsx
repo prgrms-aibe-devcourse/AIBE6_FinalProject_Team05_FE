@@ -1,5 +1,5 @@
 import React from "react";
-import { NotificationType } from "@/types/notification";
+import { NotificationResponse, NotificationType } from "@/types/notification";
 
 // 알림 드롭다운(Header)과 전체 알림 페이지(/notifications)가 공유하는 타입별 표시 매핑.
 // size: 카드 썸네일이 없을 때(기존 34~40px 아이콘 박스)는 기본값 17을 그대로 쓰고, 썸네일 위
@@ -136,4 +136,29 @@ export function formatNotifTime(iso: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+// 내 문의 목록 경로. 문의 "작성"은 /inquiries/new이고 목록은 마이페이지 아래에 있다 —
+// /inquiries 목록 라우트는 존재하지 않으므로(app/inquiries에는 new/만 있다) 여기로 보낸다.
+const MY_INQUIRIES_PATH = "/mypage/inquiries";
+
+// 알림을 눌렀을 때 이동할 곳. null이면 이동 없이 읽음 처리만 한다.
+// 헤더 드롭다운(components/Header.tsx)과 전체 알림 페이지(app/notifications/page.tsx)가 각자
+// `if (n.cardId != null) router.push(...)`를 들고 있었는데, 목적지 규칙이 타입별로 갈라지기
+// 시작해서(#238) 한 곳으로 합쳤다 — 두 화면이 다른 곳으로 가는 일이 없게 한다.
+//
+// cardId를 먼저 보는 이유: 카드가 딸린 알림은 타입과 무관하게 카드 상세가 가장 구체적인
+// 도착지다. INQUIRY_HANDLED는 BE가 cardId를 채우지 않으므로(NotificationService의 빌더에
+// cardId 자체가 없다) 항상 아래 분기로 떨어진다.
+//
+// 문의 목록까지만 보내고 해당 문의를 열어주지는 못한다 — 알림 레코드에 문의 식별자가 없고
+// (notifications 테이블에 card_id만 있다) 메시지에 박힌 제목 문자열로 매칭하는 건 제목에
+// 따옴표가 섞이면 바로 깨진다. 식별자가 응답에 추가되면 그때 특정 문의를 열도록 확장한다.
+//
+// 그 외 cardId가 없는 타입(TRADE_CONFIRMED, LISTING_STALE - 현재 BE에 생성 코드가 없는 값들)은
+// 갈 곳이 없으므로 기존과 동일하게 null을 반환해 읽음 처리만 되게 둔다.
+export function notificationHref(n: NotificationResponse): string | null {
+  if (n.cardId != null) return `/cards/${n.cardId}`;
+  if (n.type === "INQUIRY_HANDLED") return MY_INQUIRIES_PATH;
+  return null;
 }

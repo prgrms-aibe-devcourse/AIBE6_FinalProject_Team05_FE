@@ -8,7 +8,7 @@ import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import { ApiError, PageResponse } from "@/lib/apiClient";
 import { deleteNotification, fetchNotifications, markNotificationRead } from "@/lib/watchlistApi";
-import { notifStyle, formatNotifTime } from "@/lib/notificationDisplay";
+import { notifStyle, formatNotifTime, notificationHref } from "@/lib/notificationDisplay";
 import { NotificationResponse } from "@/types/notification";
 
 // BE #162 페이지네이션 기본값(size=20)과 맞춘다 — app/mypage/MyTradesSection.tsx와 동일하게
@@ -103,12 +103,13 @@ export default function NotificationsPage() {
       .catch(() => {});
   };
 
-  // 읽음 처리 여부와 무관하게, cardId가 있는 알림은 항상 카드 상세로 이동한다 — 이미 읽은
-  // 알림이라도 다시 들어갈 수 있어야 자연스럽다. cardId가 없는 알림(문의 처리 등)은 기존처럼
-  // 읽음 처리만 하고 제자리에 둔다.
+  // 목적지 규칙은 헤더 드롭다운(components/Header.tsx)과 공유한다(lib/notificationDisplay의
+  // notificationHref) — 읽음 여부와 무관하게 항상 이동한다(이미 읽은 알림이라도 다시 들어갈 수
+  // 있어야 자연스럽다). 갈 곳이 없는 알림(href가 null)은 읽음 처리만 하고 제자리에 둔다.
   const handleNotificationClick = (n: NotificationResponse) => {
     markOneRead(n);
-    if (n.cardId != null) router.push(`/cards/${n.cardId}`);
+    const href = notificationHref(n);
+    if (href != null) router.push(href);
   };
 
   // 확인창 없이 즉시 삭제(결정된 방향) — 삭제한 알림이 안읽음이었어도 신경 쓰지 않고 항상
