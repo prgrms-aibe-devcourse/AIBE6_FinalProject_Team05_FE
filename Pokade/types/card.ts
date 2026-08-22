@@ -9,13 +9,15 @@ export interface CardResponse {
   setName: string;
   rarity: string;
   supertype: string;
-  types: string[];
+  // 실데이터에 types가 null인 카드가 존재한다(#235에서 확인 — 시드 외 대량 카탈로그 구간).
+  // 빈 배열과 구분 없이 쓰이므로 읽는 쪽에서 항상 ?? []로 좁혀서 쓴다(toCardSearchItem 참고).
+  types: string[] | null;
   imageSmall: string;
   imageMedium: string;
   expansionId: string | null;
   // 판매 중인 매물의 등급 목록. BE가 GRADE_DISPLAY_ORDER(S>A>B) 순으로 정렬해서 내려준다.
-  // 매물이 없으면 빈 배열.
-  grades: string[];
+  // 매물이 없으면 빈 배열 — 다만 types와 같은 이유로 null 가능성을 열어둔다.
+  grades: string[] | null;
   // 오타 등으로 정확 일치 결과가 없어 유사검색으로 대체된 항목이면 true(#187). 정확 검색이거나
   // /api/cards, /api/cards/{id}/related처럼 유사검색을 적용하지 않는 응답에서는 항상 false로
   // 온다 — 다만 FE는 이 값을 신뢰해 안내 문구 표시 여부를 결정하지 않고, 키워드 검색(q) 경로인지
@@ -63,8 +65,10 @@ export function toCardSearchItem(card: CardResponse): CardSearchItem {
     nameKo: card.nameKo,
     set: `${card.setName} · ${card.rarity}`,
     imageUrl: card.imageMedium || card.imageSmall,
-    types: card.types,
-    grades: card.grades,
+    // BE가 null을 내려보내는 카드가 있어(#235) 여기서 한 번에 빈 배열로 좁힌다 — 이후 화면
+    // 코드(SearchResultsView 등)는 CardSearchItem의 non-null 배열만 보면 되도록 유지한다.
+    types: card.types ?? [],
+    grades: card.grades ?? [],
     languageCode: card.languageCode,
   };
 }
@@ -120,7 +124,8 @@ export interface CardDetailResponse {
   setName: string;
   rarity: string;
   supertype: string;
-  types: string[];
+  // CardResponse.types와 같은 이유로 null 가능(#235) — 상세 API도 동일 카드에서 null을 내려준다.
+  types: string[] | null;
   artist: string;
   printedNumber: string;
   imageSmall: string;

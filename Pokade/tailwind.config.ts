@@ -1,7 +1,9 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
+  // hooks/도 스캔한다 — 클래스 문자열을 돌려주는 훅(useHeartPunch 등)이 있어서, 빠져 있으면
+  // 그 클래스가 CSS로 아예 생성되지 않아 조용히 동작하지 않는다.
+  content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./hooks/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
@@ -47,10 +49,20 @@ const config: Config = {
           from: { opacity: "0" },
           to: { opacity: "1" },
         },
+        // 관심(하트) 등록 순간의 짧은 펀치 — 커졌다가 살짝 작아진 뒤 제자리로.
+        heartPunch: {
+          "0%": { transform: "scale(1)" },
+          "40%": { transform: "scale(1.3)" },
+          "70%": { transform: "scale(0.92)" },
+          "100%": { transform: "scale(1)" },
+        },
       },
       animation: {
         ticker: "tickerScroll 32s linear infinite",
         "fade-in": "fadeIn 0.3s ease-out",
+        // back-out 이징으로 스프링 느낌을 낸다. 호출부는 motion-safe: 접두사와 함께 써서
+        // prefers-reduced-motion 사용자에게는 애니메이션이 아예 걸리지 않게 한다.
+        "heart-punch": "heartPunch 280ms cubic-bezier(0.34, 1.56, 0.64, 1)",
       },
     },
   },

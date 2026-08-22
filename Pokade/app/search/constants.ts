@@ -6,10 +6,12 @@ import { CardSort } from "@/lib/cardApi";
 
 export const PRICE_MAX = 10000000;
 
-// 마켓 한 페이지에 보여줄 카드 수 — BE 기본값(20) 대신 명시적으로 10을 요청한다(#187).
+// 마켓 한 페이지에 보여줄 카드 수 — BE 기본값(20) 대신 명시적으로 요청한다(#187).
 // page.tsx의 API 호출과 SearchResultsView.tsx의 로딩 스켈레톤 칸 수가 항상 같은 값을 보도록
-// 여기 하나로 공유한다.
-export const MARKET_PAGE_SIZE = 10;
+// 여기 하나로 공유한다. 이 상수는 마켓(/search) 전용이라 다른 화면의 페이지 크기와 무관하다.
+// 15인 이유(#235): 결과 그리드가 lg에서 5열이라 15개면 정확히 3행이 되고, 그래야 옆의 필터
+// 사이드바와 카드 높이가 얼추 맞는다(10개=2행일 때는 결과가 400px 넘게 짧아 눈에 띄게 불균형).
+export const MARKET_PAGE_SIZE = 15;
 
 // 가격순 정렬 — BE 정렬 화이트리스트(CardRepository.SORT_COLUMN_WHITELIST: latest/name/popular)에
 // 가격이 없다(가격은 cards 테이블이 아니라 별도 listings 테이블에 있어 단순 컬럼 정렬이 아니라 BE

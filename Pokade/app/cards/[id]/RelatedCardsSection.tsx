@@ -43,7 +43,7 @@ export default function RelatedCardsSection({ cardId }: { cardId: number }) {
           {Array.from({ length: 5 }).map((_, i) => (
             <div
               key={i}
-              className="aspect-[5/7] w-full animate-pulse rounded-[13px] border border-[#EDEDF0] bg-[#F2F2F5]"
+              className="aspect-[5/7] w-full animate-pulse rounded-[14px] border border-[#EDEDF0] bg-[#F2F2F5]"
             />
           ))}
         </div>
@@ -61,7 +61,7 @@ export default function RelatedCardsSection({ cardId }: { cardId: number }) {
             <Link
               key={rc.id}
               href={`/cards/${rc.id}`}
-              className="flex cursor-pointer flex-col overflow-hidden rounded-[13px] border border-[#EDEDF0] transition hover:-translate-y-[3px] hover:shadow-lift"
+              className="flex cursor-pointer flex-col overflow-hidden rounded-[14px] border border-[#EDEDF0] transition hover:-translate-y-1 hover:shadow-lift"
             >
               <div className="relative aspect-[5/7] w-full bg-[#F2F2F5]">
                 <CardImage src={rc.imageUrl} alt={rc.name} label="카드" />

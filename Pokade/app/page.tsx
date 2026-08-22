@@ -6,15 +6,18 @@ import GradeBadge from "@/components/GradeBadge";
 import ConditionBar from "@/components/ConditionBar";
 import CardImage from "@/components/CardImage";
 import HeroTiltCard from "@/components/HeroTiltCard";
+import IconTooltip from "@/components/IconTooltip";
 import ImageLightbox from "@/components/ImageLightbox";
+import Toast from "@/components/Toast";
 import { CardSearchItem, toCardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
 import { fetchCards, fetchCardsByKeywordPage, fetchPriceSummaries } from "@/lib/cardApi";
-import { fetchWatchlist } from "@/lib/watchlistApi";
 import { ApiError } from "@/lib/apiClient";
 import { resolvePriceDisplay } from "@/lib/priceDisplay";
-import { useQuickWatchlistToggle } from "@/hooks/useQuickWatchlistToggle";
-import { useUserStore } from "@/store/useUserStore";
+import { useHeartPunch } from "@/hooks/useHeartPunch";
+import { useWatchlistMap } from "@/hooks/useWatchlistMap";
+import { useToast } from "@/hooks/useToast";
+import { showWatchlistToggleToast } from "@/lib/watchlistToast";
 
 const TICKER = [
   { name: "리자몽 ex SAR", price: "₩142,000", chg: "▲ 3.2%", up: true },
@@ -64,15 +67,11 @@ const STATS = [
 type LoadState = "loading" | "error" | "ready";
 
 export default function HomePage() {
-  const authStatus = useUserStore((s) => s.status);
-  // cardId -> watchlistId. 이 카드가 이미 내 워치리스트에 있는지, 있다면 삭제할 때 필요한 id까지
-  // 함께 들고 있는다(하트 채움 여부도 이 Map으로 판정 — 별도 boolean 상태를 두지 않는다).
-  const [myWatchlist, setMyWatchlist] = useState<Map<number, number>>(new Map());
-  const [watchlistError, setWatchlistError] = useState<{ cardId: number; message: string } | null>(
-    null,
-  );
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const { toggle, pendingCardId } = useQuickWatchlistToggle();
+  const { toast, showToast, pauseToast, resumeToast } = useToast();
+  const { triggerPunch, punchKey, punchClass } = useHeartPunch();
+  // 하트에 필요한 워치리스트 상태 한 세트(마켓과 공용) — 상태만 담당하고, 토스트·펀치는
+  // handleHeartClick이 돌려주는 status를 보고 아래 버튼에서 직접 처리한다.
+  const { myWatchlist, watchlistError, handleHeartClick, pendingCardId } = useWatchlistMap();
 
   const [popularCards, setPopularCards] = useState<CardSearchItem[]>([]);
   const [priceSummaries, setPriceSummaries] = useState<Map<number, CardPriceSummaryResponse>>(
@@ -145,58 +144,6 @@ export default function HomePage() {
       cancelled = true;
     };
   }, [popularCards]);
-
-  // 로그인 상태가 확정되면 내 워치리스트 전체를 한 번 불러와 하트 채움 여부/삭제용 id를 안다.
-  // 비로그인이면 빈 Map으로 남겨 하트가 전부 빈 상태로 보이게 한다(클릭하면 로그인으로 유도됨).
-  useEffect(() => {
-    if (authStatus !== "authenticated") {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- 로그아웃 시 직전 사용자의 워치리스트 흔적을 즉시 비운다.
-      setMyWatchlist(new Map());
-      return;
-    }
-    let cancelled = false;
-
-    fetchWatchlist()
-      .then((list) => {
-        if (!cancelled) setMyWatchlist(new Map(list.map((w) => [w.cardId, w.id])));
-      })
-      .catch(() => {
-        // 조회 실패는 조용히 무시 — 하트는 빈 상태로 보이고, 실제 등록 시도 자체는 그대로 동작한다.
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [authStatus]);
-
-  const showToast = (message: string) => {
-    setToastMessage(message);
-    setTimeout(() => {
-      setToastMessage((cur) => (cur === message ? null : cur));
-    }, 2500);
-  };
-
-  const handleHeartClick = async (cardId: number) => {
-    setWatchlistError(null);
-    const watchlistId = myWatchlist.get(cardId) ?? null;
-    const result = await toggle(cardId, watchlistId);
-    if (result.status === "added") {
-      setMyWatchlist((m) => new Map(m).set(cardId, result.watchlistId));
-      showToast("관심 등록했습니다");
-    } else if (result.status === "removed") {
-      setMyWatchlist((m) => {
-        const next = new Map(m);
-        next.delete(cardId);
-        return next;
-      });
-      showToast("관심 해제했습니다");
-    } else if (result.status === "error") {
-      setWatchlistError({ cardId, message: result.message });
-      setTimeout(() => {
-        setWatchlistError((cur) => (cur?.cardId === cardId ? null : cur));
-      }, 3000);
-    }
-  };
 
   return (
     <main className="main-content">
@@ -360,26 +307,43 @@ export default function HomePage() {
                         </div>
                       </div>
                     </Link>
-                    <button
-                      onClick={() => handleHeartClick(c.id)}
-                      disabled={pendingCardId === c.id}
-                      aria-label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}
-                      className="absolute bottom-3.5 right-3.5 flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#EDEDF0] bg-white hover:border-primary hover:bg-[#FFF5F5] disabled:cursor-not-allowed disabled:opacity-60"
+                    {/* 툴팁은 위로 — 하트가 타일 맨 아래에 있어 아래로 열면 타일의
+                        overflow-hidden에 잘린다(마켓 타일과 같은 이유). */}
+                    <IconTooltip
+                      label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}
+                      placement="top"
+                      className="absolute bottom-3.5 right-3.5"
                     >
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        stroke="#EE1515"
-                        strokeWidth="2"
-                        fill={myWatchlist.has(c.id) ? "#EE1515" : "none"}
+                      <button
+                        onClick={async () => {
+                          // 서버가 등록을 확정한 뒤에만 펀치(useHeartPunch 주석 참고) —
+                          // 클릭 시점 상태로 미리 재생하면 등록이 실패해도 하트가 튀어올라
+                          // 성공한 것처럼 보인다.
+                          const status = await handleHeartClick(c.id);
+                          if (status === "added") triggerPunch(c.id);
+                          showWatchlistToggleToast(status, showToast);
+                        }}
+                        disabled={pendingCardId === c.id}
+                        aria-label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}
+                        className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#EDEDF0] bg-white hover:border-primary hover:bg-[#FFF5F5] disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        <path
-                          d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
-                          transform="translate(-3 0)"
-                        />
-                      </svg>
-                    </button>
+                        <svg
+                          key={punchKey(c.id)}
+                          className={punchClass(c.id)}
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          stroke="#EE1515"
+                          strokeWidth="2"
+                          fill={myWatchlist.has(c.id) ? "#EE1515" : "none"}
+                        >
+                          <path
+                            d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
+                            transform="translate(-3 0)"
+                          />
+                        </svg>
+                      </button>
+                    </IconTooltip>
                     {watchlistError?.cardId === c.id && (
                       <div
                         role="alert"
@@ -568,14 +532,7 @@ export default function HomePage() {
           ))}
         </div>
       </section>
-      {toastMessage && (
-        <div
-          role="status"
-          className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-5 py-3 text-[13.5px] font-bold text-white shadow-lg"
-        >
-          {toastMessage}
-        </div>
-      )}
+      <Toast toast={toast} onPause={pauseToast} onResume={resumeToast} />
     </main>
   );
 }

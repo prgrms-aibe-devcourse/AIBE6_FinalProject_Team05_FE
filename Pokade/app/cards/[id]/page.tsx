@@ -6,7 +6,8 @@ import { Suspense, useEffect, useState } from "react";
 import CardImage from "@/components/CardImage";
 import PriceChart from "@/components/PriceChart";
 import ImageLightbox from "@/components/ImageLightbox";
-import AddWatchlistModal from "@/components/AddWatchlistModal";
+import IconTooltip from "@/components/IconTooltip";
+import Toast from "@/components/Toast";
 import RelatedCardsSection from "./RelatedCardsSection";
 import VariantPriceComparison from "./VariantPriceComparison";
 import OrderActivitySection from "./OrderActivitySection";
@@ -38,7 +39,17 @@ import { useUserStore } from "@/store/useUserStore";
 import { loginUrlFor } from "@/lib/authRedirect";
 import { toKrw } from "@/lib/currency";
 import { useTimedFlag } from "@/hooks/useTimedFlag";
-import { useQuickWatchlistToggle } from "@/hooks/useQuickWatchlistToggle";
+import { useHeartPunch } from "@/hooks/useHeartPunch";
+import {
+  QuickWatchlistToggleStatus,
+  useQuickWatchlistToggle,
+} from "@/hooks/useQuickWatchlistToggle";
+import { useToast } from "@/hooks/useToast";
+import {
+  WATCHLIST_ADDED_TOAST,
+  WATCHLIST_ADDED_TOAST_MS,
+  WATCHLIST_REMOVED_TOAST,
+} from "@/lib/watchlistToast";
 
 type LoadState = "loading" | "error" | "notfound" | "ready";
 type RelatedLoadState = "loading" | "ready";
@@ -54,7 +65,12 @@ interface GradeOffer {
 // grade-chart 보완 대상 후보 등급 — RAW(미등급)는 ListingGrade가 아니라 제외.
 const CHART_FALLBACK_GRADES: ListingGrade[] = ["PSA10", "PSA9", "PSA8", "S", "A", "B"];
 
-const CHART_PERIOD_DAYS: Record<ChartPeriod, number> = { "7d": 7, "30d": 30, "90d": 90, "180d": 180 };
+const CHART_PERIOD_DAYS: Record<ChartPeriod, number> = {
+  "7d": 7,
+  "30d": 30,
+  "90d": 90,
+  "180d": 180,
+};
 
 // 실거래가 이 개수 미만인 등급은 점/선이 너무 빈약해서(예: 1~2개) card_prices 추정치를 대신 쓴다.
 const MIN_REAL_POINTS_PER_GRADE = 6;
@@ -85,9 +101,17 @@ function computeGradeSummary(
 }
 
 // 선택된 변형(없으면 카드 대표 이미지)의 대표 이미지 — 구매 흐름(handleBuy)과 본문 렌더링에서 공유.
-function resolveMainImageSrc(card: CardDetailResponse, variantId: number | null): string | undefined {
+function resolveMainImageSrc(
+  card: CardDetailResponse,
+  variantId: number | null,
+): string | undefined {
   const selectedVariant = card.variants.find((v) => v.id === variantId) ?? null;
-  return selectedVariant?.imageLarge || selectedVariant?.imageSmall || card.imageLarge || card.imageMedium;
+  return (
+    selectedVariant?.imageLarge ||
+    selectedVariant?.imageSmall ||
+    card.imageLarge ||
+    card.imageMedium
+  );
 }
 
 // cardId가 바뀔 때마다 key={id}로 리마운트시켜, 이전 카드의 상태(이미지/시세/매물/체결 등)가
@@ -107,17 +131,15 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
   const [copied, triggerCopied] = useTimedFlag(2000);
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  // 목표가 설정/수정 모달(AddWatchlistModal의 edit 모드) 오픈 여부 — 등록 자체는 useQuickWatchlistToggle이
-  // 즉시 처리하므로, 이 모달은 "이미 등록된 카드의 목표가를 나중에 설정"하는 선택적 진입점 전용이다.
-  const [watchlistModalOpen, setWatchlistModalOpen] = useState(false);
-  // 목표가 저장 성공 flash("저장됨"). 등록/해제 자체의 피드백은 toastMessage가 따로 담당한다.
-  const [watchlistAdded, triggerWatchlistAdded] = useTimedFlag(2000);
-  // 이 카드가 이미 내 워치리스트에 있는지 + 목표가 수정 모달의 초기값으로 쓸 현재 목표가.
-  const [myWatchlist, setMyWatchlist] = useState<
-    Pick<WatchlistResponse, "id" | "targetBuyPrice" | "targetSellPrice"> | null
-  >(null);
+  // 이 카드가 이미 내 워치리스트에 있는지(하트 채움 여부 판정용). 목표가는 이 화면에서 더 이상
+  // 수정하지 않고 /watchlist에서만 다룬다(#235) — 등록 직후 토스트가 "관심 목록 →"으로 그 경로를
+  // 안내하므로, 카드 상세에는 관심 등록/해제 하나만 남긴다.
+  // 삭제에 필요한 id만 들고 있는다 — 목표가는 담기더라도 읽는 곳이 없어 그만큼 낡은 값이
+  // 남을 뿐이라, 이 화면이 실제로 쓰는 필드까지만 좁힌다.
+  const [myWatchlist, setMyWatchlist] = useState<Pick<WatchlistResponse, "id"> | null>(null);
   const [watchlistToggleError, setWatchlistToggleError] = useState<string | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const { toast, showToast, pauseToast, resumeToast } = useToast();
+  const { triggerPunch, punchKey, punchClass } = useHeartPunch();
   const { toggle: toggleWatchlist, pendingCardId: watchlistPendingCardId } =
     useQuickWatchlistToggle();
 
@@ -366,11 +388,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
       .then((list) => {
         if (cancelled) return;
         const found = list.find((w) => w.cardId === cardId);
-        setMyWatchlist(
-          found
-            ? { id: found.id, targetBuyPrice: found.targetBuyPrice, targetSellPrice: found.targetSellPrice }
-            : null,
-        );
+        setMyWatchlist(found ? { id: found.id } : null);
       })
       .catch(() => {
         if (!cancelled) setMyWatchlist(null);
@@ -381,32 +399,29 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     };
   }, [cardId, loadState, userStatus]);
 
-  const showToast = (message: string) => {
-    setToastMessage(message);
-    setTimeout(() => {
-      setToastMessage((cur) => (cur === message ? null : cur));
-    }, 2500);
-  };
-
-  const handleWatchlistToggle = async () => {
-    if (cardId == null) return;
+  // 토글 결과 status를 그대로 돌려준다 — 하트 펀치를 "서버가 등록을 확정한 뒤"에만
+  // 재생하기 위해 호출부(버튼)가 이 값을 보고 분기한다.
+  // cardId가 아직 없어 토글 자체를 건너뛴 경우는 null(=재생 안 함).
+  const handleWatchlistToggle = async (): Promise<QuickWatchlistToggleStatus | null> => {
+    if (cardId == null) return null;
     setWatchlistToggleError(null);
     const result = await toggleWatchlist(cardId, myWatchlist?.id ?? null, selectedVariantId);
     if (result.status === "added") {
-      setMyWatchlist({ id: result.watchlistId, targetBuyPrice: null, targetSellPrice: null });
+      setMyWatchlist({ id: result.watchlistId });
       // 관심수 재조회 없이 즉시 +1 — 다른 탭에서 이미 등록된 카드를 모르고 등록 시도한
       // DUPLICATE_WATCHLIST 경합처럼 드문 경우엔 실제보다 1 높게 보일 수 있지만,
       // 다음 새로고침/재조회 시 정확한 값으로 맞춰지는 일시적 드리프트라 지금은 감내한다.
       setWatchlistCount((c) => (c ?? 0) + 1);
-      showToast("관심 등록했습니다");
+      showToast(WATCHLIST_ADDED_TOAST, WATCHLIST_ADDED_TOAST_MS);
     } else if (result.status === "removed") {
       setMyWatchlist(null);
       setWatchlistCount((c) => (c != null ? Math.max(0, c - 1) : c));
-      showToast("관심 해제했습니다");
+      showToast(WATCHLIST_REMOVED_TOAST);
     } else if (result.status === "error") {
       setWatchlistToggleError(result.message);
       setTimeout(() => setWatchlistToggleError(null), 3000);
     }
+    return result.status;
   };
 
   useEffect(() => {
@@ -647,7 +662,8 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                             {card.languageCode}
                           </span>
                         )}
-                        {card.types.length > 0 && (
+                        {/* types가 null인 카드가 실제로 있다(#235) — 빈 배열과 같게 취급해 숨긴다. */}
+                        {!!card.types?.length && (
                           <div className="mt-2.5 flex flex-wrap gap-1.5">
                             {card.types.map((t) => (
                               <span
@@ -698,198 +714,214 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                   </div>
 
                   <div className="flex flex-col gap-4 lg:sticky lg:top-8 lg:self-start">
-                  <div className="flex flex-col gap-4 rounded-2xl border border-[#EDEDF0] bg-white p-5">
-                    <div>
-                      <div className="text-[12px] font-semibold text-[#8A8A92]">즉시구매가</div>
-                      <div className="mt-1 text-[24px] font-extrabold text-primary">
-                        {priceLoadState === "loading" ? (
-                          <span className="text-[14px] font-semibold text-[#9A9AA2]">
-                            불러오는 중...
-                          </span>
-                        ) : displayBuyPrice != null ? (
-                          `${displayBuyPrice.toLocaleString("ko-KR")}원`
-                        ) : (
-                          <span className="text-[14px] font-semibold text-[#9A9AA2]">
-                            상품 없음
-                          </span>
+                    <div className="flex flex-col gap-4 rounded-2xl border border-[#EDEDF0] bg-white p-5">
+                      <div>
+                        <div className="text-[12px] font-semibold text-[#8A8A92]">즉시구매가</div>
+                        <div className="mt-1 text-[24px] font-extrabold text-primary">
+                          {priceLoadState === "loading" ? (
+                            <span className="text-[14px] font-semibold text-[#9A9AA2]">
+                              불러오는 중...
+                            </span>
+                          ) : displayBuyPrice != null ? (
+                            `${displayBuyPrice.toLocaleString("ko-KR")}원`
+                          ) : (
+                            <span className="text-[14px] font-semibold text-[#9A9AA2]">
+                              상품 없음
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {watchlistToggleError && (
+                        <span role="alert" className="text-[12px] font-semibold text-primary">
+                          {watchlistToggleError}
+                        </span>
+                      )}
+
+                      {buyError && (
+                        <div className="rounded-xl border border-[#F6C6C6] bg-[#FFF1F1] px-3.5 py-2.5 text-[12.5px] font-semibold text-[#C21414]">
+                          {buyError}
+                        </div>
+                      )}
+
+                      <div className="border-t border-[#F5F5F7] pt-4">
+                        <div className="mb-2.5 text-[12.5px] font-bold text-ink">등급 선택</div>
+
+                        {priceLoadState === "loading" && (
+                          <div className="grid grid-cols-2 gap-2">
+                            {Array.from({ length: 6 }).map((_, i) => (
+                              <div
+                                key={i}
+                                className="h-[52px] animate-pulse rounded-xl bg-[#F2F2F5]"
+                              />
+                            ))}
+                          </div>
+                        )}
+
+                        {priceLoadState === "ready" &&
+                          listingsError &&
+                          (listingsError.status === 401 || listingsError.status === 403 ? (
+                            <div className="flex flex-col items-center gap-2 rounded-xl bg-neutral py-8 text-center text-[13px] text-[#9A9AA2]">
+                              <span>등급별 상품은 로그인 후 확인할 수 있습니다.</span>
+                              <Link
+                                href={loginUrlFor(pathname, searchParams)}
+                                className="text-[12.5px] font-bold text-primary hover:text-primary-dark"
+                              >
+                                로그인하기
+                              </Link>
+                            </div>
+                          ) : (
+                            <div className="rounded-xl bg-neutral py-8 text-center text-[13px] text-[#9A9AA2]">
+                              상품 정보를 불러오지 못했습니다.
+                            </div>
+                          ))}
+
+                        {priceLoadState === "ready" && !listingsError && (
+                          <div className="grid grid-cols-2 gap-2">
+                            {GRADE_ORDER.map((grade) => {
+                              const offer = gradeSummary[grade];
+                              const hasStock = offer != null;
+                              const isSelected = selectedGrade === grade;
+                              return (
+                                <button
+                                  key={grade}
+                                  type="button"
+                                  disabled={!hasStock}
+                                  onClick={() => setSelectedGrade(grade)}
+                                  className={`flex flex-col items-center gap-0.5 rounded-xl border px-2 py-2.5 transition ${
+                                    isSelected
+                                      ? "border-primary bg-lavender"
+                                      : hasStock
+                                        ? "border-[#DDDDE3] bg-white hover:border-primary"
+                                        : "cursor-not-allowed border-[#EDEDF0] bg-neutral opacity-50"
+                                  }`}
+                                >
+                                  <span className="text-[12px] font-extrabold text-ink">
+                                    {GRADE_LABELS[grade]}
+                                  </span>
+                                  <span className="text-[11px] font-semibold text-[#8A8A92]">
+                                    {hasStock
+                                      ? `${offer.price.toLocaleString("ko-KR")}원 · ${offer.count}개`
+                                      : "상품 없음"}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
                         )}
                       </div>
-                    </div>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={handleWatchlistToggle}
-                        disabled={watchlistPendingCardId === cardId}
-                        aria-label={
-                          myWatchlist
-                            ? watchlistCount
-                              ? `관심 해제 (${watchlistCount.toLocaleString("ko-KR")})`
-                              : "관심 해제"
-                            : watchlistCount
-                              ? `관심 등록 (${watchlistCount.toLocaleString("ko-KR")})`
-                              : "관심 등록"
-                        }
-                        className={`flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-[11px] border-[1.5px] transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                          myWatchlist
-                            ? "border-primary bg-lavender"
-                            : "border-[#DDDDE3] bg-white hover:border-primary hover:bg-[#FFF5F5]"
-                        }`}
-                      >
-                        <svg
-                          width="20"
-                          height="20"
-                          viewBox="0 0 24 24"
-                          stroke="#EE1515"
-                          strokeWidth="2"
-                          fill={myWatchlist ? "#EE1515" : "none"}
-                          aria-hidden="true"
-                        >
-                          <path
-                            d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
-                            transform="translate(-3 0)"
-                          />
-                        </svg>
-                      </button>
-                      {/* 0/조회 실패(null)는 표시할 의미 있는 숫자가 없다고 보고 숨긴다 —
-                          신규 카드에 "0"이 찍혀 위축감을 주는 것도 피한다. */}
-                      {!!watchlistCount && (
-                        <span className="text-[12.5px] font-semibold text-[#9A9AA2]">
-                          {watchlistCount.toLocaleString("ko-KR")}
-                        </span>
-                      )}
-                      {myWatchlist && (
+                      {/* 구매하기(주된 액션)와 관심 등록(보조 액션)을 한 행에 둔다(#235) —
+                          둘 다 "이 카드 자체"에 대한 액션이라 나란히 두는 게 자연스럽고,
+                          가격은 옆에 아무것도 붙지 않아야 강조가 유지된다.
+                          flex-1/flex-shrink-0으로 구매 버튼이 남는 폭을 전부 가져간다.
+                          items-stretch: 한 행에 나란히 놓인 컨트롤은 높이를 공유해야 한 세트로 읽힌다 —
+                          하트만 낮추면 위아래 여백이 생겨 정렬선이 끊기고 덧붙인 것처럼 보인다(#235).
+                          위계는 높이가 아니라 폭(약 4:1)과 색(흰 배경·회색 1px vs 빨강·2px·shadow)으로 준다. */}
+                      <div className="mt-1 flex items-stretch gap-2">
                         <button
                           type="button"
-                          onClick={() => setWatchlistModalOpen(true)}
-                          aria-label="목표가 설정"
-                          className="flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-[11px] border-[1.5px] border-[#DDDDE3] bg-white text-[#8A8A92] transition hover:border-primary hover:text-primary"
+                          disabled={
+                            userStatus === "loading" || !selectedOffer || buyingListingId != null
+                          }
+                          onClick={() => {
+                            if (!selectedOffer) return;
+                            handleBuy(selectedOffer.listingId);
+                          }}
+                          className="flex-1 rounded-[11px] border-2 border-primary-dark bg-primary py-3.5 text-[15px] font-bold text-white shadow-tactile transition active:translate-y-0.5 active:shadow-tactile-active disabled:cursor-not-allowed disabled:border-[#DDDDE3] disabled:bg-neutral disabled:text-[#9A9AA2] disabled:shadow-none"
                         >
-                          <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden="true"
-                          >
-                            <path d="M12 20h9" />
-                            <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z" />
-                          </svg>
+                          {userStatus === "loading"
+                            ? "인증 확인 중..."
+                            : buyingListingId != null
+                              ? "구매 중..."
+                              : selectedOffer
+                                ? "구매하기"
+                                : "등급을 선택하세요"}
                         </button>
-                      )}
-                      {watchlistAdded && (
-                        <span className="whitespace-nowrap text-[12.5px] font-bold text-primary">
-                          저장됨
-                        </span>
-                      )}
-                    </div>
-                    {watchlistToggleError && (
-                      <span role="alert" className="text-[12px] font-semibold text-primary">
-                        {watchlistToggleError}
-                      </span>
-                    )}
-
-                    {buyError && (
-                      <div className="rounded-xl border border-[#F6C6C6] bg-[#FFF1F1] px-3.5 py-2.5 text-[12.5px] font-semibold text-[#C21414]">
-                        {buyError}
-                      </div>
-                    )}
-
-                    <div className="border-t border-[#F5F5F7] pt-4">
-                      <div className="mb-2.5 text-[12.5px] font-bold text-ink">등급 선택</div>
-
-                      {priceLoadState === "loading" && (
-                        <div className="grid grid-cols-2 gap-2">
-                          {Array.from({ length: 6 }).map((_, i) => (
-                            <div
-                              key={i}
-                              className="h-[52px] animate-pulse rounded-xl bg-[#F2F2F5]"
-                            />
-                          ))}
-                        </div>
-                      )}
-
-                      {priceLoadState === "ready" &&
-                        listingsError &&
-                        (listingsError.status === 401 || listingsError.status === 403 ? (
-                          <div className="flex flex-col items-center gap-2 rounded-xl bg-neutral py-8 text-center text-[13px] text-[#9A9AA2]">
-                            <span>등급별 상품은 로그인 후 확인할 수 있습니다.</span>
-                            <Link
-                              href={loginUrlFor(pathname, searchParams)}
-                              className="text-[12.5px] font-bold text-primary hover:text-primary-dark"
+                        <IconTooltip
+                          label={myWatchlist ? "관심 해제" : "관심 등록"}
+                          placement="top"
+                          className="flex-shrink-0"
+                        >
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              // 서버가 등록을 확정한 뒤에만 펀치(useHeartPunch 주석 참고) —
+                              // 클릭 시점 상태로 미리 재생하면 등록이 실패해도 하트가 튀어올라
+                              // 성공한 것처럼 보인다.
+                              const status = await handleWatchlistToggle();
+                              if (status === "added" && cardId != null) triggerPunch(cardId);
+                            }}
+                            disabled={watchlistPendingCardId === cardId}
+                            aria-label={
+                              myWatchlist
+                                ? watchlistCount
+                                  ? `관심 해제 (${watchlistCount.toLocaleString("ko-KR")})`
+                                  : "관심 해제"
+                                : watchlistCount
+                                  ? `관심 등록 (${watchlistCount.toLocaleString("ko-KR")})`
+                                  : "관심 등록"
+                            }
+                            // 높이는 부모 items-stretch로 구매 버튼과 정확히 같아진다 — 44px을 훌쩍
+                            // 넘으므로 예전의 음수 마진 트릭(-m/p) 없이도 터치 타겟이 충족된다.
+                            // 아이콘 위 / 숫자 아래로 쌓아(flex-col) 구매 버튼과 높이를 맞추며 생긴 세로
+                            // 여유를 쓰고, 그만큼 가로를 줄인다 — 숫자가 옆으로 붙지 않으니 폭은 min-w-11
+                            // (44px, 터치 타겟 최소값)에서 거의 고정된다. 세로는 stretch로 충분하지만
+                            // 가로는 이 바닥값이 없으면 44px을 못 채운다.
+                            // 모서리·테두리는 구매 박스 언어 그대로 — radius는 옆 구매 버튼과 같은 11px,
+                            // 테두리는 등급 선택 버튼과 같은 1px/#DDDDE3.
+                            className="flex flex-shrink-0 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <span
+                              className={`flex min-w-11 items-center justify-center rounded-[11px] border px-2 transition ${
+                                myWatchlist
+                                  ? "border-primary bg-lavender"
+                                  : "border-[#DDDDE3] bg-white hover:border-primary hover:bg-[#FFF5F5]"
+                              }`}
                             >
-                              로그인하기
-                            </Link>
-                          </div>
-                        ) : (
-                          <div className="rounded-xl bg-neutral py-8 text-center text-[13px] text-[#9A9AA2]">
-                            상품 정보를 불러오지 못했습니다.
-                          </div>
-                        ))}
-
-                      {priceLoadState === "ready" && !listingsError && (
-                        <div className="grid grid-cols-2 gap-2">
-                          {GRADE_ORDER.map((grade) => {
-                            const offer = gradeSummary[grade];
-                            const hasStock = offer != null;
-                            const isSelected = selectedGrade === grade;
-                            return (
-                              <button
-                                key={grade}
-                                type="button"
-                                disabled={!hasStock}
-                                onClick={() => setSelectedGrade(grade)}
-                                className={`flex flex-col items-center gap-0.5 rounded-xl border px-2 py-2.5 transition ${
-                                  isSelected
-                                    ? "border-primary bg-lavender"
-                                    : hasStock
-                                      ? "border-[#DDDDE3] bg-white hover:border-primary"
-                                      : "cursor-not-allowed border-[#EDEDF0] bg-neutral opacity-50"
-                                }`}
+                              {/* 아이콘과 숫자를 한 덩어리로 감싸 함께 튀게 한다 — 알약 자체에
+                                  애니메이션을 걸면 테두리/배경까지 같이 흔들려 과해 보인다. */}
+                              <span
+                                key={punchKey(cardId ?? -1)}
+                                className={`flex flex-col items-center gap-0.5 ${punchClass(cardId ?? -1)}`}
                               >
-                                <span className="text-[12px] font-extrabold text-ink">
-                                  {GRADE_LABELS[grade]}
-                                </span>
-                                <span className="text-[11px] font-semibold text-[#8A8A92]">
-                                  {hasStock
-                                    ? `${offer.price.toLocaleString("ko-KR")}원 · ${offer.count}개`
-                                    : "상품 없음"}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
+                                <svg
+                                  width="16"
+                                  height="16"
+                                  viewBox="0 0 24 24"
+                                  stroke="#EE1515"
+                                  strokeWidth="2"
+                                  fill={myWatchlist ? "#EE1515" : "none"}
+                                  aria-hidden="true"
+                                >
+                                  <path
+                                    d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
+                                    transform="translate(-3 0)"
+                                  />
+                                </svg>
+                                {/* 0/조회 실패(null)는 표시할 의미 있는 숫자가 없다고 보고 숨긴다 —
+                                    신규 카드에 "0"이 찍혀 위축감을 주는 것도 피한다.
+                                    개수는 버튼의 aria-label에 이미 들어 있어 여기선 aria-hidden. */}
+                                {!!watchlistCount && (
+                                  <span
+                                    aria-hidden="true"
+                                    className={`text-[11.5px] font-semibold ${
+                                      myWatchlist ? "text-primary" : "text-[#9A9AA2]"
+                                    }`}
+                                  >
+                                    {watchlistCount.toLocaleString("ko-KR")}
+                                  </span>
+                                )}
+                              </span>
+                            </span>
+                          </button>
+                        </IconTooltip>
+                      </div>
                     </div>
 
-                    <button
-                      type="button"
-                      disabled={
-                        userStatus === "loading" || !selectedOffer || buyingListingId != null
-                      }
-                      onClick={() => {
-                        if (!selectedOffer) return;
-                        handleBuy(selectedOffer.listingId);
-                      }}
-                      className="mt-1 w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3.5 text-[15px] font-bold text-white shadow-tactile transition active:translate-y-0.5 active:shadow-tactile-active disabled:cursor-not-allowed disabled:border-[#DDDDE3] disabled:bg-neutral disabled:text-[#9A9AA2] disabled:shadow-none"
-                    >
-                      {userStatus === "loading"
-                        ? "인증 확인 중..."
-                        : buyingListingId != null
-                          ? "구매 중..."
-                          : selectedOffer
-                            ? "구매하기"
-                            : "등급을 선택하세요"}
-                    </button>
-                  </div>
-
-                  <div className="rounded-2xl border border-[#EDEDF0] bg-white p-5">
-                    <OrderActivitySection cardId={cardId} variantId={selectedVariantId} />
-                  </div>
+                    <div className="rounded-2xl border border-[#EDEDF0] bg-white p-5">
+                      <OrderActivitySection cardId={cardId} variantId={selectedVariantId} />
+                    </div>
                   </div>
                 </div>
 
@@ -925,38 +957,12 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                   imageSrc={mainImageSrc}
                   alt={displayName}
                 />
-
-                {myWatchlist && (
-                  <AddWatchlistModal
-                    isOpen={watchlistModalOpen}
-                    onClose={() => setWatchlistModalOpen(false)}
-                    mode="edit"
-                    watchlistId={myWatchlist.id}
-                    initialTargetBuyPrice={myWatchlist.targetBuyPrice}
-                    initialTargetSellPrice={myWatchlist.targetSellPrice}
-                    onSuccess={(updated) => {
-                      setMyWatchlist({
-                        id: updated.id,
-                        targetBuyPrice: updated.targetBuyPrice,
-                        targetSellPrice: updated.targetSellPrice,
-                      });
-                      triggerWatchlistAdded();
-                    }}
-                  />
-                )}
               </>
             );
           })()}
       </div>
 
-      {toastMessage && (
-        <div
-          role="status"
-          className="fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-5 py-3 text-[13.5px] font-bold text-white shadow-lg"
-        >
-          {toastMessage}
-        </div>
-      )}
+      <Toast toast={toast} onPause={pauseToast} onResume={resumeToast} />
     </main>
   );
 }

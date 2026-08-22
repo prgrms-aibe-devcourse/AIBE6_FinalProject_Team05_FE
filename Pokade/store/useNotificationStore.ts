@@ -31,6 +31,14 @@ interface NotificationState {
   loadState: LoadState;
   errorMessage: string;
   connectionMode: ConnectionMode;
+  // SSE로 새 알림이 실제로 도착할 때마다 +1 되는 카운터(#235). 헤더 벨이 이 값을 key로 써서
+  // 도착 순간에만 흔들림 애니메이션을 한 번 재생한다.
+  //
+  // "도착"만 세는 게 핵심이다 — 최초 조회/폴링(load())은 목록을 통째로 교체하는 별개 경로라
+  // 여기를 건드리지 않는다. 그래서 안 읽은 알림을 잔뜩 둔 채 페이지를 열어도 벨이 흔들리지
+  // 않고, SSE 재연결(onopen)이나 폴링 전환도 onmessage를 거치지 않아 오발동하지 않는다.
+  // 0은 "아직 도착한 적 없음"(=초기 렌더)이라 소비처가 이 값으로 첫 렌더를 걸러낸다.
+  arrivalSeq: number;
   start: () => void;
   stop: () => void;
   retry: () => void;
@@ -164,7 +172,13 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
 
         set((state) => {
           if (state.notifications.some((n) => n.id === payload.id)) return state; // 중복 수신 방지
-          return { notifications: [payload, ...state.notifications], loadState: "ready" };
+          // 중복 판정을 통과한, 진짜 새로 도착한 알림일 때만 arrivalSeq를 올린다 — 같은 알림을
+          // 두 번 받아도 벨이 두 번 흔들리지 않는다.
+          return {
+            notifications: [payload, ...state.notifications],
+            loadState: "ready",
+            arrivalSeq: state.arrivalSeq + 1,
+          };
         });
       },
 
@@ -200,6 +214,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
     errorMessage: "",
     // onopen에서 SSE 확정 전까지는 성급하게 "실시간 연결됨"으로 보여주지 않도록 보수적으로 시작.
     connectionMode: "polling",
+    arrivalSeq: 0,
 
     // 조회+구독의 유일한 시작점. 이미 시작돼 있으면 즉시 반환(멱등) — 여러 컴포넌트가 각자
     // 마운트 시점에 호출해도 안전하다. 초기 목록을 한 번 불러온 뒤 SSE 연결을 시도하고,
@@ -219,7 +234,15 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
       sseAbortController = null;
       sseRetryCount = 0;
       stopPolling();
-      set({ notifications: [], loadState: "loading", errorMessage: "", connectionMode: "polling" });
+      // arrivalSeq도 0으로 되돌린다 — 안 그러면 다음 로그인 사용자의 첫 렌더에서 값이 이미
+      // 0보다 커서, 도착한 알림이 없는데도 벨이 흔들린다.
+      set({
+        notifications: [],
+        loadState: "loading",
+        errorMessage: "",
+        connectionMode: "polling",
+        arrivalSeq: 0,
+      });
     },
 
     // 폴링 주기와 무관하게 지금 한 번 더 조회 — 에러 상태에서 드롭다운을 닫았다 다시 열 때 등
