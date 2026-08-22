@@ -171,6 +171,17 @@ export default function SearchResultsView({
   watchlistError,
   onHeartClick,
 }: SearchResultsViewProps) {
+  // 결과 0건일 때 "검색어 탓"과 "필터 탓"을 구분하기 위한 파생값(#238 UX-1). 예전에는 q 유무로만
+  // 갈라, 검색어+필터로 0건이 나도 "다른 검색어로 시도해보세요"라고만 해서 실제 원인(필터)을
+  // 가리키지 못했다. 가격대는 양끝이 기본값(0~PRICE_MAX)이면 필터가 걸린 것으로 보지 않는다.
+  const hasActiveFilter =
+    selectedTypes.length > 0 ||
+    selectedRarities.length > 0 ||
+    selectedLanguages.length > 0 ||
+    selectedExpansionId != null ||
+    priceMin > 0 ||
+    priceMax < PRICE_MAX;
+
   const { triggerPunch, punchKey, punchClass } = useHeartPunch();
   const filterPanelRef = useRef<HTMLDivElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
@@ -385,27 +396,44 @@ export default function SearchResultsView({
           </div>
         )}
 
-        {loadState === "ready" && cards.length === 0 && q && (
+        {/* 빈 결과 안내(#238 UX-1) — q(검색어)와 필터 활성 여부를 조합해 원인을 정확히 짚는다.
+            초기화 버튼은 실제로 풀 필터가 있을 때(hasActiveFilter)만 노출한다: 검색어만으로 0건이면
+            풀 필터가 없어 버튼이 무의미하고, 검색어는 이 버튼이 건드리지 않으므로(필터만 초기화)
+            그대로 남는다. */}
+        {loadState === "ready" && cards.length === 0 && (
           <div className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-[#EDEDF0] bg-white py-24">
-            <span className="text-[13.5px] font-semibold text-[#8A8A92]">
-              {`"${q}"에 대한 검색 결과가 없습니다.`}
-            </span>
-            <span className="text-[12.5px] text-[#9A9AA2]">다른 검색어로 시도해보세요.</span>
-          </div>
-        )}
-
-        {loadState === "ready" && cards.length === 0 && !q && (
-          <div className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-[#EDEDF0] bg-white py-24">
-            <span className="text-[13.5px] font-semibold text-[#8A8A92]">
-              조건에 맞는 카드가 없습니다.
-            </span>
-            <span className="text-[12.5px] text-[#9A9AA2]">필터를 조정해보세요.</span>
-            <button
-              onClick={resetFilters}
-              className="mt-1.5 rounded-[9px] border-[1.5px] border-[#DDDDE3] bg-white px-4 py-2 text-[13px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary"
-            >
-              필터 초기화
-            </button>
+            {q && hasActiveFilter ? (
+              <>
+                <span className="text-[13.5px] font-semibold text-[#8A8A92]">
+                  필터와 검색어를 모두 만족하는 카드가 없어요.
+                </span>
+                <span className="text-[12.5px] text-[#9A9AA2]">
+                  필터를 풀면 더 많은 결과를 볼 수 있어요.
+                </span>
+              </>
+            ) : q ? (
+              <>
+                <span className="text-[13.5px] font-semibold text-[#8A8A92]">
+                  {`"${q}"에 대한 검색 결과가 없습니다.`}
+                </span>
+                <span className="text-[12.5px] text-[#9A9AA2]">다른 검색어로 시도해보세요.</span>
+              </>
+            ) : (
+              <>
+                <span className="text-[13.5px] font-semibold text-[#8A8A92]">
+                  선택한 필터에 맞는 카드가 없어요.
+                </span>
+                <span className="text-[12.5px] text-[#9A9AA2]">필터를 조정해보세요.</span>
+              </>
+            )}
+            {hasActiveFilter && (
+              <button
+                onClick={resetFilters}
+                className="mt-1.5 rounded-[9px] border-[1.5px] border-[#DDDDE3] bg-white px-4 py-2 text-[13px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary"
+              >
+                필터 초기화
+              </button>
+            )}
           </div>
         )}
 
