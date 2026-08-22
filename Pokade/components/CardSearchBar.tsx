@@ -32,10 +32,15 @@ const FOCUS_STYLES: Record<SearchBarVariant, string> = {
 
 // 마켓 전용 제출 버튼 — 포인트 충전 CTA(app/mypage/points/charge/page.tsx)와 같은 언어.
 // 44x44라 터치 타겟도 그대로 만족한다.
+// 베이스(모양)와 인터랙션(hover/active)을 분리한다: 로딩 자리표시인 SearchBarShell의 <span>은
+// 클릭할 수 없으므로 hover/active가 무의미해 베이스만 쓰고, 실제 <button>만 인터랙션까지 붙인다.
+const MARKET_SUBMIT_BASE =
+  "flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[9px] border-2 border-primary-dark bg-primary text-white shadow-tactile-sm";
 // rest(sm) → hover(살짝 부상) → active(눌림)의 3단 피드백. hover는 기존 shadow-tactile-hover
 // 토큰 재사용, transform/box-shadow만 움직여 200ms transition 안에서 매끄럽게 전환된다.
-const MARKET_SUBMIT_BUTTON =
-  "flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[9px] border-2 border-primary-dark bg-primary text-white shadow-tactile-sm transition hover:-translate-y-[1px] hover:shadow-tactile-hover active:translate-y-0.5 active:shadow-tactile-active";
+const MARKET_SUBMIT_INTERACTION =
+  "transition hover:-translate-y-[1px] hover:shadow-tactile-hover active:translate-y-0.5 active:shadow-tactile-active";
+const MARKET_SUBMIT_BUTTON = `${MARKET_SUBMIT_BASE} ${MARKET_SUBMIT_INTERACTION}`;
 
 function SearchIcon({ stroke, size = 18 }: { stroke: string; size?: number }) {
   return (
@@ -93,7 +98,7 @@ function SearchBarShell({
       />
       {/* 실제 폼(SearchBarInner)과 높이가 같아야 로딩→실제 전환 시 튀지 않는다. */}
       {variant === "market" && (
-        <span className={MARKET_SUBMIT_BUTTON}>
+        <span className={MARKET_SUBMIT_BASE}>
           <SearchIcon stroke="#FFFFFF" />
         </span>
       )}
