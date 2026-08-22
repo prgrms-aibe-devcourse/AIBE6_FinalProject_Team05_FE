@@ -8,6 +8,7 @@ import GradeMarketReference from "@/components/GradeMarketReference";
 import PriceInput from "@/components/PriceInput";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { fetchCardDetail, fetchCardsByKeywordPage, fetchPriceSummary } from "@/lib/cardApi";
+import { getPriceStep } from "@/lib/priceStep";
 import {
   CardDetailResponse,
   CardResponse,
@@ -177,6 +178,11 @@ function NewBuyOfferForm() {
       setError("가격을 올바르게 입력해 주세요.");
       return;
     }
+    const step = getPriceStep(priceNumber);
+    if (priceNumber % step !== 0) {
+      setError(`가격은 ${step.toLocaleString("ko-KR")}원 단위로 입력해 주세요.`);
+      return;
+    }
 
     // 실제 등록(readyBuyOffer)은 여기서 하지 않는다 - 받는사람 정보를 받는 주문서 단계
     // (/buy-offers/new/order)로 이동해서, 그 화면에서 결제 준비→체결까지 이어간다.
@@ -195,6 +201,13 @@ function NewBuyOfferForm() {
     "w-full rounded-[11px] border border-[#DDDDE3] px-3.5 py-3 text-[14.5px] text-ink outline-none";
 
   const priceNumber = Number(price);
+  // 가격 자릿수에 따라 입력 단위를 강제한다(100원대 10원 단위 ~ 10만원 단위 상한) - getPriceStep 참고.
+  const priceStep =
+    price && Number.isInteger(priceNumber) && priceNumber > 0 ? getPriceStep(priceNumber) : null;
+  const priceStepWarning =
+    priceStep != null && priceNumber % priceStep !== 0
+      ? `${priceStep.toLocaleString("ko-KR")}원 단위로 입력해 주세요.`
+      : null;
   const topBidPrice = priceSummary?.sellPrice;
   let priceOutlierWarning: string | null = null;
   if (
@@ -351,6 +364,9 @@ function NewBuyOfferForm() {
             placeholder="구매 입찰가 (원)"
             className={inputCls}
           />
+          {priceStepWarning && (
+            <p className="mt-1.5 text-[12px] font-semibold text-primary">{priceStepWarning}</p>
+          )}
           {priceOutlierWarning && (
             <p className="mt-1.5 text-[12px] font-semibold text-[#C97A00]">{priceOutlierWarning}</p>
           )}
