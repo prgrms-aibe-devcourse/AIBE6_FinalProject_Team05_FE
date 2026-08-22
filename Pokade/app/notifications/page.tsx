@@ -7,6 +7,7 @@ import CardImage from "@/components/CardImage";
 import Pagination from "@/components/Pagination";
 import IconTooltip from "@/components/IconTooltip";
 import Toast from "@/components/Toast";
+import { useMinuteTick } from "@/hooks/useMinuteTick";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useToast } from "@/hooks/useToast";
 import { selectUnreadCount, useNotificationStore } from "@/store/useNotificationStore";
@@ -40,6 +41,8 @@ type LoadState = "loading" | "error" | "ready";
 export default function NotificationsPage() {
   const router = useRouter();
   const authStatus = useRequireAuth();
+  // 화면을 열어둔 채 시간이 지나도 "N분 전" 표시가 굳지 않도록 1분마다 리렌더한다(#238).
+  useMinuteTick();
   const startFeed = useNotificationStore((s) => s.start);
   const retryFeed = useNotificationStore((s) => s.retry);
   // "모두 읽음 처리" 노출 기준(#238) — 예전에는 "지금 보고 있는 페이지"의 안읽음으로 판단해서,
@@ -266,19 +269,22 @@ export default function NotificationsPage() {
               관심 등록·거래 등 전체 알림을 확인하세요
             </p>
           </div>
-          {/* 노출 조건에 loadState === "ready"를 함께 본다: 노출은 스토어 기준(feedUnreadCount)
-              인데 동작(markAllRead)은 이 페이지의 data가 있어야 하므로, 로딩/에러 구간에서는
-              버튼이 보여도 눌러야 아무 일도 없는 no-op이 됐다. 두 기준을 맞춰 그 구간엔 숨긴다. */}
-          {loadState === "ready" && feedUnreadCount > 0 && (
-            <button
-              type="button"
-              onClick={markAllRead}
-              disabled={markingAll}
-              className={`${MARK_ALL_READ_BUTTON_CLASS} disabled:cursor-not-allowed disabled:bg-transparent disabled:text-[#C9C9CF] disabled:hover:bg-transparent disabled:hover:text-[#C9C9CF]`}
-            >
-              {markingAll ? "처리 중..." : "모두 읽음 처리"}
-            </button>
-          )}
+          {/* 노출 조건에 loadState === "ready"를 함께 본다: 동작(markAllRead)은 이 페이지의 data가
+              있어야 하므로, 로딩/에러 구간에서는 버튼이 보여도 눌러야 아무 일도 없는 no-op이 됐다.
+              안읽음 판정은 스토어 피드(feedUnreadCount, 최신 20건)뿐 아니라 지금 페이지에 로드된
+              알림(notifications)의 안읽음도 함께 본다 — feed 범위 밖(2페이지 이하 등)에만 안읽음이
+              있으면 예전엔 버튼이 사라졌기 때문이다. markAllRead는 이미 전체 페이지를 훑으므로 동작 OK. */}
+          {loadState === "ready" &&
+            (feedUnreadCount > 0 || notifications.some((n) => !n.isRead)) && (
+              <button
+                type="button"
+                onClick={markAllRead}
+                disabled={markingAll}
+                className={`${MARK_ALL_READ_BUTTON_CLASS} disabled:cursor-not-allowed disabled:bg-transparent disabled:text-[#C9C9CF] disabled:hover:bg-transparent disabled:hover:text-[#C9C9CF]`}
+              >
+                {markingAll ? "처리 중..." : "모두 읽음 처리"}
+              </button>
+            )}
         </div>
 
         {loadState === "loading" && (
