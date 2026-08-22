@@ -438,7 +438,7 @@ export default function WatchlistPage() {
                                 type="button"
                                 aria-label={`${displayName} 목표가 수정`}
                                 onClick={() => setEditingItem(row)}
-                                className="-m-3.5 p-3.5 text-[#C7C7CE] hover:text-primary"
+                                className="-m-3.5 p-3.5 text-[#8A8A92] hover:text-primary"
                               >
                                 <svg
                                   width="17"
@@ -461,7 +461,7 @@ export default function WatchlistPage() {
                                   aria-label={`${displayName} 알림 다시 받기`}
                                   disabled={resendingId === row.id}
                                   onClick={() => handleResendNotification(row.id)}
-                                  className="-m-3.5 p-3.5 text-[#C7C7CE] hover:text-primary disabled:opacity-50"
+                                  className="-m-3.5 p-3.5 text-[#8A8A92] hover:text-primary disabled:opacity-50"
                                 >
                                   <svg
                                     width="17"
@@ -484,7 +484,7 @@ export default function WatchlistPage() {
                                 aria-label={`${displayName} 관심 목록에서 삭제`}
                                 disabled={deletingId === row.id}
                                 onClick={() => setDeleteTarget(row)}
-                                className="-m-3.5 p-3.5 text-[#C7C7CE] hover:text-primary disabled:opacity-50"
+                                className="-m-3.5 p-3.5 text-[#8A8A92] hover:text-primary disabled:opacity-50"
                               >
                                 <svg
                                   width="18"
@@ -581,7 +581,7 @@ export default function WatchlistPage() {
                             type="button"
                             aria-label={`${displayName} 목표가 수정`}
                             onClick={() => setEditingItem(row)}
-                            className="-m-2.5 p-2.5 text-[#C7C7CE] hover:text-primary"
+                            className="-m-2.5 p-2.5 text-[#8A8A92] hover:text-primary"
                           >
                             <svg
                               width="17"
@@ -604,7 +604,7 @@ export default function WatchlistPage() {
                               aria-label={`${displayName} 알림 다시 받기`}
                               disabled={resendingId === row.id}
                               onClick={() => handleResendNotification(row.id)}
-                              className="-m-2.5 p-2.5 text-[#C7C7CE] hover:text-primary disabled:opacity-50"
+                              className="-m-2.5 p-2.5 text-[#8A8A92] hover:text-primary disabled:opacity-50"
                             >
                               <svg
                                 width="17"
@@ -627,7 +627,7 @@ export default function WatchlistPage() {
                             aria-label={`${displayName} 관심 목록에서 삭제`}
                             disabled={deletingId === row.id}
                             onClick={() => setDeleteTarget(row)}
-                            className="-m-2.5 p-2.5 text-[#C7C7CE] hover:text-primary disabled:opacity-50"
+                            className="-m-2.5 p-2.5 text-[#8A8A92] hover:text-primary disabled:opacity-50"
                           >
                             <svg
                               width="18"
