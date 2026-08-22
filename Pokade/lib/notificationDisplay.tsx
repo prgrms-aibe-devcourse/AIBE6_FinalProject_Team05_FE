@@ -192,6 +192,7 @@ const MY_INQUIRIES_PATH = "/mypage/inquiries";
 //
 // 그 외 cardId가 없는 타입(TRADE_CONFIRMED, LISTING_STALE - 현재 BE에 생성 코드가 없는 값들)은
 // 갈 곳이 없으므로 기존과 동일하게 null을 반환해 읽음 처리만 되게 둔다.
+
 // 재입고 알림을 타고 들어왔다는 표시(#238). 카드 상세가 "매물이 하나도 없는데 왜 알림이 왔지"를
 // 설명할 수 있게 붙인다 — 도착 시점엔 이미 팔렸거나 다른 사람이 결제 중이라 ACTIVE에서 빠졌을 수
 // 있는데(TRADING), 화면엔 그냥 "판매 중인 상품이 없어요"만 뜨기 때문이다.
@@ -214,3 +215,12 @@ export function notificationHref(n: NotificationResponse): string | null {
   if (n.type === "INQUIRY_HANDLED") return MY_INQUIRIES_PATH;
   return null;
 }
+
+// "모두 읽음 처리" 버튼 스타일 — 헤더 드롭다운과 전체 알림 페이지가 같은 모양을 쓰도록 공유한다(#238).
+// 예전에는 두 곳이 각자 text-xs 텍스트 링크라 클릭 영역이 68×16px밖에 안 됐다. 링크처럼 보이던 걸
+// 패딩 있는 버튼 면으로 바꿔 세로 28px 남짓을 확보하고, hover 시 배경을 깔아 누를 수 있는 것임을
+// 분명히 한다(터치 권장치 44px에는 못 미치지만 두 화면 모두 보조 액션이라 이 선에서 멈춘다).
+// 문자열로 빼두면 prettier-plugin-tailwindcss의 클래스 정렬 대상이 아니게 되는데, 두 화면이
+// 어긋나는 것보다는 한 곳에서 관리되는 편이 낫다고 판단했다.
+export const MARK_ALL_READ_BUTTON_CLASS =
+  "rounded-lg px-2.5 py-1.5 text-[12.5px] font-bold text-secondary transition-colors hover:bg-lavender hover:text-secondary-dark";
