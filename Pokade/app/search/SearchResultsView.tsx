@@ -17,13 +17,15 @@ type LoadState = "loading" | "error" | "ready";
 // page.tsx가 실제로 요청하는 페이지 size(MARKET_PAGE_SIZE, #187)와 맞춘 스켈레톤 칸 수.
 const SEARCH_SKELETON_COUNT = MARKET_PAGE_SIZE;
 
-// 검색 타일 가격 아래 보조텍스트 — resolvePriceDisplay의 label(문장형, "S등급 상품가" 등)과
-// 별도로 짧게 줄인 배지 문구. 홈/워치리스트 등 다른 화면은 여전히 기존 label을 그대로 쓰므로
-// 그쪽 표시는 이 매핑과 무관하다.
+// 검색 타일 가격 아래 보조텍스트(#238 UX-2). 사용자에게 중요한 건 값의 출처가 아니라 "지금 살
+// 수 있는지"라, recentTrade(우리 플랫폼 최근 체결가)와 market(외부 참고 시세)은 둘 다 "매물이
+// 아닌 참고값"이므로 "참고 가격" 하나로 합친다 — 값 자체는 그대로 보여주고 라벨만 통일한다.
+// S등급(ACTIVE 매물)만 실제 구매 가능한 값이라 별도로 남겨 칩으로 강조한다.
+// 홈/워치리스트 등 다른 화면은 여전히 resolvePriceDisplay의 label을 쓰므로 이 매핑과 무관하다.
 const BASIS_BADGE_LABEL: Record<PriceBasis, string> = {
   sGrade: "S등급",
-  recentTrade: "최근 체결가",
-  market: "참고시세",
+  recentTrade: "참고 가격",
+  market: "참고 가격",
 };
 
 function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
@@ -171,6 +173,17 @@ export default function SearchResultsView({
   watchlistError,
   onHeartClick,
 }: SearchResultsViewProps) {
+  // 결과 0건일 때 "검색어 탓"과 "필터 탓"을 구분하기 위한 파생값(#238 UX-1). 예전에는 q 유무로만
+  // 갈라, 검색어+필터로 0건이 나도 "다른 검색어로 시도해보세요"라고만 해서 실제 원인(필터)을
+  // 가리키지 못했다. 가격대는 양끝이 기본값(0~PRICE_MAX)이면 필터가 걸린 것으로 보지 않는다.
+  const hasActiveFilter =
+    selectedTypes.length > 0 ||
+    selectedRarities.length > 0 ||
+    selectedLanguages.length > 0 ||
+    selectedExpansionId != null ||
+    priceMin > 0 ||
+    priceMax < PRICE_MAX;
+
   const { triggerPunch, punchKey, punchClass } = useHeartPunch();
   const filterPanelRef = useRef<HTMLDivElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
@@ -385,27 +398,44 @@ export default function SearchResultsView({
           </div>
         )}
 
-        {loadState === "ready" && cards.length === 0 && q && (
+        {/* 빈 결과 안내(#238 UX-1) — q(검색어)와 필터 활성 여부를 조합해 원인을 정확히 짚는다.
+            초기화 버튼은 실제로 풀 필터가 있을 때(hasActiveFilter)만 노출한다: 검색어만으로 0건이면
+            풀 필터가 없어 버튼이 무의미하고, 검색어는 이 버튼이 건드리지 않으므로(필터만 초기화)
+            그대로 남는다. */}
+        {loadState === "ready" && cards.length === 0 && (
           <div className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-[#EDEDF0] bg-white py-24">
-            <span className="text-[13.5px] font-semibold text-[#8A8A92]">
-              {`"${q}"에 대한 검색 결과가 없습니다.`}
-            </span>
-            <span className="text-[12.5px] text-[#9A9AA2]">다른 검색어로 시도해보세요.</span>
-          </div>
-        )}
-
-        {loadState === "ready" && cards.length === 0 && !q && (
-          <div className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-[#EDEDF0] bg-white py-24">
-            <span className="text-[13.5px] font-semibold text-[#8A8A92]">
-              조건에 맞는 카드가 없습니다.
-            </span>
-            <span className="text-[12.5px] text-[#9A9AA2]">필터를 조정해보세요.</span>
-            <button
-              onClick={resetFilters}
-              className="mt-1.5 rounded-[9px] border-[1.5px] border-[#DDDDE3] bg-white px-4 py-2 text-[13px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary"
-            >
-              필터 초기화
-            </button>
+            {q && hasActiveFilter ? (
+              <>
+                <span className="text-[13.5px] font-semibold text-[#8A8A92]">
+                  필터와 검색어를 모두 만족하는 카드가 없어요.
+                </span>
+                <span className="text-[12.5px] text-[#9A9AA2]">
+                  필터를 풀면 더 많은 결과를 볼 수 있어요.
+                </span>
+              </>
+            ) : q ? (
+              <>
+                <span className="text-[13.5px] font-semibold text-[#8A8A92]">
+                  {`"${q}"에 대한 검색 결과가 없습니다.`}
+                </span>
+                <span className="text-[12.5px] text-[#9A9AA2]">다른 검색어로 시도해보세요.</span>
+              </>
+            ) : (
+              <>
+                <span className="text-[13.5px] font-semibold text-[#8A8A92]">
+                  선택한 필터에 맞는 카드가 없어요.
+                </span>
+                <span className="text-[12.5px] text-[#9A9AA2]">필터를 조정해보세요.</span>
+              </>
+            )}
+            {hasActiveFilter && (
+              <button
+                onClick={resetFilters}
+                className="mt-1.5 rounded-[9px] border-[1.5px] border-[#DDDDE3] bg-white px-4 py-2 text-[13px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary"
+              >
+                필터 초기화
+              </button>
+            )}
           </div>
         )}
 
@@ -477,11 +507,28 @@ export default function SearchResultsView({
                     <div className="min-w-0">
                       {priceDisplay ? (
                         <>
-                          <div className="text-[11px] text-[#9A9AA2]">
-                            {BASIS_BADGE_LABEL[priceDisplay.basis]}
-                            {otherGradesCount > 0 && ` · 외 ${otherGradesCount}개 등급`}
+                          {/* 설명 없이도 "지금 살 수 있는지"가 보이게 배지를 2단계로 나눈다(#238 UX-2).
+                              S등급(ACTIVE 매물=구매 가능)만 강조색+연한 배경 칩으로 도드라지게 하고,
+                              참고 가격(체결가·외부시세)은 무채색 텍스트로 둔다 — 색/배경 유무 자체가
+                              "구매 가능 vs 참고용"을 가른다. "외 N개 등급"은 배지 밖 회색으로 빼서
+                              칩이 상태만 담고 등급 개수와 뒤섞이지 않게 한다. */}
+                          <div className="flex items-center gap-1">
+                            {priceDisplay.basis === "sGrade" ? (
+                              <span className="rounded bg-lavender px-1.5 py-0.5 text-[10.5px] font-bold text-secondary">
+                                {BASIS_BADGE_LABEL.sGrade}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-[#9A9AA2]">
+                                {BASIS_BADGE_LABEL[priceDisplay.basis]}
+                              </span>
+                            )}
+                            {otherGradesCount > 0 && (
+                              <span className="text-[11px] text-[#9A9AA2]">
+                                외 {otherGradesCount}개 등급
+                              </span>
+                            )}
                           </div>
-                          <div className="text-[15px] font-extrabold text-ink">
+                          <div className="mt-0.5 text-[15px] font-extrabold text-ink">
                             {priceDisplay.price}
                           </div>
                         </>

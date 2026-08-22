@@ -367,7 +367,7 @@ function SearchDashboard() {
   return (
     <main className="main-content bg-neutral px-4 pb-14 pt-8 sm:px-10">
       <div className="mx-auto max-w-[1280px]">
-        <div className="mb-6 rounded-2xl border border-[#EDEDF0] bg-white p-5 shadow-card">
+        <div className="mb-6 rounded-2xl border border-t-[3px] border-[#EDEDF0] border-t-primary bg-white p-5 shadow-card">
           <h1 className="m-0 mb-4 text-[26px] font-extrabold tracking-[-0.6px]">
             {q ? `"${q}" 검색 결과` : "카드 검색"}
           </h1>
