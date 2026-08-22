@@ -119,13 +119,21 @@ export default function NotificationsPage() {
   useEffect(() => {
     const timers = pendingTimersRef.current;
     return () => {
+      const deletions: Promise<unknown>[] = [];
       timers.forEach((timer, id) => {
         clearTimeout(timer);
-        deleteNotification(id).catch(() => {});
+        deletions.push(deleteNotification(id).catch(() => {}));
       });
       timers.clear();
+      // 이 컴포넌트는 언마운트되지만 useNotificationStore는 Header가 살아 있어 계속 존재한다.
+      // DELETE가 모두 끝난 뒤 헤더 피드를 재조회해, 삭제된 알림/안읽음 개수가 다음 폴링(≤30초)을
+      // 기다리지 않고 헤더 배지·드롭다운에 바로 반영되게 한다. cleanup은 async를 기다려주지 않으므로
+      // 완료를 기다리지 않고 .then 콜백에서 호출한다(fire-and-forget). 각 요청은 이미 catch돼
+      // Promise.all이 거부되지 않는다. retryFeed는 zustand 액션이라 참조가 고정 — deps에 넣어도
+      // effect가 재실행되지 않아 "언마운트 시 1회" 의미가 유지된다.
+      if (deletions.length > 0) Promise.all(deletions).then(() => retryFeed());
     };
-  }, []);
+  }, [retryFeed]);
 
   // 지금 페이지(requestKey)에 대한 결과가 아니면(요청 중이거나 막 페이지가 바뀐 직후) 로딩으로 본다.
   const current = result?.key === requestKey ? result : null;
