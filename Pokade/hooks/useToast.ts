@@ -30,7 +30,14 @@ export function useToast() {
   // 자동 소멸까지 남은 시간과 현재 타이머가 시작된 시각 — 일시정지 후 "처음부터"가 아니라
   // "남은 만큼"만 재개하기 위해 필요하다(4초짜리 토스트를 3.9초쯤 hover했다가 벗어났는데
   // 다시 4초를 기다리게 하면, 붙잡을 의도가 없던 스침에도 토스트가 계속 살아남는다).
-  const remainingRef = useRef(TOAST_DEFAULT_MS);
+  //
+  // null은 "진행 중인 카운트다운 없음"(토스트가 이미 사라졌거나 아직 뜬 적 없음)이고,
+  // 0은 "시간을 정말 다 썼음"(만료)이다. 이 둘을 같은 값으로 두면 안 되는 이유(CodeRabbit 리뷰):
+  // 타이머 만기 시각은 지났는데 콜백이 아직 실행되기 전에 pause가 끼어들 수 있다(브라우저가
+  // 입력 이벤트를 만기된 타이머보다 먼저 처리하거나, 스로틀링·롱태스크로 콜백이 늦는 경우).
+  // 그때 남은 시간은 정확히 0으로 계산되는데, 예전 코드는 이를 "값 없음"으로 보고 기본
+  // 2.5초를 새로 얹었다 — 벗어나는 순간 사라져야 할 토스트가 오히려 더 오래 붙어 있었다.
+  const remainingRef = useRef<number | null>(null);
   const startedAtRef = useRef(0);
   // hover/focus가 토스트 "안에 있는 동안" true. 일시정지 여부를 플래그로 따로 들고 있는
   // 이유: 토스트가 떠 있는 상태에서 새 토스트를 띄우면(하트 연타) 같은 DOM 노드가 재사용돼
@@ -70,6 +77,7 @@ export function useToast() {
       startedAtRef.current = Date.now();
       timeoutRef.current = setTimeout(() => {
         timeoutRef.current = null;
+        remainingRef.current = null;
         setToast(null);
       }, durationMs);
     },
@@ -80,11 +88,13 @@ export function useToast() {
     return () => clearTimer();
   }, [clearTimer]);
 
-  // 토스트가 사라지면 붙잡힘 상태도 반드시 푼다 — 마우스를 올려둔 채(또는 포커스를 준 채)
-  // 토스트가 DOM에서 제거되면 브라우저가 mouseleave/blur를 쏘지 않아 플래그가 true로 굳고,
-  // 그 뒤 뜨는 토스트가 영영 안 사라지게 된다.
+  // 토스트가 사라지면 카운트다운 상태를 전부 리셋한다. 붙잡힘 해제가 특히 중요한데,
+  // 마우스를 올려둔 채(또는 포커스를 준 채) 토스트가 DOM에서 제거되면 브라우저가
+  // mouseleave/blur를 쏘지 않아 플래그가 true로 굳고, 그 뒤 뜨는 토스트가 영영 안 사라진다.
   useEffect(() => {
-    if (toast === null) releaseAllHolds();
+    if (toast !== null) return;
+    releaseAllHolds();
+    remainingRef.current = null;
   }, [toast, releaseAllHolds]);
 
   // 연속 호출(하트를 빠르게 여러 번 클릭)에서는 이전 타이머를 취소하고 다시 재서, 먼저 걸린
@@ -94,7 +104,8 @@ export function useToast() {
       setToast(next);
       if (isHeld()) {
         // 이미 붙잡혀 있으면 타이머를 걸지 않고 남은 시간만 새 값으로 맞춰둔다 —
-        // 마지막 축까지 벗어나는 순간(resumeToast) 이 값으로 시작한다.
+        // 마지막 축까지 벗어나는 순간(resumeToast) 이 값으로 시작한다. 직전 토스트가 만료
+        // 상태(0)로 붙잡혀 있었더라도 여기서 새 duration으로 덮이므로 되살아나지 않는다.
         clearTimer();
         remainingRef.current = durationMs;
         return;
@@ -105,15 +116,17 @@ export function useToast() {
   );
 
   // hover/focus가 들어온 순간 — 남은 시간을 계산해 붙들어 둔다.
+  // 계산 결과가 0이어도(=이미 만료됐어야 하는데 콜백이 아직 안 돈 경우) 여기서 바로 지우지는
+  // 않는다. 포인터·포커스가 안에 있는 콘텐츠를 눈앞에서 걷어내지 않는 게 이 기능의 목적이고,
+  // 실제 제거는 마지막 축이 벗어나는 resumeToast에서 즉시 이뤄진다.
   const pauseToast = useCallback(
     (source: ToastHoldSource) => {
       setHeld(source, true);
-      if (timeoutRef.current == null) return; // 이미 멈춰 있음(다른 축이 먼저 붙잡았거나 소멸 직전)
+      if (timeoutRef.current == null) return; // 이미 멈춰 있음(다른 축이 먼저 붙잡았거나 소멸함)
+      const remaining = remainingRef.current;
+      if (remaining == null) return; // 타이머가 도는 중이면 항상 값이 있다(방어)
       clearTimer();
-      remainingRef.current = Math.max(
-        0,
-        remainingRef.current - (Date.now() - startedAtRef.current),
-      );
+      remainingRef.current = Math.max(0, remaining - (Date.now() - startedAtRef.current));
     },
     [clearTimer, setHeld],
   );
@@ -124,7 +137,16 @@ export function useToast() {
       setHeld(source, false);
       if (isHeld()) return; // 다른 축이 아직 붙잡고 있으면 멈춘 채로 둔다
       if (timeoutRef.current != null) return; // 이미 돌고 있음
-      startTimer(remainingRef.current > 0 ? remainingRef.current : TOAST_DEFAULT_MS);
+      const remaining = remainingRef.current;
+      if (remaining == null) return; // 진행 중인 카운트다운 없음 — 유령 타이머를 만들지 않는다
+      if (remaining <= 0) {
+        // 붙잡혀 있는 동안(또는 붙잡히기 직전에) 이미 시간을 다 쓴 토스트. 기본 시간으로
+        // 되살리지 않고 그대로 닫는다 — 벗어났는데 오히려 2.5초 더 남는 역전을 막는다.
+        remainingRef.current = null;
+        setToast(null);
+        return;
+      }
+      startTimer(remaining);
     },
     [isHeld, setHeld, startTimer],
   );
@@ -132,6 +154,7 @@ export function useToast() {
   const hideToast = useCallback(() => {
     clearTimer();
     releaseAllHolds();
+    remainingRef.current = null;
     setToast(null);
   }, [clearTimer, releaseAllHolds]);
 
