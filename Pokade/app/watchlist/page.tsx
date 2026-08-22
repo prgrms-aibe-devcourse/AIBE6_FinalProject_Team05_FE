@@ -5,6 +5,7 @@ import Link from "next/link";
 import AddWatchlistModal from "@/components/AddWatchlistModal";
 import Breadcrumb from "@/components/Breadcrumb";
 import IconTooltip from "@/components/IconTooltip";
+import SelectMenu from "@/components/SelectMenu";
 import Toast from "@/components/Toast";
 import CardImage from "@/components/CardImage";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
@@ -355,37 +356,9 @@ export default function WatchlistPage() {
                   </button>
                 ))}
               </div>
-              {/* 네이티브 화살표를 지우고(appearance-none) 프로젝트 인라인 SVG 컨벤션으로
-                  커스텀 chevron을 얹어 다른 커스텀 UI와 톤을 맞춘다. 펼쳐진 옵션 목록은
-                  네이티브 그대로 유지(이번 범위 밖). pr-9는 화살표가 텍스트를 가리지 않게 확보. */}
-              <div className="relative">
-                <select
-                  aria-label="정렬"
-                  value={sort}
-                  onChange={(e) => setSort(e.target.value as Sort)}
-                  className="cursor-pointer appearance-none rounded-[10px] border-[1.5px] border-[#E4E4E9] bg-white py-2 pl-[15px] pr-9 text-[13.5px] font-semibold text-[#7A7A82] outline-none focus:border-primary"
-                >
-                  {SORT_OPTIONS.map(({ key, label }) => (
-                    <option key={key} value={key}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-                <svg
-                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="#7A7A82"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              </div>
+              {/* 네이티브 select의 펼침 목록은 OS가 그려 CSS가 닿지 않아, 박스와 목록의
+                  모서리·톤을 맞춘 커스텀 드롭다운(SelectMenu)으로 교체(#238). */}
+              <SelectMenu value={sort} options={SORT_OPTIONS} onChange={setSort} ariaLabel="정렬" />
             </div>
 
             {deleteError && (
