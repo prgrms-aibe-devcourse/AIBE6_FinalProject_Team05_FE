@@ -11,6 +11,7 @@ import Toast from "@/components/Toast";
 import RelatedCardsSection from "./RelatedCardsSection";
 import VariantPriceComparison from "./VariantPriceComparison";
 import OrderActivitySection from "./OrderActivitySection";
+import { NOTIFICATION_ORIGIN_PARAM, NOTIFICATION_ORIGIN_VALUE } from "@/lib/notificationDisplay";
 import { CardDetailResponse, parseCardId, variantLabel } from "@/types/card";
 import {
   ChartPeriod,
@@ -299,6 +300,28 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedVariantId, card]);
+
+  // 재입고 알림을 타고 들어왔는지(#238). 최초 렌더에서 딱 한 번 읽어 잡아둔다 — 바로 아래
+  // effect가 URL에서 이 파라미터를 지우기 때문에, searchParams를 렌더마다 다시 읽으면 정리되는
+  // 순간 안내가 같이 사라진다.
+  // 값을 붙드는 방법으로 useState의 lazy initializer를 쓴 이유: ref는 렌더 중 .current를 읽는
+  // 순간 react-hooks의 "Cannot access refs during render"에 걸리고, effect 안에서 setState로
+  // 채우는 방식은 react-hooks/set-state-in-effect에 걸린다. initializer는 마운트 시 한 번만
+  // 실행되므로 두 규칙을 모두 피하면서 "최초 진입 시점의 값"이라는 의미도 그대로 드러난다.
+  const [cameFromRestockNotification] = useState(
+    () => searchParams.get(NOTIFICATION_ORIGIN_PARAM) === NOTIFICATION_ORIGIN_VALUE,
+  );
+
+  // 표시가 끝났으면 URL에서는 지운다 — 주소를 복사해 공유했을 때 알림을 받은 적도 없는 사람
+  // 화면에까지 "알림 받으신 상품은..." 안내가 뜨는 걸 막고, 새로고침해도 남지 않게 한다.
+  // ?variant= 를 다루는 위 effect와 같은 방식으로 다른 파라미터는 보존한다.
+  useEffect(() => {
+    if (searchParams.get(NOTIFICATION_ORIGIN_PARAM) !== NOTIFICATION_ORIGIN_VALUE) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete(NOTIFICATION_ORIGIN_PARAM);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [searchParams, pathname, router]);
 
   useEffect(() => {
     if (loadState !== "ready" || cardId == null || !card) return;
@@ -734,6 +757,23 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                             </span>
                           )}
                         </div>
+                        {/* 재입고 알림을 타고 들어왔는데 정작 매물이 하나도 없을 때만 사정을
+                            설명한다(#238) — 알림은 "상품이 새로 등록됐어요"라고 약속했는데
+                            화면은 "판매 중인 상품이 없어요"만 말하고 있어, 알림이 거짓이었던
+                            것처럼 읽히기 때문이다. 실제로는 그새 팔렸거나 다른 사람이 결제를
+                            시작해 매물이 ACTIVE에서 TRADING으로 잠긴 경우가 많다(결제가 취소되면
+                            다시 ACTIVE로 돌아온다).
+                            판정은 priceSummary가 아니라 activeListings(실제 ACTIVE 매물 목록)로
+                            한다 — 등급 타일과 같은 데이터라 화면과 어긋나지 않는다. 조회가
+                            실패한 경우(listingsError)는 "없음"이 아니라 "모름"이므로 제외한다. */}
+                        {cameFromRestockNotification &&
+                          priceLoadState === "ready" &&
+                          !listingsError &&
+                          activeListings.length === 0 && (
+                            <p className="m-0 mt-2.5 rounded-xl bg-lavender px-3 py-2.5 text-[12px] font-semibold leading-[1.55] text-secondary">
+                              알림을 받은 상품은 이미 판매됐거나 다른 분이 거래 중일 수 있어요.
+                            </p>
+                          )}
                       </div>
 
                       {watchlistToggleError && (

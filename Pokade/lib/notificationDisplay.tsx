@@ -192,8 +192,25 @@ const MY_INQUIRIES_PATH = "/mypage/inquiries";
 //
 // 그 외 cardId가 없는 타입(TRADE_CONFIRMED, LISTING_STALE - 현재 BE에 생성 코드가 없는 값들)은
 // 갈 곳이 없으므로 기존과 동일하게 null을 반환해 읽음 처리만 되게 둔다.
+// 재입고 알림을 타고 들어왔다는 표시(#238). 카드 상세가 "매물이 하나도 없는데 왜 알림이 왔지"를
+// 설명할 수 있게 붙인다 — 도착 시점엔 이미 팔렸거나 다른 사람이 결제 중이라 ACTIVE에서 빠졌을 수
+// 있는데(TRADING), 화면엔 그냥 "판매 중인 상품이 없어요"만 뜨기 때문이다.
+//
+// 재입고에만 붙이는 이유: "상품이 새로 등록됐어요"는 그 순간 매물이 있다고 약속한 알림이라
+// 없을 때 해명이 필요하다. 반면 목표가 알림은 실제 매물이 아니라 시세/최근 체결가로도 도달
+// 판정이 나므로(WatchlistTargetPriceEvaluator) 애초에 매물을 약속하지 않는다 — 거기에 "팔렸을
+// 수 있어요"를 띄우면 있지도 않던 매물을 있었다고 말하는 셈이 된다.
+export const NOTIFICATION_ORIGIN_PARAM = "from";
+export const NOTIFICATION_ORIGIN_VALUE = "notification";
+
 export function notificationHref(n: NotificationResponse): string | null {
-  if (n.cardId != null) return `/cards/${n.cardId}`;
+  if (n.cardId != null) {
+    const origin =
+      n.type === "LISTING_AVAILABLE"
+        ? `?${NOTIFICATION_ORIGIN_PARAM}=${NOTIFICATION_ORIGIN_VALUE}`
+        : "";
+    return `/cards/${n.cardId}${origin}`;
+  }
   if (n.type === "INQUIRY_HANDLED") return MY_INQUIRIES_PATH;
   return null;
 }
