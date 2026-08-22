@@ -6,13 +6,18 @@ import GradeBadge from "@/components/GradeBadge";
 import ConditionBar from "@/components/ConditionBar";
 import CardImage from "@/components/CardImage";
 import HeroTiltCard from "@/components/HeroTiltCard";
+import IconTooltip from "@/components/IconTooltip";
 import ImageLightbox from "@/components/ImageLightbox";
-import AddWatchlistModal from "@/components/AddWatchlistModal";
+import Toast from "@/components/Toast";
 import { CardSearchItem, toCardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
 import { fetchCards, fetchCardsByKeywordPage, fetchPriceSummaries } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
 import { resolvePriceDisplay } from "@/lib/priceDisplay";
+import { useHeartPunch } from "@/hooks/useHeartPunch";
+import { useWatchlistMap } from "@/hooks/useWatchlistMap";
+import { useToast } from "@/hooks/useToast";
+import { showWatchlistToggleToast } from "@/lib/watchlistToast";
 
 const TICKER = [
   { name: "리자몽 ex SAR", price: "₩142,000", chg: "▲ 3.2%", up: true },
@@ -62,8 +67,11 @@ const STATS = [
 type LoadState = "loading" | "error" | "ready";
 
 export default function HomePage() {
-  const [liked, setLiked] = useState<Record<number, boolean>>({});
-  const [watchlistCardId, setWatchlistCardId] = useState<number | null>(null);
+  const { toast, showToast, pauseToast, resumeToast } = useToast();
+  const { triggerPunch, punchKey, punchClass } = useHeartPunch();
+  // 하트에 필요한 워치리스트 상태 한 세트(마켓과 공용) — 상태만 담당하고, 토스트·펀치는
+  // handleHeartClick이 돌려주는 status를 보고 아래 버튼에서 직접 처리한다.
+  const { myWatchlist, watchlistError, handleHeartClick, pendingCardId } = useWatchlistMap();
 
   const [popularCards, setPopularCards] = useState<CardSearchItem[]>([]);
   const [priceSummaries, setPriceSummaries] = useState<Map<number, CardPriceSummaryResponse>>(
@@ -193,13 +201,6 @@ export default function HomePage() {
         alt={HERO_CARD.alt}
       />
 
-      <AddWatchlistModal
-        isOpen={watchlistCardId != null}
-        onClose={() => setWatchlistCardId(null)}
-        cardId={watchlistCardId ?? 0}
-        onSuccess={(created) => setLiked((s) => ({ ...s, [created.cardId]: true }))}
-      />
-
       {/* TICKER */}
       <section className="bg-navy-800 px-10">
         <div className="mx-auto flex h-[52px] max-w-container items-stretch overflow-hidden">
@@ -306,26 +307,51 @@ export default function HomePage() {
                         </div>
                       </div>
                     </Link>
-                    <button
-                      onClick={() => setWatchlistCardId(c.id)}
-                      aria-label="관심 등록"
-                      aria-haspopup="dialog"
-                      className="absolute bottom-3.5 right-3.5 flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#EDEDF0] bg-white hover:border-primary hover:bg-[#FFF5F5]"
+                    {/* 툴팁은 위로 — 하트가 타일 맨 아래에 있어 아래로 열면 타일의
+                        overflow-hidden에 잘린다(마켓 타일과 같은 이유). */}
+                    <IconTooltip
+                      label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}
+                      placement="top"
+                      className="absolute bottom-3.5 right-3.5"
                     >
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        stroke="#EE1515"
-                        strokeWidth="2"
-                        fill={liked[c.id] ? "#EE1515" : "none"}
+                      <button
+                        onClick={async () => {
+                          // 서버가 등록을 확정한 뒤에만 펀치(useHeartPunch 주석 참고) —
+                          // 클릭 시점 상태로 미리 재생하면 등록이 실패해도 하트가 튀어올라
+                          // 성공한 것처럼 보인다.
+                          const status = await handleHeartClick(c.id);
+                          if (status === "added") triggerPunch(c.id);
+                          showWatchlistToggleToast(status, showToast);
+                        }}
+                        disabled={pendingCardId === c.id}
+                        aria-label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}
+                        className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#EDEDF0] bg-white hover:border-primary hover:bg-[#FFF5F5] disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        <path
-                          d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
-                          transform="translate(-3 0)"
-                        />
-                      </svg>
-                    </button>
+                        <svg
+                          key={punchKey(c.id)}
+                          className={punchClass(c.id)}
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          stroke="#EE1515"
+                          strokeWidth="2"
+                          fill={myWatchlist.has(c.id) ? "#EE1515" : "none"}
+                        >
+                          <path
+                            d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
+                            transform="translate(-3 0)"
+                          />
+                        </svg>
+                      </button>
+                    </IconTooltip>
+                    {watchlistError?.cardId === c.id && (
+                      <div
+                        role="alert"
+                        className="absolute bottom-14 right-3.5 z-10 max-w-[150px] rounded-lg bg-[#3A3A3E] px-2.5 py-1.5 text-[11px] font-semibold leading-snug text-white shadow-lg"
+                      >
+                        {watchlistError.message}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -506,20 +532,7 @@ export default function HomePage() {
           ))}
         </div>
       </section>
-
-      {/* FINAL CTA */}
-      <section className="bg-primary px-10 py-[60px] text-center">
-        <h2 className="m-0 text-[30px] font-extrabold leading-[1.3] tracking-[-0.8px] text-white">
-          지금 바로 내 카드의 가치를 확인하세요
-        </h2>
-        <p className="mt-3.5 text-[15.5px] text-[#FFD7D7]">가입 즉시 무료 AI 진단 3회 제공</p>
-        <Link
-          href="/signup"
-          className="mt-7 inline-block rounded-[11px] border-[1.5px] border-white bg-transparent px-[34px] py-[15px] text-base font-bold text-white transition hover:bg-white hover:text-primary"
-        >
-          무료로 시작하기
-        </Link>
-      </section>
+      <Toast toast={toast} onPause={pauseToast} onResume={resumeToast} />
     </main>
   );
 }

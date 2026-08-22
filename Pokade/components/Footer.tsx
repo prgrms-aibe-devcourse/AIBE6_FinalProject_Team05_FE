@@ -8,7 +8,7 @@ const LINKS = [
 
 export default function Footer() {
   return (
-    <footer id="site-footer" className="footer border-t border-primary bg-lavender px-10 py-7">
+    <footer className="footer border-t border-primary bg-lavender px-10 py-7">
       <div className="mx-auto flex max-w-container flex-wrap items-center justify-between gap-4">
         <div>
           <div className="text-base font-extrabold tracking-[-0.3px] text-ink">POCKET TRADE</div>

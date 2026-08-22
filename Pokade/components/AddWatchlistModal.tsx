@@ -135,7 +135,7 @@ export default function AddWatchlistModal(props: AddWatchlistModalProps) {
           ? err.message
           : mode === "edit"
             ? "목표가 수정에 실패했습니다."
-            : "워치리스트 등록에 실패했습니다.",
+            : "관심 등록에 실패했습니다.",
       );
     } finally {
       setSubmitting(false);
@@ -144,7 +144,7 @@ export default function AddWatchlistModal(props: AddWatchlistModalProps) {
 
   if (!isOpen || authStatus !== "authenticated") return null;
 
-  const title = mode === "edit" ? "목표가 수정" : "워치리스트 등록";
+  const title = mode === "edit" ? "목표가 수정" : "관심 등록";
 
   return (
     <div

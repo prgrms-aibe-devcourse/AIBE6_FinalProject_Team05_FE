@@ -2,20 +2,19 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { SearchBar } from "@/components/CardSearchBar";
+import Toast from "@/components/Toast";
 import { CardFacetsResponse, CardSearchItem, toCardSearchItem } from "@/types/card";
 import { CardPriceSummaryResponse } from "@/types/price";
-import {
-  CardSort,
-  fetchCardFacets,
-  fetchCardsByKeywordPage,
-  fetchCardsPage,
-  fetchPriceSummaries,
-} from "@/lib/cardApi";
+import { CardSort, fetchCardFacets, fetchCardsPage, fetchPriceSummaries } from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
+import { QuickWatchlistToggleStatus } from "@/hooks/useQuickWatchlistToggle";
+import { useWatchlistMap } from "@/hooks/useWatchlistMap";
+import { useToast } from "@/hooks/useToast";
+import { showWatchlistToggleToast } from "@/lib/watchlistToast";
 import { isPriceSort, MARKET_PAGE_SIZE, PRICE_MAX, UiSort } from "./constants";
 import SearchResultsView from "./SearchResultsView";
-import PriceDashboardView from "./PriceDashboardView";
 
 const EMPTY_FACETS: CardFacetsResponse = { types: [], rarities: [], expansions: [] };
 
@@ -41,7 +40,15 @@ function SearchDashboard() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const q = searchParams.get("q")?.trim() || "";
-  const [view, setView] = useState<"search" | "dash">("search");
+  const { toast, showToast, pauseToast, resumeToast } = useToast();
+  // 하트에 필요한 워치리스트 상태 한 세트(홈과 공용) — 상태만 담당하고, 토스트는 아래
+  // handleHeartClick 래퍼가, 펀치는 SearchResultsView의 하트 버튼이 status를 보고 처리한다.
+  const {
+    myWatchlist,
+    watchlistError,
+    handleHeartClick: toggleWatchlistCard,
+    pendingCardId: watchlistPendingCardId,
+  } = useWatchlistMap();
   const [priceMin, setPriceMin] = useState<number>(() => {
     const min = parsePriceQueryParam(searchParams.get("minPrice"));
     const max = parsePriceQueryParam(searchParams.get("maxPrice"));
@@ -184,21 +191,20 @@ function SearchDashboard() {
   useEffect(() => {
     let cancelled = false;
 
-    const request = q
-      ? fetchCardsByKeywordPage(q, page - 1, MARKET_PAGE_SIZE)
-      : fetchCardsPage({
-          expansionId: selectedExpansionId ?? undefined,
-          types: selectedTypes,
-          rarity: selectedRarities,
-          languages: selectedLanguages,
-          minPrice: debouncedPriceMin > 0 ? debouncedPriceMin : undefined,
-          maxPrice: debouncedPriceMax < PRICE_MAX ? debouncedPriceMax : undefined,
-          sort: apiSort,
-          page: page - 1,
-          size: MARKET_PAGE_SIZE,
-        });
-
-    request
+    // #308: q(키워드)와 필터를 항상 같이 보낸다 — BE가 q 없으면 기존 필터 전용 검색과
+    // 동일하게 동작하므로 q 유무로 호출을 분기할 필요가 없어졌다.
+    fetchCardsPage({
+      q: q || undefined,
+      expansionId: selectedExpansionId ?? undefined,
+      types: selectedTypes,
+      rarity: selectedRarities,
+      languages: selectedLanguages,
+      minPrice: debouncedPriceMin > 0 ? debouncedPriceMin : undefined,
+      maxPrice: debouncedPriceMax < PRICE_MAX ? debouncedPriceMax : undefined,
+      sort: apiSort,
+      page: page - 1,
+      size: MARKET_PAGE_SIZE,
+    })
       .then((response) => {
         if (cancelled) return;
         setCards(response.content.map(toCardSearchItem));
@@ -269,40 +275,29 @@ function SearchDashboard() {
   // 필터 상태를 URL 쿼리 파라미터에 반영 — 상세 페이지 진입 후 뒤로가기 시 필터가 유지되도록 함.
   // 세터 호출 지점마다 흩어져 있던 동기화 호출을 걷어내고, 필터 상태 변화를 감시하는
   // 단일 effect로 모아서 처리한다.
-  // q도 deps에 포함한다 — 헤더의 "마켓" 링크처럼 이 컴포넌트 바깥에서 q 없이 /search로만
+  // #308 이전에는 q가 있으면 필터 파라미터를 URL에서 지웠다(BE가 필터 없이 키워드만 받았기
+  // 때문) — 이제 BE가 q+필터를 함께 받으므로 그 분기를 없애고 항상 필터를 반영한다.
+  // q는 여전히 deps에 포함한다 — 헤더의 "마켓" 링크처럼 이 컴포넌트 바깥에서 q 없이 /search로만
   // 이동하는 순수 네비게이션은 이 effect를 거치지 않고 URL을 통째로 갈아치운다. 그 경우에도
   // selectedTypes 등 필터 상태 자체는 남아있어 화면은 필터가 적용된 채로 보이지만, URL만
-  // 그 상태를 잃어버려 새로고침/공유 시 조용히 사라졌다 — q 변화(진입/이탈 모두)를 감지해
+  // 그 상태를 잃어버려 새로고침/공유 시 조용히 사라졌다(#187) — q 변화(진입/이탈 모두)를 감지해
   // 그 시점의 실제 필터 상태를 다시 반영해야 이 불일치를 막을 수 있다.
   useEffect(() => {
     const params = new URLSearchParams(searchParams.toString());
-    // 키워드 검색(q) 중에는 필터 사이드바 자체가 숨겨지고(SearchResultsView.tsx의 `!q &&`)
-    // BE도 필터를 적용하지 않으므로, URL에도 필터 파라미터를 남기지 않는다 — q가 비워지면
-    // 이 effect가 다시 실행되며 그 시점의 실제 필터 상태를 다시 채워 넣는다.
-    if (q) {
-      params.delete("expansionId");
-      params.delete("types");
-      params.delete("rarity");
-      params.delete("languages");
-      params.delete("minPrice");
-      params.delete("maxPrice");
-      params.delete("sort");
-    } else {
-      if (selectedExpansionId) params.set("expansionId", selectedExpansionId);
-      else params.delete("expansionId");
-      if (selectedTypes.length) params.set("types", selectedTypes.join(","));
-      else params.delete("types");
-      if (selectedRarities.length) params.set("rarity", selectedRarities.join(","));
-      else params.delete("rarity");
-      if (selectedLanguages.length) params.set("languages", selectedLanguages.join(","));
-      else params.delete("languages");
-      if (debouncedPriceMin > 0) params.set("minPrice", String(debouncedPriceMin));
-      else params.delete("minPrice");
-      if (debouncedPriceMax < PRICE_MAX) params.set("maxPrice", String(debouncedPriceMax));
-      else params.delete("maxPrice");
-      if (sort !== "popular") params.set("sort", sort);
-      else params.delete("sort");
-    }
+    if (selectedExpansionId) params.set("expansionId", selectedExpansionId);
+    else params.delete("expansionId");
+    if (selectedTypes.length) params.set("types", selectedTypes.join(","));
+    else params.delete("types");
+    if (selectedRarities.length) params.set("rarity", selectedRarities.join(","));
+    else params.delete("rarity");
+    if (selectedLanguages.length) params.set("languages", selectedLanguages.join(","));
+    else params.delete("languages");
+    if (debouncedPriceMin > 0) params.set("minPrice", String(debouncedPriceMin));
+    else params.delete("minPrice");
+    if (debouncedPriceMax < PRICE_MAX) params.set("maxPrice", String(debouncedPriceMax));
+    else params.delete("maxPrice");
+    if (sort !== "popular") params.set("sort", sort);
+    else params.delete("sort");
     if (page > 1) params.set("page", String(page));
     else params.delete("page");
     const qs = params.toString();
@@ -319,6 +314,14 @@ function SearchDashboard() {
     sort,
     page,
   ]);
+
+  // 상태 갱신은 훅이 하고, 여기서는 토스트만 얹은 뒤 status를 그대로 흘려보낸다 —
+  // 하트 펀치는 하트를 실제로 그리는 SearchResultsView가 이 반환값을 보고 재생한다.
+  const handleHeartClick = async (cardId: number): Promise<QuickWatchlistToggleStatus> => {
+    const status = await toggleWatchlistCard(cardId);
+    showWatchlistToggleToast(status, showToast);
+    return status;
+  };
 
   // 페이지 번호/이전·다음 버튼 클릭 시에만 맨 위로 스크롤 — 필터/정렬 변경으로
   // 인한 자동 setPage(1)은 이 핸들러를 거치지 않으므로 스크롤 동작이 없다.
@@ -350,9 +353,6 @@ function SearchDashboard() {
     // 재실행되지 않는다 — reloadKey를 강제로 올려 항상 재요청되게 한다.
     setReloadKey((k) => k + 1);
   };
-  const seg = (a: boolean) =>
-    `rounded-lg px-[18px] py-[9px] text-[13.5px] cursor-pointer ${a ? "bg-white font-bold text-ink shadow-[0_1px_3px_rgba(0,0,0,0.08)]" : "bg-transparent font-semibold text-[#8A8A92]"}`;
-
   // 기존 SET_OPTIONS과 같은 모양({label, expansionId})으로 맞춰서, 이 값을 쓰는
   // SearchResultsView 쪽 JSX(옵션 렌더링/칩 라벨 조회)를 그대로 재사용한다.
   // series는 BE가 null이면 "기타"로 고정해서 내려주지만, 위쪽 safeData 보정과 같은 이유로
@@ -367,65 +367,57 @@ function SearchDashboard() {
   return (
     <main className="main-content bg-neutral px-4 pb-14 pt-8 sm:px-10">
       <div className="mx-auto max-w-[1280px]">
-        <div className="mb-[22px] flex items-center justify-between">
-          <h1 className="m-0 text-[26px] font-extrabold tracking-[-0.6px]">
-            {q ? `"${q}" 검색 결과` : "카드 검색 & 시세"}
+        <div className="mb-6 rounded-2xl border border-[#EDEDF0] bg-white p-5 shadow-card">
+          <h1 className="m-0 mb-4 text-[26px] font-extrabold tracking-[-0.6px]">
+            {q ? `"${q}" 검색 결과` : "카드 검색"}
           </h1>
-          {!q && (
-            <div className="flex rounded-[10px] bg-[#EDEDF0] p-1">
-              <button className={seg(view === "search")} onClick={() => setView("search")}>
-                카드 검색
-              </button>
-              <button className={seg(view === "dash")} onClick={() => setView("dash")}>
-                시세 대시보드
-              </button>
-            </div>
-          )}
+          <SearchBar width="w-full" variant="market" />
         </div>
 
-        {(q || view === "search") && (
-          <SearchResultsView
-            q={q}
-            filterOpen={filterOpen}
-            setFilterOpen={setFilterOpen}
-            selectedExpansionId={selectedExpansionId}
-            setSelectedExpansionId={setSelectedExpansionId}
-            selectedTypes={selectedTypes}
-            setSelectedTypes={setSelectedTypes}
-            selectedRarities={selectedRarities}
-            setSelectedRarities={setSelectedRarities}
-            selectedLanguages={selectedLanguages}
-            setSelectedLanguages={setSelectedLanguages}
-            setOptions={setOptions}
-            typeOptions={facets.types}
-            rarityOptions={facets.rarities}
-            facetsLoading={facetsLoading}
-            priceMin={priceMin}
-            setPriceMin={setPriceMin}
-            priceMax={priceMax}
-            setPriceMax={setPriceMax}
-            setPriceRangeNow={setPriceRangeNow}
-            activeHandle={activeHandle}
-            setActiveHandle={setActiveHandle}
-            sort={sort}
-            setSort={setSort}
-            setLoadState={setLoadState}
-            loadState={loadState}
-            errorMessage={errorMessage}
-            cards={cards}
-            hasFuzzyMatch={hasFuzzyMatch}
-            priceSummaries={priceSummaries}
-            totalElements={totalElements}
-            totalPages={totalPages}
-            page={page}
-            goToPage={goToPage}
-            resetFilters={resetFilters}
-            setReloadKey={setReloadKey}
-          />
-        )}
-
-        {!q && view === "dash" && <PriceDashboardView />}
+        <SearchResultsView
+          q={q}
+          filterOpen={filterOpen}
+          setFilterOpen={setFilterOpen}
+          selectedExpansionId={selectedExpansionId}
+          setSelectedExpansionId={setSelectedExpansionId}
+          selectedTypes={selectedTypes}
+          setSelectedTypes={setSelectedTypes}
+          selectedRarities={selectedRarities}
+          setSelectedRarities={setSelectedRarities}
+          selectedLanguages={selectedLanguages}
+          setSelectedLanguages={setSelectedLanguages}
+          setOptions={setOptions}
+          typeOptions={facets.types}
+          rarityOptions={facets.rarities}
+          facetsLoading={facetsLoading}
+          priceMin={priceMin}
+          setPriceMin={setPriceMin}
+          priceMax={priceMax}
+          setPriceMax={setPriceMax}
+          setPriceRangeNow={setPriceRangeNow}
+          activeHandle={activeHandle}
+          setActiveHandle={setActiveHandle}
+          sort={sort}
+          setSort={setSort}
+          setLoadState={setLoadState}
+          loadState={loadState}
+          errorMessage={errorMessage}
+          cards={cards}
+          hasFuzzyMatch={hasFuzzyMatch}
+          priceSummaries={priceSummaries}
+          totalElements={totalElements}
+          totalPages={totalPages}
+          page={page}
+          goToPage={goToPage}
+          resetFilters={resetFilters}
+          setReloadKey={setReloadKey}
+          myWatchlist={myWatchlist}
+          watchlistPendingCardId={watchlistPendingCardId}
+          watchlistError={watchlistError}
+          onHeartClick={handleHeartClick}
+        />
       </div>
+      <Toast toast={toast} onPause={pauseToast} onResume={resumeToast} />
     </main>
   );
 }

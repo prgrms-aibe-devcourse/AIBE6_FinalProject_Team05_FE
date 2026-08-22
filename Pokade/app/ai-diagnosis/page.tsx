@@ -1,15 +1,22 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import CardImage from "@/components/CardImage";
 import GradeBadge from "@/components/GradeBadge";
 import type { Grade } from "@/components/GradeBadge";
 import ConditionBar from "@/components/ConditionBar";
 import PixelCharizard from "@/components/PixelCharizard";
 import { apiPostFormRaw, ApiError, PageResponse } from "@/lib/apiClient";
 import { fetchGradeHistory } from "@/lib/aiApi";
+import { addPortfolioItemFromGrade } from "@/lib/portfolioApi";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { useUserStore } from "@/store/useUserStore";
 import type { GradeResponse } from "@/types/ai";
+
+const FREE_DIAGNOSES = 3;
+const DIAGNOSIS_COST = 100;
 
 // 슬롯 순서는 백엔드 @RequestPart 이름과 그대로 매칭되어야 함 (front/back/corner_tl/tr/bl/br)
 const SLOTS: { field: string; label: string }[] = [
@@ -194,11 +201,13 @@ function UploadView({
   loading,
   error,
   isRetry,
+  diagnosisCount,
 }: {
   onSubmit: (photos: File[]) => void;
   loading: boolean;
   error: string | null;
   isRetry: boolean;
+  diagnosisCount: number | null;
 }) {
   const [photos, setPhotos] = useState<(File | null)[]>(Array(6).fill(null));
   const [previews, setPreviews] = useState<(string | null)[]>(Array(6).fill(null));
@@ -207,6 +216,7 @@ function UploadView({
   const [demoNotice, setDemoNotice] = useState<string | null>(null);
   const count = photos.filter(Boolean).length;
   const canStart = photos.every(Boolean) && !loading;
+  const pointBalance = useUserStore((s) => s.pointBalance);
 
   // 언마운트 시(진단 성공 → ResultView 전환 등) 남아있는 blob URL을 전부 해제하기 위한 최신값 참조
   const previewsRef = useRef(previews);
@@ -270,7 +280,7 @@ function UploadView({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="mb-1 mt-0 text-base font-extrabold">카드 사진 업로드</h2>
-          <p className="mb-5 text-[13px] text-[#8A8A92]">
+          <p className="mb-3 text-[13px] text-[#8A8A92]">
             앞면·뒷면·모서리 4곳을 촬영해 올려주세요 (6장 모두 필요)
           </p>
         </div>
@@ -281,6 +291,41 @@ function UploadView({
         >
           {demoLoading ? "불러오는 중..." : "테스트 해보기"}
         </button>
+      </div>
+      <div className="mb-5 flex items-center justify-between gap-4 rounded-[12px] border border-[#EDEDF0] bg-white px-5 py-4">
+        <div className="flex flex-col gap-2">
+          <div className="text-[13px] text-[#4B4B52]">
+            처음 {FREE_DIAGNOSES}회 무료 · 이후 <b>{DIAGNOSIS_COST.toLocaleString("ko-KR")}P / 회</b>
+          </div>
+          {diagnosisCount !== null && (
+            diagnosisCount < FREE_DIAGNOSES ? (
+              <span className="inline-flex w-fit items-center gap-1 rounded-full bg-[#E8F5EE] px-2.5 py-1 text-[12px] font-bold text-[#1A8A4A]">
+                <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                  <circle cx="6" cy="6" r="5.5" stroke="#1A8A4A" />
+                  <path d="M3.5 6L5.5 8L8.5 4" stroke="#1A8A4A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                무료 {FREE_DIAGNOSES - diagnosisCount}회 남음
+              </span>
+            ) : (
+              <span className="inline-flex w-fit rounded-full bg-[#F5F5F7] px-2.5 py-1 text-[12px] font-bold text-[#8A8A92]">
+                무료 소진
+              </span>
+            )
+          )}
+        </div>
+        {pointBalance !== null && (
+          <div className="flex shrink-0 items-center gap-2.5 rounded-[10px] bg-[#FFFBE8] px-4 py-2.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F5C518] text-[12px] font-extrabold text-white shadow-sm">
+              P
+            </div>
+            <div>
+              <div className="text-[10.5px] font-semibold text-[#9A8000]">보유 포인트</div>
+              <div className="text-[16px] font-extrabold leading-tight text-[#4A3800]">
+                {pointBalance.toLocaleString("ko-KR")}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       {demoNotice && (
         <div className="mb-5 rounded-xl border border-[#DDDDE3] bg-neutral px-4 py-3.5 text-[13.5px] font-bold text-[#4B4B52]">
@@ -373,6 +418,14 @@ function UploadView({
   );
 }
 
+// 도감 등록(FR-AI-04) 진행 상태 — 판별 유니언으로 관리해 "등록 중이면서 이미 등록됨" 같은
+// 불가능한 조합이 애초에 만들어지지 않게 한다.
+type RegisterStatus =
+  | { kind: "idle" }
+  | { kind: "registering" }
+  | { kind: "registered" }
+  | { kind: "error"; message: string };
+
 function ResultView({
   result,
   onReset,
@@ -382,12 +435,35 @@ function ResultView({
   onReset: () => void;
   resetLabel?: string;
 }) {
+  const [registerStatus, setRegisterStatus] = useState<RegisterStatus>({ kind: "idle" });
+
   const scores: [string, number | null][] = [
     ["센터링", result.centeringScore],
     ["엣지", result.edgeScore],
     ["표면", result.surfaceScore],
     ["모서리", result.cornerScore],
   ];
+
+  // 정상 산출(SUCCESS) + 카드 인식(cardId) 둘 다 있어야 도감에 등록할 수 있다.
+  const canRegister = result.status === "SUCCESS" && result.cardId != null;
+
+  const handleRegister = async () => {
+    setRegisterStatus({ kind: "registering" });
+    try {
+      await addPortfolioItemFromGrade(result.gradeResultId);
+      setRegisterStatus({ kind: "registered" });
+    } catch (e) {
+      // 이미 등록된 결과(409)를 재조회해서 다시 눌렀을 때도 에러가 아니라 "등록됨"으로 보여준다.
+      if (e instanceof ApiError && e.code === "GRADE_RESULT_ALREADY_REGISTERED") {
+        setRegisterStatus({ kind: "registered" });
+        return;
+      }
+      setRegisterStatus({
+        kind: "error",
+        message: e instanceof ApiError ? e.message : "도감 등록에 실패했습니다.",
+      });
+    }
+  };
 
   return (
     <div className="rounded-2xl border border-[#EDEDF0] bg-white p-[30px]">
@@ -415,6 +491,30 @@ function ResultView({
           AI 신뢰도 {result.confidence.toFixed(1)}%
         </div>
       )}
+      {result.status === "SUCCESS" && (
+        <div className="mt-[18px] flex items-center gap-3 rounded-[11px] border border-[#EDEDF0] px-4 py-3">
+          {result.cardId != null ? (
+            <>
+              <div className="relative h-14 w-10 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
+                <CardImage src={result.cardImageSmall ?? undefined} alt={result.cardName ?? "카드"} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[12px] font-semibold text-[#8A8A92]">인식된 카드</div>
+                <div className="truncate text-[14px] font-bold">{result.cardName}</div>
+              </div>
+              {result.cardConfidence != null && (
+                <div className="flex-shrink-0 text-[12px] font-semibold text-[#9A9AA2]">
+                  인식 신뢰도 {result.cardConfidence.toFixed(0)}%
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-[13px] font-semibold text-[#8A8A92]">
+              카드를 인식하지 못해 도감에 바로 등록할 수 없어요. 도감 화면에서 직접 추가해 주세요.
+            </div>
+          )}
+        </div>
+      )}
       <div className="mt-[22px] rounded-[10px] bg-neutral px-[15px] py-3 text-[12.5px] leading-normal text-[#8A8A92]">
         {result.notice}
       </div>
@@ -423,6 +523,22 @@ function ResultView({
           ? `포인트 ${result.pointUsed}점이 사용되었습니다.`
           : "무료로 처리되었습니다."}
       </div>
+      {registerStatus.kind === "error" && (
+        <div
+          role="alert"
+          className="mt-[14px] rounded-[10px] border border-[#F6C6C6] bg-[#FFF1F1] px-4 py-3 text-[13px] font-semibold text-[#C21414]"
+        >
+          {registerStatus.message}
+        </div>
+      )}
+      {registerStatus.kind === "registered" && (
+        <div className="mt-[14px] rounded-[10px] border border-[#CDEAD9] bg-[#EEFBF3] px-4 py-3 text-[13px] font-semibold text-[#0F7A46]">
+          도감에 등록했어요.{" "}
+          <Link href="/portfolio" className="underline">
+            도감 보러가기
+          </Link>
+        </div>
+      )}
       <div className="mt-[18px] flex gap-3">
         <button
           onClick={onReset}
@@ -431,11 +547,20 @@ function ResultView({
           {resetLabel}
         </button>
         <button
-          disabled
-          title="FR-AI-04에서 연동 예정"
-          className="flex-1 cursor-not-allowed rounded-[11px] border-2 border-[#D6D6DC] bg-[#E4E4E8] py-3.5 text-[15.5px] font-bold text-[#A0A0A8]"
+          disabled={!canRegister || registerStatus.kind === "registering" || registerStatus.kind === "registered"}
+          title={!canRegister ? "카드를 인식하지 못해 등록할 수 없어요" : undefined}
+          onClick={handleRegister}
+          className={`flex-1 rounded-[11px] border-2 py-3.5 text-[15.5px] font-bold ${
+            canRegister && registerStatus.kind !== "registered"
+              ? "border-primary-dark bg-primary text-white shadow-tactile-sm active:translate-y-0.5 disabled:cursor-wait disabled:opacity-70"
+              : "cursor-not-allowed border-[#D6D6DC] bg-[#E4E4E8] text-[#A0A0A8]"
+          }`}
         >
-          도감에 등록하기
+          {registerStatus.kind === "registering"
+            ? "등록 중..."
+            : registerStatus.kind === "registered"
+              ? "등록 완료"
+              : "도감에 등록하기"}
         </button>
       </div>
     </div>
@@ -488,6 +613,7 @@ function HistoryView() {
   if (selected) {
     return (
       <ResultView
+        key={selected.gradeResultId}
         result={selected}
         onReset={() => setSelected(null)}
         resetLabel="목록으로 돌아가기"
@@ -599,8 +725,19 @@ function AIDiagnosisContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const authStatus = useRequireAuth();
+  const decrementPointBalance = useUserStore((s) => s.decrementPointBalance);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<DiagnosisStatus>({ kind: "idle" });
+  const [diagnosisCount, setDiagnosisCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (authStatus !== "authenticated") return;
+    let cancelled = false;
+    fetchGradeHistory(0, 1)
+      .then((r) => { if (!cancelled) setDiagnosisCount(r.totalElements); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [authStatus]);
   // 새로고침해도 보던 탭(새 진단/이력)이 유지되도록 쿼리 파라미터(?tab=history)로 관리
   const [tab, setTabState] = useState<"new" | "history">(
     searchParams.get("tab") === "history" ? "history" : "new",
@@ -625,6 +762,8 @@ function AIDiagnosisContent() {
         });
       } else {
         setStatus({ kind: "success", data: response });
+        setDiagnosisCount((c) => (c !== null ? c + 1 : null));
+        if (response.pointUsed > 0) decrementPointBalance(response.pointUsed);
       }
     } catch (e) {
       console.error("AI 진단 요청 중 오류:", e);
@@ -698,6 +837,7 @@ function AIDiagnosisContent() {
               loading={loading}
               error={status.kind === "error" ? status.message : null}
               isRetry={status.kind === "qualityFail"}
+              diagnosisCount={diagnosisCount}
             />
             <ShootingGuide />
           </>

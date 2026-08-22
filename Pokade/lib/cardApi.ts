@@ -1,5 +1,10 @@
 import { apiGet, PageResponse } from "@/lib/apiClient";
-import { CardDetailResponse, CardFacetOption, CardFacetsResponse, CardResponse } from "@/types/card";
+import {
+  CardDetailResponse,
+  CardFacetOption,
+  CardFacetsResponse,
+  CardResponse,
+} from "@/types/card";
 import {
   BuyOfferOrderbookEntryResponse,
   ChartPeriod,
@@ -19,7 +24,9 @@ import {
 export type CardSort = "latest" | "name" | "popular";
 
 // GET /api/cards — types/rarity/expansionId 정확 일치 필터 (기본 페이지 size=20).
+// q(#308)를 같이 넘기면 필터+키워드 결합 검색으로 동작한다 — q 없이 호출하던 기존 동작은 그대로 유지된다.
 export interface CardSearchFilters {
+  q?: string;
   expansionId?: string;
   types?: string[];
   rarity?: string[];
@@ -43,6 +50,7 @@ export async function fetchCardsPage(
   filters: CardSearchFilters = {},
 ): Promise<PageResponse<CardResponse>> {
   const query = new URLSearchParams();
+  if (filters.q) query.set("q", filters.q);
   if (filters.expansionId) query.set("expansionId", filters.expansionId);
   if (filters.types?.length) query.set("types", filters.types.join(","));
   if (filters.rarity?.length) query.set("rarity", filters.rarity.join(","));
@@ -79,9 +87,12 @@ function normalizeFacetOptions(options: unknown): CardFacetOption[] {
 function normalizeExpansionOptions(options: unknown): CardFacetsResponse["expansions"] {
   if (!Array.isArray(options)) return [];
   return options
-    .map((opt) => (opt ?? {}) as { id?: unknown; name?: unknown; series?: unknown; count?: unknown })
-    .filter((opt): opt is { id: string; name?: unknown; series?: unknown; count?: unknown } =>
-      typeof opt.id === "string",
+    .map(
+      (opt) => (opt ?? {}) as { id?: unknown; name?: unknown; series?: unknown; count?: unknown },
+    )
+    .filter(
+      (opt): opt is { id: string; name?: unknown; series?: unknown; count?: unknown } =>
+        typeof opt.id === "string",
     )
     .map((opt) => ({
       id: opt.id,
