@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import AddWatchlistModal from "@/components/AddWatchlistModal";
 import IconTooltip from "@/components/IconTooltip";
+import Toast from "@/components/Toast";
 import CardImage from "@/components/CardImage";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { useToast } from "@/hooks/useToast";
 import { ApiError } from "@/lib/apiClient";
 import { resolvePriceDisplay } from "@/lib/priceDisplay";
 import { deleteWatchlistItem, fetchWatchlist, updateWatchlist } from "@/lib/watchlistApi";
@@ -142,6 +144,7 @@ export default function WatchlistPage() {
   const [editingItem, setEditingItem] = useState<WatchlistResponse | null>(null);
   const [resendingId, setResendingId] = useState<number | null>(null);
   const [resendError, setResendError] = useState<string | null>(null);
+  const { toast, showToast, pauseToast, resumeToast } = useToast();
 
   useEffect(() => {
     if (authStatus !== "authenticated") return;
@@ -231,6 +234,13 @@ export default function WatchlistPage() {
 
   const handleUpdateSuccess = (updated: WatchlistResponse) => {
     applyWatchlistUpdate(updated);
+    // 저장이 됐는지, 이제 알림이 오는지가 화면 어디에도 안 적혀 있었다(#238) — 모달만 닫히고
+    // 행의 숫자가 조용히 바뀌는 게 전부였다. 목표가를 지운 경우까지 "알려드릴게요"라고 하면
+    // 거짓이 되므로 남은 목표가가 있을 때만 알림 문구를 붙인다.
+    const hasTarget = updated.targetBuyPrice != null || updated.targetSellPrice != null;
+    showToast({
+      message: hasTarget ? "목표가를 저장했어요. 도달하면 알려드릴게요" : "목표가를 지웠어요",
+    });
     setEditingItem(null);
   };
 
@@ -706,6 +716,7 @@ export default function WatchlistPage() {
           watchlistId={editingItem.id}
           initialTargetBuyPrice={editingItem.targetBuyPrice}
           initialTargetSellPrice={editingItem.targetSellPrice}
+          currentPriceLabel={rowDisplay(editingItem).priceLabel}
           onSuccess={handleUpdateSuccess}
         />
       )}
@@ -718,6 +729,8 @@ export default function WatchlistPage() {
           onConfirm={() => handleDelete(deleteTarget.id)}
         />
       )}
+      {/* 목표가 저장 결과 알림(#238) — 홈/카드상세/마켓과 같은 토스트를 쓴다. */}
+      <Toast toast={toast} onPause={pauseToast} onResume={resumeToast} />
     </main>
   );
 }
