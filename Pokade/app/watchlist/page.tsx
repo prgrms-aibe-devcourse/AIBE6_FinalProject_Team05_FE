@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import AddWatchlistModal from "@/components/AddWatchlistModal";
+import IconTooltip from "@/components/IconTooltip";
 import CardImage from "@/components/CardImage";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
@@ -404,7 +405,17 @@ export default function WatchlistPage() {
                               </div>
                             </Link>
                             <div className="text-sm font-bold">{priceLabel}</div>
-                            <div className="text-sm text-[#4B4B52]">
+                            {/* 목표가 칸 자체가 수정 진입점이다(#238) — 예전에는 값이 없을 때 "-"만
+                                찍혀 있어 눌러도 아무 일이 없었고, 실제 진입점은 행 오른쪽 끝의 연필
+                                아이콘 하나뿐이라 처음 온 사람은 목표가를 어디서 넣는지 찾지 못했다.
+                                값이 있든 없든 같은 모달을 열어, "여기 적힌 걸 고치고 싶다"는 자연스러운
+                                클릭이 그대로 통하게 한다. */}
+                            <button
+                              type="button"
+                              onClick={() => setEditingItem(row)}
+                              aria-label={`${displayName} 목표가 ${targets.length > 0 ? "수정" : "설정"}`}
+                              className="rounded-lg px-1.5 py-1 text-left text-sm text-[#4B4B52] outline-none transition-colors hover:bg-neutral focus-visible:ring-2 focus-visible:ring-secondary"
+                            >
                               {targets.length > 0 ? (
                                 targets.map((t) => (
                                   <div key={t.label}>
@@ -412,9 +423,11 @@ export default function WatchlistPage() {
                                   </div>
                                 ))
                               ) : (
-                                <div>-</div>
+                                <span className="font-semibold text-secondary">
+                                  목표가 설정하기
+                                </span>
                               )}
-                            </div>
+                            </button>
                             <div
                               className={`text-[13.5px] font-bold ${
                                 changeRate != null && changeRate !== 0
@@ -434,27 +447,33 @@ export default function WatchlistPage() {
                               </span>
                             </div>
                             <div className="flex items-center justify-end gap-3">
-                              <button
-                                type="button"
-                                aria-label={`${displayName} 목표가 수정`}
-                                onClick={() => setEditingItem(row)}
-                                className="-m-3.5 p-3.5 text-[#8A8A92] hover:text-primary"
-                              >
-                                <svg
-                                  width="17"
-                                  height="17"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  aria-hidden="true"
+                              {/* 아이콘만 있는 버튼이라 시각 사용자에게도 이름을 보여준다(#238) —
+                                  aria-label만으로는 스크린리더 사용자만 용도를 알 수 있었다.
+                                  placement="top": 첫 행 위에는 테이블 헤더가 있어 스크롤 컨테이너
+                                  안쪽에 그려지므로 잘리지 않는다(실측 확인). */}
+                              <IconTooltip label="목표가 수정" placement="top" className="-m-3.5">
+                                <button
+                                  type="button"
+                                  aria-label={`${displayName} 목표가 수정`}
+                                  onClick={() => setEditingItem(row)}
+                                  className="p-3.5 text-[#8A8A92] hover:text-primary"
                                 >
-                                  <path d="M12 20h9" />
-                                  <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z" />
-                                </svg>
-                              </button>
+                                  <svg
+                                    width="17"
+                                    height="17"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    aria-hidden="true"
+                                  >
+                                    <path d="M12 20h9" />
+                                    <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z" />
+                                  </svg>
+                                </button>
+                              </IconTooltip>
                               {row.isNotified && (
                                 <button
                                   type="button"
@@ -547,19 +566,31 @@ export default function WatchlistPage() {
                             <span className="text-[#9A9AA2]">현재 시세</span>
                             <span className="font-bold">{priceLabel}</span>
                           </div>
-                          {targets.length > 0 ? (
-                            targets.map((t) => (
-                              <div key={t.label} className="flex items-center justify-between">
-                                <span className="text-[#9A9AA2]">{t.label}</span>
-                                <span className="font-semibold text-[#4B4B52]">{t.value}</span>
+                          {/* 데스크톱과 같은 이유로 목표가 줄 전체가 수정 진입점이다(#238).
+                              모바일은 hover가 없어 연필 아이콘의 의미를 알기가 더 어렵다. */}
+                          <button
+                            type="button"
+                            onClick={() => setEditingItem(row)}
+                            aria-label={`${displayName} 목표가 ${targets.length > 0 ? "수정" : "설정"}`}
+                            className="-mx-1.5 flex flex-col gap-1.5 rounded-lg px-1.5 py-1 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-secondary active:bg-neutral"
+                          >
+                            {targets.length > 0 ? (
+                              targets.map((t) => (
+                                <div
+                                  key={t.label}
+                                  className="flex w-full items-center justify-between"
+                                >
+                                  <span className="text-[#9A9AA2]">{t.label}</span>
+                                  <span className="font-semibold text-[#4B4B52]">{t.value}</span>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="flex w-full items-center justify-between">
+                                <span className="text-[#9A9AA2]">목표가</span>
+                                <span className="font-semibold text-secondary">설정하기</span>
                               </div>
-                            ))
-                          ) : (
-                            <div className="flex items-center justify-between">
-                              <span className="text-[#9A9AA2]">목표가</span>
-                              <span className="text-[#4B4B52]">-</span>
-                            </div>
-                          )}
+                            )}
+                          </button>
                           <div className="flex items-center justify-between">
                             <span className="text-[#9A9AA2]">등락</span>
                             <span
