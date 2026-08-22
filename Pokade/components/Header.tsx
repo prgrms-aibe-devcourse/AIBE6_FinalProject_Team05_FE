@@ -130,8 +130,20 @@ function LoggedInRight({
           <path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.7 21a2 2 0 01-3.4 0" />
         </svg>
+        {/* 안 읽은 개수 배지(#238) — 예전에는 7px 점이라 "뭔가 있다"까지만 알 수 있고 몇 건인지는
+            aria-label에만 있었다(시각 사용자에게만 정보가 빠져 있던 셈). 숫자를 직접 띄우되 두 자리
+            이상은 배지가 벨을 덮어버려 "9+"로 줄인다.
+            배경이 primary가 아니라 primary-dark인 이유: 10px 흰 글씨는 WCAG 기준상 일반 텍스트라
+            4.5:1이 필요한데 primary(#EE1515)는 4.43:1로 아슬하게 미달이고 primary-dark(#B80F0F)는
+            6.75:1이다. 정확한 개수는 계속 버튼 aria-label이 읽어주므로(9+로 줄지 않는다) 배지 자체는
+            aria-hidden으로 두어 스크린리더가 같은 정보를 두 번 읽지 않게 한다. */}
         {unreadCount > 0 && (
-          <span className="absolute right-2 top-[7px] h-[7px] w-[7px] rounded-full border-[1.5px] border-neutral bg-primary" />
+          <span
+            aria-hidden="true"
+            className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-white bg-primary-dark px-1 text-[10px] font-bold leading-none text-white"
+          >
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
         )}
       </button>
       <button
@@ -206,11 +218,20 @@ function LoggedInRight({
                         key={n.id}
                         type="button"
                         onClick={() => handleNotificationClick(n)}
-                        className={`flex w-full cursor-pointer gap-[11px] border-b border-[#F5F5F7] px-4 py-[13px] text-left hover:bg-[#FAFAFB] ${!n.isRead ? "bg-[#FFF7F7]" : ""}`}
+                        className={`relative flex w-full cursor-pointer gap-[11px] border-b border-[#F5F5F7] px-4 py-[13px] text-left hover:bg-[#FAFAFB] ${!n.isRead ? "bg-[#FFF1F1]" : ""}`}
                       >
-                        <span
-                          className={`mt-[15px] h-[7px] w-[7px] flex-shrink-0 rounded-full ${!n.isRead ? "bg-primary" : "bg-transparent"}`}
-                        />
+                        {/* 안읽음 표시(#238) — 예전에는 배경 틴트(#FFF7F7)와 7px 점뿐이었는데,
+                            틴트는 흰 배경과 명도 대비 1.06:1이라 옆에 나란히 놓기 전엔 구분이
+                            안 되고 점은 너무 작아 목록을 훑을 때 놓치기 쉬웠다. 행 왼쪽 끝의
+                            3px 바로 바꾸면 세로로 이어져 스캔이 쉽고, primary는 흰 배경 대비
+                            4:1 이상이라 그래픽 요소 기준(3:1)을 넘긴다. 틴트는 보조 단서로만
+                            남기되 프로젝트에서 이미 쓰는 #FFF1F1로 살짝 올렸다. */}
+                        {!n.isRead && (
+                          <span
+                            aria-hidden="true"
+                            className="absolute inset-y-0 left-0 w-[3px] bg-primary"
+                          />
+                        )}
                         {/* /app/notifications/page.tsx와 동일한 정책 — cardImageUrl 있으면 카드
                             썸네일, 없으면(또는 조회 실패) 기존 타입 아이콘. 좁은 드롭다운이라도
                             34px 그대로 유지(전체 목록과 다른 크기 분기를 또 만들지 않는다).
