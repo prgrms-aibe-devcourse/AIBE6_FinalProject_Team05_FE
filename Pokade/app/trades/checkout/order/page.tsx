@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AddressSearchField from "@/components/AddressSearchField";
 import CardImage from "@/components/CardImage";
+import PriceInput from "@/components/PriceInput";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
 import { getMyInfo } from "@/lib/authApi";
@@ -264,13 +265,10 @@ function TradeCheckoutOrderForm() {
               </p>
             </div>
             <div className="flex gap-2">
-              <input
+              <PriceInput
                 id="points-to-use"
-                type="number"
-                min={0}
-                max={Math.min(pointBalance ?? 0, totalAmount)}
                 value={pointsToUseInput}
-                onChange={(e) => setPointsToUseInput(e.target.value)}
+                onChange={setPointsToUseInput}
                 placeholder="0"
                 className={inputCls}
               />

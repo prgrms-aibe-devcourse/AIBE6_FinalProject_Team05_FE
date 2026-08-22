@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import CardImage from "@/components/CardImage";
 import GradeMarketReference from "@/components/GradeMarketReference";
+import PriceInput from "@/components/PriceInput";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { fetchCardDetail, fetchCardsByKeywordPage, fetchPriceSummary } from "@/lib/cardApi";
 import {
@@ -352,13 +353,10 @@ function NewListingForm() {
               </span>
             )}
           </div>
-          <input
+          <PriceInput
             id="price"
-            type="number"
-            min={1}
-            step={100}
             value={price}
-            onChange={(e) => setPrice(e.target.value)}
+            onChange={setPrice}
             placeholder="판매 가격 (원)"
             className={inputCls}
           />
