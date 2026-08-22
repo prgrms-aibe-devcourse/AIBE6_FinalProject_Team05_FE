@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import CardImage from "@/components/CardImage";
 import Pagination from "@/components/Pagination";
+import IconTooltip from "@/components/IconTooltip";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { selectUnreadCount, useNotificationStore } from "@/store/useNotificationStore";
 import { ApiError, PageResponse } from "@/lib/apiClient";
@@ -201,7 +202,11 @@ export default function NotificationsPage() {
 
         {loadState === "ready" && notifications.length > 0 && (
           <>
-            <div className="overflow-hidden rounded-2xl border border-[#EDEDF0] bg-white">
+            {/* overflow-hidden을 걷어낸 이유(#238): 삭제 버튼 툴팁이 행 위쪽에 뜨는데, 컨테이너가
+                잘라내면 첫 행에서는 툴팁이 통째로 안 보였다(실측: 툴팁 top이 컨테이너보다 23px
+                위). 라운드 코너는 첫/마지막 행이 직접 맡아(first:/last:) 안읽음 틴트가 모서리를
+                네모나게 덮는 문제도 그대로 막는다. */}
+            <div className="rounded-2xl border border-[#EDEDF0] bg-white">
               {notifications.map((n, i) => {
                 const style = notifStyle(n.type);
                 return (
@@ -211,7 +216,7 @@ export default function NotificationsPage() {
                   // 두면 그런 문제 없이 각자 독립적으로 클릭된다(stopPropagation 불필요).
                   <div
                     key={n.id}
-                    className={`group relative flex w-full items-center gap-[13px] px-5 py-4 hover:bg-[#FAFAFB] ${
+                    className={`group relative flex w-full items-center gap-[13px] px-5 py-4 first:rounded-t-2xl last:rounded-b-2xl hover:bg-[#FAFAFB] ${
                       i < notifications.length - 1 ? "border-b border-[#F5F5F7]" : ""
                     } ${!n.isRead ? "bg-[#FFF1F1]" : ""}`}
                   >
@@ -275,26 +280,33 @@ export default function NotificationsPage() {
                         </div>
                       </div>
                     </button>
-                    {/* hover-reveal 삭제 — app/search/SearchFilterSidebar.tsx의 등급 툴팁과 동일한
-                        group/opacity 패턴, 아이콘·색은 app/watchlist/page.tsx 삭제 버튼과 통일.
-                        group-focus-within도 같이 둬서 Tab으로 포커스했을 때도 보이게 한다(마우스
-                        hover가 없는 키보드 사용자 접근성 — 모바일 터치 대응은 이번 범위 밖). */}
-                    <button
-                      type="button"
-                      aria-label="알림 삭제"
-                      onClick={() => handleDelete(n.id)}
-                      className="-m-3.5 ml-1 shrink-0 p-3.5 text-[#C7C7CE] opacity-0 transition-opacity hover:text-primary group-focus-within:opacity-100 group-hover:opacity-100"
-                    >
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                        aria-hidden="true"
+                    {/* 삭제 버튼은 hover 전에도 보인다(#238). 예전에는 opacity-0 + group-hover로
+                        감춰 뒀는데, 처음 보는 사용자는 삭제가 가능한지조차 알 수 없었고 hover가
+                        없는 터치 환경에서는 아예 닿을 수 없었다. app/watchlist/page.tsx의 삭제
+                        버튼은 원래부터 항상 보이는 방식이라, 이쪽을 그 패턴에 맞춘 셈이다.
+                        색을 #C7C7CE에서 #8A8A92로 올린 이유: 아이콘은 그래픽 요소라 WCAG 기준이
+                        3:1인데 #C7C7CE는 흰 배경에서 1.68:1로 한참 못 미쳤다. #8A8A92는 이 화면에
+                        나오는 세 배경(흰색/hover #FAFAFB/안읽음 #FFF1F1) 모두에서 3.12:1 이상이다.
+                        "은은하게"를 opacity로 표현하지 않은 것도 같은 이유 — 반투명은 배경과
+                        섞여 실제 대비가 그만큼 깎인다(#8A8A92를 70%로 깔면 2.23:1로 도로 미달). */}
+                    <IconTooltip label="삭제" placement="top" className="-m-3.5 ml-1 shrink-0">
+                      <button
+                        type="button"
+                        aria-label="알림 삭제"
+                        onClick={() => handleDelete(n.id)}
+                        className="rounded-xl p-3.5 text-[#8A8A92] outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-secondary"
                       >
-                        <path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
-                      </svg>
-                    </button>
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                          aria-hidden="true"
+                        >
+                          <path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                        </svg>
+                      </button>
+                    </IconTooltip>
                   </div>
                 );
               })}

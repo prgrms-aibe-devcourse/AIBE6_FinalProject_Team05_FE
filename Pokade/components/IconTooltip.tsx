@@ -22,13 +22,18 @@ export default function IconTooltip({
 }) {
   // 바깥 span에는 position을 두지 않는다 — 호출부가 className으로 absolute 배치를 넘기는
   // 경우(홈 타일의 하트)와 충돌하지 않도록, 툴팁의 기준점은 안쪽 relative span이 맡는다.
+  //
+  // 이름 없는 group이 아니라 group/tooltip을 쓰는 이유(#238): 이 컴포넌트를 group을 가진
+  // 컨테이너 안에 넣으면(예: /notifications의 행) 익명 group-hover는 "가장 가까운" group이
+  // 아니라 조상 중 아무 group에나 걸린다 — 행 어디에 마우스를 올려도 툴팁이 뜨는 문제가
+  // 실제로 있었다. 이름을 붙이면 이 래퍼에만 반응한다.
   return (
-    <span className={`group inline-flex ${className}`}>
+    <span className={`group/tooltip inline-flex ${className}`}>
       <span className="relative inline-flex">
         {children}
         <span
           aria-hidden="true"
-          className={`pointer-events-none absolute left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-[8px] border border-[#EDEDF0] bg-white px-2.5 py-1.5 text-[11.5px] font-semibold text-[#4B4B52] opacity-0 shadow-card transition group-focus-within:opacity-100 group-hover:opacity-100 ${
+          className={`pointer-events-none absolute left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-[8px] border border-[#EDEDF0] bg-white px-2.5 py-1.5 text-[11.5px] font-semibold text-[#4B4B52] opacity-0 shadow-card transition group-focus-within/tooltip:opacity-100 group-hover/tooltip:opacity-100 ${
             placement === "top" ? "bottom-full mb-2" : "top-full mt-2"
           }`}
         >
