@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import AddressSearchField from "@/components/AddressSearchField";
 import CardImage from "@/components/CardImage";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
@@ -255,16 +256,8 @@ function NewBuyOfferOrderForm() {
 
             <div className="h-4" />
 
-            <label htmlFor="recipient-address" className={labelCls}>
-              주소
-            </label>
-            <input
-              id="recipient-address"
-              type="text"
-              value={recipientAddress}
-              onChange={(e) => setRecipientAddress(e.target.value)}
-              className={inputCls}
-            />
+            <label className={labelCls}>주소</label>
+            <AddressSearchField onChange={setRecipientAddress} inputCls={inputCls} />
           </section>
 
           {/* ③ 포인트 사용 */}
