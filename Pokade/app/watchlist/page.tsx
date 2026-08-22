@@ -475,46 +475,54 @@ export default function WatchlistPage() {
                                 </button>
                               </IconTooltip>
                               {row.isNotified && (
+                                <IconTooltip
+                                  label="알림 다시 받기"
+                                  placement="top"
+                                  className="-m-3.5"
+                                >
+                                  <button
+                                    type="button"
+                                    aria-label={`${displayName} 알림 다시 받기`}
+                                    disabled={resendingId === row.id}
+                                    onClick={() => handleResendNotification(row.id)}
+                                    className="p-3.5 text-[#8A8A92] hover:text-primary disabled:opacity-50"
+                                  >
+                                    <svg
+                                      width="17"
+                                      height="17"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      aria-hidden="true"
+                                    >
+                                      <path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                                      <path d="M13.73 21a2 2 0 01-3.46 0" />
+                                    </svg>
+                                  </button>
+                                </IconTooltip>
+                              )}
+                              <IconTooltip label="삭제" placement="top" className="-m-3.5">
                                 <button
                                   type="button"
-                                  aria-label={`${displayName} 알림 다시 받기`}
-                                  disabled={resendingId === row.id}
-                                  onClick={() => handleResendNotification(row.id)}
-                                  className="-m-3.5 p-3.5 text-[#8A8A92] hover:text-primary disabled:opacity-50"
+                                  aria-label={`${displayName} 관심 목록에서 삭제`}
+                                  disabled={deletingId === row.id}
+                                  onClick={() => setDeleteTarget(row)}
+                                  className="p-3.5 text-[#8A8A92] hover:text-primary disabled:opacity-50"
                                 >
                                   <svg
-                                    width="17"
-                                    height="17"
+                                    width="18"
+                                    height="18"
                                     viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
+                                    fill="currentColor"
                                     aria-hidden="true"
                                   >
-                                    <path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-                                    <path d="M13.73 21a2 2 0 01-3.46 0" />
+                                    <path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
                                   </svg>
                                 </button>
-                              )}
-                              <button
-                                type="button"
-                                aria-label={`${displayName} 관심 목록에서 삭제`}
-                                disabled={deletingId === row.id}
-                                onClick={() => setDeleteTarget(row)}
-                                className="-m-3.5 p-3.5 text-[#8A8A92] hover:text-primary disabled:opacity-50"
-                              >
-                                <svg
-                                  width="18"
-                                  height="18"
-                                  viewBox="0 0 24 24"
-                                  fill="currentColor"
-                                  aria-hidden="true"
-                                >
-                                  <path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
-                                </svg>
-                              </button>
+                              </IconTooltip>
                             </div>
                           </div>
                         );
@@ -608,34 +616,15 @@ export default function WatchlistPage() {
                         </div>
 
                         <div className="mt-3.5 flex items-center justify-end gap-3 border-t border-[#F2F2F5] pt-3">
-                          <button
-                            type="button"
-                            aria-label={`${displayName} 목표가 수정`}
-                            onClick={() => setEditingItem(row)}
-                            className="-m-2.5 p-2.5 text-[#8A8A92] hover:text-primary"
-                          >
-                            <svg
-                              width="17"
-                              height="17"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              aria-hidden="true"
-                            >
-                              <path d="M12 20h9" />
-                              <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z" />
-                            </svg>
-                          </button>
-                          {row.isNotified && (
+                          {/* 모바일에도 같은 툴팁을 단다 — hover가 없어 실질 효과는 키보드 포커스
+                              때뿐이지만, 아이콘 구성이 데스크톱과 같아 두 레이아웃이 어긋나지 않게
+                              한다(#238). */}
+                          <IconTooltip label="목표가 수정" placement="top" className="-m-2.5">
                             <button
                               type="button"
-                              aria-label={`${displayName} 알림 다시 받기`}
-                              disabled={resendingId === row.id}
-                              onClick={() => handleResendNotification(row.id)}
-                              className="-m-2.5 p-2.5 text-[#8A8A92] hover:text-primary disabled:opacity-50"
+                              aria-label={`${displayName} 목표가 수정`}
+                              onClick={() => setEditingItem(row)}
+                              className="p-2.5 text-[#8A8A92] hover:text-primary"
                             >
                               <svg
                                 width="17"
@@ -648,28 +637,56 @@ export default function WatchlistPage() {
                                 strokeLinejoin="round"
                                 aria-hidden="true"
                               >
-                                <path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-                                <path d="M13.73 21a2 2 0 01-3.46 0" />
+                                <path d="M12 20h9" />
+                                <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z" />
                               </svg>
                             </button>
+                          </IconTooltip>
+                          {row.isNotified && (
+                            <IconTooltip label="알림 다시 받기" placement="top" className="-m-2.5">
+                              <button
+                                type="button"
+                                aria-label={`${displayName} 알림 다시 받기`}
+                                disabled={resendingId === row.id}
+                                onClick={() => handleResendNotification(row.id)}
+                                className="p-2.5 text-[#8A8A92] hover:text-primary disabled:opacity-50"
+                              >
+                                <svg
+                                  width="17"
+                                  height="17"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  aria-hidden="true"
+                                >
+                                  <path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                                  <path d="M13.73 21a2 2 0 01-3.46 0" />
+                                </svg>
+                              </button>
+                            </IconTooltip>
                           )}
-                          <button
-                            type="button"
-                            aria-label={`${displayName} 관심 목록에서 삭제`}
-                            disabled={deletingId === row.id}
-                            onClick={() => setDeleteTarget(row)}
-                            className="-m-2.5 p-2.5 text-[#8A8A92] hover:text-primary disabled:opacity-50"
-                          >
-                            <svg
-                              width="18"
-                              height="18"
-                              viewBox="0 0 24 24"
-                              fill="currentColor"
-                              aria-hidden="true"
+                          <IconTooltip label="삭제" placement="top" className="-m-2.5">
+                            <button
+                              type="button"
+                              aria-label={`${displayName} 관심 목록에서 삭제`}
+                              disabled={deletingId === row.id}
+                              onClick={() => setDeleteTarget(row)}
+                              className="p-2.5 text-[#8A8A92] hover:text-primary disabled:opacity-50"
                             >
-                              <path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
-                            </svg>
-                          </button>
+                              <svg
+                                width="18"
+                                height="18"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                                aria-hidden="true"
+                              >
+                                <path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                              </svg>
+                            </button>
+                          </IconTooltip>
                         </div>
                       </div>
                     );
