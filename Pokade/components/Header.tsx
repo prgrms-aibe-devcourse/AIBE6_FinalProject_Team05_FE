@@ -175,10 +175,16 @@ function LoggedInRight({
       {open === "notif" &&
         createPortal(
           <div className="pointer-events-none fixed inset-x-0 top-0 z-[90] px-4 sm:px-10">
+            {/* dropdown-pop-in: 조건부 마운트라 transition으로는 잡히지 않아 globals.css의
+                keyframes를 한 번 재생한다(#238). 벨(우상단)에서 자라나는 느낌이 되도록
+                transform-origin을 그쪽에 두었고, prefers-reduced-motion은 클래스 정의 자체가
+                미디어쿼리 안에 있어 자동으로 꺼진다(bell-shake와 같은 방식).
+                프로필 드롭다운에는 일부러 붙이지 않았다 — 같은 파일이지만 임현호 소유 영역이라
+                알림 쪽만 손댄다. */}
             <div
               id={notifId}
               aria-label="알림 목록"
-              className="pointer-events-auto absolute right-[44px] top-16 w-[344px] overflow-hidden rounded-[14px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]"
+              className="dropdown-pop-in pointer-events-auto absolute right-[44px] top-16 w-[344px] overflow-hidden rounded-[14px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]"
             >
               <div className="flex items-center justify-between border-b border-[#F0F0F0] px-4 py-3.5">
                 <span className="text-[14.5px] font-extrabold">알림</span>
@@ -190,7 +196,16 @@ function LoggedInRight({
                   모두 읽음 처리
                 </button>
               </div>
-              <div className="max-h-[340px] overflow-y-auto">
+              {/* 340px 고정이던 시절엔 2줄 메시지(행 83px) 기준 4건밖에 안 보여, 피드가 들고 있는
+                  20건 중 대부분이 스크롤 뒤에 숨었다(#238). 뷰포트에 맞춰 늘리되 상한을 둔다 —
+                  세로가 긴 모니터에서 화면을 꽉 채우는 드롭다운은 오히려 부담스럽다.
+                  vh가 아니라 dvh를 쓰는 이유: 모바일 브라우저의 주소창이 접히고 펴질 때 vh는
+                  갱신되지 않아, 주소창이 펼쳐진 상태에서 목록이 화면 밖으로 밀려난다.
+                  단순 비율(예: 60dvh) 대신 100dvh에서 200px을 빼는 이유: 목록 위아래로 패널
+                  자체가 차지하는 높이(상단 여백 58 + 헤더 48 + 푸터 46 ≒ 152)가 고정이라,
+                  비율만 쓰면 화면이 아주 낮을 때(400px대) 그 고정분 때문에 아래가 잘린다.
+                  빼고 시작하면 어떤 높이에서도 최소 37px 여백이 남는다. */}
+              <div className="max-h-[min(calc(100dvh-200px),520px)] overflow-y-auto">
                 {loadState === "loading" && (
                   <div className="px-4 py-8 text-center text-[13px] text-[#9A9AA2]">
                     불러오는 중...
