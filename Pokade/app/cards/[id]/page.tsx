@@ -309,9 +309,34 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   // 순간 react-hooks의 "Cannot access refs during render"에 걸리고, effect 안에서 setState로
   // 채우는 방식은 react-hooks/set-state-in-effect에 걸린다. initializer는 마운트 시 한 번만
   // 실행되므로 두 규칙을 모두 피하면서 "최초 진입 시점의 값"이라는 의미도 그대로 드러난다.
-  const [cameFromRestockNotification] = useState(
+  const [cameFromRestockNotification, setCameFromRestockNotification] = useState(
     () => searchParams.get(NOTIFICATION_ORIGIN_PARAM) === NOTIFICATION_ORIGIN_VALUE,
   );
+
+  // 뒤로/앞으로 가기(popstate)는 이 컴포넌트를 리마운트하지 않고 캐시에서 복원하므로, 마운트 때
+  // 잡아둔 플래그가 그대로 남는다 — from을 이미 지운 주소(/cards/[id])로 돌아와도 배너가 계속
+  // 뜨는 문제(#238 F1). history 이동 시점의 실제 주소로 다시 판정한다. 정상 진입의 URL 정리는
+  // 아래 router.replace(=history.replaceState)라 popstate를 발생시키지 않으므로 여기에 걸리지
+  // 않고, 그래서 진입 직후 배너가 깜빡 사라지지도 않는다.
+  useEffect(() => {
+    const syncFromUrl = () => {
+      const params = new URLSearchParams(window.location.search);
+      setCameFromRestockNotification(
+        params.get(NOTIFICATION_ORIGIN_PARAM) === NOTIFICATION_ORIGIN_VALUE,
+      );
+    };
+    // popstate: 앱 내부(SPA) 뒤로/앞으로 가기. pageshow(persisted): 전체 문서가 bfcache에서
+    // 복원되는 경우 — 이때는 컴포넌트가 리렌더 없이 그대로 되살아나므로 여기서 다시 맞춘다.
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) syncFromUrl();
+    };
+    window.addEventListener("popstate", syncFromUrl);
+    window.addEventListener("pageshow", onPageShow);
+    return () => {
+      window.removeEventListener("popstate", syncFromUrl);
+      window.removeEventListener("pageshow", onPageShow);
+    };
+  }, []);
 
   // 표시가 끝났으면 URL에서는 지운다 — 주소를 복사해 공유했을 때 알림을 받은 적도 없는 사람
   // 화면에까지 "알림 받으신 상품은..." 안내가 뜨는 걸 막고, 새로고침해도 남지 않게 한다.
@@ -664,8 +689,13 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                             신뢰 신호(활발히 조회되는 카드라는 근거)로 쓰기로 정했다. null/undefined(값
                             없음)는 0과 다르므로 이때만 숨긴다 — 프로덕션 크래시 핫픽스. */}
                         {card.viewCount != null && (
-                          <span className="text-[11.5px] font-semibold text-[#9A9AA2]">
-                            {card.viewCount.toLocaleString("ko-KR")}번 조회됐어요
+                          // 화면은 "N회 조회"로 축약(등락률 배지 옆 폭 절약)하되, 스크린리더에는
+                          // 기존과 같은 완결형 문구를 aria-label로 그대로 읽어준다.
+                          <span
+                            className="text-[11.5px] font-semibold text-[#9A9AA2]"
+                            aria-label={`${card.viewCount.toLocaleString("ko-KR")}회 조회됐어요`}
+                          >
+                            {card.viewCount.toLocaleString("ko-KR")}회 조회
                           </span>
                         )}
                       </div>
