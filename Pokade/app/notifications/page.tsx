@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Breadcrumb from "@/components/Breadcrumb";
 import CardImage from "@/components/CardImage";
 import Pagination from "@/components/Pagination";
 import IconTooltip from "@/components/IconTooltip";
@@ -257,6 +258,7 @@ export default function NotificationsPage() {
   return (
     <main className="main-content bg-neutral px-10 pb-14 pt-9">
       <div className="mx-auto max-w-[720px]">
+        <Breadcrumb className="mb-3" items={[{ label: "홈", href: "/" }, { label: "알림" }]} />
         <div className="mb-[22px] flex items-end justify-between">
           <div>
             <h1 className="m-0 text-[26px] font-extrabold tracking-[-0.6px]">알림</h1>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import AddWatchlistModal from "@/components/AddWatchlistModal";
+import Breadcrumb from "@/components/Breadcrumb";
 import IconTooltip from "@/components/IconTooltip";
 import Toast from "@/components/Toast";
 import CardImage from "@/components/CardImage";
@@ -283,6 +284,7 @@ export default function WatchlistPage() {
   return (
     <main className="main-content bg-neutral px-4 pb-14 pt-9 sm:px-10">
       <div className="mx-auto max-w-[1200px]">
+        <Breadcrumb className="mb-3" items={[{ label: "홈", href: "/" }, { label: "관심 목록" }]} />
         <div className="mb-[22px] flex items-end justify-between">
           <div>
             <h1 className="m-0 text-[26px] font-extrabold tracking-[-0.6px]">관심 목록</h1>
