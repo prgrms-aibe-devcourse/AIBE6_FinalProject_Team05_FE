@@ -31,6 +31,20 @@ const STATUS_CLS: Record<Status, string> = {
   목표도달: "bg-[#E8F7EF] text-[#087a4e]",
 };
 
+// 상태 배지 — 텍스트 앞에 8px 색상 도트를 두어 한눈에 스캔되게 한다(#238). 도트는 bg-current로
+// 배지 텍스트 색을 그대로 따라가므로 상태별 색을 새로 만들지 않는다(기존 토큰 확장). 데스크톱
+// 표/모바일 카드 두 곳에서 같은 마크업을 쓰므로 한 컴포넌트로 합친다.
+function StatusBadge({ status, className = "" }: { status: Status; className?: string }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-[11px] py-[5px] text-xs font-bold ${STATUS_CLS[status]} ${className}`}
+    >
+      <i className="h-2 w-2 rounded-full bg-current" aria-hidden="true" />
+      {status}
+    </span>
+  );
+}
+
 type LoadState = "loading" | "error" | "ready";
 type Filter = "all" | "unset" | "wait" | "reached";
 type Sort = "oldest" | "latest";
@@ -465,11 +479,7 @@ export default function WatchlistPage() {
                                 : "-"}
                             </div>
                             <div>
-                              <span
-                                className={`rounded-full px-[11px] py-[5px] text-xs font-bold ${STATUS_CLS[status]}`}
-                              >
-                                {status}
-                              </span>
+                              <StatusBadge status={status} />
                             </div>
                             <div className="flex items-center justify-end gap-3">
                               {/* 아이콘만 있는 버튼이라 시각 사용자에게도 이름을 보여준다(#238) —
@@ -587,11 +597,7 @@ export default function WatchlistPage() {
                               <div className="text-xs text-[#9A9AA2]">{row.setName ?? "-"}</div>
                             </div>
                           </Link>
-                          <span
-                            className={`flex-shrink-0 rounded-full px-[11px] py-[5px] text-xs font-bold ${STATUS_CLS[status]}`}
-                          >
-                            {status}
-                          </span>
+                          <StatusBadge status={status} className="flex-shrink-0" />
                         </div>
 
                         <div className="mt-3.5 flex flex-col gap-1.5 border-t border-[#F2F2F5] pt-3 text-[13px]">
