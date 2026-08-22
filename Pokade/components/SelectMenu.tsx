@@ -97,6 +97,11 @@ export default function SelectMenu<T extends string>({
     }
   };
 
+  // 옵션이 하나도 없으면 렌더할 게 없다 — selected(=options[0])가 undefined가 되어 아래에서
+  // selected.label 접근 시 크래시하므로, 현재 사용처엔 없어도 재사용 컴포넌트로서 방어한다.
+  // (모든 훅은 위에서 이미 호출됐으므로 이 early return은 훅 규칙을 어기지 않는다.)
+  if (options.length === 0) return null;
+
   return (
     <div ref={rootRef} className={`relative ${className}`}>
       <button
