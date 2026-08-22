@@ -129,12 +129,47 @@ export function notifStyle(
   }
 }
 
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+const YEAR_MS = 365 * DAY_MS;
+
+// 알림이 온 시각 표시. 예전에는 항상 "MM. DD. 오전 HH:MM" 절대시각이라, 2분 전에 도착한
+// 알림도 시계를 봐야 새 건지 알 수 있었다(#238). 최근 것일수록 "얼마나 지났나"가 궁금하고
+// 오래된 것일수록 "언제였나"가 궁금하다는 점에 맞춰 세 구간으로 나눈다.
+//
+// - 24시간 이내: "방금 전" / "N분 전" / "N시간 전"  — 최신성 판단이 목적
+// - 24시간~1년: 기존 절대시각 그대로            — "며칠 전"보다 날짜가 더 유용해지는 구간
+// - 1년 이상:   연도까지                        — 연도가 없으면 해가 모호해진다
+//
+// 상대시간은 렌더 시점에 계산되므로 저절로 갱신되지는 않는다 — 헤더 드롭다운은 30초 폴링이
+// 목록을 교체하며 다시 그려주고(useNotificationStore), 전체 목록은 읽음/삭제 같은 조작마다
+// 다시 불러온다. 초 단위 정확도가 필요한 화면이 아니라 별도 타이머는 두지 않았다.
 export function formatNotifTime(iso: string): string {
-  return new Date(iso).toLocaleString("ko-KR", {
+  const date = new Date(iso);
+  // 파싱 실패 시 예전에는 "Invalid Date"가 그대로 화면에 찍혔다 — 원문을 돌려주는 편이 낫다.
+  if (Number.isNaN(date.getTime())) return iso;
+
+  // 시계 오차 등으로 미래 시각이 오면 음수가 되는데, "-3분 전"이 뜨지 않게 0으로 눌러둔다.
+  const elapsedMs = Math.max(0, Date.now() - date.getTime());
+
+  if (elapsedMs < MINUTE_MS) return "방금 전";
+  if (elapsedMs < HOUR_MS) return `${Math.floor(elapsedMs / MINUTE_MS)}분 전`;
+  if (elapsedMs < DAY_MS) return `${Math.floor(elapsedMs / HOUR_MS)}시간 전`;
+
+  if (elapsedMs < YEAR_MS) {
+    return date.toLocaleString("ko-KR", {
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  return date.toLocaleDateString("ko-KR", {
+    year: "numeric",
     month: "2-digit",
     day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
   });
 }
 
