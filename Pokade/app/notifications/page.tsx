@@ -266,7 +266,10 @@ export default function NotificationsPage() {
               관심 등록·거래 등 전체 알림을 확인하세요
             </p>
           </div>
-          {feedUnreadCount > 0 && (
+          {/* 노출 조건에 loadState === "ready"를 함께 본다: 노출은 스토어 기준(feedUnreadCount)
+              인데 동작(markAllRead)은 이 페이지의 data가 있어야 하므로, 로딩/에러 구간에서는
+              버튼이 보여도 눌러야 아무 일도 없는 no-op이 됐다. 두 기준을 맞춰 그 구간엔 숨긴다. */}
+          {loadState === "ready" && feedUnreadCount > 0 && (
             <button
               type="button"
               onClick={markAllRead}
