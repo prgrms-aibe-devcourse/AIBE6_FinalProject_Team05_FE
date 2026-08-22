@@ -725,8 +725,12 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                           ) : displayBuyPrice != null ? (
                             `${displayBuyPrice.toLocaleString("ko-KR")}원`
                           ) : (
+                            // "상품 없음" 네 글자만 있으면 값이 비어 있는 건지 판매가 없는 건지
+                            // 읽히지 않는다 — 특히 재입고 알림을 타고 들어왔는데 그새 매물이
+                            // 팔리거나 거래 중이라 사라진 경우 화면이 아무 설명을 안 하는
+                            // 셈이었다(#238). 상태를 문장으로 말해준다.
                             <span className="text-[14px] font-semibold text-[#9A9AA2]">
-                              상품 없음
+                              판매 중인 상품이 없어요
                             </span>
                           )}
                         </div>
@@ -799,10 +803,14 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                                   <span className="text-[12px] font-extrabold text-ink">
                                     {GRADE_LABELS[grade]}
                                   </span>
+                                  {/* 위 즉시구매가와 달리 여기는 짧게 간다(#238) — 타일이 7개라
+                                      같은 문장을 일곱 번 반복하면 글자벽이 되고, 안쪽 가용폭
+                                      117px에 11px 기준 103px를 채워 여백도 사라진다. 상태를
+                                      문장으로 설명하는 역할은 바로 위 즉시구매가 줄이 맡는다. */}
                                   <span className="text-[11px] font-semibold text-[#8A8A92]">
                                     {hasStock
                                       ? `${offer.price.toLocaleString("ko-KR")}원 · ${offer.count}개`
-                                      : "상품 없음"}
+                                      : "판매 없음"}
                                   </span>
                                 </button>
                               );
