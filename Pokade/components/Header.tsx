@@ -8,6 +8,7 @@ import CardImage from "@/components/CardImage";
 import Avatar from "@/components/Avatar";
 import { SearchBar } from "@/components/CardSearchBar";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
+import { useMinuteTick } from "@/hooks/useMinuteTick";
 import {
   notifStyle,
   formatNotifTime,
@@ -74,6 +75,12 @@ function LoggedInRight({
   const retryNotifications = useNotificationStore((s) => s.retry);
   const markOneRead = useNotificationStore((s) => s.markOneRead);
   const markAllRead = useNotificationStore((s) => s.markAllRead);
+
+  // 드롭다운이 열린 동안 "N분 전" 상대시간이 굳지 않도록 1분마다 리렌더한다(#238).
+  // 30초 폴링이 목록을 교체하며 갱신하지만 그 사이 구간(최대 30초)엔 굳고, SSE 모드에선
+  // 새 알림이 오기 전까지 갱신 트리거가 없다. 드롭다운이 닫혀 있으면(open !== "notif")
+  // 상대시간이 화면에 없으므로 타이머를 걸지 않아 불필요한 리렌더를 피한다.
+  useMinuteTick(open === "notif");
 
   // 목적지 규칙은 /app/notifications/page.tsx와 공유한다(lib/notificationDisplay의
   // notificationHref) — 읽음 여부와 무관하게 항상 이동하고, 드롭다운은 페이지 전환 후
