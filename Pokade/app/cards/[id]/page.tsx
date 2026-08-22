@@ -774,9 +774,29 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                           priceLoadState === "ready" &&
                           !listingsError &&
                           activeListings.length === 0 && (
-                            <p className="m-0 mt-2.5 rounded-xl bg-lavender px-3 py-2.5 text-[12px] font-semibold leading-[1.55] text-secondary">
-                              알림을 받은 상품은 이미 판매됐거나 다른 분이 거래 중일 수 있어요.
-                            </p>
+                            <div className="mt-2.5 flex items-start gap-2 rounded-xl border-l-4 border-secondary bg-lavender px-3 py-2.5 text-[12px] font-semibold leading-[1.55] text-secondary">
+                              {/* 안내(공지) 성격을 명확히 하기 위한 좌측 강조선 + info 아이콘 —
+                                  기존 lavender/secondary 토큰만 사용(프로젝트 인라인 SVG 컨벤션). */}
+                              <svg
+                                width="15"
+                                height="15"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="mt-px flex-none"
+                                aria-hidden="true"
+                              >
+                                <circle cx="12" cy="12" r="9" />
+                                <path d="M12 11v5" />
+                                <path d="M12 7.5h.01" />
+                              </svg>
+                              <p className="m-0">
+                                알림을 받은 상품은 이미 판매됐거나 다른 분이 거래 중일 수 있어요.
+                              </p>
+                            </div>
                           )}
                       </div>
 
