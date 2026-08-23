@@ -347,7 +347,11 @@ function SearchDashboard() {
     setSelectedTypes([]);
     setSelectedRarities([]);
     setSelectedLanguages([]);
-    setSort("popular");
+    // 정렬(sort)은 초기화하지 않는다 — 이 버튼의 활성 조건(사이드바 totalSelected)과 라벨이
+    // 모두 "필터"만 가리키는데 정렬까지 되돌리면, 사이드바 밖(결과 영역 우상단)에 있는
+    // 컨트롤이 이유 없이 바뀐 것처럼 보인다. 0건 빈 화면의 "필터 초기화"도 마찬가지로
+    // 정렬을 바꿔봐야 0건이 해소되지 않는다. 페이지(page)는 필터가 바뀌면 어차피 1로
+    // 돌아가는 종속 값이라 그대로 초기화한다.
     setPage(1);
     // 필터가 이미 초기값이면 위 세터들이 상태를 바꾸지 않아 카드 목록 effect가
     // 재실행되지 않는다 — reloadKey를 강제로 올려 항상 재요청되게 한다.
