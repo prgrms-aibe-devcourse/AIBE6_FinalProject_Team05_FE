@@ -159,6 +159,10 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   // GET /api/listings는 (summary/trades와 달리) 아직 인증이 필요해 401이 날 수 있다 —
   // "매물 없음"과 "조회 권한 없음"을 구분해서 보여주기 위한 별도 상태.
   const [listingsError, setListingsError] = useState<ApiError | null>(null);
+  // 시세 요약도 같은 이유로 실패를 따로 들고 있는다(#238) — 대표 변형이 없는 카드는 BE가
+  // 404(PRIMARY_VARIANT_NOT_FOUND)를 내는데, 이전에는 실패를 조용히 삼켜 priceSummary가 null이
+  // 되고 화면은 "판매 중인 상품이 없어요"로 단정했다. 조회 실패는 "없음"이 아니라 "모름"이다.
+  const [summaryError, setSummaryError] = useState<ApiError | null>(null);
   // 즉시구매 — 한 번에 하나의 매물만 처리(동시 클릭 방지)하고, 에러는 구매 박스 안에 표시한다.
   const [buyingListingId, setBuyingListingId] = useState<number | null>(null);
   const [buyError, setBuyError] = useState<string | null>(null);
@@ -363,6 +367,16 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     ]).then(([summaryResult, listingsResult]) => {
       if (cancelled) return;
       setPriceSummary(summaryResult.status === "fulfilled" ? summaryResult.value : null);
+      // listingsError와 같은 방식으로 실패 사유를 남긴다 — 판본이 2개 이상이면 여기서 요약을
+      // 아예 조회하지 않고 Promise.resolve(null)로 채우므로(위 hasSingleVariant), 그 경우는
+      // fulfilled라 실패로 오인되지 않는다.
+      setSummaryError(
+        summaryResult.status === "fulfilled"
+          ? null
+          : summaryResult.reason instanceof ApiError
+            ? summaryResult.reason
+            : new ApiError(0, "UNKNOWN", "가격 정보를 불러오지 못했습니다."),
+      );
       if (listingsResult.status === "fulfilled") {
         setActiveListings(listingsResult.value);
         setListingsError(null);
@@ -781,6 +795,14 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                             </span>
                           ) : displayBuyPrice != null ? (
                             `${displayBuyPrice.toLocaleString("ko-KR")}원`
+                          ) : summaryError || listingsError ? (
+                            // 조회가 실패했으면 "없다"고 단정하지 않는다(#238) — 재입고 배너가
+                            // !listingsError로 "실패는 없음이 아니라 모름"을 가리는 것과 같은 기준을
+                            // 값 자체에도 적용한다. 가격을 실제로 받아온 경우(displayBuyPrice != null)는
+                            // 위 분기에서 이미 걸러지므로 여기 오지 않는다.
+                            <span className="text-[14px] font-semibold text-[#9A9AA2]">
+                              가격 정보를 불러오지 못했어요
+                            </span>
                           ) : (
                             // "상품 없음" 네 글자만 있으면 값이 비어 있는 건지 판매가 없는 건지
                             // 읽히지 않는다 — 특히 재입고 알림을 타고 들어왔는데 그새 매물이
