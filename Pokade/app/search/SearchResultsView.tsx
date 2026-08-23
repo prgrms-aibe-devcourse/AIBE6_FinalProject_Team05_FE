@@ -510,10 +510,19 @@ export default function SearchResultsView({
                       <CardImage src={c.imageUrl} alt={displayName} label="카드" />
                     </div>
                     <div className="flex flex-col p-3 pb-0">
-                      <div className="text-[13.5px] font-bold">
+                      {/* 줄 수 상한(#238) — 세트명("Burning Shadows · Rare Holo GX")이 2줄이 되면
+                          그 카드가 속한 행 전체가 21px 커져 그리드가 행마다 들쭉날쭉했다(실측
+                          404~446px). 잘린 값은 title로 hover 시 전체를 볼 수 있고 상세 페이지에도
+                          그대로 있다. 가격 줄 위치는 mt-auto가 이미 바닥에 고정하고 있어 무관하다. */}
+                      <div className="line-clamp-2 text-[13.5px] font-bold" title={displayName}>
                         {q ? highlightMatch(displayName, q) : displayName}
                       </div>
-                      <div className="mt-0.5 text-[11.5px] text-[#9A9AA2]">{c.set}</div>
+                      <div
+                        className="mt-0.5 line-clamp-1 text-[11.5px] text-[#9A9AA2]"
+                        title={c.set}
+                      >
+                        {c.set}
+                      </div>
                       {/* EN(기본값)이 절대다수라 EN은 배지를 생략하고, 눈에 띄어야 하는 예외
                         (JA 등 비영어판)만 표시한다 — 대다수 카드에 불필요한 배지를 매번
                         노출하지 않으면서도 국가판이 다른 경우만 부각한다. */}
