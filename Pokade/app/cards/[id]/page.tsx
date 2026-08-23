@@ -13,7 +13,7 @@ import RelatedCardsSection from "./RelatedCardsSection";
 import VariantPriceComparison from "./VariantPriceComparison";
 import OrderActivitySection from "./OrderActivitySection";
 import { NOTIFICATION_ORIGIN_PARAM, NOTIFICATION_ORIGIN_VALUE } from "@/lib/notificationDisplay";
-import { CardDetailResponse, parseCardId, variantLabel } from "@/types/card";
+import { CardDetailResponse, formatSetAndRarity, parseCardId, variantLabel } from "@/types/card";
 import {
   ChartPeriod,
   GRADE_LABELS,
@@ -100,6 +100,16 @@ function computeGradeSummary(
     }
   }
   return summary;
+}
+
+// 시세 요약 조회 결과 → summaryError 값. 초기 로드와 재조회(refreshListingsAndPrice)가 같은
+// 규칙을 써야 "재조회는 실패했는데 이전 성공 상태가 그대로 남는" 어긋남이 생기지 않는다.
+// 성공(fulfilled)이면 null로 되돌리므로 이전 실패도 함께 해제된다.
+function toSummaryError(result: PromiseSettledResult<PriceSummaryResponse | null>) {
+  if (result.status === "fulfilled") return null;
+  return result.reason instanceof ApiError
+    ? result.reason
+    : new ApiError(0, "UNKNOWN", "가격 정보를 불러오지 못했습니다.");
 }
 
 // 선택된 변형(없으면 카드 대표 이미지)의 대표 이미지 — 구매 흐름(handleBuy)과 본문 렌더링에서 공유.
@@ -197,6 +207,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     ]);
 
     setPriceSummary(summaryResult.status === "fulfilled" ? summaryResult.value : null);
+    setSummaryError(toSummaryError(summaryResult));
 
     const nextListings = listingsResult.status === "fulfilled" ? listingsResult.value : [];
     setActiveListings(nextListings);
@@ -370,13 +381,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
       // listingsError와 같은 방식으로 실패 사유를 남긴다 — 판본이 2개 이상이면 여기서 요약을
       // 아예 조회하지 않고 Promise.resolve(null)로 채우므로(위 hasSingleVariant), 그 경우는
       // fulfilled라 실패로 오인되지 않는다.
-      setSummaryError(
-        summaryResult.status === "fulfilled"
-          ? null
-          : summaryResult.reason instanceof ApiError
-            ? summaryResult.reason
-            : new ApiError(0, "UNKNOWN", "가격 정보를 불러오지 못했습니다."),
-      );
+      setSummaryError(toSummaryError(summaryResult));
       if (listingsResult.status === "fulfilled") {
         setActiveListings(listingsResult.value);
         setListingsError(null);
@@ -724,7 +729,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                           {displayName}
                         </h1>
                         <div className="mt-2 text-[14px] text-[#8A8A92]">
-                          {card.setName} · {card.rarity}
+                          {formatSetAndRarity(card.setName, card.rarity)}
                         </div>
                         {/* EN(기본값)이 절대다수라 EN은 생략하고, 눈에 띄어야 하는 예외
                             (JA 등 비영어판)만 표시한다 — 검색 타일과 동일한 정책(SearchResultsView.tsx). */}
