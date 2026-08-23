@@ -366,7 +366,11 @@ function SearchDashboard() {
 
   return (
     <main className="main-content bg-neutral px-4 pb-14 pt-8 sm:px-10">
-      <div className="mx-auto max-w-[1280px]">
+      {/* 콘텐츠 최대 폭(#238) — 1280px은 1920px 화면에서 좌우가 280px씩 비어 목록이 가운데로
+          몰려 보였다. 1520px으로 넓혀 카드 타일이 자연스럽게 커지게 한다(5열 유지). 전역이 아니라
+          이 페이지 로컬 값이라 홈/워치리스트/알림/카드상세 등 다른 페이지에는 영향이 없다
+          (각 페이지가 자기 max-w를 따로 들고 있고, layout.tsx에는 폭 제한이 없다). */}
+      <div className="mx-auto max-w-[1520px]">
         {/* border-t-primary는 유지한다(#238) — 검색 폼에서 색을 걷어내 이제 이 선이 상단의
             유일한 강조라 중복이 아니고, 결과/필터 카드(같은 rounded-2xl·shadow-card지만 강조선
             없음)와 구분해 "이 화면의 주 진입점"임을 표시하는 역할이 남는다.
@@ -376,7 +380,9 @@ function SearchDashboard() {
           <h1 className="m-0 mb-5 text-[30px] font-extrabold tracking-[-1px] sm:text-[34px]">
             {q ? `"${q}" 검색 결과` : "카드 검색"}
           </h1>
-          <SearchBar width="w-full" variant="market" />
+          {/* 콘텐츠 폭을 넓히면 검색 폼이 1,456px까지 늘어나 입력창만 지나치게 길어진다 —
+              카드 폭은 따라가되 폼 자체는 상한을 둔다. 타이틀이 왼쪽 정렬이라 폼도 왼쪽에 붙는다. */}
+          <SearchBar width="w-full max-w-[860px]" variant="market" />
         </div>
 
         <SearchResultsView
