@@ -30,23 +30,21 @@ const CONTAINER_STYLES: Record<SearchBarVariant, string> = {
   // 필드가 흰 헤더에 묻히지 않는다. 확장 애니메이션은 넣지 않는다(검색은 상시 노출 유지).
   default:
     "rounded-[11px] border border-[#EDEDF0] bg-neutral px-3.5 py-2.5 shadow-[0_1px_4px_rgba(20,26,52,0.04)]",
-  // market(#238): 각진 2px 테두리는 카드 컨테이너의 border-t-primary와 겹쳐 화면 상단이 빨간
-  // 사각형 두 겹으로 둘러싸였다(포커스 시 폼 테두리까지 빨개져 더 심했다). 선으로 가두는 대신
-  // 그림자로 살짝 띄우는 방식으로 바꾼다 — 테두리는 거의 보이지 않는 1px만 남겨 입력 영역의
-  // 경계만 잡고, 라운드를 키워 각진 인상을 없앤다. 색 강조는 오른쪽 제출 버튼 하나만 맡는다.
-  market:
-    "rounded-[14px] border border-[#EDEDF0] bg-white p-2 shadow-[0_2px_10px_rgba(20,26,52,0.05)]",
+  // market(#238): 필터를 선(구분선) 기반 구조로 바꾸면서 검색창도 같은 언어로 맞춘다 — 떠 있는
+  // 그림자를 걷어내고 1px 선 하나로만 경계를 잡는다. 테두리는 그림자가 사라진 만큼 #EDEDF0 →
+  // #DDDDE3으로 한 단계 진하게(선이 유일한 경계라 보여야 한다). radius도 14 → 10px로 낮춰
+  // pill 인상을 피한다. 색 강조는 오른쪽 제출 버튼 하나만 맡는다.
+  market: "rounded-[10px] border border-[#DDDDE3] bg-white p-2",
 };
 const FOCUS_STYLES: Record<SearchBarVariant, string> = {
   // 마켓과 동일한 반응: 색을 쓰지 않고 그림자가 퍼지며 테두리만 진해진다(기존 border-primary
   // 제거). 헤더는 폭이 224~240px로 좁아 마켓(0 8px 24px)보다 한 단계 작은 그림자를 쓴다.
   default:
     "transition-[box-shadow,border-color] duration-200 focus-within:border-[#9A9AA2] focus-within:shadow-[0_4px_14px_rgba(20,26,52,0.10)]",
-  // 포커스 반응에서 색을 뺀다(#238) — 상단 강조선이 이미 빨간색이라 폼까지 빨개지면 중복이다.
-  // 대신 그림자가 부드럽게 퍼지며 떠오르고, 테두리는 #EDEDF0 → #9A9AA2로 확실히 진해져
-  // 색 없이도 포커스가 눈에 보인다(색만으로 상태를 전달하지 않는다는 접근성 원칙과도 맞는다).
-  market:
-    "transition-[box-shadow,border-color] duration-200 focus-within:border-[#9A9AA2] focus-within:shadow-[0_8px_24px_rgba(20,26,52,0.10)]",
+  // 포커스도 선으로만 알린다(#238) — 그림자를 쓰지 않고 테두리를 #DDDDE3 → #4B4B52로 크게
+  // 진하게 해 대비를 만든다. 색(primary)을 쓰지 않는 이유는 상단 강조선이 이미 빨간색이라
+  // 중복이기 때문이고, 명도 변화만으로 알리므로 색각 이상 사용자에게도 그대로 전달된다.
+  market: "transition-[border-color] duration-200 focus-within:border-[#4B4B52]",
 };
 
 // 인풋 글자 크기 — 헤더(default)는 좁은 폭에 맞춘 기존 크기를 그대로 두고, 마켓만 페이지의
@@ -57,19 +55,26 @@ const INPUT_STYLES: Record<SearchBarVariant, string> = {
   market: "text-[15px]",
 };
 
+// placeholder는 variant별로 나눈다 — 마켓은 "무엇으로 검색되는지"를 알려줄 공간이 있지만,
+// 헤더(default)는 224~240px라 긴 문구가 잘린다. 문구에 "카드 번호"를 넣지 않은 건 BE 검색이
+// c.name 부분일치/유사도와 도감번호(한글·초성 입력)만 매칭하고 카드 번호·externalId는
+// 매칭하지 않기 때문이다(CardSearchSql 확인 + API 실측: 정확한 externalId 검색 0건).
+const PLACEHOLDER_TEXT: Record<SearchBarVariant, string> = {
+  default: "카드 이름으로 검색",
+  market: "카드 이름을 한글 또는 영문으로 검색하세요",
+};
+
 // 마켓 전용 제출 버튼 — 포인트 충전 CTA(app/mypage/points/charge/page.tsx)와 같은 언어.
 // 44x44라 터치 타겟도 그대로 만족한다.
 // 베이스(모양)와 인터랙션(hover/active)을 분리한다: 로딩 자리표시인 SearchBarShell의 <span>은
 // 클릭할 수 없으므로 hover/active가 무의미해 베이스만 쓰고, 실제 <button>만 인터랙션까지 붙인다.
-// 하드 섀도(0 3px 0)와 primary-dark 테두리를 걷어내고 같은 primary 면을 부드러운 그림자로
-// 띄운다(#238) — 폼이 조용해진 만큼 버튼이 이 화면의 유일한 색 포인트가 되므로, 선으로 가두지
-// 않아도 충분히 눈에 띈다. 44x44는 그대로라 터치 타겟도 유지된다.
+// 아이콘 전용에서 "검색" 텍스트를 함께 두는 버튼으로 바꾼다(#238) — 돋보기만으로는 무엇을
+// 하는 버튼인지 아이콘 관습에 기대야 하고, 텍스트가 있으면 그 자체가 접근 이름이 되어 별도
+// aria-label이 필요 없다. 높이 44px은 그대로라 터치 타겟을 유지하고 폭만 늘어난다.
+// 그림자는 걷어내고(폼과 같은 선 기반 마감) hover는 색 변화로만 알린다.
 const MARKET_SUBMIT_BASE =
-  "flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[11px] bg-primary text-white shadow-[0_4px_14px_rgba(238,21,21,0.30)]";
-// rest → hover(살짝 부상) → active(눌림)의 3단 피드백은 유지하되, 단차가 아니라 그림자가
-// 퍼지고 옅어지는 방식으로 바꿔 폼의 소프트 섀도와 같은 언어를 쓴다.
-const MARKET_SUBMIT_INTERACTION =
-  "transition hover:-translate-y-[1px] hover:shadow-[0_7px_20px_rgba(238,21,21,0.38)] active:translate-y-0 active:shadow-[0_2px_8px_rgba(238,21,21,0.26)]";
+  "flex h-11 flex-shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[10px] bg-primary px-4 text-[14px] font-bold text-white";
+const MARKET_SUBMIT_INTERACTION = "transition-colors hover:bg-primary-dark";
 const MARKET_SUBMIT_BUTTON = `${MARKET_SUBMIT_BASE} ${MARKET_SUBMIT_INTERACTION}`;
 
 function SearchIcon({ stroke, size = 18 }: { stroke: string; size?: number }) {
@@ -122,14 +127,15 @@ function SearchBarShell({
         </span>
       )}
       <input
-        placeholder="카드 이름으로 검색"
+        placeholder={PLACEHOLDER_TEXT[variant]}
         disabled
         className={`w-full border-none bg-transparent text-ink outline-none ${INPUT_STYLES[variant]}`}
       />
       {/* 실제 폼(SearchBarInner)과 높이가 같아야 로딩→실제 전환 시 튀지 않는다. */}
       {variant === "market" && (
         <span className={MARKET_SUBMIT_BASE}>
-          <SearchIcon stroke="#FFFFFF" />
+          <SearchIcon stroke="#FFFFFF" size={16} />
+          검색
         </span>
       )}
     </div>
@@ -325,7 +331,7 @@ function SearchBarInner({
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           onKeyDown={handleKeyDown}
-          placeholder="카드 이름으로 검색"
+          placeholder={PLACEHOLDER_TEXT[variant]}
           spellCheck={false}
           role="combobox"
           aria-expanded={showDropdown}
@@ -357,9 +363,12 @@ function SearchBarInner({
             </svg>
           </button>
         )}
+        {/* 버튼 텍스트("검색")가 곧 접근 이름이라 aria-label을 따로 두지 않는다 — 두면
+            스크린리더가 라벨만 읽고 화면의 텍스트와 어긋난다. 아이콘은 aria-hidden. */}
         {variant === "market" && (
-          <button type="submit" aria-label="검색" className={MARKET_SUBMIT_BUTTON}>
-            <SearchIcon stroke="#FFFFFF" />
+          <button type="submit" className={MARKET_SUBMIT_BUTTON}>
+            <SearchIcon stroke="#FFFFFF" size={16} />
+            검색
           </button>
         )}
       </form>
