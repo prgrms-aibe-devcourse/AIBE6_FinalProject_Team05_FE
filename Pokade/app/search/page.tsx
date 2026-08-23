@@ -380,9 +380,11 @@ function SearchDashboard() {
           <h1 className="m-0 mb-5 text-[30px] font-extrabold tracking-[-1px] sm:text-[34px]">
             {q ? `"${q}" 검색 결과` : "카드 검색"}
           </h1>
-          {/* 콘텐츠 폭을 넓히면 검색 폼이 1,456px까지 늘어나 입력창만 지나치게 길어진다 —
-              카드 폭은 따라가되 폼 자체는 상한을 둔다. 타이틀이 왼쪽 정렬이라 폼도 왼쪽에 붙는다. */}
-          <SearchBar width="w-full max-w-[860px]" variant="market" />
+          {/* 폼 폭은 카드 폭에 맞춘다(#238) — 860px 상한을 뒀더니 1,456px 카드 안에서 폼만
+              왼쪽에 몰려 오른쪽에 600px 빈칸이 남았다. 상한을 올려도 그 빈칸이 줄 뿐 없어지지
+              않아, 아예 카드 폭을 그대로 쓰게 한다. 입력창이 길어 보이는 문제는 왼쪽 돋보기와
+              오른쪽 제출 버튼이 양 끝을 잡아줘 "검색 바" 형태로 읽히는 것으로 해소된다. */}
+          <SearchBar width="w-full" variant="market" />
         </div>
 
         <SearchResultsView
