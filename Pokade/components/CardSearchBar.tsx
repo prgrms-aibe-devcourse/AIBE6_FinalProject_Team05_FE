@@ -20,22 +20,25 @@ type SearchBarVariant = "default" | "market";
 // 빨간 CTA로 올려서(#235) 눌러야 할 대상이 무엇인지 분명히 한다 — 입체감(shadow-tactile)은
 // 이 프로젝트에서 "누를 수 있는 것"에만 쓰는 표시라 입력 필드 본체에는 넣지 않는다.
 // 헤더는 기존 스타일(variant="default") 그대로 유지 — 이번 개선 범위가 아니다.
-// 테두리 두께를 variant가 직접 소유한다 — market이 2px가 되면서 호출부의 공통 `border`(1px)와
-// 한 요소에서 겹치는데, Tailwind는 클래스 문자열 순서가 아니라 스타일시트 순서로 이기고 지므로
-// 어느 쪽이 적용될지 눈으로 보장할 수 없다. 공통 클래스에서 border를 빼고 여기서만 지정한다.
+// 테두리 두께를 variant가 직접 소유한다 — 공통 클래스에 `border`(1px)를 두면 variant가 다른
+// 두께를 쓸 때 한 요소에서 겹치는데, Tailwind는 클래스 문자열 순서가 아니라 스타일시트 순서로
+// 우선순위가 정해져 어느 쪽이 적용될지 보장할 수 없다. 여기서만 지정한다.
 const CONTAINER_STYLES: Record<SearchBarVariant, string> = {
   default: "rounded-[9px] border border-[#DDDDE3] bg-neutral px-3.5 py-2.5",
-  // market(#238): 필터 사이드바가 2px 각진 테두리 + blur 0 하드 섀도로 정리되면서 1px 둥근
-  // 테두리만 이 화면에서 혼자 다른 언어를 쓰게 됐다. 두께를 오른쪽 제출 버튼(border-2)과 맞추고
-  // 모서리를 각지게 낮춘다. 투명 배경이던 것도 흰 배경을 명시해 입력 영역임을 분명히 한다.
-  market: "rounded-[8px] border-2 border-[#DDDDE3] bg-white p-1.5",
+  // market(#238): 각진 2px 테두리는 카드 컨테이너의 border-t-primary와 겹쳐 화면 상단이 빨간
+  // 사각형 두 겹으로 둘러싸였다(포커스 시 폼 테두리까지 빨개져 더 심했다). 선으로 가두는 대신
+  // 그림자로 살짝 띄우는 방식으로 바꾼다 — 테두리는 거의 보이지 않는 1px만 남겨 입력 영역의
+  // 경계만 잡고, 라운드를 키워 각진 인상을 없앤다. 색 강조는 오른쪽 제출 버튼 하나만 맡는다.
+  market:
+    "rounded-[14px] border border-[#EDEDF0] bg-white p-2 shadow-[0_2px_10px_rgba(20,26,52,0.05)]",
 };
 const FOCUS_STYLES: Record<SearchBarVariant, string> = {
   default: "transition focus-within:border-primary",
-  // blur 4px 글로우 → blur 0 하드 오프셋(#238). shadow-tactile/필터 체크박스와 같은 언어라
-  // 새 토큰이 필요 없고, 강조가 "포커스한 순간"에만 나타나 평상시 화면을 시끄럽게 하지 않는다.
+  // 포커스 반응에서 색을 뺀다(#238) — 상단 강조선이 이미 빨간색이라 폼까지 빨개지면 중복이다.
+  // 대신 그림자가 부드럽게 퍼지며 떠오르고, 테두리는 #EDEDF0 → #9A9AA2로 확실히 진해져
+  // 색 없이도 포커스가 눈에 보인다(색만으로 상태를 전달하지 않는다는 접근성 원칙과도 맞는다).
   market:
-    "transition-[box-shadow,border-color] duration-200 focus-within:border-primary focus-within:shadow-[3px_3px_0_rgba(238,21,21,0.18)]",
+    "transition-[box-shadow,border-color] duration-200 focus-within:border-[#9A9AA2] focus-within:shadow-[0_8px_24px_rgba(20,26,52,0.10)]",
 };
 
 // 인풋 글자 크기 — 헤더(default)는 좁은 폭에 맞춘 기존 크기를 그대로 두고, 마켓만 페이지의
@@ -43,19 +46,22 @@ const FOCUS_STYLES: Record<SearchBarVariant, string> = {
 // 전환 시 높이가 튀지 않으므로 상수로 묶어 두 곳이 공유한다.
 const INPUT_STYLES: Record<SearchBarVariant, string> = {
   default: "text-[13.5px]",
-  market: "text-[14.5px]",
+  market: "text-[15px]",
 };
 
 // 마켓 전용 제출 버튼 — 포인트 충전 CTA(app/mypage/points/charge/page.tsx)와 같은 언어.
 // 44x44라 터치 타겟도 그대로 만족한다.
 // 베이스(모양)와 인터랙션(hover/active)을 분리한다: 로딩 자리표시인 SearchBarShell의 <span>은
 // 클릭할 수 없으므로 hover/active가 무의미해 베이스만 쓰고, 실제 <button>만 인터랙션까지 붙인다.
+// 하드 섀도(0 3px 0)와 primary-dark 테두리를 걷어내고 같은 primary 면을 부드러운 그림자로
+// 띄운다(#238) — 폼이 조용해진 만큼 버튼이 이 화면의 유일한 색 포인트가 되므로, 선으로 가두지
+// 않아도 충분히 눈에 띈다. 44x44는 그대로라 터치 타겟도 유지된다.
 const MARKET_SUBMIT_BASE =
-  "flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[9px] border-2 border-primary-dark bg-primary text-white shadow-tactile-sm";
-// rest(sm) → hover(살짝 부상) → active(눌림)의 3단 피드백. hover는 기존 shadow-tactile-hover
-// 토큰 재사용, transform/box-shadow만 움직여 200ms transition 안에서 매끄럽게 전환된다.
+  "flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[11px] bg-primary text-white shadow-[0_4px_14px_rgba(238,21,21,0.30)]";
+// rest → hover(살짝 부상) → active(눌림)의 3단 피드백은 유지하되, 단차가 아니라 그림자가
+// 퍼지고 옅어지는 방식으로 바꿔 폼의 소프트 섀도와 같은 언어를 쓴다.
 const MARKET_SUBMIT_INTERACTION =
-  "transition hover:-translate-y-[1px] hover:shadow-tactile-hover active:translate-y-0.5 active:shadow-tactile-active";
+  "transition hover:-translate-y-[1px] hover:shadow-[0_7px_20px_rgba(238,21,21,0.38)] active:translate-y-0 active:shadow-[0_2px_8px_rgba(238,21,21,0.26)]";
 const MARKET_SUBMIT_BUTTON = `${MARKET_SUBMIT_BASE} ${MARKET_SUBMIT_INTERACTION}`;
 
 function SearchIcon({ stroke, size = 18 }: { stroke: string; size?: number }) {

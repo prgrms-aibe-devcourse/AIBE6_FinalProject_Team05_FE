@@ -367,8 +367,13 @@ function SearchDashboard() {
   return (
     <main className="main-content bg-neutral px-4 pb-14 pt-8 sm:px-10">
       <div className="mx-auto max-w-[1280px]">
-        <div className="mb-6 rounded-2xl border border-t-[3px] border-[#EDEDF0] border-t-primary bg-white p-5 shadow-card">
-          <h1 className="m-0 mb-4 text-[26px] font-extrabold tracking-[-0.6px]">
+        {/* border-t-primary는 유지한다(#238) — 검색 폼에서 색을 걷어내 이제 이 선이 상단의
+            유일한 강조라 중복이 아니고, 결과/필터 카드(같은 rounded-2xl·shadow-card지만 강조선
+            없음)와 구분해 "이 화면의 주 진입점"임을 표시하는 역할이 남는다.
+            여백은 넉넉하게(20 → 24/32px), 타이틀은 크기·자간 대비로 시선을 끌게 한다 — 색을
+            더 쓰지 않고 위계를 만드는 쪽. */}
+        <div className="mb-6 rounded-2xl border border-t-[3px] border-[#EDEDF0] border-t-primary bg-white p-6 shadow-card sm:p-8">
+          <h1 className="m-0 mb-5 text-[30px] font-extrabold tracking-[-1px] sm:text-[34px]">
             {q ? `"${q}" 검색 결과` : "카드 검색"}
           </h1>
           <SearchBar width="w-full" variant="market" />
