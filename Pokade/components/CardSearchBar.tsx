@@ -246,11 +246,28 @@ function SearchBarInner({
     setDismissed(false);
   }
 
+  // 검색어(q)만 뺀 /search 주소 — 필터(types/rarity/languages/minPrice…)는 그대로 남긴다.
+  // 검색어를 지웠다고 걸어둔 필터까지 풀리면 조건이 조용히 사라져 더 혼란스럽다.
+  // /search 밖(헤더)에서는 보존할 필터 자체가 없으므로 목록 첫 화면으로 보낸다.
+  const searchUrlWithoutQuery = () => {
+    if (pathname !== "/search") return "/search";
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("q");
+    const qs = params.toString();
+    return qs ? `/search?${qs}` : "/search";
+  };
+
   // 검색 실행(직접 입력 Enter, 최근 검색어 클릭) 공통 경로 — 검색어를 최근 검색어에 저장한 뒤 이동.
   const runSearch = (term: string) => {
     const trimmed = term.trim();
-    if (!trimmed) return; // 빈 검색어는 BE가 400을 반환하므로 요청 자체를 막는다.
     inputRef.current?.blur();
+    // 빈 검색어는 BE가 400을 반환하므로 q를 붙이지 않는다 — 다만 예전처럼 early return으로
+    // 아무 일도 안 하면, 검색어를 지우고 검색한 사용자가 옛 ?q= 가 남은 0건 화면에 갇힌다
+    // (탈출구가 헤더 "마켓" 링크뿐이었다, #238). 전체 목록으로 되돌려 보낸다.
+    if (!trimmed) {
+      router.push(searchUrlWithoutQuery());
+      return;
+    }
     addRecentSearchTerm(trimmed);
     router.push(`/search?q=${encodeURIComponent(trimmed)}`);
   };
@@ -282,6 +299,12 @@ function SearchBarInner({
     setDismissed(false);
     setFocused(true);
     inputRef.current?.focus();
+    // 입력만 비우면 화면은 여전히 옛 검색 결과다 — 주소의 q도 같이 걷어내 목록과 입력창이
+    // 어긋나지 않게 한다(#238). 검색을 새로 실행한 게 아니라 되돌린 것이므로 히스토리를
+    // 쌓지 않도록 replace를 쓰고, /search가 아니면(헤더) 아무것도 하지 않는다.
+    if (pathname === "/search" && searchParams.get("q")) {
+      router.replace(searchUrlWithoutQuery(), { scroll: false });
+    }
   };
 
   const hasQuery = query.trim().length > 0;
