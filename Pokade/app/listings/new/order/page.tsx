@@ -52,10 +52,17 @@ function NewListingOrderForm() {
   const variantId = variantIdParam ? Number(variantIdParam) : undefined;
   const price = Number(searchParams.get("price"));
   const gradeParam = searchParams.get("grade");
-  const grade = (gradeParam as ListingGrade | null) ?? undefined;
+  // URL을 직접 조작해 임의 문자열을 넣었을 수 있으므로, GRADE_LABELS에 실제로 존재하는(RAW 제외)
+  // 값만 유효한 등급으로 인정한다 - 아니면 createListing 요청에 잘못된 grade가 그대로 실려 BE
+  // 오류로 이어진다.
+  const grade =
+    gradeParam && gradeParam !== "RAW" && gradeParam in GRADE_LABELS
+      ? (gradeParam as ListingGrade)
+      : undefined;
   const gradeKey: GradeKey = grade ?? "RAW";
 
   const [cardContext, setCardContext] = useState<CardContext | null>(null);
+  const [cardFetchError, setCardFetchError] = useState(false);
 
   const [settlementBankName, setSettlementBankName] = useState("");
   const [settlementAccountNumber, setSettlementAccountNumber] = useState("");
@@ -73,6 +80,7 @@ function NewListingOrderForm() {
     fetchCardDetail(cardId)
       .then((detail) => {
         if (cancelled) return;
+        setCardFetchError(false);
         setCardContext({
           displayName: detail.nameKo ?? detail.name,
           englishName: detail.name,
@@ -82,7 +90,10 @@ function NewListingOrderForm() {
         });
       })
       .catch(() => {
-        if (!cancelled) setCardContext(null);
+        if (!cancelled) {
+          setCardContext(null);
+          setCardFetchError(true);
+        }
       });
     return () => {
       cancelled = true;
@@ -91,7 +102,13 @@ function NewListingOrderForm() {
 
   if (status !== "authenticated") return null;
 
-  if (cardId == null || !price || !Number.isFinite(price) || price <= 0) {
+  if (
+    cardId == null ||
+    !price ||
+    !Number.isFinite(price) ||
+    price <= 0 ||
+    (variantIdParam != null && (!Number.isInteger(variantId) || (variantId ?? 0) <= 0))
+  ) {
     return (
       <main className="main-content flex items-center justify-center bg-neutral px-10 py-14">
         <p className="text-[14px] font-semibold text-[#8A8A92]">잘못된 접근입니다.</p>
@@ -298,11 +315,16 @@ function NewListingOrderForm() {
       {/* 하단 고정 제출 버튼 */}
       <div className="fixed inset-x-0 bottom-0 z-10 border-t border-[#EDEDF0] bg-white px-10 py-4">
         <div className="mx-auto w-full max-w-[560px]">
+          {cardFetchError && (
+            <p className="mb-2.5 text-[12.5px] font-semibold text-primary">
+              상품 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.
+            </p>
+          )}
           {error && <p className="mb-2.5 text-[12.5px] font-semibold text-primary">{error}</p>}
           <button
             type="submit"
             form="listing-order-form"
-            disabled={submitting}
+            disabled={submitting || cardFetchError || !cardContext}
             className="w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3.5 text-[15.5px] font-bold text-white shadow-tactile transition active:translate-y-0.5 active:shadow-tactile-active disabled:opacity-60"
           >
             {submitting ? "등록 중..." : `${price.toLocaleString("ko-KR")}원 · 판매 등록`}

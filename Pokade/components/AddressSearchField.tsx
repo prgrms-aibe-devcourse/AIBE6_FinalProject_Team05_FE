@@ -54,6 +54,7 @@ export default function AddressSearchField({
           type="text"
           value={zonecode}
           readOnly
+          aria-label="우편번호"
           placeholder="우편번호"
           className={`${inputCls} w-28 bg-neutral text-[#8A8A92]`}
         />
@@ -69,6 +70,7 @@ export default function AddressSearchField({
         type="text"
         value={baseAddress}
         readOnly
+        aria-label="기본 주소"
         placeholder="주소 검색을 눌러 입력해 주세요"
         className={`${inputCls} bg-neutral text-[#8A8A92]`}
       />
@@ -79,6 +81,7 @@ export default function AddressSearchField({
           setDetailAddress(e.target.value);
           onChange(combine(zonecode, baseAddress, e.target.value));
         }}
+        aria-label="상세 주소"
         placeholder="상세 주소 (동/호수 등)"
         disabled={!baseAddress}
         className={`${inputCls} disabled:cursor-not-allowed disabled:bg-neutral disabled:text-[#9A9AA2]`}

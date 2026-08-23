@@ -23,6 +23,7 @@ export default function BankSelector({
   return (
     <div>
       <select
+        aria-label="은행명"
         value={customMode ? CUSTOM_OPTION : value}
         onChange={(e) => {
           if (e.target.value === CUSTOM_OPTION) {
@@ -50,6 +51,7 @@ export default function BankSelector({
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          aria-label="은행명 직접 입력"
           placeholder="은행명을 입력해 주세요"
           autoFocus
           className={`${inputCls} mt-2.5`}

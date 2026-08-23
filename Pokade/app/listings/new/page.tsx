@@ -388,10 +388,14 @@ function NewListingForm() {
               등급 (선택)
             </label>
             <div className="group relative flex items-center">
-              <span className="flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-[#EDEDF0] text-[10.5px] font-bold text-[#8A8A92]">
+              <button
+                type="button"
+                aria-label="등급 기준 안내"
+                className="flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-[#EDEDF0] text-[10.5px] font-bold text-[#8A8A92]"
+              >
                 ?
-              </span>
-              <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-64 -translate-x-1/2 rounded-[10px] border border-[#EDEDF0] bg-white p-3 text-[12px] leading-relaxed text-[#4B4B52] opacity-0 shadow-card transition group-hover:opacity-100">
+              </button>
+              <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-64 -translate-x-1/2 rounded-[10px] border border-[#EDEDF0] bg-white p-3 text-[12px] leading-relaxed text-[#4B4B52] opacity-0 shadow-card transition group-hover:opacity-100 group-focus-within:opacity-100">
                 {GRADE_OPTIONS.map((g) => (
                   <p key={g} className="mb-1.5 last:mb-0">
                     <span className="font-bold text-ink">{g}</span> — {GRADE_GUIDE[g]}

@@ -996,15 +996,17 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                         >
                           {userStatus === "loading"
                             ? "인증 확인 중..."
-                            : tradeIntent === "sell"
-                              ? selectedGrade != null
-                                ? "판매하기"
-                                : "등급을 선택하세요"
-                              : showBuyOfferCta
-                                ? "구매입찰 등록"
-                                : selectedOffer
-                                  ? "구매하기"
-                                : "등급을 선택하세요"}
+                            : tradeIntent === null
+                              ? "거래 방식을 선택하세요"
+                              : tradeIntent === "sell"
+                                ? selectedGrade != null
+                                  ? "판매하기"
+                                  : "등급을 선택하세요"
+                                : showBuyOfferCta
+                                  ? "구매입찰 등록"
+                                  : selectedOffer
+                                    ? "구매하기"
+                                  : "등급을 선택하세요"}
                         </button>
                         <IconTooltip
                           label={myWatchlist ? "관심 해제" : "관심 등록"}

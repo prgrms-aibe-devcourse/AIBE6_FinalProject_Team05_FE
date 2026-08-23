@@ -50,7 +50,13 @@ function NewBuyOfferOrderForm() {
   const variantId = variantIdParam ? Number(variantIdParam) : undefined;
   const price = Number(searchParams.get("price"));
   const gradeParam = searchParams.get("grade");
-  const grade = (gradeParam as ListingGrade | null) ?? undefined;
+  // URL을 직접 조작해 임의 문자열을 넣었을 수 있으므로, GRADE_LABELS에 실제로 존재하는(RAW 제외)
+  // 값만 유효한 등급으로 인정한다 - 아니면 readyBuyOffer 요청에 잘못된 grade가 그대로 실려 BE
+  // 오류로 이어진다.
+  const grade =
+    gradeParam && gradeParam !== "RAW" && gradeParam in GRADE_LABELS
+      ? (gradeParam as ListingGrade)
+      : undefined;
   const gradeKey: GradeKey = grade ?? "RAW";
 
   const [cardContext, setCardContext] = useState<CardContext | null>(null);

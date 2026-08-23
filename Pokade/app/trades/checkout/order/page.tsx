@@ -103,7 +103,14 @@ function TradeCheckoutOrderForm() {
 
   if (status !== "authenticated") return null;
 
-  if (listingId == null || cardId == null || !price || !Number.isFinite(price) || price <= 0) {
+  if (
+    listingId == null ||
+    !Number.isInteger(listingId) ||
+    listingId <= 0 ||
+    cardId == null ||
+    !Number.isFinite(price) ||
+    price <= 0
+  ) {
     return (
       <main className="main-content flex items-center justify-center bg-neutral px-10 py-14">
         <p className="text-[14px] font-semibold text-[#8A8A92]">잘못된 접근입니다.</p>

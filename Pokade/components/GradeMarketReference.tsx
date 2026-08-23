@@ -35,6 +35,11 @@ export default function GradeMarketReference({
   const [recentTradePrice, setRecentTradePrice] = useState<number | null>(null);
   const [buyRows, setBuyRows] = useState<PriceRow[]>([]);
   const [sellRows, setSellRows] = useState<PriceRow[]>([]);
+  // 각 소스별 조회 실패를 "데이터 없음"과 구분해서 보여주기 위한 플래그 - 안 그러면 네트워크
+  // 오류가 "최근 거래 내역이 없습니다."/"없음"으로 잘못 표시된다.
+  const [tradesError, setTradesError] = useState(false);
+  const [buyError, setBuyError] = useState(false);
+  const [sellError, setSellError] = useState(false);
 
   useEffect(() => {
     if (!grade) return;
@@ -55,22 +60,34 @@ export default function GradeMarketReference({
         // fetchPriceChart는 오래된순이라 이 등급의 마지막 항목이 가장 최근 체결가.
         const matching = tradesResult.value.filter((t) => t.grade === grade);
         setRecentTradePrice(matching.length > 0 ? matching[matching.length - 1].price : null);
+        setTradesError(false);
       } else {
         setRecentTradePrice(null);
+        setTradesError(true);
       }
 
-      setBuyRows(
-        buyResult.status === "fulfilled"
-          ? groupByPrice(buyResult.value.map((o) => o.price)).sort((a, b) => b.price - a.price)
-          : [],
-      );
-      setSellRows(
-        sellResult.status === "fulfilled"
-          ? groupByPrice(
-              sellResult.value.filter((l) => l.grade === grade).map((l) => l.price),
-            ).sort((a, b) => a.price - b.price)
-          : [],
-      );
+      if (buyResult.status === "fulfilled") {
+        setBuyRows(
+          groupByPrice(buyResult.value.map((o) => o.price)).sort((a, b) => b.price - a.price),
+        );
+        setBuyError(false);
+      } else {
+        setBuyRows([]);
+        setBuyError(true);
+      }
+
+      if (sellResult.status === "fulfilled") {
+        setSellRows(
+          groupByPrice(
+            sellResult.value.filter((l) => l.grade === grade).map((l) => l.price),
+          ).sort((a, b) => a.price - b.price),
+        );
+        setSellError(false);
+      } else {
+        setSellRows([]);
+        setSellError(true);
+      }
+
       setLoadState("ready");
     });
 
@@ -86,6 +103,8 @@ export default function GradeMarketReference({
       <div className="mb-2.5 text-[12px] font-semibold text-[#8A8A92]">
         {loadState === "loading" ? (
           "시세 참고 정보 조회 중..."
+        ) : tradesError ? (
+          "최근 거래가를 불러오지 못했습니다."
         ) : recentTradePrice != null ? (
           <>
             {grade} 등급 최근 거래가{" "}
@@ -100,7 +119,9 @@ export default function GradeMarketReference({
         <div className="grid grid-cols-2 gap-3 text-[12px]">
           <div>
             <div className="mb-1 font-bold text-secondary">구매입찰</div>
-            {buyRows.length === 0 ? (
+            {buyError ? (
+              <div className="text-primary">조회 실패</div>
+            ) : buyRows.length === 0 ? (
               <div className="text-[#B4B4BB]">없음</div>
             ) : (
               buyRows.slice(0, ROW_LIMIT).map((row) => (
@@ -113,7 +134,9 @@ export default function GradeMarketReference({
           </div>
           <div>
             <div className="mb-1 font-bold text-primary">판매입찰</div>
-            {sellRows.length === 0 ? (
+            {sellError ? (
+              <div className="text-primary">조회 실패</div>
+            ) : sellRows.length === 0 ? (
               <div className="text-[#B4B4BB]">없음</div>
             ) : (
               sellRows.slice(0, ROW_LIMIT).map((row) => (
