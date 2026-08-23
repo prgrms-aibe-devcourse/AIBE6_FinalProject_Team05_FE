@@ -573,7 +573,10 @@ export default function SearchResultsView({
                               </span>
                             )}
                           </div>
-                          <div className="mt-0.5 text-[15px] font-extrabold text-ink">
+                          {/* 콘텐츠 폭 확대로 타일이 179 → 226px가 된 만큼 가격도 한 단계 올려
+                              카드명(13.5px)과의 대비를 1.11배 → 1.26배로 키운다(#238). 라벨은
+                              위 배지(S등급/참고 가격)가 이미 맡고 있어 새로 넣지 않는다. */}
+                          <div className="mt-0.5 text-[17px] font-extrabold text-ink">
                             {priceDisplay.price}
                           </div>
                         </>
