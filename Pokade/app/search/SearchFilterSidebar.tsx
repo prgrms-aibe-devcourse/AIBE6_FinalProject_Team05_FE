@@ -149,8 +149,8 @@ interface SearchFilterSidebarProps {
 // 자체는 그대로 두므로 Tab 이동/Space 토글/label 연결·클릭이 전부 기존과 동일하게 유지된다.
 // 체크 표시는 인라인 SVG를 background-image로 얹는다 — input은 대체 요소라 ::after가 렌더되지
 // 않아 가상 요소로는 그릴 수 없고, 이 방식은 아이콘 컴포넌트나 파일을 추가하지 않아도 된다.
-// 선택 시 하드 섀도는 뺐다(#238) — 검색창을 소프트 그림자로 통일하면서 16px 체크박스에만
-// blur 0 하드 섀도가 남아 언어가 갈렸다. primary 면 + 흰 체크만으로 선택 상태는 충분히 읽힌다.
+// 선택 상태는 primary 면 + 흰 체크만으로 알린다 — 그림자를 쓰지 않아 아래 패널/검색창과 같은
+// 선 기반 마감을 유지한다. 미선택은 2px #C9C9CF 각진 테두리, radius 2px로 카드 마켓 톤을 따른다.
 // appearance-none은 기본 포커스 링까지 지우므로 focus-visible 링을 직접 되살린다.
 const FILTER_CHECKBOX_CLASS = [
   "h-4 w-4 flex-shrink-0 cursor-pointer appearance-none rounded-[2px] border-2 border-[#C9C9CF] bg-white",
@@ -434,6 +434,9 @@ export default function SearchFilterSidebar({
       <div
         ref={filterPanelRef}
         tabIndex={-1}
+        // 스타일 경계(#238): 이 패널 껍데기는 결과 카드와 같은 페이지 레벨 카드 언어(rounded-2xl
+        // + shadow-card)를 유지하고, 안의 섹션/체크박스/칩만 선 기반으로 재설계했다 — 의도된
+        // 이중 언어이지 정리가 덜 된 게 아니다.
         // lg의 max-h/overflow-y-auto(#235): sticky top-[88px]로 붙여둬도 필터 자체가 뷰포트보다
         // 길면(아코디언을 펼치면 쉽게 그렇게 된다) 아래쪽이 화면 밖으로 나가 sticky가 무의미해진다.
         // 헤더(88px) + 아래 여백(16px)을 뺀 높이로 잘라 필터가 자체 스크롤되게 한다.
