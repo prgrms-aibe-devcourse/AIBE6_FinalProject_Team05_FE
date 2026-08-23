@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import PriceInput from "@/components/PriceInput";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 import { ApiError } from "@/lib/apiClient";
 import { stripFieldPrefix } from "@/lib/apiErrorMessage";
@@ -19,8 +20,8 @@ const MIN_TARGET_PRICE = 100;
 //  - int 범위를 넘는 값(21억 초과)은 BE가 역직렬화 단계에서 400을 내는데, 이건 전역 핸들러를
 //    타지 않아 code/msg 없는 응답이 온다 → 화면에 "요청이 실패했습니다. (400)"만 뜬다.
 //    여기서 먼저 걸러 그 경로 자체를 없앤다.
-// 검색 필터의 자릿수 제한(app/search/SearchFilterSidebar.tsx의 sanitizePriceInput)은 PRICE_MAX
-// (천만, 8자리) 전용인 데다 콤마 포맷·커서 보정이 type="text"를 전제로 해서 여기 재사용하지 않는다.
+// 입력 필드는 공용 PriceInput(type="text" + 콤마 표시)이라 min/max 속성을 받지 않는다 —
+// 최소·최대 판정은 아래 handleSubmit 한 곳에서만 한다(원래도 속성은 입력을 막지 못했다).
 const MAX_TARGET_PRICE = 100_000_000;
 
 type AddWatchlistModalProps = {
@@ -181,9 +182,7 @@ export default function AddWatchlistModal(props: AddWatchlistModalProps) {
   // 지우기 시도는 기존 "둘 다 비어있음" 가드와 겹칠 수 있다(원래 구매가만 있던 항목에서 그걸 비운 경우).
   // 그때는 더 구체적인 원인인 이쪽을 보여준다 - 남은 케이스(원래 목표가가 없던 항목에서 둘 다 빈 채로
   // 저장)는 handleSubmit의 기존 가드가 그대로 담당한다.
-  const notice = clearedExistingTarget
-    ? "목표가를 지우려면 삭제 후 다시 등록해주세요."
-    : error;
+  const notice = clearedExistingTarget ? "목표가를 지우려면 삭제 후 다시 등록해주세요." : error;
 
   // placeholder는 카드와 무관한 고정값(예: 100000) 대신 이 카드의 현재 시세를 예시로 쓴다 —
   // 자릿수 감이 바로 잡히고, 구매/판매 목표를 현재가 기준 위아래로 떠올리기 쉬워진다.
@@ -227,27 +226,21 @@ export default function AddWatchlistModal(props: AddWatchlistModalProps) {
 
           <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#4B4B52]">
             목표 구매가 (이 가격 이하로 내려가면 알림)
-            <input
+            <PriceInput
               ref={buyPriceInputRef}
-              type="number"
-              min={MIN_TARGET_PRICE}
-              max={MAX_TARGET_PRICE}
               value={buyPrice}
-              onChange={(e) => setBuyPrice(e.target.value)}
-              placeholder={examplePrice ? `예: ${examplePrice}` : "예: 100000"}
+              onChange={setBuyPrice}
+              placeholder={examplePrice ? `예: ${examplePrice}` : "예: 100,000"}
               className="rounded-[9px] border border-[#DDDDE3] px-3 py-2 text-[13.5px] outline-none focus:border-primary"
             />
           </label>
 
           <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#4B4B52]">
             목표 판매가 (이 가격 이상으로 오르면 알림)
-            <input
-              type="number"
-              min={MIN_TARGET_PRICE}
-              max={MAX_TARGET_PRICE}
+            <PriceInput
               value={sellPrice}
-              onChange={(e) => setSellPrice(e.target.value)}
-              placeholder={examplePrice ? `예: ${examplePrice}` : "예: 150000"}
+              onChange={setSellPrice}
+              placeholder={examplePrice ? `예: ${examplePrice}` : "예: 150,000"}
               className="rounded-[9px] border border-[#DDDDE3] px-3 py-2 text-[13.5px] outline-none focus:border-primary"
             />
           </label>
