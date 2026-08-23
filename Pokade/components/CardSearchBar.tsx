@@ -7,7 +7,7 @@ import { fetchCardsByKeywordPage } from "@/lib/cardApi";
 import { highlightMatch } from "@/lib/highlightMatch";
 import { pickDisplayName } from "@/lib/pickDisplayName";
 import { useRecentSearchesStore } from "@/store/useRecentSearchesStore";
-import { CardResponse } from "@/types/card";
+import { CardResponse, formatSetAndRarity } from "@/types/card";
 
 // 자동완성 API 호출 최소 글자 수 — 1글자는 노이즈가 많아 2글자부터 호출한다.
 const MIN_QUERY_LENGTH = 2;
@@ -248,10 +248,13 @@ function SearchBarInner({
   // 검색어(q)만 뺀 /search 주소 — 필터(types/rarity/languages/minPrice…)는 그대로 남긴다.
   // 검색어를 지웠다고 걸어둔 필터까지 풀리면 조건이 조용히 사라져 더 혼란스럽다.
   // /search 밖(헤더)에서는 보존할 필터 자체가 없으므로 목록 첫 화면으로 보낸다.
+  // page는 함께 지운다 — 검색 결과 5페이지에서 검색어를 비우면 대상이 전체 목록으로 바뀌는데,
+  // 그 목록의 5페이지에 남을 이유가 없고 결과 수가 적으면 빈 페이지에 떨어진다.
   const searchUrlWithoutQuery = () => {
     if (pathname !== "/search") return "/search";
     const params = new URLSearchParams(searchParams.toString());
     params.delete("q");
+    params.delete("page");
     const qs = params.toString();
     return qs ? `/search?${qs}` : "/search";
   };
@@ -438,7 +441,7 @@ function SearchBarInner({
                         {highlightMatch(pickDisplayName(card, query), query)}
                       </div>
                       <div className="truncate text-[11.5px] text-[#9A9AA2]">
-                        {card.setName} · {card.rarity}
+                        {formatSetAndRarity(card.setName, card.rarity)}
                       </div>
                     </div>
                   </button>
