@@ -63,7 +63,11 @@ export function toCardSearchItem(card: CardResponse): CardSearchItem {
     name: card.nameKo ?? card.name,
     nameEn: card.name,
     nameKo: card.nameKo,
-    set: `${card.setName} · ${card.rarity}`,
+    // setName/rarity는 BE에서 nullable(Card 엔티티에 nullable=false가 없다) — 템플릿 리터럴로
+    // 이어붙이면 값이 없을 때 "null · null"이 그대로 화면에 찍힌다. 있는 값만 골라 이어붙이고,
+    // 둘 다 없으면 빈 문자열로 둔다(소비처가 모두 텍스트로만 렌더해 빈 값이 안전하다).
+    // 바로 아래 types와 같은 이유의 방어 — BE null을 FE 경계에서 한 번에 좁힌다.
+    set: [card.setName, card.rarity].filter(Boolean).join(" · "),
     imageUrl: card.imageMedium || card.imageSmall,
     // BE가 null을 내려보내는 카드가 있어(#235) 여기서 한 번에 빈 배열로 좁힌다 — 이후 화면
     // 코드(SearchResultsView 등)는 CardSearchItem의 non-null 배열만 보면 되도록 유지한다.
