@@ -24,7 +24,12 @@ type SearchBarVariant = "default" | "market";
 // 두께를 쓸 때 한 요소에서 겹치는데, Tailwind는 클래스 문자열 순서가 아니라 스타일시트 순서로
 // 우선순위가 정해져 어느 쪽이 적용될지 보장할 수 없다. 여기서만 지정한다.
 const CONTAINER_STYLES: Record<SearchBarVariant, string> = {
-  default: "rounded-[9px] border border-[#DDDDE3] bg-neutral px-3.5 py-2.5",
+  // default(헤더, #238): 마켓과 같은 소프트 언어로 통일한다 — 테두리는 #DDDDE3 → #EDEDF0으로
+  // 연하게 낮추고 은은한 그림자로 입체감을 준다. 배경(bg-neutral)은 그대로 둔다: 헤더가 흰색이라
+  // 이 회색 면이 "입력할 수 있는 곳"임을 알리는 유일한 신호이고, 포커스에서도 바꾸지 않아야
+  // 필드가 흰 헤더에 묻히지 않는다. 확장 애니메이션은 넣지 않는다(검색은 상시 노출 유지).
+  default:
+    "rounded-[11px] border border-[#EDEDF0] bg-neutral px-3.5 py-2.5 shadow-[0_1px_4px_rgba(20,26,52,0.04)]",
   // market(#238): 각진 2px 테두리는 카드 컨테이너의 border-t-primary와 겹쳐 화면 상단이 빨간
   // 사각형 두 겹으로 둘러싸였다(포커스 시 폼 테두리까지 빨개져 더 심했다). 선으로 가두는 대신
   // 그림자로 살짝 띄우는 방식으로 바꾼다 — 테두리는 거의 보이지 않는 1px만 남겨 입력 영역의
@@ -33,7 +38,10 @@ const CONTAINER_STYLES: Record<SearchBarVariant, string> = {
     "rounded-[14px] border border-[#EDEDF0] bg-white p-2 shadow-[0_2px_10px_rgba(20,26,52,0.05)]",
 };
 const FOCUS_STYLES: Record<SearchBarVariant, string> = {
-  default: "transition focus-within:border-primary",
+  // 마켓과 동일한 반응: 색을 쓰지 않고 그림자가 퍼지며 테두리만 진해진다(기존 border-primary
+  // 제거). 헤더는 폭이 224~240px로 좁아 마켓(0 8px 24px)보다 한 단계 작은 그림자를 쓴다.
+  default:
+    "transition-[box-shadow,border-color] duration-200 focus-within:border-[#9A9AA2] focus-within:shadow-[0_4px_14px_rgba(20,26,52,0.10)]",
   // 포커스 반응에서 색을 뺀다(#238) — 상단 강조선이 이미 빨간색이라 폼까지 빨개지면 중복이다.
   // 대신 그림자가 부드럽게 퍼지며 떠오르고, 테두리는 #EDEDF0 → #9A9AA2로 확실히 진해져
   // 색 없이도 포커스가 눈에 보인다(색만으로 상태를 전달하지 않는다는 접근성 원칙과도 맞는다).
