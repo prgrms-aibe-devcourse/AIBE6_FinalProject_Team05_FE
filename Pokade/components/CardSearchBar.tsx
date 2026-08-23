@@ -39,7 +39,7 @@ const CONTAINER_STYLES: Record<SearchBarVariant, string> = {
   // 그림자를 걷어내고 1px 선 하나로만 경계를 잡는다. 테두리는 그림자가 사라진 만큼 #EDEDF0 →
   // #DDDDE3으로 한 단계 진하게(선이 유일한 경계라 보여야 한다). radius도 14 → 10px로 낮춰
   // pill 인상을 피한다. 색 강조는 오른쪽 제출 버튼 하나만 맡는다.
-  market: "rounded-[10px] border border-[#DDDDE3] bg-white p-2",
+  market: "overflow-hidden rounded-[10px] border border-[#DDDDE3] bg-white p-2",
 };
 const FOCUS_STYLES: Record<SearchBarVariant, string> = {
   // 마켓과 동일한 반응: 색을 쓰지 않고 그림자가 퍼지며 테두리만 진해진다(기존 border-primary
@@ -59,6 +59,17 @@ const INPUT_STYLES: Record<SearchBarVariant, string> = {
   default: "text-[13.5px]",
   market: "text-[15px]",
 };
+
+// 검색창 좌우 세로 바(#238) — "좌우에 색 바를 세운다"는 구조만 차용하고, 색은 기존 primary
+// 원색을 그대로 쓴다(새 토큰 없음). 폭이 5px로 얇아 원색이어도 면적이 작고, 상단 강조선
+// (border-t-primary)과 같은 빨강을 공유해 "검색이 이 화면의 주 진입점"이라는 신호를 함께 낸다.
+// 배경 그라디언트가 아니라 flex 자식 span으로 둔 이유: 인풋이 바 "뒤"로 흐를 여지가 없어
+// 좌우 padding으로 겹침을 막는 취약한 처리가 필요 없고, 텍스트가 길어져도 절대 겹치지 않는다.
+// -my-2/-ml-2는 폼의 p-2(8px)를 상쇄해 바가 테두리 안쪽 끝까지 닿게 한다(폼 radius 10 - 테두리
+// 1 = 안쪽 9px이라 rounded-l/r-[9px]로 맞춘다). aria-hidden — 순수 장식이라 읽히면 안 된다.
+const MARKET_SIDE_BAR_BASE = "-my-2 w-[5px] flex-shrink-0 self-stretch bg-primary";
+const MARKET_SIDE_BAR_LEFT = `${MARKET_SIDE_BAR_BASE} -ml-2 rounded-l-[9px]`;
+const MARKET_SIDE_BAR_RIGHT = `${MARKET_SIDE_BAR_BASE} -mr-2 rounded-r-[9px]`;
 
 // placeholder는 variant별로 나눈다 — 마켓은 "무엇으로 검색되는지"를 알려줄 공간이 있지만,
 // 헤더(default)는 224~240px라 긴 문구가 잘린다. 문구에 "카드 번호"를 넣지 않은 건 BE 검색이
@@ -124,6 +135,7 @@ function SearchBarShell({
 }) {
   return (
     <div className={`flex items-center gap-2 ${CONTAINER_STYLES[variant]} ${width}`}>
+      {variant === "market" && <span aria-hidden="true" className={MARKET_SIDE_BAR_LEFT} />}
       {variant === "default" && <SearchIcon stroke="#9A9AA2" />}
       {/* 마켓은 왼쪽에 장식용(비클릭) 돋보기 — 제출은 오른쪽 빨간 CTA가 맡는다. */}
       {variant === "market" && (
@@ -143,6 +155,7 @@ function SearchBarShell({
           검색
         </span>
       )}
+      {variant === "market" && <span aria-hidden="true" className={MARKET_SIDE_BAR_RIGHT} />}
     </div>
   );
 }
@@ -339,6 +352,7 @@ function SearchBarInner({
         }}
         className={`flex items-center gap-2 ${CONTAINER_STYLES[variant]} ${FOCUS_STYLES[variant]}`}
       >
+        {variant === "market" && <span aria-hidden="true" className={MARKET_SIDE_BAR_LEFT} />}
         {/* 헤더(default)는 기존처럼 왼쪽 돋보기가 곧 제출 버튼이다. 마켓은 이 자리를 비우고
             아래 오른쪽에 빨간 CTA 제출 버튼을 둔다(#235). */}
         {variant === "default" && (
@@ -399,6 +413,7 @@ function SearchBarInner({
             검색
           </button>
         )}
+        {variant === "market" && <span aria-hidden="true" className={MARKET_SIDE_BAR_RIGHT} />}
       </form>
 
       {showDropdown && (
