@@ -87,15 +87,15 @@ interface SearchResultsViewProps {
   onHeartClick: (cardId: number) => Promise<QuickWatchlistToggleStatus | null>;
 }
 
-// 페이지네이션 블록 — 현재 페이지가 속한 10개 구간을 통째로 노출하고, 양 끝 «/» 버튼으로 블록
-// 단위로 건너뛴다(21페이지면 21~30을 그리고 «는 11, »는 31로 이동). 이전에는 현재 페이지 주변
+// 페이지네이션 블록 — 현재 페이지가 속한 5개 구간을 통째로 노출하고, 양 끝 «/» 버튼으로 블록
+// 단위로 건너뛴다(21페이지면 21~25를 그리고 «는 16, »는 26으로 이동). 이전에는 현재 페이지 주변
 // 몇 개 + 마지막 페이지만("1 2 3 4 5 ... 1413") 보여줬는데, 1400페이지가 넘는 카탈로그에서는
 // 한 번에 옮겨갈 수 있는 거리가 너무 짧아 블록 방식으로 바꿨다.
 // 이 화면(카탈로그 탐색)만 번호 방식을 쓴다 — MyTradesSection.tsx/notifications 전체보기처럼
 // 시간순으로 훑어보는 개인 활동 피드는 임의 페이지 점프가 필요 없어 components/Pagination.tsx의
 // 단순 prev/next를 쓴다. 페이지 수보다 "탐색 vs 피드"라는 화면 성격 차이가 기준이라 이 둘을
 // 하나의 컴포넌트로 통합하지 않는다.
-const PAGE_BLOCK_SIZE = 10;
+const PAGE_BLOCK_SIZE = 5;
 
 interface PageBlock {
   pages: number[];
@@ -120,7 +120,7 @@ function getPageBlock(current: number, total: number): PageBlock {
 }
 
 // 페이지네이션 버튼 공통 스타일 — 번호/한 페이지 이동/블록 이동이 모두 같은 크기·모양을 쓴다.
-// 최대 14개(블록 2 + 화살표 2 + 번호 10)가 늘어서므로 360px에서는 한 줄에 못 담는다. 가로
+// 최대 9개(블록 2 + 화살표 2 + 번호 5)가 늘어서므로 360px에서는 한 줄에 못 담을 수 있다. 가로
 // 스크롤은 스크롤바가 보이지 않아 발견성이 나빠, 아래 컨테이너의 flex-wrap으로 줄을 넘기고
 // sm 미만에서는 버튼을 한 단계 작게(32px) 잡아 줄 수를 줄인다.
 const PAGE_BUTTON_SIZE_CLASS =
@@ -185,7 +185,7 @@ export default function SearchResultsView({
   const filterPanelRef = useRef<HTMLDivElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const prevFilterOpenRef = useRef(filterOpen);
-  // 페이지 직접 입력 — 블록 이동만으로도 1400페이지대까지는 140번을 눌러야 해서 함께 둔다.
+  // 페이지 직접 입력 — 블록 이동만으로도 1400페이지대까지는 280번을 눌러야 해서 함께 둔다.
   // 입력값은 문자열로 들고 있다가 제출 시점에만 검증한다(타이핑 중 "1"이 잠깐 유효/무효를
   // 오가며 안내 문구가 깜빡이지 않도록).
   const [pageInput, setPageInput] = useState("");
@@ -226,7 +226,7 @@ export default function SearchResultsView({
   const pageBlock = getPageBlock(page, totalPages);
 
   // 입력 → 이동. 이동 후 표시되는 블록은 page에서 파생되므로(getPageBlock) 해당 페이지가 속한
-  // 10개 구간으로 자동 전환된다 — 블록을 따로 상태로 들고 있지 않는 이유.
+  // 5개 구간으로 자동 전환된다 — 블록을 따로 상태로 들고 있지 않는 이유.
   const submitPageInput = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const trimmed = pageInput.trim();
@@ -633,7 +633,7 @@ export default function SearchResultsView({
               <button
                 onClick={() => pageBlock.prevBlockPage != null && goToPage(pageBlock.prevBlockPage)}
                 disabled={pageBlock.prevBlockPage == null}
-                aria-label="이전 10페이지"
+                aria-label="이전 5페이지"
                 className={PAGE_NAV_BUTTON_CLASS}
               >
                 &laquo;
@@ -671,7 +671,7 @@ export default function SearchResultsView({
               <button
                 onClick={() => pageBlock.nextBlockPage != null && goToPage(pageBlock.nextBlockPage)}
                 disabled={pageBlock.nextBlockPage == null}
-                aria-label="다음 10페이지"
+                aria-label="다음 5페이지"
                 className={PAGE_NAV_BUTTON_CLASS}
               >
                 &raquo;
