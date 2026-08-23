@@ -149,12 +149,13 @@ interface SearchFilterSidebarProps {
 // 자체는 그대로 두므로 Tab 이동/Space 토글/label 연결·클릭이 전부 기존과 동일하게 유지된다.
 // 체크 표시는 인라인 SVG를 background-image로 얹는다 — input은 대체 요소라 ::after가 렌더되지
 // 않아 가상 요소로는 그릴 수 없고, 이 방식은 아이콘 컴포넌트나 파일을 추가하지 않아도 된다.
-// 선택 시 blur 0 하드 섀도(2px)는 shadow-tactile 계열과 같은 언어라 새 토큰이 필요 없다.
+// 선택 시 하드 섀도는 뺐다(#238) — 검색창을 소프트 그림자로 통일하면서 16px 체크박스에만
+// blur 0 하드 섀도가 남아 언어가 갈렸다. primary 면 + 흰 체크만으로 선택 상태는 충분히 읽힌다.
 // appearance-none은 기본 포커스 링까지 지우므로 focus-visible 링을 직접 되살린다.
 const FILTER_CHECKBOX_CLASS = [
   "h-4 w-4 flex-shrink-0 cursor-pointer appearance-none rounded-[2px] border-2 border-[#C9C9CF] bg-white",
   "bg-center bg-no-repeat",
-  "checked:border-primary-dark checked:bg-primary checked:shadow-[2px_2px_0_rgba(184,15,15,0.3)]",
+  "checked:border-primary-dark checked:bg-primary",
   "checked:bg-[url(data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2010%2010%22%3E%3Cpath%20d=%22M1.6%205.3L3.9%207.4L8.4%202.7%22%20fill=%22none%22%20stroke=%22white%22%20stroke-width=%222%22/%3E%3C/svg%3E)] checked:bg-[length:10px_10px]",
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
 ].join(" ");
