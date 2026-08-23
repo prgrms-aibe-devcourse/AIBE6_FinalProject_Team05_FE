@@ -144,6 +144,53 @@ interface SearchFilterSidebarProps {
   resetFilters: () => void;
 }
 
+// 필터 섹션 아코디언(#238) — 5개 섹션이 전부 펼쳐진 채 고정이라 사이드바 콘텐츠가 1,400px를
+// 넘어(패널 가시 높이의 2배 이상) 레어도/언어/가격대는 존재 자체가 스크롤해야 보였다.
+type FilterSectionKey = "set" | "type" | "rarity" | "language" | "price";
+
+// 섹션 헤더 — 세트/레어도 "하위 그룹" 아코디언과 같은 마크업(aria-expanded/aria-controls + ▸
+// 회전)을 그대로 쓰되, 접힌 상태에서도 뭘 골랐는지 알 수 있게 선택 개수 배지를 붙인다.
+// 가격대처럼 개수 세기가 어색한 섹션은 "적용됨"을 1로 넘긴다 — 결과 영역의 필터 칩도 가격대를
+// 칩 하나로 세므로 배지 숫자와 칩 개수가 어긋나지 않는다.
+function FilterSectionHeader({
+  title,
+  panelId,
+  expanded,
+  selectedCount,
+  onToggle,
+}: {
+  title: string;
+  panelId: string;
+  expanded: boolean;
+  selectedCount: number;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={expanded}
+      aria-controls={panelId}
+      className="mb-[9px] flex w-full items-center justify-between rounded-md px-1 py-1.5 text-[12.5px] font-bold text-[#4B4B52] hover:bg-[#F2F2F5]"
+    >
+      <span className="flex items-center gap-1.5">
+        {title}
+        {selectedCount > 0 && (
+          <span className="rounded-full bg-primary px-1.5 py-[3px] text-[10px] font-bold leading-none text-white">
+            {selectedCount}
+          </span>
+        )}
+      </span>
+      <span
+        aria-hidden="true"
+        className={`text-[10px] text-[#9A9AA2] transition-transform ${expanded ? "rotate-90" : ""}`}
+      >
+        ▸
+      </span>
+    </button>
+  );
+}
+
 // SearchResultsView의 필터 사이드바/드로어 — 세트(series 그룹)/타입/레어도(그룹)/언어/가격대
 // 필터 전부와 그 UI 전용 상태를 담는다(#142, 순수 구조 분리). 필터 "선택값"(selectedTypes 등)은
 // 여전히 page.tsx가 소유해 props로만 받고, 세트/레어도 그룹의 펼침 여부(expandedSeries/
@@ -211,6 +258,28 @@ export default function SearchFilterSidebar({
     setPrevPriceMax(priceMax);
     setMaxInputText(priceMax.toLocaleString("ko-KR"));
   }
+
+  // 초기 펼침: 이미 선택값이 있는 섹션은 자동으로 펼쳐 "필터를 열었는데 내가 고른 값이 안 보이는"
+  // 상황을 피한다(아래 expandedSeries/expandedRarityGroups가 하위 그룹에 쓰는 규칙과 동일).
+  // 새로고침/뒤로가기로 URL의 필터가 복원된 경우에도 page.tsx가 첫 렌더에 이미 그 값을 props로
+  // 넘겨주므로 여기서 그대로 반영된다. 아무것도 선택돼 있지 않으면 가장 자주 쓰는 타입만 펼친다.
+  const [expandedSections, setExpandedSections] = useState<Set<FilterSectionKey>>(() => {
+    const initial = new Set<FilterSectionKey>();
+    if (selectedExpansionId) initial.add("set");
+    if (selectedTypes.length > 0) initial.add("type");
+    if (selectedRarities.length > 0) initial.add("rarity");
+    if (selectedLanguages.length > 0) initial.add("language");
+    if (priceMin > 0 || priceMax < PRICE_MAX) initial.add("price");
+    if (initial.size === 0) initial.add("type");
+    return initial;
+  });
+
+  const toggleSection = (key: FilterSectionKey) => {
+    const next = new Set(expandedSections);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setExpandedSections(next);
+  };
 
   // 세트는 항상 series 기준 아코디언으로 묶어서 보여준다 — BE가 이미 series 그룹
   // 최신순 → 그룹 내부 이름순으로 정렬해 내려주므로 여기서는 순서를 재정렬하지 않고
@@ -346,198 +415,245 @@ export default function SearchFilterSidebar({
             ×
           </button>
         </div>
-        <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">세트</div>
-        <div className="mb-5 flex max-h-[260px] flex-col gap-1 overflow-y-auto">
-          {facetsLoading ? (
-            <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
-          ) : (
-            [...seriesGroups.entries()].map(([series, options], i) => {
-              const isExpanded = expandedSeries.has(series);
-              const panelId = `set-series-panel-${i}`;
-              return (
-                <div key={series}>
-                  <button
-                    type="button"
-                    onClick={() => toggleSeries(series)}
-                    aria-expanded={isExpanded}
-                    aria-controls={panelId}
-                    className="flex w-full items-center justify-between rounded-md px-1 py-1.5 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F2F2F5]"
-                  >
-                    <span>{series}</span>
-                    <span
-                      aria-hidden="true"
-                      className={`text-[10px] text-[#9A9AA2] transition-transform ${isExpanded ? "rotate-90" : ""}`}
+        <FilterSectionHeader
+          title="세트"
+          panelId="filter-section-set"
+          expanded={expandedSections.has("set")}
+          selectedCount={selectedExpansionId ? 1 : 0}
+          onToggle={() => toggleSection("set")}
+        />
+        {expandedSections.has("set") && (
+          <div
+            id="filter-section-set"
+            className="mb-5 flex max-h-[260px] flex-col gap-1 overflow-y-auto"
+          >
+            {facetsLoading ? (
+              <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
+            ) : (
+              [...seriesGroups.entries()].map(([series, options], i) => {
+                const isExpanded = expandedSeries.has(series);
+                const panelId = `set-series-panel-${i}`;
+                return (
+                  <div key={series}>
+                    <button
+                      type="button"
+                      onClick={() => toggleSeries(series)}
+                      aria-expanded={isExpanded}
+                      aria-controls={panelId}
+                      className="flex w-full items-center justify-between rounded-md px-1 py-1.5 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F2F2F5]"
                     >
-                      ▸
-                    </span>
-                  </button>
-                  {isExpanded && (
-                    <div id={panelId} className="flex flex-col gap-[9px] py-1 pl-3">
-                      {options.map(renderSetOption)}
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
+                      <span>{series}</span>
+                      <span
+                        aria-hidden="true"
+                        className={`text-[10px] text-[#9A9AA2] transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                      >
+                        ▸
+                      </span>
+                    </button>
+                    {isExpanded && (
+                      <div id={panelId} className="flex flex-col gap-[9px] py-1 pl-3">
+                        {options.map(renderSetOption)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
         <div className="mb-[18px] h-px bg-[#F0F0F0]" />
-        <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">타입</div>
-        <div className="mb-5 flex flex-col gap-[9px]">
-          {facetsLoading ? (
-            <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
-          ) : (
-            typeOptions.map((opt) => (
+        <FilterSectionHeader
+          title="타입"
+          panelId="filter-section-type"
+          expanded={expandedSections.has("type")}
+          selectedCount={selectedTypes.length}
+          onToggle={() => toggleSection("type")}
+        />
+        {expandedSections.has("type") && (
+          <div id="filter-section-type" className="mb-5 flex flex-col gap-[9px]">
+            {facetsLoading ? (
+              <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
+            ) : (
+              typeOptions.map((opt) => (
+                <label
+                  key={opt.value}
+                  className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedTypes.includes(opt.value)}
+                    onChange={() => {
+                      setLoadState("loading");
+                      setSelectedTypes(toggleValue(selectedTypes, opt.value));
+                    }}
+                  />
+                  {opt.value}
+                  <span className="text-[#9A9AA2]">
+                    ({(opt.count ?? 0).toLocaleString("ko-KR")})
+                  </span>
+                </label>
+              ))
+            )}
+          </div>
+        )}
+        <div className="mb-[18px] h-px bg-[#F0F0F0]" />
+        <FilterSectionHeader
+          title="레어도"
+          panelId="filter-section-rarity"
+          expanded={expandedSections.has("rarity")}
+          selectedCount={selectedRarities.length}
+          onToggle={() => toggleSection("rarity")}
+        />
+        {expandedSections.has("rarity") && (
+          <div id="filter-section-rarity" className="mb-5 flex flex-col gap-1">
+            {facetsLoading ? (
+              <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
+            ) : (
+              [...rarityGroups.entries()].map(([groupName, rarities], i) => {
+                const isExpanded = expandedRarityGroups.has(groupName);
+                const panelId = `rarity-group-panel-${i}`;
+                return (
+                  <div key={groupName}>
+                    <button
+                      type="button"
+                      onClick={() => toggleRarityGroup(groupName)}
+                      aria-expanded={isExpanded}
+                      aria-controls={panelId}
+                      className="flex w-full items-center justify-between rounded-md px-1 py-1.5 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F2F2F5]"
+                    >
+                      <span>{groupName}</span>
+                      <span
+                        aria-hidden="true"
+                        className={`text-[10px] text-[#9A9AA2] transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                      >
+                        ▸
+                      </span>
+                    </button>
+                    {isExpanded && (
+                      <div id={panelId} className="flex flex-col gap-[9px] py-1 pl-3">
+                        {rarities.map(renderRarityOption)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+        <div className="mb-[18px] h-px bg-[#F0F0F0]" />
+        <FilterSectionHeader
+          title="언어"
+          panelId="filter-section-language"
+          expanded={expandedSections.has("language")}
+          selectedCount={selectedLanguages.length}
+          onToggle={() => toggleSection("language")}
+        />
+        {expandedSections.has("language") && (
+          <div id="filter-section-language" className="mb-5 flex flex-col gap-[9px]">
+            {LANGUAGE_OPTIONS.map((opt) => (
               <label
                 key={opt.value}
                 className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
               >
                 <input
                   type="checkbox"
-                  checked={selectedTypes.includes(opt.value)}
+                  checked={selectedLanguages.includes(opt.value)}
                   onChange={() => {
                     setLoadState("loading");
-                    setSelectedTypes(toggleValue(selectedTypes, opt.value));
+                    setSelectedLanguages(toggleValue(selectedLanguages, opt.value));
                   }}
                 />
-                {opt.value}
-                <span className="text-[#9A9AA2]">({(opt.count ?? 0).toLocaleString("ko-KR")})</span>
+                {opt.label}
               </label>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
         <div className="mb-[18px] h-px bg-[#F0F0F0]" />
-        <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">레어도</div>
-        <div className="mb-5 flex max-h-[260px] flex-col gap-1 overflow-y-auto">
-          {facetsLoading ? (
-            <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
-          ) : (
-            [...rarityGroups.entries()].map(([groupName, rarities], i) => {
-              const isExpanded = expandedRarityGroups.has(groupName);
-              const panelId = `rarity-group-panel-${i}`;
-              return (
-                <div key={groupName}>
-                  <button
-                    type="button"
-                    onClick={() => toggleRarityGroup(groupName)}
-                    aria-expanded={isExpanded}
-                    aria-controls={panelId}
-                    className="flex w-full items-center justify-between rounded-md px-1 py-1.5 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F2F2F5]"
-                  >
-                    <span>{groupName}</span>
-                    <span
-                      aria-hidden="true"
-                      className={`text-[10px] text-[#9A9AA2] transition-transform ${isExpanded ? "rotate-90" : ""}`}
-                    >
-                      ▸
-                    </span>
-                  </button>
-                  {isExpanded && (
-                    <div id={panelId} className="flex flex-col gap-[9px] py-1 pl-3">
-                      {rarities.map(renderRarityOption)}
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
-        <div className="mb-[18px] h-px bg-[#F0F0F0]" />
-        <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">언어</div>
-        <div className="mb-5 flex flex-col gap-[9px]">
-          {LANGUAGE_OPTIONS.map((opt) => (
-            <label
-              key={opt.value}
-              className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
-            >
-              <input
-                type="checkbox"
-                checked={selectedLanguages.includes(opt.value)}
-                onChange={() => {
-                  setLoadState("loading");
-                  setSelectedLanguages(toggleValue(selectedLanguages, opt.value));
+        <FilterSectionHeader
+          title="가격대"
+          panelId="filter-section-price"
+          expanded={expandedSections.has("price")}
+          selectedCount={priceMin > 0 || priceMax < PRICE_MAX ? 1 : 0}
+          onToggle={() => toggleSection("price")}
+        />
+        {expandedSections.has("price") && (
+          <div id="filter-section-price">
+            <div className="mb-3 flex flex-col gap-2">
+              <label
+                htmlFor="price-min-input"
+                className="flex items-center gap-1.5 rounded-[9px] border border-[#DDDDE3] px-2.5 py-2 focus-within:border-primary"
+              >
+                <span className="shrink-0 text-[11px] font-semibold text-[#9A9AA2]">최소</span>
+                <input
+                  id="price-min-input"
+                  type="text"
+                  inputMode="numeric"
+                  value={minInputText}
+                  onChange={(e) => setMinInputText(formatPriceInputChange(e))}
+                  onBlur={(e) => handleMinChange(Number(sanitizePriceInput(e.target.value) || "0"))}
+                  className="w-full min-w-0 border-none p-0 text-right text-[12.5px] font-bold text-ink outline-none"
+                />
+                <span className="shrink-0 text-[11px] text-[#9A9AA2]">원</span>
+              </label>
+              <label
+                htmlFor="price-max-input"
+                className="flex items-center gap-1.5 rounded-[9px] border border-[#DDDDE3] px-2.5 py-2 focus-within:border-primary"
+              >
+                <span className="shrink-0 text-[11px] font-semibold text-[#9A9AA2]">최대</span>
+                <input
+                  id="price-max-input"
+                  type="text"
+                  inputMode="numeric"
+                  value={maxInputText}
+                  onChange={(e) => setMaxInputText(formatPriceInputChange(e))}
+                  onBlur={(e) => handleMaxChange(Number(sanitizePriceInput(e.target.value) || "0"))}
+                  className="w-full min-w-0 border-none p-0 text-right text-[12.5px] font-bold text-ink outline-none"
+                />
+                <span className="shrink-0 text-[11px] text-[#9A9AA2]">원</span>
+              </label>
+            </div>
+            <div className="relative h-6">
+              <div className="absolute left-0 right-0 top-[11px] h-1 rounded-sm bg-[#E7E7EB]" />
+              <div
+                className="absolute top-[11px] h-1 rounded-sm bg-primary"
+                style={{
+                  left: `${(priceMin / PRICE_MAX) * 100}%`,
+                  right: `${100 - (priceMax / PRICE_MAX) * 100}%`,
                 }}
               />
-              {opt.label}
-            </label>
-          ))}
-        </div>
-        <div className="mb-[18px] h-px bg-[#F0F0F0]" />
-        <div className="mb-3 text-[12.5px] font-bold text-[#4B4B52]">가격대</div>
-        <div className="mb-3 flex flex-col gap-2">
-          <label
-            htmlFor="price-min-input"
-            className="flex items-center gap-1.5 rounded-[9px] border border-[#DDDDE3] px-2.5 py-2 focus-within:border-primary"
-          >
-            <span className="shrink-0 text-[11px] font-semibold text-[#9A9AA2]">최소</span>
-            <input
-              id="price-min-input"
-              type="text"
-              inputMode="numeric"
-              value={minInputText}
-              onChange={(e) => setMinInputText(formatPriceInputChange(e))}
-              onBlur={(e) => handleMinChange(Number(sanitizePriceInput(e.target.value) || "0"))}
-              className="w-full min-w-0 border-none p-0 text-right text-[12.5px] font-bold text-ink outline-none"
-            />
-            <span className="shrink-0 text-[11px] text-[#9A9AA2]">원</span>
-          </label>
-          <label
-            htmlFor="price-max-input"
-            className="flex items-center gap-1.5 rounded-[9px] border border-[#DDDDE3] px-2.5 py-2 focus-within:border-primary"
-          >
-            <span className="shrink-0 text-[11px] font-semibold text-[#9A9AA2]">최대</span>
-            <input
-              id="price-max-input"
-              type="text"
-              inputMode="numeric"
-              value={maxInputText}
-              onChange={(e) => setMaxInputText(formatPriceInputChange(e))}
-              onBlur={(e) => handleMaxChange(Number(sanitizePriceInput(e.target.value) || "0"))}
-              className="w-full min-w-0 border-none p-0 text-right text-[12.5px] font-bold text-ink outline-none"
-            />
-            <span className="shrink-0 text-[11px] text-[#9A9AA2]">원</span>
-          </label>
-        </div>
-        <div className="relative h-6">
-          <div className="absolute left-0 right-0 top-[11px] h-1 rounded-sm bg-[#E7E7EB]" />
-          <div
-            className="absolute top-[11px] h-1 rounded-sm bg-primary"
-            style={{
-              left: `${(priceMin / PRICE_MAX) * 100}%`,
-              right: `${100 - (priceMax / PRICE_MAX) * 100}%`,
-            }}
-          />
-          <input
-            type="range"
-            min={0}
-            max={PRICE_MAX}
-            step={50000}
-            value={priceMin}
-            onChange={(e) => handleMinChange(+e.target.value)}
-            aria-label="최소 가격"
-            aria-valuetext={`${priceMin.toLocaleString("ko-KR")}원`}
-            className={`dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent ${
-              activeHandle === "min" ? "z-20" : "z-10"
-            }`}
-          />
-          <input
-            type="range"
-            min={0}
-            max={PRICE_MAX}
-            step={50000}
-            value={priceMax}
-            onChange={(e) => handleMaxChange(+e.target.value)}
-            aria-label="최대 가격"
-            aria-valuetext={`${priceMax.toLocaleString("ko-KR")}원`}
-            className={`dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent ${
-              activeHandle === "min" ? "z-10" : "z-20"
-            }`}
-          />
-        </div>
-        <div className="mt-1.5 flex justify-between text-xs text-[#9A9AA2]">
-          <span>0원</span>
-          <span>{PRICE_MAX.toLocaleString("ko-KR")}원</span>
-        </div>
+              <input
+                type="range"
+                min={0}
+                max={PRICE_MAX}
+                step={50000}
+                value={priceMin}
+                onChange={(e) => handleMinChange(+e.target.value)}
+                aria-label="최소 가격"
+                aria-valuetext={`${priceMin.toLocaleString("ko-KR")}원`}
+                className={`dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent ${
+                  activeHandle === "min" ? "z-20" : "z-10"
+                }`}
+              />
+              <input
+                type="range"
+                min={0}
+                max={PRICE_MAX}
+                step={50000}
+                value={priceMax}
+                onChange={(e) => handleMaxChange(+e.target.value)}
+                aria-label="최대 가격"
+                aria-valuetext={`${priceMax.toLocaleString("ko-KR")}원`}
+                className={`dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent ${
+                  activeHandle === "min" ? "z-10" : "z-20"
+                }`}
+              />
+            </div>
+            <div className="mt-1.5 flex justify-between text-xs text-[#9A9AA2]">
+              <span>0원</span>
+              <span>{PRICE_MAX.toLocaleString("ko-KR")}원</span>
+            </div>
+          </div>
+        )}
         <button
           onClick={resetFilters}
           className="mt-[22px] w-full rounded-[10px] border-[1.5px] border-[#DDDDE3] bg-white py-2.5 text-[13.5px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary"
