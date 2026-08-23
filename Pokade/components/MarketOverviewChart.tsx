@@ -4,6 +4,7 @@ import {
   Bar,
   CartesianGrid,
   ComposedChart,
+  Legend,
   Line,
   ResponsiveContainer,
   Tooltip,
@@ -191,15 +192,32 @@ export default function MarketOverviewChart({
                 fontSize: 12.5,
               }}
             />
-            <Bar yAxisId="volume" dataKey="volume" fill={VOLUME_COLOR} radius={[4, 4, 0, 0]} barSize={10} />
+            <Bar
+              yAxisId="volume"
+              dataKey="volume"
+              name="거래량"
+              fill={VOLUME_COLOR}
+              radius={[4, 4, 0, 0]}
+              barSize={10}
+            />
             <Line
               yAxisId="median"
               type="monotone"
               dataKey="medianPrice"
+              name="거래가 중간값"
               stroke={MEDIAN_COLOR}
               strokeWidth={2}
               dot={false}
               connectNulls
+            />
+            {/* 막대=거래량(왼쪽 축), 선=거래가 중간값(오른쪽 축)임을 알려주는 범례 - 두 지표가 서로
+                다른 축 스케일을 쓰기 때문에 범례 없이는 어떤 색이 뭘 뜻하는지 헷갈리기 쉽다.
+                iconType을 따로 안 주면 recharts가 Bar는 사각형, Line은 선 아이콘으로 각자 실제
+                그려진 모양대로 자동 표시한다. */}
+            <Legend
+              verticalAlign="bottom"
+              align="left"
+              wrapperStyle={{ fontSize: 12, fontWeight: 700, paddingTop: 12 }}
             />
           </ComposedChart>
         </ResponsiveContainer>
