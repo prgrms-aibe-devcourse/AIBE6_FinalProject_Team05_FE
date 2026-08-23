@@ -144,12 +144,42 @@ interface SearchFilterSidebarProps {
   resetFilters: () => void;
 }
 
+// 필터 체크박스(#238) — 브라우저 기본 체크박스는 OS 기본색(파란색)이라 이 화면에서 유일하게
+// 팔레트 밖 색이었다. appearance-none으로 "그리기"만 가져오고 <input type="checkbox"> 요소
+// 자체는 그대로 두므로 Tab 이동/Space 토글/label 연결·클릭이 전부 기존과 동일하게 유지된다.
+// 체크 표시는 인라인 SVG를 background-image로 얹는다 — input은 대체 요소라 ::after가 렌더되지
+// 않아 가상 요소로는 그릴 수 없고, 이 방식은 아이콘 컴포넌트나 파일을 추가하지 않아도 된다.
+// 선택 시 blur 0 하드 섀도(2px)는 shadow-tactile 계열과 같은 언어라 새 토큰이 필요 없다.
+// appearance-none은 기본 포커스 링까지 지우므로 focus-visible 링을 직접 되살린다.
+const FILTER_CHECKBOX_CLASS = [
+  "h-4 w-4 flex-shrink-0 cursor-pointer appearance-none rounded-[2px] border-2 border-[#C9C9CF] bg-white",
+  "bg-center bg-no-repeat",
+  "checked:border-primary-dark checked:bg-primary checked:shadow-[2px_2px_0_rgba(184,15,15,0.3)]",
+  "checked:bg-[url(data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2010%2010%22%3E%3Cpath%20d=%22M1.6%205.3L3.9%207.4L8.4%202.7%22%20fill=%22none%22%20stroke=%22white%22%20stroke-width=%222%22/%3E%3C/svg%3E)] checked:bg-[length:10px_10px]",
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
+].join(" ");
+
+// 아코디언 화살표(#238) — 텍스트 글리프는 폰트/OS에 따라 두께와 세로 정렬이 달라 흐릿하다.
+// clip-path 삼각형은 어디서나 픽셀이 딱 떨어지고 rotate-90도 깔끔하게 돈다. 섹션 헤더/세트
+// series/레어도 그룹 3곳이 같은 모양을 쓰므로 한 컴포넌트로 묶는다.
+function AccordionChevron({ expanded }: { expanded: boolean }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`h-2 w-2 flex-shrink-0 bg-[#9A9AA2] transition-transform [clip-path:polygon(0_0,100%_50%,0_100%)] ${
+        expanded ? "rotate-90" : ""
+      }`}
+    />
+  );
+}
+
 // 필터 섹션 아코디언(#238) — 5개 섹션이 전부 펼쳐진 채 고정이라 사이드바 콘텐츠가 1,400px를
 // 넘어(패널 가시 높이의 2배 이상) 레어도/언어/가격대는 존재 자체가 스크롤해야 보였다.
 type FilterSectionKey = "set" | "type" | "rarity" | "language" | "price";
 
-// 섹션 헤더 — 세트/레어도 "하위 그룹" 아코디언과 같은 마크업(aria-expanded/aria-controls + ▸
-// 회전)을 그대로 쓰되, 접힌 상태에서도 뭘 골랐는지 알 수 있게 선택 개수 배지를 붙인다.
+// 섹션 헤더 — 세트/레어도 "하위 그룹" 아코디언과 같은 마크업(aria-expanded/aria-controls +
+// AccordionChevron 회전)을 그대로 쓰되, 접힌 상태에서도 뭘 골랐는지 알 수 있게 선택 개수
+// 배지를 붙인다.
 // 가격대처럼 개수 세기가 어색한 섹션은 "적용됨"을 1로 넘긴다 — 결과 영역의 필터 칩도 가격대를
 // 칩 하나로 세므로 배지 숫자와 칩 개수가 어긋나지 않는다.
 function FilterSectionHeader({
@@ -176,17 +206,12 @@ function FilterSectionHeader({
       <span className="flex items-center gap-1.5">
         {title}
         {selectedCount > 0 && (
-          <span className="rounded-full bg-primary px-1.5 py-[3px] text-[10px] font-bold leading-none text-white">
+          <span className="rounded-[3px] bg-primary px-1.5 py-[3px] text-[10px] font-extrabold leading-none tracking-[0.04em] text-white">
             {selectedCount}
           </span>
         )}
       </span>
-      <span
-        aria-hidden="true"
-        className={`text-[10px] text-[#9A9AA2] transition-transform ${expanded ? "rotate-90" : ""}`}
-      >
-        ▸
-      </span>
+      <AccordionChevron expanded={expanded} />
     </button>
   );
 }
@@ -365,6 +390,7 @@ export default function SearchFilterSidebar({
     <label key={r} className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]">
       <input
         type="checkbox"
+        className={FILTER_CHECKBOX_CLASS}
         checked={selectedRarities.includes(r)}
         onChange={() => {
           setLoadState("loading");
@@ -443,12 +469,7 @@ export default function SearchFilterSidebar({
                       className="flex w-full items-center justify-between rounded-md px-1 py-1.5 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F2F2F5]"
                     >
                       <span>{series}</span>
-                      <span
-                        aria-hidden="true"
-                        className={`text-[10px] text-[#9A9AA2] transition-transform ${isExpanded ? "rotate-90" : ""}`}
-                      >
-                        ▸
-                      </span>
+                      <AccordionChevron expanded={isExpanded} />
                     </button>
                     {isExpanded && (
                       <div id={panelId} className="flex flex-col gap-[9px] py-1 pl-3">
@@ -481,6 +502,7 @@ export default function SearchFilterSidebar({
                 >
                   <input
                     type="checkbox"
+                    className={FILTER_CHECKBOX_CLASS}
                     checked={selectedTypes.includes(opt.value)}
                     onChange={() => {
                       setLoadState("loading");
@@ -522,12 +544,7 @@ export default function SearchFilterSidebar({
                       className="flex w-full items-center justify-between rounded-md px-1 py-1.5 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F2F2F5]"
                     >
                       <span>{groupName}</span>
-                      <span
-                        aria-hidden="true"
-                        className={`text-[10px] text-[#9A9AA2] transition-transform ${isExpanded ? "rotate-90" : ""}`}
-                      >
-                        ▸
-                      </span>
+                      <AccordionChevron expanded={isExpanded} />
                     </button>
                     {isExpanded && (
                       <div id={panelId} className="flex flex-col gap-[9px] py-1 pl-3">
@@ -557,6 +574,7 @@ export default function SearchFilterSidebar({
               >
                 <input
                   type="checkbox"
+                  className={FILTER_CHECKBOX_CLASS}
                   checked={selectedLanguages.includes(opt.value)}
                   onChange={() => {
                     setLoadState("loading");
