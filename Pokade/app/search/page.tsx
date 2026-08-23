@@ -371,6 +371,9 @@ function SearchDashboard() {
           이 페이지 로컬 값이라 홈/워치리스트/알림/카드상세 등 다른 페이지에는 영향이 없다
           (각 페이지가 자기 max-w를 따로 들고 있고, layout.tsx에는 폭 제한이 없다). */}
       <div className="mx-auto max-w-[1520px]">
+        {/* 스타일 경계(#238) — 이 카드 껍데기는 페이지 레벨 카드 언어(rounded-2xl + shadow-card)를
+            따르고, 안에 들어가는 검색/필터 컨트롤은 선 기반(1px 선 + 작은 radius + 그림자 없음)으로
+            재설계했다. 불완전한 게 아니라 의도된 이중 언어다(CardSearchBar/SearchFilterSidebar 참고). */}
         {/* border-t-primary는 유지한다(#238) — 검색 폼에서 색을 걷어내 이제 이 선이 상단의
             유일한 강조라 중복이 아니고, 결과/필터 카드(같은 rounded-2xl·shadow-card지만 강조선
             없음)와 구분해 "이 화면의 주 진입점"임을 표시하는 역할이 남는다.
