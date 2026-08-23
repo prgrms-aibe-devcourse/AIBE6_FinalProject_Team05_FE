@@ -30,12 +30,12 @@ const BASIS_BADGE_LABEL: Record<PriceBasis, string> = {
 
 function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
-    <span className="flex items-center gap-1.5 rounded-full border border-[#DDDDE3] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#4B4B52]">
+    <span className="flex items-center gap-1.5 rounded-[6px] border border-[#DDDDE3] bg-white px-2.5 py-1.5 text-[12.5px] font-semibold text-[#4B4B52]">
       {label}
       <button
         onClick={onRemove}
         aria-label={`${label} 필터 해제`}
-        className="flex h-4 w-4 items-center justify-center rounded-full text-[#9A9AA2] hover:bg-[#F2F2F5] hover:text-ink"
+        className="flex h-4 w-4 items-center justify-center rounded-[4px] text-[#9A9AA2] hover:bg-[#F2F2F5] hover:text-ink"
       >
         ×
       </button>
@@ -527,7 +527,7 @@ export default function SearchResultsView({
                         (JA 등 비영어판)만 표시한다 — 대다수 카드에 불필요한 배지를 매번
                         노출하지 않으면서도 국가판이 다른 경우만 부각한다. */}
                       {c.languageCode !== "EN" && (
-                        <span className="mt-1 inline-flex w-fit items-center rounded-full border border-[#DDDDE3] bg-white px-2 py-0.5 text-[10px] font-bold text-[#4B4B52]">
+                        <span className="mt-1 inline-flex w-fit items-center rounded-[4px] border border-[#DDDDE3] bg-white px-2 py-0.5 text-[10px] font-bold text-[#4B4B52]">
                           {c.languageCode}
                         </span>
                       )}
@@ -536,7 +536,7 @@ export default function SearchResultsView({
                           {c.types.map((t) => (
                             <span
                               key={t}
-                              className="rounded-full border border-[#D4D9F5] bg-lavender px-2 py-0.5 text-[10px] font-bold text-secondary"
+                              className="rounded-[4px] border border-[#D4D9F5] bg-lavender px-2 py-0.5 text-[10px] font-bold text-secondary"
                             >
                               {t}
                             </span>

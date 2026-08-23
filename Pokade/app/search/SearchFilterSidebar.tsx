@@ -202,14 +202,16 @@ function FilterSectionHeader({
       onClick={onToggle}
       aria-expanded={expanded}
       aria-controls={panelId}
-      className="mb-[9px] flex w-full items-center justify-between rounded-md px-1 py-1.5 text-[12.5px] font-bold text-[#4B4B52] hover:bg-[#F2F2F5]"
+      // 선 기반(#238): 배경으로 감싼 카드형 행 대신 구분선으로만 나뉘는 목록 행으로 바꾼다 —
+      // rounded-md/hover 배경을 걷어내고, hover 피드백은 글자색 변화로만 준다.
+      className="flex w-full items-center justify-between py-3 text-[12.5px] font-bold text-[#4B4B52] transition-colors hover:text-ink"
     >
-      <span className="flex items-center gap-1.5">
+      <span className="flex items-baseline gap-1.5">
         {title}
+        {/* 선택 개수는 채운 배지 대신 숫자만 둔다 — pill 형태를 줄이면서도 primary 색으로
+            "선택됨"은 그대로 읽힌다. 개수 계산 로직(selectedCounts)은 기존 것을 그대로 쓴다. */}
         {selectedCount > 0 && (
-          <span className="rounded-[3px] bg-primary px-1.5 py-[3px] text-[10px] font-extrabold leading-none tracking-[0.04em] text-white">
-            {selectedCount}
-          </span>
+          <span className="text-[11.5px] font-extrabold text-primary">{selectedCount}</span>
         )}
       </span>
       <AccordionChevron expanded={expanded} />
@@ -285,17 +287,26 @@ export default function SearchFilterSidebar({
     setMaxInputText(priceMax.toLocaleString("ko-KR"));
   }
 
+  // 섹션별 선택 개수 — 헤더 배지, 초기 펼침 판단, 상단 "N개 선택" 요약이 모두 같은 값을 써야
+  // 어긋나지 않으므로 한 곳에서만 센다(이전에는 세 군데에 같은 식이 흩어져 있었다).
+  const selectedCounts = {
+    set: selectedExpansionId ? 1 : 0,
+    type: selectedTypes.length,
+    rarity: selectedRarities.length,
+    language: selectedLanguages.length,
+    price: priceMin > 0 || priceMax < PRICE_MAX ? 1 : 0,
+  };
+  const totalSelected = Object.values(selectedCounts).reduce((sum, n) => sum + n, 0);
+
   // 초기 펼침: 이미 선택값이 있는 섹션은 자동으로 펼쳐 "필터를 열었는데 내가 고른 값이 안 보이는"
   // 상황을 피한다(아래 expandedSeries/expandedRarityGroups가 하위 그룹에 쓰는 규칙과 동일).
   // 새로고침/뒤로가기로 URL의 필터가 복원된 경우에도 page.tsx가 첫 렌더에 이미 그 값을 props로
   // 넘겨주므로 여기서 그대로 반영된다. 아무것도 선택돼 있지 않으면 가장 자주 쓰는 타입만 펼친다.
   const [expandedSections, setExpandedSections] = useState<Set<FilterSectionKey>>(() => {
     const initial = new Set<FilterSectionKey>();
-    if (selectedExpansionId) initial.add("set");
-    if (selectedTypes.length > 0) initial.add("type");
-    if (selectedRarities.length > 0) initial.add("rarity");
-    if (selectedLanguages.length > 0) initial.add("language");
-    if (priceMin > 0 || priceMax < PRICE_MAX) initial.add("price");
+    for (const [key, count] of Object.entries(selectedCounts)) {
+      if (count > 0) initial.add(key as FilterSectionKey);
+    }
     if (initial.size === 0) initial.add("type");
     return initial;
   });
@@ -429,30 +440,46 @@ export default function SearchFilterSidebar({
         className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl border border-[#EDEDF0] bg-white p-[22px] outline-none lg:sticky lg:top-[88px] lg:max-h-[calc(100vh-104px)] lg:w-auto lg:overflow-y-auto lg:rounded-2xl lg:shadow-card"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-4 flex items-center justify-between lg:relative">
-          <span className="flex items-center gap-1.5 text-[15px] font-extrabold">
+        {/* 상단 행(#238) — "필터 / 초기화"를 한 줄에 놓고, 아래 섹션 목록과 같은 구분선으로
+            끊는다. 초기화가 맨 아래에 있으면 섹션을 다 지나쳐야 보여 발견이 늦었다.
+            "N개 선택"은 섹션을 접어둔 상태에서도 지금 몇 개가 걸려 있는지 알려준다. */}
+        <div className="flex items-center justify-between border-b border-[#F0F0F0] pb-3">
+          <span className="flex items-baseline gap-2 text-[15px] font-extrabold">
             <span id="filter-drawer-title">필터</span>
+            {totalSelected > 0 && (
+              <span className="text-[12px] font-bold text-[#9A9AA2]">{totalSelected}개 선택</span>
+            )}
           </span>
-          <button
-            type="button"
-            onClick={() => setFilterOpen(false)}
-            aria-label="필터 닫기"
-            className="flex h-6 w-6 items-center justify-center rounded-full text-[#9A9AA2] hover:bg-[#F2F2F5] hover:text-ink lg:hidden"
-          >
-            ×
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={resetFilters}
+              disabled={totalSelected === 0}
+              className="px-1 py-1 text-[12.5px] font-bold text-[#9A9AA2] transition-colors enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              초기화
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterOpen(false)}
+              aria-label="필터 닫기"
+              className="flex h-6 w-6 items-center justify-center rounded-[6px] text-[#9A9AA2] hover:bg-[#F2F2F5] hover:text-ink lg:hidden"
+            >
+              ×
+            </button>
+          </div>
         </div>
         <FilterSectionHeader
           title="세트"
           panelId="filter-section-set"
           expanded={expandedSections.has("set")}
-          selectedCount={selectedExpansionId ? 1 : 0}
+          selectedCount={selectedCounts.set}
           onToggle={() => toggleSection("set")}
         />
         {expandedSections.has("set") && (
           <div
             id="filter-section-set"
-            className="mb-5 flex max-h-[260px] flex-col gap-1 overflow-y-auto"
+            className="flex max-h-[260px] flex-col gap-1 overflow-y-auto pb-4"
           >
             {facetsLoading ? (
               <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
@@ -483,16 +510,16 @@ export default function SearchFilterSidebar({
             )}
           </div>
         )}
-        <div className="mb-[18px] h-px bg-[#F0F0F0]" />
+        <div className="h-px bg-[#F0F0F0]" />
         <FilterSectionHeader
           title="타입"
           panelId="filter-section-type"
           expanded={expandedSections.has("type")}
-          selectedCount={selectedTypes.length}
+          selectedCount={selectedCounts.type}
           onToggle={() => toggleSection("type")}
         />
         {expandedSections.has("type") && (
-          <div id="filter-section-type" className="mb-5 flex flex-col gap-[9px]">
+          <div id="filter-section-type" className="flex flex-col gap-[9px] pb-4">
             {facetsLoading ? (
               <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
             ) : (
@@ -519,16 +546,16 @@ export default function SearchFilterSidebar({
             )}
           </div>
         )}
-        <div className="mb-[18px] h-px bg-[#F0F0F0]" />
+        <div className="h-px bg-[#F0F0F0]" />
         <FilterSectionHeader
           title="레어도"
           panelId="filter-section-rarity"
           expanded={expandedSections.has("rarity")}
-          selectedCount={selectedRarities.length}
+          selectedCount={selectedCounts.rarity}
           onToggle={() => toggleSection("rarity")}
         />
         {expandedSections.has("rarity") && (
-          <div id="filter-section-rarity" className="mb-5 flex flex-col gap-1">
+          <div id="filter-section-rarity" className="flex flex-col gap-1 pb-4">
             {facetsLoading ? (
               <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
             ) : (
@@ -558,16 +585,16 @@ export default function SearchFilterSidebar({
             )}
           </div>
         )}
-        <div className="mb-[18px] h-px bg-[#F0F0F0]" />
+        <div className="h-px bg-[#F0F0F0]" />
         <FilterSectionHeader
           title="언어"
           panelId="filter-section-language"
           expanded={expandedSections.has("language")}
-          selectedCount={selectedLanguages.length}
+          selectedCount={selectedCounts.language}
           onToggle={() => toggleSection("language")}
         />
         {expandedSections.has("language") && (
-          <div id="filter-section-language" className="mb-5 flex flex-col gap-[9px]">
+          <div id="filter-section-language" className="flex flex-col gap-[9px] pb-4">
             {LANGUAGE_OPTIONS.map((opt) => (
               <label
                 key={opt.value}
@@ -587,16 +614,16 @@ export default function SearchFilterSidebar({
             ))}
           </div>
         )}
-        <div className="mb-[18px] h-px bg-[#F0F0F0]" />
+        <div className="h-px bg-[#F0F0F0]" />
         <FilterSectionHeader
           title="가격대"
           panelId="filter-section-price"
           expanded={expandedSections.has("price")}
-          selectedCount={priceMin > 0 || priceMax < PRICE_MAX ? 1 : 0}
+          selectedCount={selectedCounts.price}
           onToggle={() => toggleSection("price")}
         />
         {expandedSections.has("price") && (
-          <div id="filter-section-price">
+          <div id="filter-section-price" className="pb-4">
             <div className="mb-3 flex flex-col gap-2">
               <label
                 htmlFor="price-min-input"
@@ -674,15 +701,9 @@ export default function SearchFilterSidebar({
           </div>
         )}
         <button
-          onClick={resetFilters}
-          className="mt-[22px] w-full rounded-[10px] border-[1.5px] border-[#DDDDE3] bg-white py-2.5 text-[13.5px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary"
-        >
-          필터 초기화
-        </button>
-        <button
           type="button"
           onClick={() => setFilterOpen(false)}
-          className="mt-2.5 w-full rounded-[10px] bg-primary py-2.5 text-[13.5px] font-bold text-white lg:hidden"
+          className="mt-5 w-full rounded-[10px] bg-primary py-2.5 text-[13.5px] font-bold text-white lg:hidden"
         >
           필터 적용하기
         </button>
