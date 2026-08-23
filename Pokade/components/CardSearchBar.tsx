@@ -20,14 +20,30 @@ type SearchBarVariant = "default" | "market";
 // 빨간 CTA로 올려서(#235) 눌러야 할 대상이 무엇인지 분명히 한다 — 입체감(shadow-tactile)은
 // 이 프로젝트에서 "누를 수 있는 것"에만 쓰는 표시라 입력 필드 본체에는 넣지 않는다.
 // 헤더는 기존 스타일(variant="default") 그대로 유지 — 이번 개선 범위가 아니다.
+// 테두리 두께를 variant가 직접 소유한다 — market이 2px가 되면서 호출부의 공통 `border`(1px)와
+// 한 요소에서 겹치는데, Tailwind는 클래스 문자열 순서가 아니라 스타일시트 순서로 이기고 지므로
+// 어느 쪽이 적용될지 눈으로 보장할 수 없다. 공통 클래스에서 border를 빼고 여기서만 지정한다.
 const CONTAINER_STYLES: Record<SearchBarVariant, string> = {
-  default: "rounded-[9px] border-[#DDDDE3] bg-neutral px-3.5 py-2.5",
-  market: "rounded-[11px] border-[#DDDDE3] p-1.5",
+  default: "rounded-[9px] border border-[#DDDDE3] bg-neutral px-3.5 py-2.5",
+  // market(#238): 필터 사이드바가 2px 각진 테두리 + blur 0 하드 섀도로 정리되면서 1px 둥근
+  // 테두리만 이 화면에서 혼자 다른 언어를 쓰게 됐다. 두께를 오른쪽 제출 버튼(border-2)과 맞추고
+  // 모서리를 각지게 낮춘다. 투명 배경이던 것도 흰 배경을 명시해 입력 영역임을 분명히 한다.
+  market: "rounded-[8px] border-2 border-[#DDDDE3] bg-white p-1.5",
 };
 const FOCUS_STYLES: Record<SearchBarVariant, string> = {
   default: "transition focus-within:border-primary",
+  // blur 4px 글로우 → blur 0 하드 오프셋(#238). shadow-tactile/필터 체크박스와 같은 언어라
+  // 새 토큰이 필요 없고, 강조가 "포커스한 순간"에만 나타나 평상시 화면을 시끄럽게 하지 않는다.
   market:
-    "transition-[box-shadow,border-color] duration-200 focus-within:border-primary focus-within:shadow-[0_0_0_4px_rgba(238,21,21,0.08)]",
+    "transition-[box-shadow,border-color] duration-200 focus-within:border-primary focus-within:shadow-[3px_3px_0_rgba(238,21,21,0.18)]",
+};
+
+// 인풋 글자 크기 — 헤더(default)는 좁은 폭에 맞춘 기존 크기를 그대로 두고, 마켓만 페이지의
+// 주 검색 진입점답게 한 단계 키운다. 로딩 자리표시(SearchBarShell)와 실제 폼이 같은 값을 써야
+// 전환 시 높이가 튀지 않으므로 상수로 묶어 두 곳이 공유한다.
+const INPUT_STYLES: Record<SearchBarVariant, string> = {
+  default: "text-[13.5px]",
+  market: "text-[14.5px]",
 };
 
 // 마켓 전용 제출 버튼 — 포인트 충전 CTA(app/mypage/points/charge/page.tsx)와 같은 언어.
@@ -83,7 +99,7 @@ function SearchBarShell({
   variant?: SearchBarVariant;
 }) {
   return (
-    <div className={`flex items-center gap-2 border ${CONTAINER_STYLES[variant]} ${width}`}>
+    <div className={`flex items-center gap-2 ${CONTAINER_STYLES[variant]} ${width}`}>
       {variant === "default" && <SearchIcon stroke="#9A9AA2" />}
       {/* 마켓은 왼쪽에 장식용(비클릭) 돋보기 — 제출은 오른쪽 빨간 CTA가 맡는다. */}
       {variant === "market" && (
@@ -94,7 +110,7 @@ function SearchBarShell({
       <input
         placeholder="카드 이름으로 검색"
         disabled
-        className="w-full border-none bg-transparent text-[13.5px] text-ink outline-none"
+        className={`w-full border-none bg-transparent text-ink outline-none ${INPUT_STYLES[variant]}`}
       />
       {/* 실제 폼(SearchBarInner)과 높이가 같아야 로딩→실제 전환 시 튀지 않는다. */}
       {variant === "market" && (
@@ -273,7 +289,7 @@ function SearchBarInner({
           e.preventDefault();
           submit();
         }}
-        className={`flex items-center gap-2 border ${CONTAINER_STYLES[variant]} ${FOCUS_STYLES[variant]}`}
+        className={`flex items-center gap-2 ${CONTAINER_STYLES[variant]} ${FOCUS_STYLES[variant]}`}
       >
         {/* 헤더(default)는 기존처럼 왼쪽 돋보기가 곧 제출 버튼이다. 마켓은 이 자리를 비우고
             아래 오른쪽에 빨간 CTA 제출 버튼을 둔다(#235). */}
@@ -305,7 +321,7 @@ function SearchBarInner({
               ? `${listboxId}-option-${highlightedIndex}`
               : undefined
           }
-          className="w-full border-none bg-transparent text-[13.5px] text-ink outline-none"
+          className={`w-full border-none bg-transparent text-ink outline-none ${INPUT_STYLES[variant]}`}
         />
         {query.length > 0 && (
           <button
