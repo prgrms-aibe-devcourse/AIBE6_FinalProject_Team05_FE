@@ -39,7 +39,10 @@ const CONTAINER_STYLES: Record<SearchBarVariant, string> = {
   // 그림자를 걷어내고 1px 선 하나로만 경계를 잡는다. 테두리는 그림자가 사라진 만큼 #EDEDF0 →
   // #DDDDE3으로 한 단계 진하게(선이 유일한 경계라 보여야 한다). radius도 14 → 10px로 낮춰
   // pill 인상을 피한다. 색 강조는 오른쪽 제출 버튼 하나만 맡는다.
-  market: "overflow-hidden rounded-[10px] border border-[#DDDDE3] bg-white p-2",
+  // 배경은 흰색 대신 중립 회색(neutral = #F7F7F8)을 깐다(#238) — 흰 카드 안의 흰 입력창은
+  // 테두리 1px에만 기대야 했는데, 회색 면이 있으면 "여기가 입력 영역"이 색으로도 읽힌다.
+  // 헤더(default)가 쓰는 값과 같은 토큰이라 두 검색창의 바탕이 자연스럽게 맞는다.
+  market: "rounded-[10px] border border-[#DDDDE3] bg-neutral p-2",
 };
 const FOCUS_STYLES: Record<SearchBarVariant, string> = {
   // 마켓과 동일한 반응: 색을 쓰지 않고 그림자가 퍼지며 테두리만 진해진다(기존 border-primary
@@ -49,7 +52,10 @@ const FOCUS_STYLES: Record<SearchBarVariant, string> = {
   // 포커스도 선으로만 알린다(#238) — 그림자를 쓰지 않고 테두리를 #DDDDE3 → #4B4B52로 크게
   // 진하게 해 대비를 만든다. 색(primary)을 쓰지 않는 이유는 상단 강조선이 이미 빨간색이라
   // 중복이기 때문이고, 명도 변화만으로 알리므로 색각 이상 사용자에게도 그대로 전달된다.
-  market: "transition-[border-color] duration-200 focus-within:border-[#4B4B52]",
+  // 포커스하면 회색 바탕이 흰색으로 열리며 테두리가 진해진다 — 색(primary)을 쓰지 않고
+  // 명도만으로 알리므로 상단 강조선과 겹치지 않고, 색각 이상 사용자에게도 그대로 전달된다.
+  market:
+    "transition-[border-color,background-color] duration-200 focus-within:border-[#4B4B52] focus-within:bg-white",
 };
 
 // 인풋 글자 크기 — 헤더(default)는 좁은 폭에 맞춘 기존 크기를 그대로 두고, 마켓만 페이지의
@@ -59,17 +65,6 @@ const INPUT_STYLES: Record<SearchBarVariant, string> = {
   default: "text-[13.5px]",
   market: "text-[15px]",
 };
-
-// 검색창 좌우 세로 바(#238) — "좌우에 색 바를 세운다"는 구조만 차용하고, 색은 기존 primary
-// 원색을 그대로 쓴다(새 토큰 없음). 폭이 5px로 얇아 원색이어도 면적이 작고, 상단 강조선
-// (border-t-primary)과 같은 빨강을 공유해 "검색이 이 화면의 주 진입점"이라는 신호를 함께 낸다.
-// 배경 그라디언트가 아니라 flex 자식 span으로 둔 이유: 인풋이 바 "뒤"로 흐를 여지가 없어
-// 좌우 padding으로 겹침을 막는 취약한 처리가 필요 없고, 텍스트가 길어져도 절대 겹치지 않는다.
-// -my-2/-ml-2는 폼의 p-2(8px)를 상쇄해 바가 테두리 안쪽 끝까지 닿게 한다(폼 radius 10 - 테두리
-// 1 = 안쪽 9px이라 rounded-l/r-[9px]로 맞춘다). aria-hidden — 순수 장식이라 읽히면 안 된다.
-const MARKET_SIDE_BAR_BASE = "-my-2 w-[5px] flex-shrink-0 self-stretch bg-primary";
-const MARKET_SIDE_BAR_LEFT = `${MARKET_SIDE_BAR_BASE} -ml-2 rounded-l-[9px]`;
-const MARKET_SIDE_BAR_RIGHT = `${MARKET_SIDE_BAR_BASE} -mr-2 rounded-r-[9px]`;
 
 // placeholder는 variant별로 나눈다 — 마켓은 "무엇으로 검색되는지"를 알려줄 공간이 있지만,
 // 헤더(default)는 224~240px라 긴 문구가 잘린다. 문구에 "카드 번호"를 넣지 않은 건 BE 검색이
@@ -88,9 +83,30 @@ const PLACEHOLDER_TEXT: Record<SearchBarVariant, string> = {
 // 하는 버튼인지 아이콘 관습에 기대야 하고, 텍스트가 있으면 그 자체가 접근 이름이 되어 별도
 // aria-label이 필요 없다. 높이 44px은 그대로라 터치 타겟을 유지하고 폭만 늘어난다.
 // 그림자는 걷어내고(폼과 같은 선 기반 마감) hover는 색 변화로만 알린다.
+// 돋보기 아이콘을 빼고 "검색" 텍스트만 둔다(#238) — 왼쪽에 이미 장식용 돋보기가 있어 한 폼
+// 안에 같은 아이콘이 둘이었다. 아이콘(16px)과 gap(6px)이 빠진 만큼 px-4 → px-6으로 좌우
+// 패딩을 키워 버튼 폭과 존재감을 유지한다(h-11 = 44px 터치 타겟은 그대로).
+// radius는 폼(10px)보다 한 단계 낮춰 8px — 같은 값이면 안에 든 요소가 껍데기와 같은 층으로
+// 읽힌다. 44px 터치 타겟(h-11)은 그대로다(border-box라 아래 border-b-[3px]를 넣어도 총 높이 44px).
+// 밋밋함은 두 가지로 푼다(#238): ① 타이포(15px/extrabold/자간 -0.2px)로 무게를 올리고,
+// ② 하단 3px primary-dark 선으로 두께감을 준다. 그라데이션·그림자는 쓰지 않는다 — 이 화면을
+// 선 기반으로 정리한 마감과 같은 언어이고, 색도 primary/primary-dark 둘로만 끝난다.
 const MARKET_SUBMIT_BASE =
-  "flex h-11 flex-shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[10px] bg-primary px-4 text-[14px] font-bold text-white";
-const MARKET_SUBMIT_INTERACTION = "transition-colors hover:bg-primary-dark";
+  "flex h-11 flex-shrink-0 items-center justify-center whitespace-nowrap rounded-[8px] border-b-[3px] border-primary-dark bg-primary px-7 text-[15px] font-extrabold tracking-[-0.2px] text-white";
+// 물리 버튼 모델: hover에서 1px 더 떠오르고, active에서 2px 내려앉으며 하단 선이 3px → 1px로
+// 줄어 "눌렸다"가 보인다. hover에 배경색 변화를 넣지 않은 이유는 bg가 primary-dark가 되면
+// 하단 선과 같은 색이 되어 방금 만든 두께감이 사라지기 때문 — 대신 눌린 순간(active)에만
+// primary-dark로 어두워지게 해 색과 깊이가 같은 방향으로 움직이게 했다.
+// 높이(h-11)와 레이아웃은 변하지 않는다: transform은 레이아웃 밖이고 border-box라 총 높이가
+// 고정이라, 44px 터치 타겟이 어느 상태에서도 유지된다.
+// [@media(hover:hover)] 가드: tailwind.config.ts에 future.hoverOnlyWhenSupported가 꺼져 있어
+// 기본 hover:가 터치 기기에서도 걸린다(탭 후 hover가 눌어붙음). 전역 플래그를 켜면 프로젝트
+// 39개 파일의 hover가 함께 바뀌므로, 이 버튼에만 미디어쿼리로 막아 모바일에서는 active만 남긴다.
+const MARKET_SUBMIT_INTERACTION = [
+  "transition-[transform,border-bottom-width,background-color] duration-150",
+  "[@media(hover:hover)]:hover:-translate-y-[1px]",
+  "active:translate-y-[2px] active:border-b-[1px] active:bg-primary-dark",
+].join(" ");
 const MARKET_SUBMIT_BUTTON = `${MARKET_SUBMIT_BASE} ${MARKET_SUBMIT_INTERACTION}`;
 
 function SearchIcon({ stroke, size = 18 }: { stroke: string; size?: number }) {
@@ -135,7 +151,6 @@ function SearchBarShell({
 }) {
   return (
     <div className={`flex items-center gap-2 ${CONTAINER_STYLES[variant]} ${width}`}>
-      {variant === "market" && <span aria-hidden="true" className={MARKET_SIDE_BAR_LEFT} />}
       {variant === "default" && <SearchIcon stroke="#9A9AA2" />}
       {/* 마켓은 왼쪽에 장식용(비클릭) 돋보기 — 제출은 오른쪽 빨간 CTA가 맡는다. */}
       {variant === "market" && (
@@ -149,13 +164,7 @@ function SearchBarShell({
         className={`w-full border-none bg-transparent text-ink outline-none ${INPUT_STYLES[variant]}`}
       />
       {/* 실제 폼(SearchBarInner)과 높이가 같아야 로딩→실제 전환 시 튀지 않는다. */}
-      {variant === "market" && (
-        <span className={MARKET_SUBMIT_BASE}>
-          <SearchIcon stroke="#FFFFFF" size={16} />
-          검색
-        </span>
-      )}
-      {variant === "market" && <span aria-hidden="true" className={MARKET_SIDE_BAR_RIGHT} />}
+      {variant === "market" && <span className={MARKET_SUBMIT_BASE}>검색</span>}
     </div>
   );
 }
@@ -352,7 +361,6 @@ function SearchBarInner({
         }}
         className={`flex items-center gap-2 ${CONTAINER_STYLES[variant]} ${FOCUS_STYLES[variant]}`}
       >
-        {variant === "market" && <span aria-hidden="true" className={MARKET_SIDE_BAR_LEFT} />}
         {/* 헤더(default)는 기존처럼 왼쪽 돋보기가 곧 제출 버튼이다. 마켓은 이 자리를 비우고
             아래 오른쪽에 빨간 CTA 제출 버튼을 둔다(#235). */}
         {variant === "default" && (
@@ -406,14 +414,12 @@ function SearchBarInner({
           </button>
         )}
         {/* 버튼 텍스트("검색")가 곧 접근 이름이라 aria-label을 따로 두지 않는다 — 두면
-            스크린리더가 라벨만 읽고 화면의 텍스트와 어긋난다. 아이콘은 aria-hidden. */}
+            스크린리더가 라벨만 읽고 화면의 텍스트와 어긋난다. */}
         {variant === "market" && (
           <button type="submit" className={MARKET_SUBMIT_BUTTON}>
-            <SearchIcon stroke="#FFFFFF" size={16} />
             검색
           </button>
         )}
-        {variant === "market" && <span aria-hidden="true" className={MARKET_SIDE_BAR_RIGHT} />}
       </form>
 
       {showDropdown && (
