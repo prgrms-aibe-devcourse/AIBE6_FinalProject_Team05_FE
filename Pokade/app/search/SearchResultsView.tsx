@@ -1,4 +1,4 @@
-import { Dispatch, SetStateAction, useEffect, useRef } from "react";
+import { Dispatch, FormEvent, SetStateAction, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import CardImage from "@/components/CardImage";
 import IconTooltip from "@/components/IconTooltip";
@@ -87,48 +87,45 @@ interface SearchResultsViewProps {
   onHeartClick: (cardId: number) => Promise<QuickWatchlistToggleStatus | null>;
 }
 
-// 페이지네이션 윈도우 — 전체 페이지를 다 그리지 않고 현재 페이지 주변 + 처음/끝만 노출,
-// 나머지는 "..."로 생략한다. (siblingCount=1: 현재 페이지 양옆 1개씩)
-// 이 화면(카탈로그 탐색)만 번호+생략 방식을 쓴다 — MyTradesSection.tsx/notifications 전체보기처럼
+// 페이지네이션 블록 — 현재 페이지가 속한 10개 구간을 통째로 노출하고, 양 끝 «/» 버튼으로 블록
+// 단위로 건너뛴다(21페이지면 21~30을 그리고 «는 11, »는 31로 이동). 이전에는 현재 페이지 주변
+// 몇 개 + 마지막 페이지만("1 2 3 4 5 ... 1413") 보여줬는데, 1400페이지가 넘는 카탈로그에서는
+// 한 번에 옮겨갈 수 있는 거리가 너무 짧아 블록 방식으로 바꿨다.
+// 이 화면(카탈로그 탐색)만 번호 방식을 쓴다 — MyTradesSection.tsx/notifications 전체보기처럼
 // 시간순으로 훑어보는 개인 활동 피드는 임의 페이지 점프가 필요 없어 components/Pagination.tsx의
 // 단순 prev/next를 쓴다. 페이지 수보다 "탐색 vs 피드"라는 화면 성격 차이가 기준이라 이 둘을
 // 하나의 컴포넌트로 통합하지 않는다.
-type PaginationItem = number | "ellipsis";
+const PAGE_BLOCK_SIZE = 10;
 
-function getPaginationRange(current: number, total: number): PaginationItem[] {
-  const siblingCount = 1;
-  const totalVisible = siblingCount * 2 + 5; // 처음 + 끝 + 현재 + 양옆 + 생략기호 2개 여유
-
-  if (totalVisible >= total) {
-    return Array.from({ length: total }, (_, i) => i + 1);
-  }
-
-  const leftSibling = Math.max(current - siblingCount, 1);
-  const rightSibling = Math.min(current + siblingCount, total);
-  const showLeftEllipsis = leftSibling > 2;
-  const showRightEllipsis = rightSibling < total - 1;
-
-  if (!showLeftEllipsis && showRightEllipsis) {
-    const leftItemCount = 3 + siblingCount * 2;
-    const leftRange = Array.from({ length: leftItemCount }, (_, i) => i + 1);
-    return [...leftRange, "ellipsis", total];
-  }
-
-  if (showLeftEllipsis && !showRightEllipsis) {
-    const rightItemCount = 3 + siblingCount * 2;
-    const rightRange = Array.from(
-      { length: rightItemCount },
-      (_, i) => total - rightItemCount + i + 1,
-    );
-    return [1, "ellipsis", ...rightRange];
-  }
-
-  const middleRange = Array.from(
-    { length: rightSibling - leftSibling + 1 },
-    (_, i) => leftSibling + i,
-  );
-  return [1, "ellipsis", ...middleRange, "ellipsis", total];
+interface PageBlock {
+  pages: number[];
+  prevBlockPage: number | null; // 이전 블록의 첫 페이지(첫 블록이면 null)
+  nextBlockPage: number | null; // 다음 블록의 첫 페이지(마지막 블록이면 null)
 }
+
+// current/total이 0·음수·소수·NaN으로 들어와도(로딩 직후 totalPages=0, URL 직접 조작 등) 빈
+// 배열이나 깨진 번호를 그리지 않도록 1 이상 정수로 보정한 뒤 계산한다.
+function getPageBlock(current: number, total: number): PageBlock {
+  const safeTotal = Number.isFinite(total) ? Math.max(1, Math.floor(total)) : 1;
+  const safeCurrent = Number.isFinite(current)
+    ? Math.min(Math.max(1, Math.floor(current)), safeTotal)
+    : 1;
+  const start = Math.floor((safeCurrent - 1) / PAGE_BLOCK_SIZE) * PAGE_BLOCK_SIZE + 1;
+  const end = Math.min(start + PAGE_BLOCK_SIZE - 1, safeTotal);
+  return {
+    pages: Array.from({ length: end - start + 1 }, (_, i) => start + i),
+    prevBlockPage: start > 1 ? start - PAGE_BLOCK_SIZE : null,
+    nextBlockPage: end < safeTotal ? end + 1 : null,
+  };
+}
+
+// 페이지네이션 버튼 공통 스타일 — 번호/한 페이지 이동/블록 이동이 모두 같은 크기·모양을 쓴다.
+// 최대 14개(블록 2 + 화살표 2 + 번호 10)가 늘어서므로 360px에서는 한 줄에 못 담는다. 가로
+// 스크롤은 스크롤바가 보이지 않아 발견성이 나빠, 아래 컨테이너의 flex-wrap으로 줄을 넘기고
+// sm 미만에서는 버튼을 한 단계 작게(32px) 잡아 줄 수를 줄인다.
+const PAGE_BUTTON_SIZE_CLASS =
+  "h-8 w-8 rounded-[9px] text-[12px] font-bold sm:h-9 sm:w-9 sm:text-[13px]";
+const PAGE_NAV_BUTTON_CLASS = `flex items-center justify-center border border-[#DDDDE3] bg-white text-[#4B4B52] enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-40 ${PAGE_BUTTON_SIZE_CLASS}`;
 
 // /search의 "카드 검색" 탭 — 필터 사이드바/드로어 + 검색 결과 그리드 + 페이지네이션.
 export default function SearchResultsView({
@@ -188,6 +185,20 @@ export default function SearchResultsView({
   const filterPanelRef = useRef<HTMLDivElement>(null);
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const prevFilterOpenRef = useRef(filterOpen);
+  // 페이지 직접 입력 — 블록 이동만으로도 1400페이지대까지는 140번을 눌러야 해서 함께 둔다.
+  // 입력값은 문자열로 들고 있다가 제출 시점에만 검증한다(타이핑 중 "1"이 잠깐 유효/무효를
+  // 오가며 안내 문구가 깜빡이지 않도록).
+  const [pageInput, setPageInput] = useState("");
+  const [pageInputError, setPageInputError] = useState("");
+  // 필터/검색어가 바뀌어 전체 페이지 수가 달라지면 입력해 둔 번호도 안내 문구("1~N")도 더는
+  // 맞지 않으므로 비운다 — 그대로 두면 이전 결과 기준의 범위를 안내하게 된다. effect 대신
+  // 렌더 중 비교로 처리한다(page.tsx의 prevQ/prevFilterKey와 같은 방식).
+  const [prevTotalPages, setPrevTotalPages] = useState(totalPages);
+  if (totalPages !== prevTotalPages) {
+    setPrevTotalPages(totalPages);
+    setPageInput("");
+    setPageInputError("");
+  }
 
   useEffect(() => {
     if (filterOpen && !prevFilterOpenRef.current) {
@@ -211,6 +222,28 @@ export default function SearchResultsView({
         return sort === "priceAsc" ? priceA - priceB : priceB - priceA;
       })
     : cards;
+
+  const pageBlock = getPageBlock(page, totalPages);
+
+  // 입력 → 이동. 이동 후 표시되는 블록은 page에서 파생되므로(getPageBlock) 해당 페이지가 속한
+  // 10개 구간으로 자동 전환된다 — 블록을 따로 상태로 들고 있지 않는 이유.
+  const submitPageInput = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const trimmed = pageInput.trim();
+    if (!trimmed) {
+      setPageInputError("이동할 페이지 번호를 입력해 주세요.");
+      return;
+    }
+    // onChange에서 숫자만 남기므로 여기 도달한 값은 항상 정수 문자열이지만, 범위는 여기서 본다.
+    const target = Number(trimmed);
+    if (!Number.isInteger(target) || target < 1 || target > totalPages) {
+      setPageInputError(`1~${totalPages.toLocaleString("ko-KR")} 사이의 번호를 입력해 주세요.`);
+      return;
+    }
+    setPageInputError("");
+    setPageInput("");
+    goToPage(target);
+  };
 
   return (
     // lg:items-stretch(#235): items-start면 필터 쪽 그리드 아이템이 콘텐츠 높이에 딱 맞아
@@ -595,29 +628,30 @@ export default function SearchResultsView({
         )}
 
         {loadState !== "error" && totalPages > 1 && (
-          <div className="mt-6 flex items-center justify-center gap-1.5">
-            <button
-              onClick={() => goToPage(Math.max(1, page - 1))}
-              disabled={page <= 1}
-              aria-label="이전 페이지"
-              className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#DDDDE3] bg-white text-[13px] font-bold text-[#4B4B52] enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              &lt;
-            </button>
-            {getPaginationRange(page, totalPages).map((p, i) =>
-              p === "ellipsis" ? (
-                <span
-                  key={`ellipsis-${i}`}
-                  className="flex h-9 w-9 items-center justify-center text-[13px] text-[#9A9AA2]"
-                >
-                  ...
-                </span>
-              ) : (
+          <div className="mt-6 flex flex-col items-center gap-2.5">
+            <div className="flex flex-wrap items-center justify-center gap-1.5">
+              <button
+                onClick={() => pageBlock.prevBlockPage != null && goToPage(pageBlock.prevBlockPage)}
+                disabled={pageBlock.prevBlockPage == null}
+                aria-label="이전 10페이지"
+                className={PAGE_NAV_BUTTON_CLASS}
+              >
+                &laquo;
+              </button>
+              <button
+                onClick={() => goToPage(Math.max(1, page - 1))}
+                disabled={page <= 1}
+                aria-label="이전 페이지"
+                className={PAGE_NAV_BUTTON_CLASS}
+              >
+                &lsaquo;
+              </button>
+              {pageBlock.pages.map((p) => (
                 <button
                   key={p}
                   onClick={() => goToPage(p)}
                   aria-current={p === page ? "page" : undefined}
-                  className={`h-9 w-9 rounded-[9px] text-[13px] font-bold ${
+                  className={`${PAGE_BUTTON_SIZE_CLASS} ${
                     p === page
                       ? "bg-primary text-white"
                       : "border border-[#DDDDE3] bg-white text-[#4B4B52] hover:border-primary hover:text-primary"
@@ -625,16 +659,64 @@ export default function SearchResultsView({
                 >
                   {p}
                 </button>
-              ),
+              ))}
+              <button
+                onClick={() => goToPage(Math.min(totalPages, page + 1))}
+                disabled={page >= totalPages}
+                aria-label="다음 페이지"
+                className={PAGE_NAV_BUTTON_CLASS}
+              >
+                &rsaquo;
+              </button>
+              <button
+                onClick={() => pageBlock.nextBlockPage != null && goToPage(pageBlock.nextBlockPage)}
+                disabled={pageBlock.nextBlockPage == null}
+                aria-label="다음 10페이지"
+                className={PAGE_NAV_BUTTON_CLASS}
+              >
+                &raquo;
+              </button>
+            </div>
+
+            {/* 페이지 직접 입력 — form으로 감싸 Enter 키와 "이동" 버튼이 같은 경로를 타게 한다.
+                (이 컴포넌트 바깥의 검색창 form과는 형제 관계라 중첩되지 않는다.) */}
+            <form onSubmit={submitPageInput} className="flex items-center gap-1.5">
+              <label htmlFor="market-page-input" className="sr-only">
+                이동할 페이지 번호
+              </label>
+              <input
+                id="market-page-input"
+                type="text"
+                inputMode="numeric"
+                value={pageInput}
+                onChange={(e) => {
+                  // 숫자가 아닌 문자는 입력 단계에서 걸러내고(붙여넣기 포함), 자릿수도 제한해
+                  // 범위 검증 전에 비정상적으로 큰 값이 들어오지 않게 한다.
+                  setPageInput(e.target.value.replace(/[^0-9]/g, "").slice(0, 7));
+                  setPageInputError("");
+                }}
+                placeholder={String(page)}
+                aria-invalid={pageInputError ? true : undefined}
+                aria-describedby={pageInputError ? "market-page-input-error" : undefined}
+                className="h-8 w-16 rounded-[9px] border border-[#DDDDE3] bg-white px-2 text-center text-[12px] font-bold text-[#4B4B52] placeholder:font-normal placeholder:text-[#C5C5CC] focus:border-primary focus:outline-none sm:h-9 sm:text-[13px]"
+              />
+              <button
+                type="submit"
+                className="h-8 rounded-[9px] border border-[#DDDDE3] bg-white px-3 text-[12px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary sm:h-9 sm:text-[13px]"
+              >
+                페이지 이동
+              </button>
+            </form>
+
+            {pageInputError && (
+              <p
+                id="market-page-input-error"
+                role="alert"
+                className="text-[12px] font-semibold text-[#D14343]"
+              >
+                {pageInputError}
+              </p>
             )}
-            <button
-              onClick={() => goToPage(Math.min(totalPages, page + 1))}
-              disabled={page >= totalPages}
-              aria-label="다음 페이지"
-              className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#DDDDE3] bg-white text-[13px] font-bold text-[#4B4B52] enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              &gt;
-            </button>
           </div>
         )}
       </div>
