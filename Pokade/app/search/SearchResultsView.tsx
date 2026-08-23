@@ -302,8 +302,11 @@ export default function SearchResultsView({
             >
               필터
             </button>
+            {/* 결과 개수(#238) — tabular-nums로 자릿수 폭을 고정해 필터를 바꿔 숫자가 갱신될 때
+                (21,190 → 3,575) 좌우로 흔들리지 않게 한다. 시각적 강조는 일부러 넣지 않는다 —
+                이 화면에서 눈에 띄어야 하는 건 검색창과 필터지 결과 개수가 아니다. */}
             <span className="text-[13.5px] text-[#8A8A92]">
-              <b className="text-ink">
+              <b className="tabular-nums text-ink">
                 {loadState === "ready"
                   ? totalElements.toLocaleString("ko-KR")
                   : cards.length > 0
