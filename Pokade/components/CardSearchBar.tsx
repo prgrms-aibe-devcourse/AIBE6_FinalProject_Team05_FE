@@ -14,53 +14,41 @@ const MIN_QUERY_LENGTH = 2;
 
 type SearchBarVariant = "default" | "market";
 
-// variant="market": 마켓 페이지(/search) 상단 "카드 검색" 카드(흰 배경) 안에 놓인다. 배경은
-// 카드와 같은 흰색을 명시하고(bg-white) 1px 선 하나로만 경계를 잡아, 흰 카드 안에 또 하나의
-// 카드가 겹쳐 보이는 이중 박싱을 피한다 — 그림자를 쓰지 않는 이유도 같다.
-// 색 강조는 오른쪽 제출 버튼 하나만 맡는다(#235에서 아이콘 전용 CTA로 올렸고, #238에서
-// 아이콘 + "검색" 텍스트로 바꿨다).
+// variant="market": 마켓 페이지(/search) 상단 "카드 검색" 카드(흰 배경) 안에 놓인다. 그림자
+// 없이 1px 선 하나로 경계를 잡아, 흰 카드 안에 또 하나의 카드가 겹쳐 보이는 이중 박싱을 피한다.
+// 색 강조는 오른쪽 제출 버튼 하나만 맡는다.
 // 주의: 이 화면의 제출 버튼은 프로젝트의 다른 primary CTA와 달리 shadow-tactile을 쓰지 않는다
 // — #238에서 검색/필터를 선 기반으로 재설계하면서 이 페이지만 먼저 옮겼다. 전체 통일은 미결.
-// 헤더(variant="default")도 #238에서 함께 정리했다 — 각 variant의 실제 값과 이유는 아래
-// CONTAINER_STYLES/FOCUS_STYLES 항목별 주석에 있다.
 // 테두리 두께를 variant가 직접 소유한다 — 공통 클래스에 `border`(1px)를 두면 variant가 다른
 // 두께를 쓸 때 한 요소에서 겹치는데, Tailwind는 클래스 문자열 순서가 아니라 스타일시트 순서로
 // 우선순위가 정해져 어느 쪽이 적용될지 보장할 수 없다. 여기서만 지정한다.
 const CONTAINER_STYLES: Record<SearchBarVariant, string> = {
-  // default(헤더, #238): 마켓과 같은 소프트 언어로 통일한다 — 테두리는 #DDDDE3 → #EDEDF0으로
-  // 연하게 낮추고 은은한 그림자로 입체감을 준다. 배경(bg-neutral)은 그대로 둔다: 헤더가 흰색이라
-  // 이 회색 면이 "입력할 수 있는 곳"임을 알리는 유일한 신호이고, 포커스에서도 바꾸지 않아야
-  // 필드가 흰 헤더에 묻히지 않는다. 확장 애니메이션은 넣지 않는다(검색은 상시 노출 유지).
+  // default(헤더): 연한 테두리 + 은은한 그림자로 입체감을 준다. 배경(bg-neutral)은 포커스에서도
+  // 바꾸지 않는다 — 헤더가 흰색이라 이 회색 면이 "입력할 수 있는 곳"임을 알리는 유일한 신호이고,
+  // 흰색으로 열면 필드가 헤더에 묻힌다(market은 흰 카드 안이라 반대로 흰색으로 연다).
+  // 확장 애니메이션은 넣지 않는다(검색은 상시 노출 유지).
   default:
     "rounded-[11px] border border-[#EDEDF0] bg-neutral px-3.5 py-2.5 shadow-[0_1px_4px_rgba(20,26,52,0.04)]",
-  // 스타일 경계(#238): 이 폼을 감싸는 페이지 카드(app/search/page.tsx)는 rounded-2xl +
-  // shadow-card인 반면, 그 안의 이 컨트롤은 1px 선 + 그림자 없음이다 — 의도된 이중 언어다.
-  // market(#238): 필터를 선(구분선) 기반 구조로 바꾸면서 검색창도 같은 언어로 맞춘다 — 떠 있는
-  // 그림자를 걷어내고 1px 선 하나로만 경계를 잡는다. 테두리는 그림자가 사라진 만큼 #EDEDF0 →
-  // #DDDDE3으로 한 단계 진하게(선이 유일한 경계라 보여야 한다). radius도 14 → 10px로 낮춰
-  // pill 인상을 피한다. 색 강조는 오른쪽 제출 버튼 하나만 맡는다.
-  // 배경은 흰색 대신 중립 회색(neutral = #F7F7F8)을 깐다(#238) — 흰 카드 안의 흰 입력창은
-  // 테두리 1px에만 기대야 했는데, 회색 면이 있으면 "여기가 입력 영역"이 색으로도 읽힌다.
-  // 헤더(default)가 쓰는 값과 같은 토큰이라 두 검색창의 바탕이 자연스럽게 맞는다.
+  // 스타일 경계: 이 폼을 감싸는 페이지 카드(app/search/page.tsx)는 rounded-2xl + shadow-card인
+  // 반면, 그 안의 이 컨트롤은 1px 선 + 그림자 없음이다 — 필터 사이드바와 같은 선 기반 언어로
+  // 맞춘, 의도된 이중 언어다. radius 10px은 pill 인상을 피하려고 낮춘 값이다.
+  // 배경은 흰색 대신 중립 회색(neutral = #F7F7F8)을 깐다 — 경계는 선이 잡고, 회색 면은 "여기가
+  // 입력 영역"임을 색으로 한 번 더 알린다. 헤더(default)와 같은 토큰이라 두 검색창의 바탕이 맞는다.
   market: "rounded-[10px] border border-[#DDDDE3] bg-neutral p-2",
 };
 const FOCUS_STYLES: Record<SearchBarVariant, string> = {
-  // 마켓과 동일한 반응: 색을 쓰지 않고 그림자가 퍼지며 테두리만 진해진다(기존 border-primary
-  // 제거). 헤더는 폭이 224~240px로 좁아 마켓(0 8px 24px)보다 한 단계 작은 그림자를 쓴다.
+  // 색(primary)을 쓰지 않고 그림자가 퍼지며 테두리만 진해진다. 헤더는 폭이 224~240px로 좁아
+  // 그림자를 한 단계 작게 잡는다.
   default:
     "transition-[box-shadow,border-color] duration-200 focus-within:border-[#9A9AA2] focus-within:shadow-[0_4px_14px_rgba(20,26,52,0.10)]",
-  // 포커스도 선으로만 알린다(#238) — 그림자를 쓰지 않고 테두리를 #DDDDE3 → #4B4B52로 크게
-  // 진하게 해 대비를 만든다. 색(primary)을 쓰지 않는 이유는 상단 강조선이 이미 빨간색이라
-  // 중복이기 때문이고, 명도 변화만으로 알리므로 색각 이상 사용자에게도 그대로 전달된다.
-  // 포커스하면 회색 바탕이 흰색으로 열리며 테두리가 진해진다 — 색(primary)을 쓰지 않고
-  // 명도만으로 알리므로 상단 강조선과 겹치지 않고, 색각 이상 사용자에게도 그대로 전달된다.
+  // 포커스하면 회색 바탕이 흰색으로 열리고 테두리가 크게 진해진다. 색(primary)이 아니라 명도
+  // 변화로만 알리므로 상단 강조선(빨강)과 겹치지 않고, 색각 이상 사용자에게도 그대로 전달된다.
   market:
     "transition-[border-color,background-color] duration-200 focus-within:border-[#4B4B52] focus-within:bg-white",
 };
 
-// 인풋 글자 크기 — 헤더(default)는 좁은 폭에 맞춘 기존 크기를 그대로 두고, 마켓만 페이지의
-// 주 검색 진입점답게 한 단계 키운다. 로딩 자리표시(SearchBarShell)와 실제 폼이 같은 값을 써야
-// 전환 시 높이가 튀지 않으므로 상수로 묶어 두 곳이 공유한다.
+// 로딩 자리표시(SearchBarShell)와 실제 폼이 같은 값을 써야 전환 시 높이가 튀지 않으므로
+// 상수로 묶어 두 곳이 공유한다.
 const INPUT_STYLES: Record<SearchBarVariant, string> = {
   default: "text-[13.5px]",
   market: "text-[15px]",
@@ -75,30 +63,20 @@ const PLACEHOLDER_TEXT: Record<SearchBarVariant, string> = {
   market: "카드 이름을 한글 또는 영문으로 검색하세요",
 };
 
-// 마켓 전용 제출 버튼 — 포인트 충전 CTA(app/mypage/points/charge/page.tsx)와 같은 언어.
-// 44x44라 터치 타겟도 그대로 만족한다.
-// 베이스(모양)와 인터랙션(hover/active)을 분리한다: 로딩 자리표시인 SearchBarShell의 <span>은
-// 클릭할 수 없으므로 hover/active가 무의미해 베이스만 쓰고, 실제 <button>만 인터랙션까지 붙인다.
-// 아이콘 전용에서 "검색" 텍스트를 함께 두는 버튼으로 바꾼다(#238) — 돋보기만으로는 무엇을
-// 하는 버튼인지 아이콘 관습에 기대야 하고, 텍스트가 있으면 그 자체가 접근 이름이 되어 별도
-// aria-label이 필요 없다. 높이 44px은 그대로라 터치 타겟을 유지하고 폭만 늘어난다.
-// 그림자는 걷어내고(폼과 같은 선 기반 마감) hover는 색 변화로만 알린다.
-// 돋보기 아이콘을 빼고 "검색" 텍스트만 둔다(#238) — 왼쪽에 이미 장식용 돋보기가 있어 한 폼
-// 안에 같은 아이콘이 둘이었다. 아이콘(16px)과 gap(6px)이 빠진 만큼 px-4 → px-6으로 좌우
-// 패딩을 키워 버튼 폭과 존재감을 유지한다(h-11 = 44px 터치 타겟은 그대로).
+// 마켓 전용 제출 버튼. 베이스(모양)와 인터랙션(hover/active)을 분리한다: 로딩 자리표시인
+// SearchBarShell의 <span>은 클릭할 수 없어 hover/active가 무의미하므로 베이스만 쓰고, 실제
+// <button>만 인터랙션까지 붙인다.
 // radius는 폼(10px)보다 한 단계 낮춰 8px — 같은 값이면 안에 든 요소가 껍데기와 같은 층으로
-// 읽힌다. 44px 터치 타겟(h-11)은 그대로다(border-box라 아래 border-b-[3px]를 넣어도 총 높이 44px).
-// 밋밋함은 두 가지로 푼다(#238): ① 타이포(15px/extrabold/자간 -0.2px)로 무게를 올리고,
-// ② 하단 3px primary-dark 선으로 두께감을 준다. 그라데이션·그림자는 쓰지 않는다 — 이 화면을
-// 선 기반으로 정리한 마감과 같은 언어이고, 색도 primary/primary-dark 둘로만 끝난다.
+// 읽힌다. 44px 터치 타겟(h-11)은 border-box라 border-b-[3px]를 넣어도 총 높이가 44px로 유지된다.
+// 밋밋함은 두 가지로 푼다: ① 타이포(15px/extrabold/자간 -0.2px)로 무게를 올리고, ② 하단 3px
+// primary-dark 선으로 두께감을 준다. 그라데이션·그림자는 쓰지 않는다 — 이 화면을 선 기반으로
+// 정리한 마감과 같은 언어이고, 색도 primary/primary-dark 둘로만 끝난다.
 const MARKET_SUBMIT_BASE =
   "flex h-11 flex-shrink-0 items-center justify-center whitespace-nowrap rounded-[8px] border-b-[3px] border-primary-dark bg-primary px-7 text-[15px] font-extrabold tracking-[-0.2px] text-white";
 // 물리 버튼 모델: hover에서 1px 더 떠오르고, active에서 2px 내려앉으며 하단 선이 3px → 1px로
 // 줄어 "눌렸다"가 보인다. hover에 배경색 변화를 넣지 않은 이유는 bg가 primary-dark가 되면
 // 하단 선과 같은 색이 되어 방금 만든 두께감이 사라지기 때문 — 대신 눌린 순간(active)에만
 // primary-dark로 어두워지게 해 색과 깊이가 같은 방향으로 움직이게 했다.
-// 높이(h-11)와 레이아웃은 변하지 않는다: transform은 레이아웃 밖이고 border-box라 총 높이가
-// 고정이라, 44px 터치 타겟이 어느 상태에서도 유지된다.
 // [@media(hover:hover)] 가드: tailwind.config.ts에 future.hoverOnlyWhenSupported가 꺼져 있어
 // 기본 hover:가 터치 기기에서도 걸린다(탭 후 hover가 눌어붙음). 전역 플래그를 켜면 프로젝트
 // 39개 파일의 hover가 함께 바뀌므로, 이 버튼에만 미디어쿼리로 막아 모바일에서는 active만 남긴다.
@@ -152,7 +130,6 @@ function SearchBarShell({
   return (
     <div className={`flex items-center gap-2 ${CONTAINER_STYLES[variant]} ${width}`}>
       {variant === "default" && <SearchIcon stroke="#9A9AA2" />}
-      {/* 마켓은 왼쪽에 장식용(비클릭) 돋보기 — 제출은 오른쪽 빨간 CTA가 맡는다. */}
       {variant === "market" && (
         <span className="flex flex-shrink-0 items-center pl-1.5" aria-hidden="true">
           <SearchIcon stroke="#9A9AA2" />
@@ -361,14 +338,13 @@ function SearchBarInner({
         }}
         className={`flex items-center gap-2 ${CONTAINER_STYLES[variant]} ${FOCUS_STYLES[variant]}`}
       >
-        {/* 헤더(default)는 기존처럼 왼쪽 돋보기가 곧 제출 버튼이다. 마켓은 이 자리를 비우고
-            아래 오른쪽에 빨간 CTA 제출 버튼을 둔다(#235). */}
+        {/* 헤더(default)는 왼쪽 돋보기가 곧 제출 버튼이고, 마켓은 이 돋보기를 장식용(비클릭)으로
+            두고 아래 오른쪽 빨간 CTA가 제출을 맡는다. */}
         {variant === "default" && (
           <button type="submit" aria-label="검색" className="flex flex-shrink-0 items-center">
             <SearchIcon stroke="#9A9AA2" />
           </button>
         )}
-        {/* 마켓은 왼쪽에 장식용(비클릭) 돋보기 — 제출은 오른쪽 빨간 CTA가 맡는다. */}
         {variant === "market" && (
           <span className="flex flex-shrink-0 items-center pl-1.5" aria-hidden="true">
             <SearchIcon stroke="#9A9AA2" />
