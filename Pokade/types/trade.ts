@@ -26,6 +26,9 @@ export interface TradeResponse {
   deliveredAt: string | null;
   confirmedAt: string | null;
   settledAt: string | null;
+  recipientName: string | null;
+  recipientPhone: string | null;
+  recipientAddress: string | null;
   createdAt: string;
 }
 

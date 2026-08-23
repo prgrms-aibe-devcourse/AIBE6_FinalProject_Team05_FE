@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import PriceInput from "@/components/PriceInput";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 import { ApiError } from "@/lib/apiClient";
 import { loginUrlFor } from "@/lib/authRedirect";
@@ -173,25 +174,21 @@ export default function AddWatchlistModal(props: AddWatchlistModalProps) {
         <div className="flex flex-col gap-3.5">
           <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#4B4B52]">
             목표 구매가 (이 가격 이하로 내려가면 알림)
-            <input
+            <PriceInput
               ref={buyPriceInputRef}
-              type="number"
-              min={MIN_TARGET_PRICE}
               value={buyPrice}
-              onChange={(e) => setBuyPrice(e.target.value)}
-              placeholder="예: 100000"
+              onChange={setBuyPrice}
+              placeholder="예: 100,000"
               className="rounded-[9px] border border-[#DDDDE3] px-3 py-2 text-[13.5px] outline-none focus:border-primary"
             />
           </label>
 
           <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#4B4B52]">
             목표 판매가 (이 가격 이상으로 오르면 알림)
-            <input
-              type="number"
-              min={MIN_TARGET_PRICE}
+            <PriceInput
               value={sellPrice}
-              onChange={(e) => setSellPrice(e.target.value)}
-              placeholder="예: 150000"
+              onChange={setSellPrice}
+              placeholder="예: 150,000"
               className="rounded-[9px] border border-[#DDDDE3] px-3 py-2 text-[13.5px] outline-none focus:border-primary"
             />
           </label>
