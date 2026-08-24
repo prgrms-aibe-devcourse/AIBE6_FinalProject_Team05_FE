@@ -146,8 +146,10 @@ export default function AddWatchlistModal(props: AddWatchlistModalProps) {
       onSuccess?.(result);
       onClose();
     } catch (err) {
-      // DUPLICATE_WATCHLIST/WATCHLIST_LIMIT_EXCEEDED/TARGET_PRICE_REQUIRED/WATCHLIST_NOT_FOUND/
-      // INVALID_TARGET_PRICE_RANGE 모두 BE가 내려주는 msg를 그대로 보여준다(이미 사용자 친화적).
+      // DUPLICATE_WATCHLIST/WATCHLIST_LIMIT_EXCEEDED/WATCHLIST_NOT_FOUND/INVALID_TARGET_PRICE_RANGE
+      // 모두 BE가 내려주는 msg를 그대로 보여준다(이미 사용자 친화적).
+      // TARGET_PRICE_REQUIRED는 수정(PATCH) 모드에서만 올 수 있다 — 등록(POST)에서는 목표가가
+      // 선택 입력이 되며 빠졌고(BE #308), 그나마도 위 handleSubmit이 먼저 걸러 여기까지 오지 않는다.
       // 다만 bean validation(@Max 등)에서 온 것만 "targetBuyPrice: ..."처럼 필드명이 앞에 붙어
       // 오므로 그 접두사만 걷어낸다(#238) — 나머지 메시지는 매칭되지 않아 그대로 통과한다.
       setError(

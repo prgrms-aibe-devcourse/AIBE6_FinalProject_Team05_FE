@@ -64,8 +64,6 @@ interface SearchResultsViewProps {
   priceMax: number;
   setPriceMax: Dispatch<SetStateAction<number>>;
   setPriceRangeNow: (min: number, max: number) => void;
-  activeHandle: "min" | "max" | null;
-  setActiveHandle: Dispatch<SetStateAction<"min" | "max" | null>>;
   sort: UiSort;
   setSort: Dispatch<SetStateAction<UiSort>>;
   setLoadState: Dispatch<SetStateAction<LoadState>>;
@@ -82,47 +80,47 @@ interface SearchResultsViewProps {
   setReloadKey: Dispatch<SetStateAction<number>>;
   myWatchlist: Map<number, number>;
   watchlistPendingCardId: number | null;
-  watchlistError: { cardId: number; message: string } | null;
   // 등록/해제 결과를 돌려받아야 "등록 확정" 시에만 하트 펀치를 재생할 수 있다.
+  // 실패 문구는 여기까지 내려오지 않는다 — 부모(app/search/page.tsx)가 토스트로 처리한다.
   onHeartClick: (cardId: number) => Promise<QuickWatchlistToggleStatus | null>;
 }
 
-// 페이지네이션 블록 — 현재 페이지가 속한 5개 구간을 통째로 노출하고, 양 끝 «/» 버튼으로 블록
-// 단위로 건너뛴다(21페이지면 21~25를 그리고 «는 16, »는 26으로 이동). 이전에는 현재 페이지 주변
-// 몇 개 + 마지막 페이지만("1 2 3 4 5 ... 1413") 보여줬는데, 1400페이지가 넘는 카탈로그에서는
-// 한 번에 옮겨갈 수 있는 거리가 너무 짧아 블록 방식으로 바꿨다.
+// 페이지네이션 — 현재 페이지를 가운데 두고 좌우로 번호를 펼친다(창 방식). 양 끝에서는 창이
+// 더 밀리지 않으므로 한쪽으로 붙는다(1페이지면 1~10, 마지막이면 마지막-9~마지막).
+// 이전에는 고정 구간을 통째로 보여주는 블록 방식이었는데, 블록 경계를 넘을 때마다 현재 페이지가
+// 왼쪽 끝으로 튀어(5→6에서 "1 2 3 4 5"가 "6 7 8 9 10"으로) 지금 어디쯤인지 읽기 어려웠다.
 // 이 화면(카탈로그 탐색)만 번호 방식을 쓴다 — MyTradesSection.tsx/notifications 전체보기처럼
 // 시간순으로 훑어보는 개인 활동 피드는 임의 페이지 점프가 필요 없어 components/Pagination.tsx의
 // 단순 prev/next를 쓴다. 페이지 수보다 "탐색 vs 피드"라는 화면 성격 차이가 기준이라 이 둘을
 // 하나의 컴포넌트로 통합하지 않는다.
-const PAGE_BLOCK_SIZE = 5;
+const PAGE_BLOCK_SIZE = 10;
+// 좁은 화면(<640px)용 개수. 10개를 그대로 두면 화살표까지 12개가 늘어서 약 450px가 필요해
+// 360px에서 두 줄로 접힌다. 번호 세트를 두 벌 렌더하고 CSS로만 고르므로(아래 JSX) 화면 폭을
+// 재는 훅이나 상태 없이 처리된다 — SSR 결과와 첫 렌더가 어긋날 일도 없다.
+const PAGE_BLOCK_SIZE_MOBILE = 5;
 
 interface PageBlock {
   pages: number[];
-  prevBlockPage: number | null; // 이전 블록의 첫 페이지(첫 블록이면 null)
-  nextBlockPage: number | null; // 다음 블록의 첫 페이지(마지막 블록이면 null)
 }
 
 // current/total이 0·음수·소수·NaN으로 들어와도(로딩 직후 totalPages=0, URL 직접 조작 등) 빈
 // 배열이나 깨진 번호를 그리지 않도록 1 이상 정수로 보정한 뒤 계산한다.
-function getPageBlock(current: number, total: number): PageBlock {
+function getPageBlock(current: number, total: number, size = PAGE_BLOCK_SIZE): PageBlock {
   const safeTotal = Number.isFinite(total) ? Math.max(1, Math.floor(total)) : 1;
   const safeCurrent = Number.isFinite(current)
     ? Math.min(Math.max(1, Math.floor(current)), safeTotal)
     : 1;
-  const start = Math.floor((safeCurrent - 1) / PAGE_BLOCK_SIZE) * PAGE_BLOCK_SIZE + 1;
-  const end = Math.min(start + PAGE_BLOCK_SIZE - 1, safeTotal);
-  return {
-    pages: Array.from({ length: end - start + 1 }, (_, i) => start + i),
-    prevBlockPage: start > 1 ? start - PAGE_BLOCK_SIZE : null,
-    nextBlockPage: end < safeTotal ? end + 1 : null,
-  };
+  const half = Math.floor(size / 2);
+  let start = Math.max(1, safeCurrent - half);
+  const end = Math.min(safeTotal, start + size - 1);
+  // 끝에 닿아 창이 잘렸으면 반대쪽으로 밀어 항상 size개를 채운다(총 페이지가 그보다
+  // 적으면 있는 만큼만 — start가 1 아래로 내려가지 않는다).
+  if (end - start + 1 < size) start = Math.max(1, end - size + 1);
+  return { pages: Array.from({ length: end - start + 1 }, (_, i) => start + i) };
 }
 
-// 페이지네이션 버튼 공통 스타일 — 번호/한 페이지 이동/블록 이동이 모두 같은 크기·모양을 쓴다.
-// 최대 9개(블록 2 + 화살표 2 + 번호 5)가 늘어서므로 360px에서는 한 줄에 못 담을 수 있다. 가로
-// 스크롤은 스크롤바가 보이지 않아 발견성이 나빠, 아래 컨테이너의 flex-wrap으로 줄을 넘기고
-// sm 미만에서는 버튼을 한 단계 작게(32px) 잡아 줄 수를 줄인다.
+// 페이지네이션 버튼 공통 스타일 — 번호와 한 페이지 이동 화살표가 같은 크기·모양을 쓴다.
+// sm 미만에서는 버튼을 한 단계 작게(32px) 잡고 번호도 5개만 그려 한 줄에 담는다.
 const PAGE_BUTTON_SIZE_CLASS =
   "h-8 w-8 rounded-[9px] text-[12px] font-bold sm:h-9 sm:w-9 sm:text-[13px]";
 const PAGE_NAV_BUTTON_CLASS = `flex items-center justify-center border border-[#DDDDE3] bg-white text-[#4B4B52] enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-40 ${PAGE_BUTTON_SIZE_CLASS}`;
@@ -149,8 +147,6 @@ export default function SearchResultsView({
   priceMax,
   setPriceMax,
   setPriceRangeNow,
-  activeHandle,
-  setActiveHandle,
   sort,
   setSort,
   setLoadState,
@@ -167,7 +163,6 @@ export default function SearchResultsView({
   setReloadKey,
   myWatchlist,
   watchlistPendingCardId,
-  watchlistError,
   onHeartClick,
 }: SearchResultsViewProps) {
   // 결과 0건일 때 "검색어 탓"과 "필터 탓"을 구분하기 위한 파생값(#238 UX-1). 예전에는 q 유무로만
@@ -224,6 +219,23 @@ export default function SearchResultsView({
     : cards;
 
   const pageBlock = getPageBlock(page, totalPages);
+  const pageBlockMobile = getPageBlock(page, totalPages, PAGE_BLOCK_SIZE_MOBILE);
+
+  // 번호 버튼 한 개. 모바일/데스크톱 두 세트가 같은 모양을 써야 하므로 여기서만 만든다.
+  const renderPageButton = (p: number) => (
+    <button
+      key={p}
+      onClick={() => goToPage(p)}
+      aria-current={p === page ? "page" : undefined}
+      className={`${PAGE_BUTTON_SIZE_CLASS} ${
+        p === page
+          ? "bg-primary text-white"
+          : "border border-[#DDDDE3] bg-white text-[#4B4B52] hover:border-primary hover:text-primary"
+      }`}
+    >
+      {p}
+    </button>
+  );
 
   // 입력 → 이동. 이동 후 표시되는 블록은 page에서 파생되므로(getPageBlock) 해당 페이지가 속한
   // 5개 구간으로 자동 전환된다 — 블록을 따로 상태로 들고 있지 않는 이유.
@@ -275,8 +287,6 @@ export default function SearchResultsView({
         setPriceMin={setPriceMin}
         priceMax={priceMax}
         setPriceMax={setPriceMax}
-        activeHandle={activeHandle}
-        setActiveHandle={setActiveHandle}
         setLoadState={setLoadState}
         resetFilters={resetFilters}
       />
@@ -628,14 +638,6 @@ export default function SearchResultsView({
                       </button>
                     </IconTooltip>
                   </div>
-                  {watchlistError?.cardId === c.id && (
-                    <div
-                      role="alert"
-                      className="absolute bottom-2 right-2 z-10 max-w-[130px] rounded-lg bg-[#3A3A3E] px-2.5 py-1.5 text-[11px] font-semibold leading-snug text-white shadow-lg"
-                    >
-                      {watchlistError.message}
-                    </div>
-                  )}
                 </div>
               );
             })}
@@ -646,14 +648,6 @@ export default function SearchResultsView({
           <div className="mt-6 flex flex-col items-center gap-2.5">
             <div className="flex flex-wrap items-center justify-center gap-1.5">
               <button
-                onClick={() => pageBlock.prevBlockPage != null && goToPage(pageBlock.prevBlockPage)}
-                disabled={pageBlock.prevBlockPage == null}
-                aria-label="이전 5페이지"
-                className={PAGE_NAV_BUTTON_CLASS}
-              >
-                &laquo;
-              </button>
-              <button
                 onClick={() => goToPage(Math.max(1, page - 1))}
                 disabled={page <= 1}
                 aria-label="이전 페이지"
@@ -661,20 +655,14 @@ export default function SearchResultsView({
               >
                 &lsaquo;
               </button>
-              {pageBlock.pages.map((p) => (
-                <button
-                  key={p}
-                  onClick={() => goToPage(p)}
-                  aria-current={p === page ? "page" : undefined}
-                  className={`${PAGE_BUTTON_SIZE_CLASS} ${
-                    p === page
-                      ? "bg-primary text-white"
-                      : "border border-[#DDDDE3] bg-white text-[#4B4B52] hover:border-primary hover:text-primary"
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
+              {/* 같은 번호를 두 벌 그리고 CSS로 하나만 남긴다 — 숨는 쪽은 display:none이라
+                  접근성 트리에서도 빠지므로 스크린리더에 중복으로 읽히지 않는다. */}
+              <div className="flex items-center gap-1.5 sm:hidden">
+                {pageBlockMobile.pages.map(renderPageButton)}
+              </div>
+              <div className="hidden items-center gap-1.5 sm:flex">
+                {pageBlock.pages.map(renderPageButton)}
+              </div>
               <button
                 onClick={() => goToPage(Math.min(totalPages, page + 1))}
                 disabled={page >= totalPages}
@@ -682,14 +670,6 @@ export default function SearchResultsView({
                 className={PAGE_NAV_BUTTON_CLASS}
               >
                 &rsaquo;
-              </button>
-              <button
-                onClick={() => pageBlock.nextBlockPage != null && goToPage(pageBlock.nextBlockPage)}
-                disabled={pageBlock.nextBlockPage == null}
-                aria-label="다음 5페이지"
-                className={PAGE_NAV_BUTTON_CLASS}
-              >
-                &raquo;
               </button>
             </div>
 

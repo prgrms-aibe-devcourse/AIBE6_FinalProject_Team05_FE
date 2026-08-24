@@ -12,13 +12,16 @@ export async function fetchWatchlist(): Promise<WatchlistResponse[]> {
   return apiGet<WatchlistResponse[]>("/api/watchlist");
 }
 
-// POST /api/watchlist — targetBuyPrice/targetSellPrice 둘 다 없으면 400(TARGET_PRICE_REQUIRED),
+// POST /api/watchlist — 목표가는 선택 입력이다(BE #308). targetBuyPrice/targetSellPrice가 둘 다
+// 없어도 등록되고, 목표가는 이후 /watchlist에서 넣는다 — 하트 빠른 등록이 이 경로를 쓴다.
+// TARGET_PRICE_REQUIRED 검증은 등록에서 빠졌고 수정(PATCH)에만 남아 있다(아래 updateWatchlist).
 // 이미 등록된 카드면 409(DUPLICATE_WATCHLIST), 유저당 20개 초과 시 409(WATCHLIST_LIMIT_EXCEEDED).
 export async function addWatchlist(request: WatchlistCreateRequest): Promise<WatchlistResponse> {
   return apiPost<WatchlistResponse>("/api/watchlist", request);
 }
 
-// PATCH /api/watchlist/{id} — targetBuyPrice/targetSellPrice 둘 다 없으면 400(TARGET_PRICE_REQUIRED),
+// PATCH /api/watchlist/{id} — 등록(POST)과 달리 여기서는 목표가가 필수다. targetBuyPrice/
+// targetSellPrice 둘 다 없으면 400(TARGET_PRICE_REQUIRED),
 // 단 resendNotification=true면 이 검증을 건너뛰고 가격은 그대로 둔 채 isNotified만 false로 리셋한다.
 // 본인 소유가 아니거나 없는 id면 404(WATCHLIST_NOT_FOUND). 응답은 WatchlistResponse.of()로 만들어져
 // cardName/setName/imageUrl/currentPrice/changeRate/targetReached가 전부 null/false로 오지만
