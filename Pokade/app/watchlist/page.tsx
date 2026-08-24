@@ -3,9 +3,14 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import AddWatchlistModal from "@/components/AddWatchlistModal";
+import Breadcrumb from "@/components/Breadcrumb";
+import IconTooltip from "@/components/IconTooltip";
+import SelectMenu from "@/components/SelectMenu";
+import Toast from "@/components/Toast";
 import CardImage from "@/components/CardImage";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { useToast } from "@/hooks/useToast";
 import { ApiError } from "@/lib/apiClient";
 import { resolvePriceDisplay } from "@/lib/priceDisplay";
 import { deleteWatchlistItem, fetchWatchlist, updateWatchlist } from "@/lib/watchlistApi";
@@ -15,18 +20,38 @@ import { WatchlistResponse } from "@/types/watchlist";
 // 없어 2단계로 축소. isNotified(알림 발송 이력, 1회성 플래그)와 달리 targetReached는 매 조회
 // 시점 실시간 체결가 기준으로 재계산되는 값이라 — 알림이 이미 갔어도 그 뒤 가격이 범위를
 // 벗어나면 다시 false가 될 수 있다. 상태 배지는 "지금" 기준을 보여줘야 하므로 이 값을 쓴다.
-type Status = "대기중" | "목표도달";
+// 예전에는 targetReached만 보고 "대기중/목표도달" 둘로 나눴는데, 그러면 목표가를 아직 정하지
+// 않은 카드까지 "대기중"이 됐다(#238) — 알림이 올 수 없는 상태인데 기다리는 중인 것처럼 보인다.
+// 목표가 유무를 앞에서 한 번 더 갈라 세 상태로 만든다.
+type Status = "미설정" | "대기중" | "목표도달";
 const STATUS_CLS: Record<Status, string> = {
+  // 아직 아무것도 정하지 않은 중립 상태 — 앰버(대기중)와 확실히 구분되도록 회색 계열.
+  미설정: "bg-neutral text-[#8A8A92]",
   대기중: "bg-[#FFF3CE] text-[#8A6A00]",
   목표도달: "bg-[#E8F7EF] text-[#087a4e]",
 };
 
+// 상태 배지 — 텍스트 앞에 8px 색상 도트를 두어 한눈에 스캔되게 한다(#238). 도트는 bg-current로
+// 배지 텍스트 색을 그대로 따라가므로 상태별 색을 새로 만들지 않는다(기존 토큰 확장). 데스크톱
+// 표/모바일 카드 두 곳에서 같은 마크업을 쓰므로 한 컴포넌트로 합친다.
+function StatusBadge({ status, className = "" }: { status: Status; className?: string }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-[11px] py-[5px] text-xs font-bold ${STATUS_CLS[status]} ${className}`}
+    >
+      <i className="h-2 w-2 rounded-full bg-current" aria-hidden="true" />
+      {status}
+    </span>
+  );
+}
+
 type LoadState = "loading" | "error" | "ready";
-type Filter = "all" | "wait" | "reached";
+type Filter = "all" | "unset" | "wait" | "reached";
 type Sort = "oldest" | "latest";
 
 const TABS: { key: Filter; label: string }[] = [
   { key: "all", label: "전체" },
+  { key: "unset", label: "미설정" },
   { key: "wait", label: "대기중" },
   { key: "reached", label: "목표도달" },
 ];
@@ -38,7 +63,14 @@ const SORT_OPTIONS: { key: Sort; label: string }[] = [
   { key: "latest", label: "등록 최신순" },
 ];
 
+// 목표가를 하나도 정하지 않은 상태 — 하트만 눌러 등록하면(빠른 등록) 여기서 시작한다.
+// 배지와 필터 탭이 같은 기준을 쓰도록 판정을 한 곳에 둔다.
+function hasNoTarget(item: WatchlistResponse): boolean {
+  return item.targetBuyPrice == null && item.targetSellPrice == null;
+}
+
 function statusOf(item: WatchlistResponse): Status {
+  if (hasNoTarget(item)) return "미설정";
   return item.targetReached ? "목표도달" : "대기중";
 }
 
@@ -141,6 +173,7 @@ export default function WatchlistPage() {
   const [editingItem, setEditingItem] = useState<WatchlistResponse | null>(null);
   const [resendingId, setResendingId] = useState<number | null>(null);
   const [resendError, setResendError] = useState<string | null>(null);
+  const { toast, showToast, pauseToast, resumeToast } = useToast();
 
   useEffect(() => {
     if (authStatus !== "authenticated") return;
@@ -163,15 +196,19 @@ export default function WatchlistPage() {
     };
   }, [authStatus]);
 
+  // 탭과 배지가 어긋나지 않도록 둘 다 statusOf()를 기준으로 센다 — 예전에는 탭이
+  // targetReached만 봐서 "대기중" 탭 안에 목표가 미설정 카드가 섞여 있었다(#238).
   const counts: Record<Filter, number> = {
     all: rows.length,
-    wait: rows.filter((r) => !r.targetReached).length,
-    reached: rows.filter((r) => r.targetReached).length,
+    unset: rows.filter((r) => statusOf(r) === "미설정").length,
+    wait: rows.filter((r) => statusOf(r) === "대기중").length,
+    reached: rows.filter((r) => statusOf(r) === "목표도달").length,
   };
 
   const filtered = rows.filter((r) => {
-    if (filter === "wait") return !r.targetReached;
-    if (filter === "reached") return r.targetReached;
+    if (filter === "unset") return statusOf(r) === "미설정";
+    if (filter === "wait") return statusOf(r) === "대기중";
+    if (filter === "reached") return statusOf(r) === "목표도달";
     return true;
   });
 
@@ -180,8 +217,10 @@ export default function WatchlistPage() {
     return sort === "oldest" ? diff : -diff;
   });
 
+  // whitespace-nowrap이 없으면 좁은 화면에서 버튼이 눌려 "목표도달 1"이 글자 단위로 줄바꿈된다
+  // (360px 기준 탭 높이 79px → 탭이 하나 늘어난 뒤 119px). 아래 컨테이너의 flex-wrap과 한 쌍이다.
   const tabCls = (active: boolean) =>
-    `rounded-[10px] border-[1.5px] px-[15px] py-2 text-[13.5px] cursor-pointer ${
+    `shrink-0 whitespace-nowrap rounded-[10px] border-[1.5px] px-[15px] py-2 text-[13.5px] cursor-pointer ${
       active
         ? "border-primary bg-[#FFF5F5] font-bold text-primary"
         : "border-[#E4E4E9] bg-white font-semibold text-[#7A7A82]"
@@ -230,6 +269,13 @@ export default function WatchlistPage() {
 
   const handleUpdateSuccess = (updated: WatchlistResponse) => {
     applyWatchlistUpdate(updated);
+    // 저장이 됐는지, 이제 알림이 오는지가 화면 어디에도 안 적혀 있었다(#238) — 모달만 닫히고
+    // 행의 숫자가 조용히 바뀌는 게 전부였다. 목표가를 지운 경우까지 "알려드릴게요"라고 하면
+    // 거짓이 되므로 남은 목표가가 있을 때만 알림 문구를 붙인다.
+    const hasTarget = updated.targetBuyPrice != null || updated.targetSellPrice != null;
+    showToast({
+      message: hasTarget ? "목표가를 저장했어요. 도달하면 알려드릴게요" : "목표가를 지웠어요",
+    });
     setEditingItem(null);
   };
 
@@ -253,6 +299,7 @@ export default function WatchlistPage() {
   return (
     <main className="main-content bg-neutral px-4 pb-14 pt-9 sm:px-10">
       <div className="mx-auto max-w-[1200px]">
+        <Breadcrumb className="mb-3" items={[{ label: "홈", href: "/" }, { label: "관심 목록" }]} />
         <div className="mb-[22px] flex items-end justify-between">
           <div>
             <h1 className="m-0 text-[26px] font-extrabold tracking-[-0.6px]">관심 목록</h1>
@@ -309,8 +356,10 @@ export default function WatchlistPage() {
 
         {loadState === "ready" && rows.length > 0 && (
           <>
-            <div className="mb-[18px] flex items-center justify-between">
-              <div className="flex gap-2">
+            {/* 탭이 4개로 늘면서(#238) 좁은 화면에서 한 줄에 안 들어간다 — 눌러서 찌그러뜨리는
+                대신 줄바꿈으로 흘린다(정렬 셀렉트도 자리가 없으면 아래 줄로 내려간다). */}
+            <div className="mb-[18px] flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap gap-2">
                 {TABS.map(({ key, label }) => (
                   <button
                     key={key}
@@ -321,18 +370,9 @@ export default function WatchlistPage() {
                   </button>
                 ))}
               </div>
-              <select
-                aria-label="정렬"
-                value={sort}
-                onChange={(e) => setSort(e.target.value as Sort)}
-                className="rounded-[10px] border-[1.5px] border-[#E4E4E9] bg-white px-[15px] py-2 text-[13.5px] font-semibold text-[#7A7A82] outline-none focus:border-primary"
-              >
-                {SORT_OPTIONS.map(({ key, label }) => (
-                  <option key={key} value={key}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+              {/* 네이티브 select의 펼침 목록은 OS가 그려 CSS가 닿지 않아, 박스와 목록의
+                  모서리·톤을 맞춘 커스텀 드롭다운(SelectMenu)으로 교체(#238). */}
+              <SelectMenu value={sort} options={SORT_OPTIONS} onChange={setSort} ariaLabel="정렬" />
             </div>
 
             {deleteError && (
@@ -404,7 +444,17 @@ export default function WatchlistPage() {
                               </div>
                             </Link>
                             <div className="text-sm font-bold">{priceLabel}</div>
-                            <div className="text-sm text-[#4B4B52]">
+                            {/* 목표가 칸 자체가 수정 진입점이다(#238) — 예전에는 값이 없을 때 "-"만
+                                찍혀 있어 눌러도 아무 일이 없었고, 실제 진입점은 행 오른쪽 끝의 연필
+                                아이콘 하나뿐이라 처음 온 사람은 목표가를 어디서 넣는지 찾지 못했다.
+                                값이 있든 없든 같은 모달을 열어, "여기 적힌 걸 고치고 싶다"는 자연스러운
+                                클릭이 그대로 통하게 한다. */}
+                            <button
+                              type="button"
+                              onClick={() => setEditingItem(row)}
+                              aria-label={`${displayName} 목표가 ${targets.length > 0 ? "수정" : "설정"}`}
+                              className="rounded-lg px-1.5 py-1 text-left text-sm text-[#4B4B52] outline-none transition-colors hover:bg-neutral focus-visible:ring-2 focus-visible:ring-secondary"
+                            >
                               {targets.length > 0 ? (
                                 targets.map((t) => (
                                   <div key={t.label}>
@@ -412,9 +462,11 @@ export default function WatchlistPage() {
                                   </div>
                                 ))
                               ) : (
-                                <div>-</div>
+                                <span className="font-semibold text-secondary">
+                                  목표가 설정하기
+                                </span>
                               )}
-                            </div>
+                            </button>
                             <div
                               className={`text-[13.5px] font-bold ${
                                 changeRate != null && changeRate !== 0
@@ -427,41 +479,19 @@ export default function WatchlistPage() {
                                 : "-"}
                             </div>
                             <div>
-                              <span
-                                className={`rounded-full px-[11px] py-[5px] text-xs font-bold ${STATUS_CLS[status]}`}
-                              >
-                                {status}
-                              </span>
+                              <StatusBadge status={status} />
                             </div>
                             <div className="flex items-center justify-end gap-3">
-                              <button
-                                type="button"
-                                aria-label={`${displayName} 목표가 수정`}
-                                onClick={() => setEditingItem(row)}
-                                className="-m-3.5 p-3.5 text-[#C7C7CE] hover:text-primary"
-                              >
-                                <svg
-                                  width="17"
-                                  height="17"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  aria-hidden="true"
-                                >
-                                  <path d="M12 20h9" />
-                                  <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z" />
-                                </svg>
-                              </button>
-                              {row.isNotified && (
+                              {/* 아이콘만 있는 버튼이라 시각 사용자에게도 이름을 보여준다(#238) —
+                                  aria-label만으로는 스크린리더 사용자만 용도를 알 수 있었다.
+                                  placement="top": 첫 행 위에는 테이블 헤더가 있어 스크롤 컨테이너
+                                  안쪽에 그려지므로 잘리지 않는다(실측 확인). */}
+                              <IconTooltip label="목표가 수정" placement="top" className="-m-3.5">
                                 <button
                                   type="button"
-                                  aria-label={`${displayName} 알림 다시 받기`}
-                                  disabled={resendingId === row.id}
-                                  onClick={() => handleResendNotification(row.id)}
-                                  className="-m-3.5 p-3.5 text-[#C7C7CE] hover:text-primary disabled:opacity-50"
+                                  aria-label={`${displayName} 목표가 수정`}
+                                  onClick={() => setEditingItem(row)}
+                                  className="p-3.5 text-[#8A8A92] hover:text-primary"
                                 >
                                   <svg
                                     width="17"
@@ -474,28 +504,60 @@ export default function WatchlistPage() {
                                     strokeLinejoin="round"
                                     aria-hidden="true"
                                   >
-                                    <path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-                                    <path d="M13.73 21a2 2 0 01-3.46 0" />
+                                    <path d="M12 20h9" />
+                                    <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z" />
                                   </svg>
                                 </button>
-                              )}
-                              <button
-                                type="button"
-                                aria-label={`${displayName} 관심 목록에서 삭제`}
-                                disabled={deletingId === row.id}
-                                onClick={() => setDeleteTarget(row)}
-                                className="-m-3.5 p-3.5 text-[#C7C7CE] hover:text-primary disabled:opacity-50"
-                              >
-                                <svg
-                                  width="18"
-                                  height="18"
-                                  viewBox="0 0 24 24"
-                                  fill="currentColor"
-                                  aria-hidden="true"
+                              </IconTooltip>
+                              {row.isNotified && (
+                                <IconTooltip
+                                  label="알림 다시 받기"
+                                  placement="top"
+                                  className="-m-3.5"
                                 >
-                                  <path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
-                                </svg>
-                              </button>
+                                  <button
+                                    type="button"
+                                    aria-label={`${displayName} 알림 다시 받기`}
+                                    disabled={resendingId === row.id}
+                                    onClick={() => handleResendNotification(row.id)}
+                                    className="p-3.5 text-[#8A8A92] hover:text-primary disabled:opacity-50"
+                                  >
+                                    <svg
+                                      width="17"
+                                      height="17"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      aria-hidden="true"
+                                    >
+                                      <path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                                      <path d="M13.73 21a2 2 0 01-3.46 0" />
+                                    </svg>
+                                  </button>
+                                </IconTooltip>
+                              )}
+                              <IconTooltip label="삭제" placement="top" className="-m-3.5">
+                                <button
+                                  type="button"
+                                  aria-label={`${displayName} 관심 목록에서 삭제`}
+                                  disabled={deletingId === row.id}
+                                  onClick={() => setDeleteTarget(row)}
+                                  className="p-3.5 text-[#8A8A92] hover:text-primary disabled:opacity-50"
+                                >
+                                  <svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 24 24"
+                                    fill="currentColor"
+                                    aria-hidden="true"
+                                  >
+                                    <path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                                  </svg>
+                                </button>
+                              </IconTooltip>
                             </div>
                           </div>
                         );
@@ -535,11 +597,7 @@ export default function WatchlistPage() {
                               <div className="text-xs text-[#9A9AA2]">{row.setName ?? "-"}</div>
                             </div>
                           </Link>
-                          <span
-                            className={`flex-shrink-0 rounded-full px-[11px] py-[5px] text-xs font-bold ${STATUS_CLS[status]}`}
-                          >
-                            {status}
-                          </span>
+                          <StatusBadge status={status} className="flex-shrink-0" />
                         </div>
 
                         <div className="mt-3.5 flex flex-col gap-1.5 border-t border-[#F2F2F5] pt-3 text-[13px]">
@@ -547,19 +605,31 @@ export default function WatchlistPage() {
                             <span className="text-[#9A9AA2]">현재 시세</span>
                             <span className="font-bold">{priceLabel}</span>
                           </div>
-                          {targets.length > 0 ? (
-                            targets.map((t) => (
-                              <div key={t.label} className="flex items-center justify-between">
-                                <span className="text-[#9A9AA2]">{t.label}</span>
-                                <span className="font-semibold text-[#4B4B52]">{t.value}</span>
+                          {/* 데스크톱과 같은 이유로 목표가 줄 전체가 수정 진입점이다(#238).
+                              모바일은 hover가 없어 연필 아이콘의 의미를 알기가 더 어렵다. */}
+                          <button
+                            type="button"
+                            onClick={() => setEditingItem(row)}
+                            aria-label={`${displayName} 목표가 ${targets.length > 0 ? "수정" : "설정"}`}
+                            className="-mx-1.5 flex flex-col gap-1.5 rounded-lg px-1.5 py-1 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-secondary active:bg-neutral"
+                          >
+                            {targets.length > 0 ? (
+                              targets.map((t) => (
+                                <div
+                                  key={t.label}
+                                  className="flex w-full items-center justify-between"
+                                >
+                                  <span className="text-[#9A9AA2]">{t.label}</span>
+                                  <span className="font-semibold text-[#4B4B52]">{t.value}</span>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="flex w-full items-center justify-between">
+                                <span className="text-[#9A9AA2]">목표가</span>
+                                <span className="font-semibold text-secondary">설정하기</span>
                               </div>
-                            ))
-                          ) : (
-                            <div className="flex items-center justify-between">
-                              <span className="text-[#9A9AA2]">목표가</span>
-                              <span className="text-[#4B4B52]">-</span>
-                            </div>
-                          )}
+                            )}
+                          </button>
                           <div className="flex items-center justify-between">
                             <span className="text-[#9A9AA2]">등락</span>
                             <span
@@ -577,34 +647,15 @@ export default function WatchlistPage() {
                         </div>
 
                         <div className="mt-3.5 flex items-center justify-end gap-3 border-t border-[#F2F2F5] pt-3">
-                          <button
-                            type="button"
-                            aria-label={`${displayName} 목표가 수정`}
-                            onClick={() => setEditingItem(row)}
-                            className="-m-2.5 p-2.5 text-[#C7C7CE] hover:text-primary"
-                          >
-                            <svg
-                              width="17"
-                              height="17"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              aria-hidden="true"
-                            >
-                              <path d="M12 20h9" />
-                              <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z" />
-                            </svg>
-                          </button>
-                          {row.isNotified && (
+                          {/* 모바일에도 같은 툴팁을 단다 — hover가 없어 실질 효과는 키보드 포커스
+                              때뿐이지만, 아이콘 구성이 데스크톱과 같아 두 레이아웃이 어긋나지 않게
+                              한다(#238). */}
+                          <IconTooltip label="목표가 수정" placement="top" className="-m-2.5">
                             <button
                               type="button"
-                              aria-label={`${displayName} 알림 다시 받기`}
-                              disabled={resendingId === row.id}
-                              onClick={() => handleResendNotification(row.id)}
-                              className="-m-2.5 p-2.5 text-[#C7C7CE] hover:text-primary disabled:opacity-50"
+                              aria-label={`${displayName} 목표가 수정`}
+                              onClick={() => setEditingItem(row)}
+                              className="p-2.5 text-[#8A8A92] hover:text-primary"
                             >
                               <svg
                                 width="17"
@@ -617,28 +668,56 @@ export default function WatchlistPage() {
                                 strokeLinejoin="round"
                                 aria-hidden="true"
                               >
-                                <path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-                                <path d="M13.73 21a2 2 0 01-3.46 0" />
+                                <path d="M12 20h9" />
+                                <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z" />
                               </svg>
                             </button>
+                          </IconTooltip>
+                          {row.isNotified && (
+                            <IconTooltip label="알림 다시 받기" placement="top" className="-m-2.5">
+                              <button
+                                type="button"
+                                aria-label={`${displayName} 알림 다시 받기`}
+                                disabled={resendingId === row.id}
+                                onClick={() => handleResendNotification(row.id)}
+                                className="p-2.5 text-[#8A8A92] hover:text-primary disabled:opacity-50"
+                              >
+                                <svg
+                                  width="17"
+                                  height="17"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  aria-hidden="true"
+                                >
+                                  <path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                                  <path d="M13.73 21a2 2 0 01-3.46 0" />
+                                </svg>
+                              </button>
+                            </IconTooltip>
                           )}
-                          <button
-                            type="button"
-                            aria-label={`${displayName} 관심 목록에서 삭제`}
-                            disabled={deletingId === row.id}
-                            onClick={() => setDeleteTarget(row)}
-                            className="-m-2.5 p-2.5 text-[#C7C7CE] hover:text-primary disabled:opacity-50"
-                          >
-                            <svg
-                              width="18"
-                              height="18"
-                              viewBox="0 0 24 24"
-                              fill="currentColor"
-                              aria-hidden="true"
+                          <IconTooltip label="삭제" placement="top" className="-m-2.5">
+                            <button
+                              type="button"
+                              aria-label={`${displayName} 관심 목록에서 삭제`}
+                              disabled={deletingId === row.id}
+                              onClick={() => setDeleteTarget(row)}
+                              className="p-2.5 text-[#8A8A92] hover:text-primary disabled:opacity-50"
                             >
-                              <path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
-                            </svg>
-                          </button>
+                              <svg
+                                width="18"
+                                height="18"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                                aria-hidden="true"
+                              >
+                                <path d="M6 19a2 2 0 002 2h8a2 2 0 002-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                              </svg>
+                            </button>
+                          </IconTooltip>
                         </div>
                       </div>
                     );
@@ -658,6 +737,7 @@ export default function WatchlistPage() {
           watchlistId={editingItem.id}
           initialTargetBuyPrice={editingItem.targetBuyPrice}
           initialTargetSellPrice={editingItem.targetSellPrice}
+          currentPriceLabel={rowDisplay(editingItem).priceLabel}
           onSuccess={handleUpdateSuccess}
         />
       )}
@@ -670,6 +750,8 @@ export default function WatchlistPage() {
           onConfirm={() => handleDelete(deleteTarget.id)}
         />
       )}
+      {/* 목표가 저장 결과 알림(#238) — 홈/카드상세/마켓과 같은 토스트를 쓴다. */}
+      <Toast toast={toast} onPause={pauseToast} onResume={resumeToast} />
     </main>
   );
 }

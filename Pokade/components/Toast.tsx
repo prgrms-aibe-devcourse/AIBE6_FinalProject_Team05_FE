@@ -78,6 +78,22 @@ export default function Toast({
               <span> →</span>
             </span>
           </Link>
+        ) : toast.action ? (
+          // 이동이 아닌 동작(실행취소 등, #238). 링크와 같은 모양을 쓰되 button이라 페이지가
+          // 바뀌지 않는다. 시각 요소는 aria-hidden이고 버튼만 이름을 직접 갖는 것도 링크 분기와
+          // 동일한 이유 — sr-only 영역이 문구를 이미 읽어줬으므로 두 번 읽히지 않게 한다.
+          <div className="flex items-center gap-2.5">
+            <span aria-hidden="true">{toast.message}</span>
+            <span aria-hidden="true" className="h-3 w-px bg-white/30" />
+            <button
+              type="button"
+              onClick={toast.action.onClick}
+              aria-label={`${toast.message} — ${toast.action.label}`}
+              className="whitespace-nowrap rounded-full text-tertiary outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
+            >
+              {toast.action.label}
+            </button>
+          </div>
         ) : (
           <span aria-hidden="true">{toast.message}</span>
         )}
