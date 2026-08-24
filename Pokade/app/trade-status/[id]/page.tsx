@@ -19,6 +19,10 @@ const CANCELLABLE = new Set(["PENDING", "SHIPPED_TO_PLATFORM", "INSPECTED"]);
 const INSPECTION_SLA_HOURS = 24;
 const DELIVERY_SLA_DAYS = 2;
 
+// 즉시구매 결제 시 상품가에 더해지는 고정 배송비 — BE(TradeService.SHIPPING_FEE)와 동일한 값.
+// Trade/Payment 어디에도 배송비 자체가 저장되지 않고 결제 금액에만 반영되므로, 여기서도 상수로 둔다.
+const SHIPPING_FEE = 3000;
+
 const STEPS = [
   { key: "paid", label: "결제 완료" },
   { key: "shipped", label: "판매자 발송" },
@@ -355,8 +359,20 @@ export default function TradeStatusPage() {
               <div className="my-5 h-px bg-[#EDEDF0]" />
               <div className="flex flex-col gap-[11px] text-[13.5px]">
                 <div className="flex justify-between">
+                  <span className="text-[#8A8A92]">배송비</span>
+                  <span className="font-bold">{SHIPPING_FEE.toLocaleString("ko-KR")}원</span>
+                </div>
+                {!!trade.pointsUsed && (
+                  <div className="flex justify-between">
+                    <span className="text-[#8A8A92]">포인트 사용</span>
+                    <span className="font-bold">-{trade.pointsUsed.toLocaleString("ko-KR")}P</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
                   <span className="text-[#8A8A92]">총 결제 금액</span>
-                  <span className="font-bold">{trade.price.toLocaleString("ko-KR")}원</span>
+                  <span className="font-bold">
+                    {(trade.price + SHIPPING_FEE - (trade.pointsUsed ?? 0)).toLocaleString("ko-KR")}원
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[#8A8A92]">거래 번호</span>
@@ -415,6 +431,31 @@ export default function TradeStatusPage() {
                 )}
               </div>
             </div>
+
+            {/* 배송지 정보 — 판매자가 발송할 때 필요하고, 구매자도 본인이 입력한 정보를 확인할 수 있다. */}
+            {trade.recipientName && (
+              <div className="rounded-2xl border border-[#EDEDF0] bg-white p-6">
+                <h2 className="mb-3.5 text-[13px] font-bold text-[#4B4B52]">배송지 정보</h2>
+                <div className="flex flex-col gap-[11px] text-[13.5px]">
+                  <div className="flex justify-between">
+                    <span className="text-[#8A8A92]">받는 사람</span>
+                    <span className="font-bold">{trade.recipientName}</span>
+                  </div>
+                  {trade.recipientPhone && (
+                    <div className="flex justify-between">
+                      <span className="text-[#8A8A92]">연락처</span>
+                      <span className="font-bold">{trade.recipientPhone}</span>
+                    </div>
+                  )}
+                  {trade.recipientAddress && (
+                    <div className="flex justify-between gap-3">
+                      <span className="flex-shrink-0 text-[#8A8A92]">주소</span>
+                      <span className="text-right font-bold">{trade.recipientAddress}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {actionError && (
               <div className="rounded-2xl border border-[#F6C6C6] bg-[#FFF1F1] px-5 py-3 text-[13px] font-semibold text-[#C21414]">

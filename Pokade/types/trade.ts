@@ -41,6 +41,7 @@ export interface TradeResponse {
   recipientPhone: string | null;
   recipientAddress: string | null;
   createdAt: string;
+  pointsUsed: number | null;
 }
 
 // 라우트 파라미터(문자열)를 거래 id로 파싱 — 양의 정수가 아니면 null (types/card.ts의 parseCardId와 동일 규칙).
