@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import AddressSearchField from "@/components/AddressSearchField";
 import BankSelector from "@/components/BankSelector";
 import CardImage from "@/components/CardImage";
+import RequiredMark from "@/components/RequiredMark";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
 import { fetchPriceSummaries, fetchPriceSummary } from "@/lib/cardApi";
@@ -18,6 +19,11 @@ type LoadState = "loading" | "error" | "ready";
 // 입력 가격이 참고 시세 대비 이 비율 이상 높으면 등록 자체를 막는다 - /listings/new,
 // /buy-offers/new와 동일한 정책/값.
 const PRICE_OUTLIER_THRESHOLD = 0.3;
+
+// 참고 시세가 "마켓 참고 시세"(marketPrice fallback)일 때만 옆에 붙이는 안내 - /listings/new,
+// /buy-offers/new와 동일한 문구를 쓴다.
+const MARKET_REFERENCE_TOOLTIP =
+  "이 등급의 매물/체결 이력이 없어\n외부 마켓 시세를 참고용으로 보여드립니다.\n실제 거래가와 다를 수 있습니다.";
 
 // 마이페이지 "입찰" 목록(판매 등록 탭)에서 항목을 클릭했을 때 보여주는 화면 - 카드 상세로 보내는
 // 대신, 등록했던 주문서를 다시 보여준다. ACTIVE(판매중)일 때만 판매 가격과 정산계좌/반송주소를
@@ -278,14 +284,28 @@ export default function MyListingDetailPage() {
 
             <div className="mb-[7px] flex items-center justify-between">
               <label htmlFor="listing-price" className={labelCls}>
-                판매 희망가
+                판매 희망가<RequiredMark />
               </label>
-              <span className="text-[12px] font-semibold text-[#8A8A92]">
+              <span className="flex items-center gap-1 text-[12px] font-semibold text-[#8A8A92]">
                 {referenceLoading
                   ? "시세 조회 중..."
                   : referencePrice != null
                     ? `${referenceLabel} ${referencePrice.toLocaleString("ko-KR")}원`
                     : "시세 정보 없음"}
+                {!referenceLoading && referencePrice != null && referenceTier === "market" && (
+                  <span className="group relative inline-flex">
+                    <button
+                      type="button"
+                      aria-label="마켓 참고 시세 안내"
+                      className="flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-full bg-[#EDEDF0] text-[9.5px] font-bold text-[#8A8A92]"
+                    >
+                      ?
+                    </button>
+                    <span className="pointer-events-none absolute bottom-full right-0 z-10 mb-2 w-64 rounded-[10px] border border-[#EDEDF0] bg-white p-3 text-left text-[12px] leading-relaxed text-[#4B4B52] opacity-0 shadow-card transition group-hover:opacity-100 group-focus-within:opacity-100 whitespace-pre-line">
+                      {MARKET_REFERENCE_TOOLTIP}
+                    </span>
+                  </span>
+                )}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -311,7 +331,9 @@ export default function MyListingDetailPage() {
           <section className={sectionCls}>
             <h2 className={sectionTitleCls}>판매 정산 계좌</h2>
 
-            <label className={labelCls}>은행명</label>
+            <label className={labelCls}>
+              은행명<RequiredMark />
+            </label>
             <BankSelector
               value={settlementBankName}
               onChange={setSettlementBankName}
@@ -322,7 +344,7 @@ export default function MyListingDetailPage() {
             <div className="h-4" />
 
             <label htmlFor="settlement-account-number" className={labelCls}>
-              계좌번호
+              계좌번호<RequiredMark />
             </label>
             <input
               id="settlement-account-number"
@@ -337,7 +359,7 @@ export default function MyListingDetailPage() {
             <div className="h-4" />
 
             <label htmlFor="settlement-account-holder" className={labelCls}>
-              예금주
+              예금주<RequiredMark />
             </label>
             <input
               id="settlement-account-holder"
@@ -357,7 +379,7 @@ export default function MyListingDetailPage() {
             </p>
 
             <label htmlFor="return-recipient-name" className={labelCls}>
-              받는사람 이름
+              받는사람 이름<RequiredMark />
             </label>
             <input
               id="return-recipient-name"
@@ -371,7 +393,7 @@ export default function MyListingDetailPage() {
             <div className="h-4" />
 
             <label htmlFor="return-recipient-phone" className={labelCls}>
-              전화번호
+              전화번호<RequiredMark />
             </label>
             <input
               id="return-recipient-phone"
@@ -386,7 +408,9 @@ export default function MyListingDetailPage() {
 
             <div className="h-4" />
 
-            <label className={labelCls}>주소</label>
+            <label className={labelCls}>
+              주소<RequiredMark />
+            </label>
             {editingAddress ? (
               <AddressSearchField onChange={setReturnAddress} inputCls={inputCls} />
             ) : (

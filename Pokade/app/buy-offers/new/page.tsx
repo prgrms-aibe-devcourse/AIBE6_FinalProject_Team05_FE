@@ -6,6 +6,7 @@ import Link from "next/link";
 import CardImage from "@/components/CardImage";
 import GradeMarketReference from "@/components/GradeMarketReference";
 import PriceInput from "@/components/PriceInput";
+import RequiredMark from "@/components/RequiredMark";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import {
   fetchCardDetail,
@@ -29,6 +30,11 @@ const GRADE_OPTIONS: ListingGrade[] = ["S", "A", "B", "PSA10", "PSA9", "PSA8"];
 
 // 입력한 입찰가가 현재 최고 구매입찰가 대비 이 비율 이상 벗어나면 참고용 경고를 보여준다 — 등록 자체는 막지 않는다.
 const PRICE_OUTLIER_THRESHOLD = 0.3;
+
+// 참고 시세가 "마켓 참고 시세"(marketPrice fallback)일 때만 옆에 붙이는 안내 - /listings/new,
+// /listings/[id]와 동일한 문구를 쓴다.
+const MARKET_REFERENCE_TOOLTIP =
+  "이 등급의 매물/체결 이력이 없어\n외부 마켓 시세를 참고용으로 보여드립니다.\n실제 거래가와 다를 수 있습니다.";
 
 // 등급 선택 가이드 — /listings/new의 GRADE_GUIDE와 동일한 문구(판매/구매 등록 둘 다 같은 등급 기준을 쓴다).
 const GRADE_GUIDE: Record<ListingGrade, string> = {
@@ -412,15 +418,31 @@ function NewBuyOfferForm() {
 
           <div className="mb-[7px] flex items-center justify-between">
             <label htmlFor="price" className="block text-[13px] font-bold text-[#4B4B52]">
-              입찰가
+              입찰가<RequiredMark />
             </label>
             {selectedCard && (
-              <span className="text-[12px] font-semibold text-[#8A8A92]">
+              <span className="flex items-center gap-1 text-[12px] font-semibold text-[#8A8A92]">
                 {referencePriceLoading
                   ? "시세 조회 중..."
                   : displayReferencePrice != null
                     ? `${referenceLabel} ${displayReferencePrice.toLocaleString("ko-KR")}원`
                     : "시세 정보 없음"}
+                {!referencePriceLoading &&
+                  displayReferencePrice != null &&
+                  gradeReference?.tier === "market" && (
+                    <span className="group relative inline-flex">
+                      <button
+                        type="button"
+                        aria-label="마켓 참고 시세 안내"
+                        className="flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-full bg-[#EDEDF0] text-[9.5px] font-bold text-[#8A8A92]"
+                      >
+                        ?
+                      </button>
+                      <span className="pointer-events-none absolute bottom-full right-0 z-10 mb-2 w-64 rounded-[10px] border border-[#EDEDF0] bg-white p-3 text-left text-[12px] leading-relaxed text-[#4B4B52] opacity-0 shadow-card transition group-hover:opacity-100 group-focus-within:opacity-100 whitespace-pre-line">
+                        {MARKET_REFERENCE_TOOLTIP}
+                      </span>
+                    </span>
+                  )}
               </span>
             )}
           </div>
