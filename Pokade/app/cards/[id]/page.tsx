@@ -51,11 +51,7 @@ import {
   useQuickWatchlistToggle,
 } from "@/hooks/useQuickWatchlistToggle";
 import { useToast } from "@/hooks/useToast";
-import {
-  WATCHLIST_ADDED_TOAST,
-  WATCHLIST_ADDED_TOAST_MS,
-  WATCHLIST_REMOVED_TOAST,
-} from "@/lib/watchlistToast";
+import { showWatchlistToggleToast } from "@/lib/watchlistToast";
 
 type LoadState = "loading" | "error" | "notfound" | "ready";
 type RelatedLoadState = "loading" | "ready";
@@ -180,12 +176,11 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   // "구매/판매" 중 하나를 고르게 하고, 그 다음에야 등급 그리드(와 그 안의 가격 의미)가 나타난다.
   const [tradeIntent, setTradeIntent] = useState<"buy" | "sell" | null>(null);
   // 이 카드가 이미 내 워치리스트에 있는지(하트 채움 여부 판정용). 목표가는 이 화면에서 더 이상
-  // 수정하지 않고 /watchlist에서만 다룬다(#235) — 등록 직후 토스트가 "관심 목록 →"으로 그 경로를
-  // 안내하므로, 카드 상세에는 관심 등록/해제 하나만 남긴다.
+  // 수정하지 않고 /watchlist에서만 다룬다(#235) — 등록 직후 토스트가 "목표가 설정하러 가기 →"로
+  // 그 경로를 안내하므로, 카드 상세에는 관심 등록/해제 하나만 남긴다.
   // 삭제에 필요한 id만 들고 있는다 — 목표가는 담기더라도 읽는 곳이 없어 그만큼 낡은 값이
   // 남을 뿐이라, 이 화면이 실제로 쓰는 필드까지만 좁힌다.
   const [myWatchlist, setMyWatchlist] = useState<Pick<WatchlistResponse, "id"> | null>(null);
-  const [watchlistToggleError, setWatchlistToggleError] = useState<string | null>(null);
   const { toast, showToast, pauseToast, resumeToast } = useToast();
   const { triggerPunch, punchKey, punchClass } = useHeartPunch();
   const { toggle: toggleWatchlist, pendingCardId: watchlistPendingCardId } =
@@ -530,7 +525,6 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   // cardId가 아직 없어 토글 자체를 건너뛴 경우는 null(=재생 안 함).
   const handleWatchlistToggle = async (): Promise<QuickWatchlistToggleStatus | null> => {
     if (cardId == null) return null;
-    setWatchlistToggleError(null);
     const result = await toggleWatchlist(cardId, myWatchlist?.id ?? null, selectedVariantId);
     if (result.status === "added") {
       setMyWatchlist({ id: result.watchlistId });
@@ -538,15 +532,13 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
       // DUPLICATE_WATCHLIST 경합처럼 드문 경우엔 실제보다 1 높게 보일 수 있지만,
       // 다음 새로고침/재조회 시 정확한 값으로 맞춰지는 일시적 드리프트라 지금은 감내한다.
       setWatchlistCount((c) => (c ?? 0) + 1);
-      showToast(WATCHLIST_ADDED_TOAST, WATCHLIST_ADDED_TOAST_MS);
     } else if (result.status === "removed") {
       setMyWatchlist(null);
       setWatchlistCount((c) => (c != null ? Math.max(0, c - 1) : c));
-      showToast(WATCHLIST_REMOVED_TOAST);
-    } else if (result.status === "error") {
-      setWatchlistToggleError(result.message);
-      setTimeout(() => setWatchlistToggleError(null), 3000);
     }
+    // 홈/마켓과 같은 매핑을 쓴다 — 예전에는 이 화면만 showToast를 직접 불러서, 공용 매핑에
+    // 실패 토스트를 추가해도 카드 상세에는 붙지 않았다(문구를 한 곳에 모아둔 의미가 없어진다).
+    showWatchlistToggleToast(result, showToast);
     return result.status;
   };
 
@@ -919,12 +911,6 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                             </div>
                           )}
                       </div>
-
-                      {watchlistToggleError && (
-                        <span role="alert" className="text-[12px] font-semibold text-primary">
-                          {watchlistToggleError}
-                        </span>
-                      )}
 
                       <div className="border-t border-[#F5F5F7] pt-4">
                         {tradeIntent === null ? (

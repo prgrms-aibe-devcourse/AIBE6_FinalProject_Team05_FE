@@ -82,8 +82,8 @@ interface SearchResultsViewProps {
   setReloadKey: Dispatch<SetStateAction<number>>;
   myWatchlist: Map<number, number>;
   watchlistPendingCardId: number | null;
-  watchlistError: { cardId: number; message: string } | null;
   // 등록/해제 결과를 돌려받아야 "등록 확정" 시에만 하트 펀치를 재생할 수 있다.
+  // 실패 문구는 여기까지 내려오지 않는다 — 부모(app/search/page.tsx)가 토스트로 처리한다.
   onHeartClick: (cardId: number) => Promise<QuickWatchlistToggleStatus | null>;
 }
 
@@ -167,7 +167,6 @@ export default function SearchResultsView({
   setReloadKey,
   myWatchlist,
   watchlistPendingCardId,
-  watchlistError,
   onHeartClick,
 }: SearchResultsViewProps) {
   // 결과 0건일 때 "검색어 탓"과 "필터 탓"을 구분하기 위한 파생값(#238 UX-1). 예전에는 q 유무로만
@@ -628,14 +627,6 @@ export default function SearchResultsView({
                       </button>
                     </IconTooltip>
                   </div>
-                  {watchlistError?.cardId === c.id && (
-                    <div
-                      role="alert"
-                      className="absolute bottom-2 right-2 z-10 max-w-[130px] rounded-lg bg-[#3A3A3E] px-2.5 py-1.5 text-[11px] font-semibold leading-snug text-white shadow-lg"
-                    >
-                      {watchlistError.message}
-                    </div>
-                  )}
                 </div>
               );
             })}

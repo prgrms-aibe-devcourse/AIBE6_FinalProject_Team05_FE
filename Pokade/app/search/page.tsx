@@ -45,7 +45,6 @@ function SearchDashboard() {
   // handleHeartClick 래퍼가, 펀치는 SearchResultsView의 하트 버튼이 status를 보고 처리한다.
   const {
     myWatchlist,
-    watchlistError,
     handleHeartClick: toggleWatchlistCard,
     pendingCardId: watchlistPendingCardId,
   } = useWatchlistMap();
@@ -318,9 +317,11 @@ function SearchDashboard() {
   // 상태 갱신은 훅이 하고, 여기서는 토스트만 얹은 뒤 status를 그대로 흘려보낸다 —
   // 하트 펀치는 하트를 실제로 그리는 SearchResultsView가 이 반환값을 보고 재생한다.
   const handleHeartClick = async (cardId: number): Promise<QuickWatchlistToggleStatus> => {
-    const status = await toggleWatchlistCard(cardId);
-    showWatchlistToggleToast(status, showToast);
-    return status;
+    const result = await toggleWatchlistCard(cardId);
+    showWatchlistToggleToast(result, showToast);
+    // 아래로는 status만 넘긴다 — SearchResultsView는 펀치 재생 여부만 알면 되고,
+    // 실패 문구는 이미 여기서 토스트로 처리했다.
+    return result.status;
   };
 
   // 페이지 번호/이전·다음 버튼 클릭 시에만 맨 위로 스크롤 — 필터/정렬 변경으로
@@ -433,7 +434,6 @@ function SearchDashboard() {
           setReloadKey={setReloadKey}
           myWatchlist={myWatchlist}
           watchlistPendingCardId={watchlistPendingCardId}
-          watchlistError={watchlistError}
           onHeartClick={handleHeartClick}
         />
       </div>
