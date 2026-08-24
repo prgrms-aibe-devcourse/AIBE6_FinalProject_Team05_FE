@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "reac
 import { useUserStore } from "@/store/useUserStore";
 import { changeMarketingAgreement, getMyInfo, updateNickname } from "@/lib/authApi";
 import { authErrorMessage } from "@/lib/authErrorMessages";
+import { nicknameError } from "@/lib/nickname";
 import { MyInfo } from "@/types/auth";
 import { MyProfile } from "@/types/profile";
 import { deleteProfileImage, uploadProfileImage, getMyProfile } from "@/lib/profileApi";
@@ -90,9 +91,10 @@ export default function SettingsPage() {
   async function saveNick() {
     if (nickSaving) return;
     setNickError(null);
-    const next = nickInput.trim();
-    if (next.length < 2 || next.length > 20) {
-      setNickError("닉네임은 2자 이상 20자 이하로 입력해 주세요.");
+    const next = nickInput;
+    const nickProblem = nicknameError(next);
+    if (nickProblem) {
+      setNickError(nickProblem);
       return;
     }
     if (next === info?.nickname) {
