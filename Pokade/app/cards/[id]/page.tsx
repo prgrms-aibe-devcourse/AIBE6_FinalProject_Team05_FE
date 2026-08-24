@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import Breadcrumb from "@/components/Breadcrumb";
 import CardImage from "@/components/CardImage";
 import PriceChart from "@/components/PriceChart";
 import Toast from "@/components/Toast";
@@ -13,7 +14,8 @@ import VariantPriceComparison from "./VariantPriceComparison";
 import OrderActivitySection from "./OrderActivitySection";
 import GradeGuideModal from "./GradeGuideModal";
 import TradeMethodModal from "./TradeMethodModal";
-import { CardDetailResponse, parseCardId, variantLabel } from "@/types/card";
+import { NOTIFICATION_ORIGIN_PARAM, NOTIFICATION_ORIGIN_VALUE } from "@/lib/notificationDisplay";
+import { CardDetailResponse, formatSetAndRarity, parseCardId, variantLabel } from "@/types/card";
 import {
   BuyOfferOrderbookEntryResponse,
   ChartPeriod,
@@ -122,7 +124,17 @@ function computeBuyOfferSummary(
   return summary;
 }
 
-// 선택된 변형(없으면 카드 대표 이미지)의 대표 이미지 — 구매 흐름(handleBuy)과 본문 렌더링에서 공유.
+// 시세 요약 조회 결과 → summaryError 값. 성공(fulfilled)이면 null로 되돌리므로, 다시 조회해
+// 성공하면 이전 실패 표시도 함께 해제된다. 시세 요약을 다시 읽는 경로가 늘어나도 판정식이
+// 흩어지지 않도록 여기 한 곳에 모아 둔다.
+function toSummaryError(result: PromiseSettledResult<PriceSummaryResponse | null>) {
+  if (result.status === "fulfilled") return null;
+  return result.reason instanceof ApiError
+    ? result.reason
+    : new ApiError(0, "UNKNOWN", "가격 정보를 불러오지 못했습니다.");
+}
+
+// 선택된 변형(없으면 카드 대표 이미지)의 대표 이미지 — 주문서로 넘길 때와 본문 렌더링에서 공유.
 function resolveMainImageSrc(
   card: CardDetailResponse,
   variantId: number | null,
@@ -195,6 +207,10 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   // GET /api/listings, GET /api/prices/{cardId}/buy-offers 둘 다 인증이 필요해 401이 날 수 있다 —
   // "상품/입찰 없음"과 "조회 권한 없음"을 구분해서 보여주기 위한 별도 상태.
   const [listingsError, setListingsError] = useState<ApiError | null>(null);
+  // 시세 요약도 같은 이유로 실패를 따로 들고 있는다(#238) — 대표 변형이 없는 카드는 BE가
+  // 404(PRIMARY_VARIANT_NOT_FOUND)를 내는데, 이전에는 실패를 조용히 삼켜 priceSummary가 null이
+  // 되고 화면은 "판매 중인 상품이 없어요"로 단정했다. 조회 실패는 "없음"이 아니라 "모름"이다.
+  const [summaryError, setSummaryError] = useState<ApiError | null>(null);
   const [buyOffersError, setBuyOffersError] = useState<ApiError | null>(null);
   const [priceLoadState, setPriceLoadState] = useState<RelatedLoadState>("loading");
 
@@ -347,6 +363,53 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedVariantId, card]);
 
+  // 재입고 알림을 타고 들어왔는지(#238). 최초 렌더에서 딱 한 번 읽어 잡아둔다 — 바로 아래
+  // effect가 URL에서 이 파라미터를 지우기 때문에, searchParams를 렌더마다 다시 읽으면 정리되는
+  // 순간 안내가 같이 사라진다.
+  // 값을 붙드는 방법으로 useState의 lazy initializer를 쓴 이유: ref는 렌더 중 .current를 읽는
+  // 순간 react-hooks의 "Cannot access refs during render"에 걸리고, effect 안에서 setState로
+  // 채우는 방식은 react-hooks/set-state-in-effect에 걸린다. initializer는 마운트 시 한 번만
+  // 실행되므로 두 규칙을 모두 피하면서 "최초 진입 시점의 값"이라는 의미도 그대로 드러난다.
+  const [cameFromRestockNotification, setCameFromRestockNotification] = useState(
+    () => searchParams.get(NOTIFICATION_ORIGIN_PARAM) === NOTIFICATION_ORIGIN_VALUE,
+  );
+
+  // 뒤로/앞으로 가기(popstate)는 이 컴포넌트를 리마운트하지 않고 캐시에서 복원하므로, 마운트 때
+  // 잡아둔 플래그가 그대로 남는다 — from을 이미 지운 주소(/cards/[id])로 돌아와도 배너가 계속
+  // 뜨는 문제(#238 F1). history 이동 시점의 실제 주소로 다시 판정한다. 정상 진입의 URL 정리는
+  // 아래 router.replace(=history.replaceState)라 popstate를 발생시키지 않으므로 여기에 걸리지
+  // 않고, 그래서 진입 직후 배너가 깜빡 사라지지도 않는다.
+  useEffect(() => {
+    const syncFromUrl = () => {
+      const params = new URLSearchParams(window.location.search);
+      setCameFromRestockNotification(
+        params.get(NOTIFICATION_ORIGIN_PARAM) === NOTIFICATION_ORIGIN_VALUE,
+      );
+    };
+    // popstate: 앱 내부(SPA) 뒤로/앞으로 가기. pageshow(persisted): 전체 문서가 bfcache에서
+    // 복원되는 경우 — 이때는 컴포넌트가 리렌더 없이 그대로 되살아나므로 여기서 다시 맞춘다.
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) syncFromUrl();
+    };
+    window.addEventListener("popstate", syncFromUrl);
+    window.addEventListener("pageshow", onPageShow);
+    return () => {
+      window.removeEventListener("popstate", syncFromUrl);
+      window.removeEventListener("pageshow", onPageShow);
+    };
+  }, []);
+
+  // 표시가 끝났으면 URL에서는 지운다 — 주소를 복사해 공유했을 때 알림을 받은 적도 없는 사람
+  // 화면에까지 "알림 받으신 상품은..." 안내가 뜨는 걸 막고, 새로고침해도 남지 않게 한다.
+  // ?variant= 를 다루는 위 effect와 같은 방식으로 다른 파라미터는 보존한다.
+  useEffect(() => {
+    if (searchParams.get(NOTIFICATION_ORIGIN_PARAM) !== NOTIFICATION_ORIGIN_VALUE) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete(NOTIFICATION_ORIGIN_PARAM);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [searchParams, pathname, router]);
+
   useEffect(() => {
     if (loadState !== "ready" || cardId == null || !card) return;
     let cancelled = false;
@@ -362,6 +425,10 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     ]).then(([summaryResult, listingsResult, buyOffersResult]) => {
       if (cancelled) return;
       setPriceSummary(summaryResult.status === "fulfilled" ? summaryResult.value : null);
+      // listingsError와 같은 방식으로 실패 사유를 남긴다 — 판본이 2개 이상이면 여기서 요약을
+      // 아예 조회하지 않고 Promise.resolve(null)로 채우므로(위 hasSingleVariant), 그 경우는
+      // fulfilled라 실패로 오인되지 않는다.
+      setSummaryError(toSummaryError(summaryResult));
       if (listingsResult.status === "fulfilled") {
         setActiveListings(listingsResult.value);
         setListingsError(null);
@@ -582,15 +649,18 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   return (
     <main className="main-content bg-neutral px-4 pb-14 pt-8 sm:px-10">
       <div className="mx-auto max-w-[1120px]">
-        <div className="mb-5 flex items-center justify-between">
-          <Link
-            href="/search"
-            onClick={goBackToSearch}
-            className="inline-block text-[13.5px] font-semibold text-[#8A8A92] hover:text-primary"
-          >
-            ← 카드 검색으로 돌아가기
-          </Link>
-          <div className="flex items-center gap-2">
+        <div className="mb-5 flex items-center justify-between gap-3">
+          {/* 카드 상세는 어느 경로로 들어와도 시맨틱상 "홈 > 마켓 > 카드" 계층에 속한다.
+              마켓 세그먼트는 goBackToSearch로 직전 검색(필터 포함)으로 복귀시킨다 —
+              기존 "← 카드 검색으로 돌아가기" 링크의 동작을 그대로 승계. */}
+          <Breadcrumb
+            items={[
+              { label: "홈", href: "/" },
+              { label: "마켓", href: "/search", onClick: goBackToSearch },
+              { label: card ? (card.nameKo ?? card.name) : "카드 상세" },
+            ]}
+          />
+          <div className="flex shrink-0 items-center gap-2">
             {copied && <span className="text-[12.5px] font-bold text-primary">복사됨</span>}
             <button
               type="button"
@@ -701,8 +771,13 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                             신뢰 신호(활발히 조회되는 카드라는 근거)로 쓰기로 정했다. null/undefined(값
                             없음)는 0과 다르므로 이때만 숨긴다 — 프로덕션 크래시 핫픽스. */}
                         {card.viewCount != null && (
-                          <span className="text-[11.5px] font-semibold text-[#9A9AA2]">
-                            {card.viewCount.toLocaleString("ko-KR")}번 조회됐어요
+                          // 화면은 "N회 조회"로 축약(등락률 배지 옆 폭 절약)하되, 스크린리더에는
+                          // 기존과 같은 완결형 문구를 aria-label로 그대로 읽어준다.
+                          <span
+                            className="text-[11.5px] font-semibold text-[#9A9AA2]"
+                            aria-label={`${card.viewCount.toLocaleString("ko-KR")}회 조회됐어요`}
+                          >
+                            {card.viewCount.toLocaleString("ko-KR")}회 조회
                           </span>
                         )}
                       </div>
@@ -717,7 +792,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                           {displayName}
                         </h1>
                         <div className="mt-2 text-[14px] text-[#8A8A92]">
-                          {card.setName} · {card.rarity}
+                          {formatSetAndRarity(card.setName, card.rarity)}
                         </div>
                         {/* EN(기본값)이 절대다수라 EN은 생략하고, 눈에 띄어야 하는 예외
                             (JA 등 비영어판)만 표시한다 — 검색 타일과 동일한 정책(SearchResultsView.tsx). */}
@@ -788,12 +863,61 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                             </span>
                           ) : displayBuyPrice != null ? (
                             `${displayBuyPrice.toLocaleString("ko-KR")}원`
-                          ) : (
+                          ) : summaryError || listingsError ? (
+                            // 조회가 실패했으면 "없다"고 단정하지 않는다(#238) — 재입고 배너가
+                            // !listingsError로 "실패는 없음이 아니라 모름"을 가리는 것과 같은 기준을
+                            // 값 자체에도 적용한다. 가격을 실제로 받아온 경우(displayBuyPrice != null)는
+                            // 위 분기에서 이미 걸러지므로 여기 오지 않는다.
                             <span className="text-[14px] font-semibold text-[#9A9AA2]">
-                              상품 없음
+                              가격 정보를 불러오지 못했어요
+                            </span>
+                          ) : (
+                            // "상품 없음" 네 글자만 있으면 값이 비어 있는 건지 판매가 없는 건지
+                            // 읽히지 않는다 — 특히 재입고 알림을 타고 들어왔는데 그새 매물이
+                            // 팔리거나 거래 중이라 사라진 경우 화면이 아무 설명을 안 하는
+                            // 셈이었다(#238). 상태를 문장으로 말해준다.
+                            <span className="text-[14px] font-semibold text-[#9A9AA2]">
+                              판매 중인 상품이 없어요
                             </span>
                           )}
                         </div>
+                        {/* 재입고 알림을 타고 들어왔는데 정작 매물이 하나도 없을 때만 사정을
+                            설명한다(#238) — 알림은 "상품이 새로 등록됐어요"라고 약속했는데
+                            화면은 "판매 중인 상품이 없어요"만 말하고 있어, 알림이 거짓이었던
+                            것처럼 읽히기 때문이다. 실제로는 그새 팔렸거나 다른 사람이 결제를
+                            시작해 매물이 ACTIVE에서 TRADING으로 잠긴 경우가 많다(결제가 취소되면
+                            다시 ACTIVE로 돌아온다).
+                            판정은 priceSummary가 아니라 activeListings(실제 ACTIVE 매물 목록)로
+                            한다 — 등급 타일과 같은 데이터라 화면과 어긋나지 않는다. 조회가
+                            실패한 경우(listingsError)는 "없음"이 아니라 "모름"이므로 제외한다. */}
+                        {cameFromRestockNotification &&
+                          priceLoadState === "ready" &&
+                          !listingsError &&
+                          activeListings.length === 0 && (
+                            <div className="mt-2.5 flex items-start gap-2 rounded-xl border-l-4 border-secondary bg-lavender px-3 py-2.5 text-[12px] font-semibold leading-[1.55] text-secondary">
+                              {/* 안내(공지) 성격을 명확히 하기 위한 좌측 강조선 + info 아이콘 —
+                                  기존 lavender/secondary 토큰만 사용(프로젝트 인라인 SVG 컨벤션). */}
+                              <svg
+                                width="15"
+                                height="15"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="mt-px flex-none"
+                                aria-hidden="true"
+                              >
+                                <circle cx="12" cy="12" r="9" />
+                                <path d="M12 11v5" />
+                                <path d="M12 7.5h.01" />
+                              </svg>
+                              <p className="m-0">
+                                알림을 받은 상품은 이미 판매됐거나 다른 분이 거래 중일 수 있어요.
+                              </p>
+                            </div>
+                          )}
                       </div>
 
                       {watchlistToggleError && (
@@ -978,7 +1102,10 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                               if (matchedBid) {
                                 // 이미 구매입찰이 있어도 즉시판매/매물 등록 중 고를 수 있게 한 번 더
                                 // 물어본다(#238).
-                                setTradeMethodChoice({ mode: "sell", matchedPrice: matchedBid.price });
+                                setTradeMethodChoice({
+                                  mode: "sell",
+                                  matchedPrice: matchedBid.price,
+                                });
                                 return;
                               }
                               setGradeGuideTarget("sell");
@@ -990,7 +1117,10 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                             }
                             if (!selectedOffer) return;
                             // 이미 매물이 있어도 즉시구매/구매입찰 중 고를 수 있게 한 번 더 물어본다(#238).
-                            setTradeMethodChoice({ mode: "buy", matchedPrice: selectedOffer.price });
+                            setTradeMethodChoice({
+                              mode: "buy",
+                              matchedPrice: selectedOffer.price,
+                            });
                           }}
                           className="flex-1 rounded-[11px] border-2 border-primary-dark bg-primary py-3.5 text-[15px] font-bold text-white shadow-tactile transition active:translate-y-0.5 active:shadow-tactile-active disabled:cursor-not-allowed disabled:border-[#DDDDE3] disabled:bg-neutral disabled:text-[#9A9AA2] disabled:shadow-none"
                         >
@@ -1006,7 +1136,7 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                                   ? "구매입찰 등록"
                                   : selectedOffer
                                     ? "구매하기"
-                                  : "등급을 선택하세요"}
+                                    : "등급을 선택하세요"}
                         </button>
                         <IconTooltip
                           label={myWatchlist ? "관심 해제" : "관심 등록"}
@@ -1087,7 +1217,6 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                           </button>
                         </IconTooltip>
                       </div>
-
                     </div>
 
                     <div className="rounded-2xl border border-[#EDEDF0] bg-white p-5">
@@ -1143,7 +1272,9 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                     onClose={() => setTradeMethodChoice(null)}
                     onChooseInstant={() => {
                       setTradeMethodChoice(null);
-                      setGradeGuideTarget(tradeMethodChoice.mode === "buy" ? "buy" : "sell-instant");
+                      setGradeGuideTarget(
+                        tradeMethodChoice.mode === "buy" ? "buy" : "sell-instant",
+                      );
                     }}
                     onChooseAlternative={() => {
                       setTradeMethodChoice(null);

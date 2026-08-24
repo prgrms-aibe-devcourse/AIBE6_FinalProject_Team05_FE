@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import PriceInput from "@/components/PriceInput";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 import { ApiError } from "@/lib/apiClient";
+import { stripFieldPrefix } from "@/lib/apiErrorMessage";
 import { loginUrlFor } from "@/lib/authRedirect";
 import { addWatchlist, updateWatchlist } from "@/lib/watchlistApi";
 import { useUserStore } from "@/store/useUserStore";
@@ -14,10 +15,22 @@ import { WatchlistResponse } from "@/types/watchlist";
 // 막기 위해 FE에서 더 엄격한 최소값을 둔다. BE 요구사항이 바뀐 게 아니라 UX상의 선제 검증.
 const MIN_TARGET_PRICE = 100;
 
+// BE의 @Max와 같은 값(#238, BE cb32a3e). FE에서도 막는 이유가 두 가지다:
+//  - 서버까지 갔다 오지 않고 바로 알려주는 편이 빠르다
+//  - int 범위를 넘는 값(21억 초과)은 BE가 역직렬화 단계에서 400을 내는데, 이건 전역 핸들러를
+//    타지 않아 code/msg 없는 응답이 온다 → 화면에 "요청이 실패했습니다. (400)"만 뜬다.
+//    여기서 먼저 걸러 그 경로 자체를 없앤다.
+// 입력 필드는 공용 PriceInput(type="text" + 콤마 표시)이라 min/max 속성을 받지 않는다 —
+// 최소·최대 판정은 아래 handleSubmit 한 곳에서만 한다(원래도 속성은 입력을 막지 못했다).
+const MAX_TARGET_PRICE = 100_000_000;
+
 type AddWatchlistModalProps = {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: (result: WatchlistResponse) => void;
+  // 목표가를 얼마로 잡을지 감을 주기 위한 현재 시세 문구(예: "280,000원"). 호출 화면이 이미
+  // 계산해 둔 값을 그대로 받는다 — 모달이 따로 조회하지 않는다(#238).
+  currentPriceLabel?: string;
 } & (
   | {
       mode?: "create";
@@ -35,7 +48,7 @@ type AddWatchlistModalProps = {
 // 카드 상세/마켓 등 여러 화면에서 재사용할 워치리스트 등록·수정 겸용 모달.
 // 목표 구매가/판매가 중 최소 하나 입력 필요(BE 검증과 동일 규칙을 클라이언트에서도 선제 검사).
 export default function AddWatchlistModal(props: AddWatchlistModalProps) {
-  const { isOpen, onClose, onSuccess } = props;
+  const { isOpen, onClose, onSuccess, currentPriceLabel } = props;
   const mode = props.mode ?? "create";
   const initialTargetBuyPrice = props.mode === "edit" ? props.initialTargetBuyPrice : undefined;
   const initialTargetSellPrice = props.mode === "edit" ? props.initialTargetSellPrice : undefined;
@@ -113,6 +126,10 @@ export default function AddWatchlistModal(props: AddWatchlistModalProps) {
       setError(`가격은 ${MIN_TARGET_PRICE.toLocaleString("ko-KR")}원 이상의 정수로 입력해 주세요.`);
       return;
     }
+    if ([buy, sell].some((v) => v != null && v > MAX_TARGET_PRICE)) {
+      setError("목표가는 1억원 이하로 입력해주세요.");
+      return;
+    }
 
     setSubmitting(true);
     setError(null);
@@ -129,11 +146,13 @@ export default function AddWatchlistModal(props: AddWatchlistModalProps) {
       onSuccess?.(result);
       onClose();
     } catch (err) {
-      // DUPLICATE_WATCHLIST/WATCHLIST_LIMIT_EXCEEDED/TARGET_PRICE_REQUIRED/WATCHLIST_NOT_FOUND 모두
-      // BE가 내려주는 msg를 그대로 사용자에게 보여준다(이미 사용자 친화적인 문구).
+      // DUPLICATE_WATCHLIST/WATCHLIST_LIMIT_EXCEEDED/TARGET_PRICE_REQUIRED/WATCHLIST_NOT_FOUND/
+      // INVALID_TARGET_PRICE_RANGE 모두 BE가 내려주는 msg를 그대로 보여준다(이미 사용자 친화적).
+      // 다만 bean validation(@Max 등)에서 온 것만 "targetBuyPrice: ..."처럼 필드명이 앞에 붙어
+      // 오므로 그 접두사만 걷어낸다(#238) — 나머지 메시지는 매칭되지 않아 그대로 통과한다.
       setError(
         err instanceof ApiError
-          ? err.message
+          ? stripFieldPrefix(err.message)
           : mode === "edit"
             ? "목표가 수정에 실패했습니다."
             : "관심 등록에 실패했습니다.",
@@ -145,7 +164,31 @@ export default function AddWatchlistModal(props: AddWatchlistModalProps) {
 
   if (!isOpen || authStatus !== "authenticated") return null;
 
-  const title = mode === "edit" ? "목표가 수정" : "관심 등록";
+  // 수정 모드라도 아직 목표가가 하나도 없으면 사용자 입장에선 "처음 정하는" 것이다(#238) —
+  // 관심 등록은 하트로만 하고 목표가는 나중에 넣는 흐름이라, 값이 빈 카드에 "수정"이라고
+  // 적혀 있으면 고칠 게 없는데 왜 수정이냐는 인상을 준다.
+  const hasExistingTarget = initialTargetBuyPrice != null || initialTargetSellPrice != null;
+  const title = mode === "edit" ? (hasExistingTarget ? "목표가 수정" : "목표가 설정") : "관심 등록";
+
+  // 이미 설정돼 있던 목표가를 비워서 저장하려는 시도. BE는 안 보낸 필드를 "기존 값 유지"로 해석하므로
+  // (Watchlist.updateTargetPrices) 그대로 보내면 지운 값이 조용히 되살아난다 - 실패했다는 신호가
+  // 아무 데도 없어서, 아예 저장을 막고 이유를 알려준다. "목표가 지우기"는 지원하지 않기로 확정된 사양.
+  // 등록 모드에서는 initial*이 undefined라 항상 false지만, 규칙이 편집 전용임을 드러내려 mode도 함께 본다.
+  const clearedExistingTarget =
+    mode === "edit" &&
+    ((initialTargetBuyPrice != null && !buyPrice.trim()) ||
+      (initialTargetSellPrice != null && !sellPrice.trim()));
+
+  // 지우기 시도는 기존 "둘 다 비어있음" 가드와 겹칠 수 있다(원래 구매가만 있던 항목에서 그걸 비운 경우).
+  // 그때는 더 구체적인 원인인 이쪽을 보여준다 - 남은 케이스(원래 목표가가 없던 항목에서 둘 다 빈 채로
+  // 저장)는 handleSubmit의 기존 가드가 그대로 담당한다.
+  const notice = clearedExistingTarget ? "목표가를 지우려면 삭제 후 다시 등록해주세요." : error;
+
+  // placeholder는 카드와 무관한 고정값(예: 100000) 대신 이 카드의 현재 시세를 예시로 쓴다 —
+  // 자릿수 감이 바로 잡히고, 구매/판매 목표를 현재가 기준 위아래로 떠올리기 쉬워진다.
+  // 시세를 모르는 카드(정보 없음)는 기존 고정 예시로 되돌아간다.
+  const priceDigits = currentPriceLabel?.replace(/\D/g, "") ?? "";
+  const examplePrice = priceDigits ? Number(priceDigits).toLocaleString("ko-KR") : null;
 
   return (
     <div
@@ -172,13 +215,22 @@ export default function AddWatchlistModal(props: AddWatchlistModalProps) {
         </div>
 
         <div className="flex flex-col gap-3.5">
+          {/* 목표가를 얼마로 잡을지 판단하려면 지금 얼마인지가 있어야 한다(#238) —
+              예전에는 모달을 닫고 목록으로 나가야 현재 시세를 볼 수 있었다. */}
+          {currentPriceLabel && (
+            <div className="flex items-center justify-between rounded-[9px] bg-neutral px-3 py-2 text-[12.5px]">
+              <span className="font-semibold text-[#8A8A92]">현재 시세</span>
+              <span className="font-bold text-ink">{currentPriceLabel}</span>
+            </div>
+          )}
+
           <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#4B4B52]">
             목표 구매가 (이 가격 이하로 내려가면 알림)
             <PriceInput
               ref={buyPriceInputRef}
               value={buyPrice}
               onChange={setBuyPrice}
-              placeholder="예: 100,000"
+              placeholder={examplePrice ? `예: ${examplePrice}` : "예: 100,000"}
               className="rounded-[9px] border border-[#DDDDE3] px-3 py-2 text-[13.5px] outline-none focus:border-primary"
             />
           </label>
@@ -188,20 +240,20 @@ export default function AddWatchlistModal(props: AddWatchlistModalProps) {
             <PriceInput
               value={sellPrice}
               onChange={setSellPrice}
-              placeholder="예: 150,000"
+              placeholder={examplePrice ? `예: ${examplePrice}` : "예: 150,000"}
               className="rounded-[9px] border border-[#DDDDE3] px-3 py-2 text-[13.5px] outline-none focus:border-primary"
             />
           </label>
 
-          {error && (
+          {notice && (
             <span role="alert" className="text-[12.5px] font-semibold text-primary">
-              {error}
+              {notice}
             </span>
           )}
 
           <button
             type="button"
-            disabled={submitting}
+            disabled={submitting || clearedExistingTarget}
             onClick={handleSubmit}
             className="mt-1 w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3 text-[14.5px] font-bold text-white shadow-tactile-sm active:translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
           >

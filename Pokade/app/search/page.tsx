@@ -347,7 +347,11 @@ function SearchDashboard() {
     setSelectedTypes([]);
     setSelectedRarities([]);
     setSelectedLanguages([]);
-    setSort("popular");
+    // 정렬(sort)은 초기화하지 않는다 — 이 버튼의 활성 조건(사이드바 totalSelected)과 라벨이
+    // 모두 "필터"만 가리키는데 정렬까지 되돌리면, 사이드바 밖(결과 영역 우상단)에 있는
+    // 컨트롤이 이유 없이 바뀐 것처럼 보인다. 0건 빈 화면의 "필터 초기화"도 마찬가지로
+    // 정렬을 바꿔봐야 0건이 해소되지 않는다. 페이지(page)는 필터가 바뀌면 어차피 1로
+    // 돌아가는 종속 값이라 그대로 초기화한다.
     setPage(1);
     // 필터가 이미 초기값이면 위 세터들이 상태를 바꾸지 않아 카드 목록 effect가
     // 재실행되지 않는다 — reloadKey를 강제로 올려 항상 재요청되게 한다.
@@ -366,11 +370,27 @@ function SearchDashboard() {
 
   return (
     <main className="main-content bg-neutral px-4 pb-14 pt-8 sm:px-10">
-      <div className="mx-auto max-w-[1280px]">
-        <div className="mb-6 rounded-2xl border border-[#EDEDF0] bg-white p-5 shadow-card">
-          <h1 className="m-0 mb-4 text-[26px] font-extrabold tracking-[-0.6px]">
+      {/* 콘텐츠 최대 폭(#238) — 1280px은 1920px 화면에서 좌우가 280px씩 비어 목록이 가운데로
+          몰려 보였다. 1520px으로 넓혀 카드 타일이 자연스럽게 커지게 한다(5열 유지). 전역이 아니라
+          이 페이지 로컬 값이라 홈/워치리스트/알림/카드상세 등 다른 페이지에는 영향이 없다
+          (각 페이지가 자기 max-w를 따로 들고 있고, layout.tsx에는 폭 제한이 없다). */}
+      <div className="mx-auto max-w-[1520px]">
+        {/* 스타일 경계(#238) — 이 카드 껍데기는 페이지 레벨 카드 언어(rounded-2xl + shadow-card)를
+            따르고, 안에 들어가는 검색/필터 컨트롤은 선 기반(1px 선 + 작은 radius + 그림자 없음)으로
+            재설계했다. 불완전한 게 아니라 의도된 이중 언어다(CardSearchBar/SearchFilterSidebar 참고). */}
+        {/* border-t-primary는 유지한다(#238) — 검색 폼에서 색을 걷어내 이제 이 선이 상단의
+            유일한 강조라 중복이 아니고, 결과/필터 카드(같은 rounded-2xl·shadow-card지만 강조선
+            없음)와 구분해 "이 화면의 주 진입점"임을 표시하는 역할이 남는다.
+            여백은 넉넉하게(20 → 24/32px), 타이틀은 크기·자간 대비로 시선을 끌게 한다 — 색을
+            더 쓰지 않고 위계를 만드는 쪽. */}
+        <div className="mb-6 rounded-2xl border border-t-[3px] border-[#EDEDF0] border-t-primary bg-white p-6 shadow-card sm:p-8">
+          <h1 className="m-0 mb-5 text-[30px] font-extrabold tracking-[-1px] sm:text-[34px]">
             {q ? `"${q}" 검색 결과` : "카드 검색"}
           </h1>
+          {/* 폼 폭은 카드 폭에 맞춘다(#238) — 860px 상한을 뒀더니 1,456px 카드 안에서 폼만
+              왼쪽에 몰려 오른쪽에 600px 빈칸이 남았다. 상한을 올려도 그 빈칸이 줄 뿐 없어지지
+              않아, 아예 카드 폭을 그대로 쓰게 한다. 입력창이 길어 보이는 문제는 왼쪽 돋보기와
+              오른쪽 제출 버튼이 양 끝을 잡아줘 "검색 바" 형태로 읽히는 것으로 해소된다. */}
           <SearchBar width="w-full" variant="market" />
         </div>
 
