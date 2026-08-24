@@ -1,6 +1,6 @@
-# PocketTrade — Next.js 14 + TypeScript + TailwindCSS
+# Pokade — Next.js 14 + TypeScript + TailwindCSS
 
-포켓몬 카드 리세일/트레이딩 웹 플랫폼 "PocketTrade"의 프론트엔드 프로젝트입니다.
+포켓몬 카드 리세일/트레이딩 웹 플랫폼 "Pokade"의 프론트엔드 프로젝트입니다.
 9개 화면을 Next.js App Router 구조로 구현했습니다.
 
 ## 시작하기
@@ -101,4 +101,4 @@ Header 상태 규칙(경로 기반 자동):
 - 배경은 항상 단색(솔리드)만 사용 — 그라디언트/패턴 없음.
 - 카드 이미지는 `CardImage` 플레이스홀더입니다. 실제 이미지 컴포넌트(`next/image`)로 교체하면 됩니다.
 - 인터랙션(탭/토글/슬라이드인)은 `"use client"` 페이지에서 `useState` 로 처리합니다.
-- 저작권 표기: © 2026 POCKET TRADE.
+- 저작권 표기: © 2026 POKADE.

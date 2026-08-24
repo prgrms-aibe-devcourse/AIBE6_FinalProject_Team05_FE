@@ -314,7 +314,7 @@ export default function SignupPage() {
               환영합니다, 트레이너님!
             </h1>
             <p className="mt-3 text-[14.5px] leading-relaxed text-[#7A7A82]">
-              이제 PocketTrade의 모든 기능을 이용하실 수 있습니다.
+              이제 Pokade의 모든 기능을 이용하실 수 있습니다.
               <br />
               가입 축하 AI 진단 3회가 지급되었습니다.
             </p>

@@ -429,7 +429,7 @@ export default function Header() {
           href="/"
           className="whitespace-nowrap text-xl font-extrabold tracking-[-0.5px] text-primary hover:text-primary"
         >
-          POCKET TRADE
+          POKADE
         </Link>
         <nav className="hidden items-center gap-[30px] text-[15px] font-semibold md:flex">
           {NAV.map((n) => {

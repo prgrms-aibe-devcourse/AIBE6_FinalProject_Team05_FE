@@ -7,7 +7,7 @@ import ChatWidget from "@/components/ChatWidget";
 import VisitTracker from "@/components/VisitTracker";
 
 export const metadata: Metadata = {
-  title: "PocketTrade",
+  title: "Pokade",
   description: "Retro-Grade Trading Card Marketplace",
 };
 

@@ -9,7 +9,7 @@ import { readyPointCharge } from "@/lib/pointApi";
 import { ApiError } from "@/lib/apiClient";
 
 const TOSS_CLIENT_KEY = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY ?? "";
-const ORDER_NAME = "포켓트레이드 포인트 충전";
+const ORDER_NAME = "포케이드 포인트 충전";
 const MIN_AMOUNT = 1000;
 const MAX_AMOUNT = 1_000_000;
 const QUICK_AMOUNTS = [1000, 5000, 10000, 30000, 50000, 100000];
