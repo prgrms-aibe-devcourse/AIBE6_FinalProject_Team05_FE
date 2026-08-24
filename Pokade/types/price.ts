@@ -213,3 +213,18 @@ export interface BuyOfferResponse {
   recipientAddress: string | null;
   createdAt: string;
 }
+
+// GET /api/buy-offers/me 응답 항목 — com.pokade.domain.price.dto.MyBuyOfferResponse 미러링.
+// 마이페이지 "입찰" 섹션(구매입찰 탭)에서 카드 정보와 함께 보여주기 위한 별도 DTO
+// (BuyOfferResponse는 카드 정보 없이 등록 직후 응답용).
+export interface MyBuyOfferResponse {
+  buyOfferId: number;
+  cardId: number;
+  cardName: string | null;
+  cardImageUrl: string | null;
+  variantId: number | null;
+  price: number;
+  grade: ListingGrade | null;
+  status: string;
+  createdAt: string;
+}

@@ -1,5 +1,5 @@
-import { apiPost } from "@/lib/apiClient";
-import { BuyOfferReadyRequest, BuyOfferReadyResponse, BuyOfferResponse } from "@/types/price";
+import { apiGet, apiPost, PageResponse } from "@/lib/apiClient";
+import { BuyOfferReadyRequest, BuyOfferReadyResponse, BuyOfferResponse, MyBuyOfferResponse } from "@/types/price";
 import { TradeResponse } from "@/types/trade";
 
 // POST /api/buy-offers/ready — 구매입찰 결제창을 띄우기 전, 주문을 먼저 PENDING으로 만든다.
@@ -41,4 +41,16 @@ export async function fulfillBuyOffer(
   request: BuyOfferFulfillRequest,
 ): Promise<TradeResponse> {
   return apiPost<TradeResponse>(`/api/buy-offers/${buyOfferId}/fulfill`, request);
+}
+
+// GET /api/buy-offers/me?status=&page=&size= — 내 구매입찰 페이징 조회 (인증 필요).
+// status 생략 시 전체 상태 조회, page는 0-indexed(Spring Pageable 관례) — fetchMyListings와 동일한 컨벤션.
+export async function fetchMyBuyOffers(
+  status?: string,
+  page = 0,
+  size = 10,
+): Promise<PageResponse<MyBuyOfferResponse>> {
+  const query = new URLSearchParams({ page: String(page), size: String(size) });
+  if (status) query.set("status", status);
+  return apiGet<PageResponse<MyBuyOfferResponse>>(`/api/buy-offers/me?${query.toString()}`);
 }
