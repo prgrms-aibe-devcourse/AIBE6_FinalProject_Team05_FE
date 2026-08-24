@@ -23,7 +23,8 @@ export interface WatchlistResponse {
 }
 
 // POST /api/watchlist 요청 바디 — com.pokade.domain.watchlist.dto.WatchlistCreateRequest 미러링.
-// targetBuyPrice/targetSellPrice 둘 다 없으면 BE가 400(TARGET_PRICE_REQUIRED) 반환.
+// cardId만 필수다. 목표가는 선택 입력이라 둘 다 생략해도 등록된다(BE #308) — 하트 빠른 등록이
+// 그렇게 보낸다. TARGET_PRICE_REQUIRED는 수정(PATCH)에만 남은 검증이다.
 export interface WatchlistCreateRequest {
   cardId: number;
   variantId?: number;
@@ -38,8 +39,9 @@ export interface WatchlistCountResponse {
 }
 
 // PATCH /api/watchlist/{id} 요청 바디 — com.pokade.domain.watchlist.dto.WatchlistUpdateRequest 미러링.
-// targetBuyPrice/targetSellPrice 둘 다 없으면 BE가 400(TARGET_PRICE_REQUIRED) 반환 —
-// 단 resendNotification=true면 이 검증을 건너뛴다(가격 없이 재알림 리셋만 요청 가능).
+// 등록(POST)과 달리 목표가가 필수다 — targetBuyPrice/targetSellPrice 둘 다 없으면 BE가
+// 400(TARGET_PRICE_REQUIRED) 반환. 단 resendNotification=true면 이 검증을 건너뛴다(가격 없이
+// 재알림 리셋만 요청 가능).
 export interface WatchlistUpdateRequest {
   targetBuyPrice?: number;
   targetSellPrice?: number;

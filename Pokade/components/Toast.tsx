@@ -34,16 +34,44 @@ export default function Toast({
 }) {
   if (!toast) return null;
 
-  const base =
-    "fixed bottom-8 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-5 py-3 text-[13.5px] font-bold text-white shadow-lg";
+  const isError = toast.tone === "error";
+
+  // 가로 중앙 정렬을 left-1/2 + -translate-x-1/2이 아니라 inset-x-4 + mx-auto + w-fit으로 한다.
+  //
+  // 예전 방식의 문제: position:fixed에서 width가 auto면 shrink-to-fit으로 폭이 정해지는데, 그때
+  // "쓸 수 있는 폭"은 컨테이닝 블록(뷰포트)에서 left를 뺀 나머지다. left:50%만 주고 right를 안 주면
+  // 가용 폭이 뷰포트의 절반으로 묶인다 — 360px에서 180px, 390px에서 195px. 그래서 가로로 넘치는
+  // 대신 세로로 접혔다. 실제로 좁은 폭에서는 대부분의 토스트가 2줄이 됐고, 링크가 있는 관심 등록
+  // 토스트는 linkLabel이 whitespace-nowrap이라 한 줄을 통째로 차지하는 바람에 남은 자리에 메시지가
+  // 한두 글자씩 쌓여 7줄(높이 186px)까지 늘어났다. 알약 모양이 무너지는 건 물론이고 읽을 수가 없다.
+  //
+  // 양쪽 inset을 다 주면 가용 폭이 "뷰포트 - 32px" 전체가 되고, width:fit-content라 내용이 짧으면
+  // 그만큼만 차지한다(짧은 토스트가 가로로 늘어지지 않는다). 좌우 margin:auto가 그 안에서 중앙을
+  // 잡는다. 360/390px에서 다섯 종류 토스트가 모두 한 줄로 들어가는 것을 측정으로 확인했다.
+  // 320px에서 가장 긴 실패 문구만 2줄이 되는데, 이건 감수하기로 한 범위다.
+  //
+  // 배경색만 성공/실패로 가르고 모서리·타이포는 그대로 둔다 — 같은 자리에 뜨는 같은 종류의
+  // 알림이라는 인상을 유지하기 위함. primary(#EE1515)가 아니라 primary-dark(#B80F0F)를 쓰는 이유:
+  // 흰 글자 대비가 primary는 4.4:1로 본문 크기 AA(4.5:1)에 못 미치고, primary-dark는 6.7:1로 넘긴다.
+  // 새 색을 만들지 않고 기존 토큰 안에서 고른 값이다.
+  const base = `fixed inset-x-4 bottom-8 z-50 mx-auto w-fit max-w-[calc(100vw-2rem)] rounded-full px-5 py-3 text-[13.5px] font-bold text-white shadow-lg ${
+    isError ? "bg-primary-dark" : "bg-ink"
+  }`;
 
   const linkLabel = toast.linkLabel ?? "이동";
 
   return (
     <>
       {/* 스크린리더 전용 알림 영역 — 문구만 담는다. 포커스를 뺏지 않고(WCAG) 떠오르는 순간
-          polite로 읽힌다. 시각 토스트와 분리돼 있어 링크가 생겨도 읽히는 내용은 그대로다. */}
-      <span role="status" aria-live="polite" className="sr-only">
+          읽힌다. 시각 토스트와 분리돼 있어 링크가 생겨도 읽히는 내용은 그대로다.
+          성공·안내는 polite로 흘려보내고, 실패(tone="error")만 alert/assertive로 즉시 끼어든다 —
+          예전에 실패를 카드 옆 role="alert" 인라인으로 띄우던 때의 즉시성을 토스트로 옮겨온 것이라,
+          여기서 polite로 두면 접근성이 그만큼 후퇴한다. */}
+      <span
+        role={isError ? "alert" : "status"}
+        aria-live={isError ? "assertive" : "polite"}
+        className="sr-only"
+      >
         {toast.message}
       </span>
 

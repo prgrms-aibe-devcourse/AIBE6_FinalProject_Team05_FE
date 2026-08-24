@@ -45,7 +45,6 @@ function SearchDashboard() {
   // handleHeartClick 래퍼가, 펀치는 SearchResultsView의 하트 버튼이 status를 보고 처리한다.
   const {
     myWatchlist,
-    watchlistError,
     handleHeartClick: toggleWatchlistCard,
     pendingCardId: watchlistPendingCardId,
   } = useWatchlistMap();
@@ -59,11 +58,8 @@ function SearchDashboard() {
     const max = parsePriceQueryParam(searchParams.get("maxPrice"));
     return max != null ? Math.max(max, min ?? 0) : PRICE_MAX;
   });
-  // min/max 핸들이 겹쳐 있을 때(값이 근접) 마지막으로 조작한 쪽이 위로 오도록
-  // z-index를 정하는 데만 쓰는 state — null이면 기존처럼 max가 위(기본 동작).
-  const [activeHandle, setActiveHandle] = useState<"min" | "max" | null>(null);
-  // API 요청/URL 동기화용 디바운스된 값 — 라벨/thumb는 priceMin/priceMax(즉시값)를 그대로 쓰고,
-  // 이 값은 드래그가 멈춘 뒤에만 갱신되어 재요청 트리거로 쓰인다.
+  // API 요청/URL 동기화용 디바운스된 값 — 입력창 라벨은 priceMin/priceMax(즉시값)를 그대로 쓰고,
+  // 이 값은 타이핑이 멈춘 뒤에만 갱신되어 재요청 트리거로 쓰인다.
   const [debouncedPriceMin, setDebouncedPriceMin] = useState(priceMin);
   const [debouncedPriceMax, setDebouncedPriceMax] = useState(priceMax);
   // facet 목록이 비동기로 오기 전이라 여기서는 화이트리스트 검증 없이 URL 값을 그대로 받는다.
@@ -190,6 +186,13 @@ function SearchDashboard() {
 
   useEffect(() => {
     let cancelled = false;
+
+    // 요청이 시작될 때마다 loading으로 되돌린다 — 예전에는 페이지 이동이 이 값을 건드리지 않아
+    // 진행 중이라는 표시가 전혀 없다가 응답이 오는 순간 목록이 통째로 갈리며 깜빡였다.
+    // setCards([])는 하지 않는다: 이전 페이지 카드를 남겨 두고 그리드만 흐려지게 해야
+    // 레이아웃 높이가 유지되고(스크롤 위치가 튀지 않는다) 빈 화면이 스쳐 지나가지 않는다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 비동기 페치 수명주기 표시
+    setLoadState("loading");
 
     // #308: q(키워드)와 필터를 항상 같이 보낸다 — BE가 q 없으면 기존 필터 전용 검색과
     // 동일하게 동작하므로 q 유무로 호출을 분기할 필요가 없어졌다.
@@ -318,16 +321,20 @@ function SearchDashboard() {
   // 상태 갱신은 훅이 하고, 여기서는 토스트만 얹은 뒤 status를 그대로 흘려보낸다 —
   // 하트 펀치는 하트를 실제로 그리는 SearchResultsView가 이 반환값을 보고 재생한다.
   const handleHeartClick = async (cardId: number): Promise<QuickWatchlistToggleStatus> => {
-    const status = await toggleWatchlistCard(cardId);
-    showWatchlistToggleToast(status, showToast);
-    return status;
+    const result = await toggleWatchlistCard(cardId);
+    showWatchlistToggleToast(result, showToast);
+    // 아래로는 status만 넘긴다 — SearchResultsView는 펀치 재생 여부만 알면 되고,
+    // 실패 문구는 이미 여기서 토스트로 처리했다.
+    return result.status;
   };
 
   // 페이지 번호/이전·다음 버튼 클릭 시에만 맨 위로 스크롤 — 필터/정렬 변경으로
   // 인한 자동 setPage(1)은 이 핸들러를 거치지 않으므로 스크롤 동작이 없다.
+  // behavior는 "auto"(즉시) — smooth로 두면 스크롤이 흐르는 도중에 새 목록이 도착해 교체되면서
+  // 화면이 두 번 움직이는 것처럼 보인다. 즉시 올린 뒤 그 자리에서 목록만 바뀌게 한다.
   const goToPage = (p: number) => {
     setPage(p);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: "auto" });
   };
 
   // 슬라이더 드래그가 아닌 즉시 액션(초기화, 칩 제거)은 debounce를 기다리지 않고
@@ -341,7 +348,6 @@ function SearchDashboard() {
 
   const resetFilters = () => {
     setPriceRangeNow(0, PRICE_MAX);
-    setActiveHandle(null);
     setLoadState("loading");
     setSelectedExpansionId(null);
     setSelectedTypes([]);
@@ -415,8 +421,6 @@ function SearchDashboard() {
           priceMax={priceMax}
           setPriceMax={setPriceMax}
           setPriceRangeNow={setPriceRangeNow}
-          activeHandle={activeHandle}
-          setActiveHandle={setActiveHandle}
           sort={sort}
           setSort={setSort}
           setLoadState={setLoadState}
@@ -433,7 +437,6 @@ function SearchDashboard() {
           setReloadKey={setReloadKey}
           myWatchlist={myWatchlist}
           watchlistPendingCardId={watchlistPendingCardId}
-          watchlistError={watchlistError}
           onHeartClick={handleHeartClick}
         />
       </div>
