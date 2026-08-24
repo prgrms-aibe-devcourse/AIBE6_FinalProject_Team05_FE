@@ -1,8 +1,17 @@
 // com.pokade.domain.notification.entity.NotificationType 미러링.
 // BE는 LISTING_AVAILABLE(관심 카드에 매물 신규 등록)도 실제로 생성한다 — 예전에 이 유니온에서
 // 빠져 있어서 notifStyle()이 undefined를 반환하고 알림 목록/드롭다운이 그 지점에서 깨질 수 있었다.
+//
+// INQUIRY_RECEIVED(#392)는 지금까지의 값들과 달리 수신자가 일반 사용자가 아니라 관리자다 —
+// 사용자가 1:1 문의를 올리면 관리자에게 간다. 저장 테이블과 조회 API(GET /api/notifications)는
+// 그대로 공유하므로 관리자 계정에서는 자기 알림 목록에 일반 알림과 섞여 내려온다.
 export type NotificationType =
-  "PRICE_TARGET" | "TRADE_CONFIRMED" | "LISTING_STALE" | "INQUIRY_HANDLED" | "LISTING_AVAILABLE";
+  | "PRICE_TARGET"
+  | "TRADE_CONFIRMED"
+  | "LISTING_STALE"
+  | "INQUIRY_HANDLED"
+  | "LISTING_AVAILABLE"
+  | "INQUIRY_RECEIVED";
 
 // GET /api/notifications 응답 — com.pokade.domain.notification.dto.NotificationResponse 미러링.
 // message는 BE가 이미 완성된 문장으로 내려준다("리자몽 ex · ₩150,000 도달" 등) — FE에서 조합하지 않는다.

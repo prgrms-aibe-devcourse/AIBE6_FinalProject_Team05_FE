@@ -80,6 +80,34 @@ export function notifStyle(
           </svg>
         ),
       };
+    case "INQUIRY_RECEIVED":
+      // INQUIRY_HANDLED(초록 말풍선 = 내 문의가 처리됨)와 같은 "문의" 계열이지만 방향이 반대라
+      // — 이건 관리자에게 "처리할 것이 들어왔다"고 알리는 쪽이다 — 색과 모양을 모두 갈라 둔다.
+      // 새 색을 만들지 않고 이 파일에 이미 있는 남색(TRADE_CONFIRMED와 같은 쌍)을 재사용한다.
+      // 겹쳐도 헷갈리지 않는 이유: TRADE_CONFIRMED는 BE에 생성 코드가 없어 실제로 내려오지
+      // 않는 값이고(아래 notificationHref 주석 참고), 아이콘 모양이 서로 다르다.
+      // 아이콘은 받은 문서함(트레이로 들어가는 화살표) — "도착"을 나타낸다.
+      return {
+        tint: "#EEF0FA",
+        icon: (
+          <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#3B4CCA"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 13h5l1.5 3h5L16 13h5" />
+            <path d="M4.5 6.5L3 13v5.5h18V13l-1.5-6.5" />
+            <path d="M12 3v6" />
+            <path d="M9.5 6.5L12 9l2.5-2.5" />
+          </svg>
+        ),
+      };
     case "LISTING_AVAILABLE":
       // 기존 4개(금색/남색/주황/초록)와 안 겹치는 청록 계열 — 재입고(새 상품)를 나타내는 상자 아이콘.
       return {
@@ -177,18 +205,24 @@ export function formatNotifTime(iso: string): string {
 // /inquiries 목록 라우트는 존재하지 않으므로(app/inquiries에는 new/만 있다) 여기로 보낸다.
 const MY_INQUIRIES_PATH = "/mypage/inquiries";
 
+// 관리자 문의 관리 화면(app/admin/inquiries). INQUIRY_RECEIVED는 관리자에게만 가는 알림이라
+// 내 문의 목록이 아니라 이쪽으로 보낸다 — 받는 사람이 처리해야 할 곳이 여기다.
+const ADMIN_INQUIRIES_PATH = "/admin/inquiries";
+
 // 알림을 눌렀을 때 이동할 곳. null이면 이동 없이 읽음 처리만 한다.
 // 헤더 드롭다운(components/Header.tsx)과 전체 알림 페이지(app/notifications/page.tsx)가 각자
 // `if (n.cardId != null) router.push(...)`를 들고 있었는데, 목적지 규칙이 타입별로 갈라지기
 // 시작해서(#238) 한 곳으로 합쳤다 — 두 화면이 다른 곳으로 가는 일이 없게 한다.
 //
 // cardId를 먼저 보는 이유: 카드가 딸린 알림은 타입과 무관하게 카드 상세가 가장 구체적인
-// 도착지다. INQUIRY_HANDLED는 BE가 cardId를 채우지 않으므로(NotificationService의 빌더에
-// cardId 자체가 없다) 항상 아래 분기로 떨어진다.
+// 도착지다. 문의 계열(INQUIRY_HANDLED / INQUIRY_RECEIVED)은 BE가 cardId를 채우지 않으므로
+// (NotificationService의 빌더에 cardId 자체가 없다) 항상 아래 분기로 떨어진다.
 //
-// 문의 목록까지만 보내고 해당 문의를 열어주지는 못한다 — 알림 레코드에 문의 식별자가 없고
-// (notifications 테이블에 card_id만 있다) 메시지에 박힌 제목 문자열로 매칭하는 건 제목에
-// 따옴표가 섞이면 바로 깨진다. 식별자가 응답에 추가되면 그때 특정 문의를 열도록 확장한다.
+// 문의 계열은 목록까지만 보내고 해당 문의를 펼쳐 주지는 못한다. 예전 주석은 "알림 레코드에
+// 문의 식별자가 없다"고 적혀 있었는데 지금은 사실이 아니다 — V12(#338)가 notifications에
+// inquiry_id를 추가했고 BE NotificationResponse도 inquiryId를 함께 내려준다. 다만 FE 쪽
+// types/notification.ts가 아직 그 필드를 미러링하지 않았고 두 문의 화면에도 "특정 문의 열기"
+// 진입점이 없어, 지금 당장은 목록으로만 보낸다. 필드를 받아오면 여기서 바로 확장할 수 있다.
 //
 // 그 외 cardId가 없는 타입(TRADE_CONFIRMED, LISTING_STALE - 현재 BE에 생성 코드가 없는 값들)은
 // 갈 곳이 없으므로 기존과 동일하게 null을 반환해 읽음 처리만 되게 둔다.
@@ -213,6 +247,7 @@ export function notificationHref(n: NotificationResponse): string | null {
     return `/cards/${n.cardId}${origin}`;
   }
   if (n.type === "INQUIRY_HANDLED") return MY_INQUIRIES_PATH;
+  if (n.type === "INQUIRY_RECEIVED") return ADMIN_INQUIRIES_PATH;
   return null;
 }
 
