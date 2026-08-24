@@ -88,6 +88,13 @@ export interface PriceRankingResponse {
   changeAmount: number;
 }
 
+// com.pokade.domain.price.dto.RankingRefreshedAtResponse 미러링 — GET /api/prices/ranking/refreshed-at
+// 응답. 랭킹은 매일 새벽 4시 배치로 갱신되는 캐시라, 화면에 "언제 계산된 값인지" 안내하기 위한 값.
+// 배포 직후 등 배치가 한 번도 안 돈 상태면 null.
+export interface RankingRefreshedAtResponse {
+  refreshedAt: string | null;
+}
+
 // com.pokade.domain.price.dto.DailyMarketStatResponse 미러링 — 일별 거래 현황 한 포인트.
 // avgPrice: 그 날 체결이 하나도 없으면 null.
 export interface DailyMarketStatResponse {

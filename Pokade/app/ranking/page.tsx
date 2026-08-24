@@ -5,7 +5,12 @@ import Link from "next/link";
 import CardImage from "@/components/CardImage";
 import MarketOverviewChart from "@/components/MarketOverviewChart";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { fetchMarketOverview, fetchPriceRanking, fetchPriceSummaries } from "@/lib/cardApi";
+import {
+  fetchMarketOverview,
+  fetchPriceRanking,
+  fetchPriceRankingRefreshedAt,
+  fetchPriceSummaries,
+} from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
 import {
   CardPriceSummaryResponse,
@@ -13,6 +18,14 @@ import {
   PriceRankingResponse,
   RankingType,
 } from "@/types/price";
+
+// "YYYY-MM-DDTHH:mm:ss..." 형태의 LocalDateTime 문자열을 "YYYY.MM.DD HH:mm"으로 표시한다.
+function formatRefreshedAt(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 type LoadState = "loading" | "error" | "ready";
 
@@ -32,8 +45,11 @@ export default function RankingPage() {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
+  // 매일 새벽 4시 배치로 갱신되는 캐시라 "언제 계산된 값인지" 안내 - 실패하거나 아직 한 번도
+  // 갱신된 적 없으면(배포 직후 등) null로 두고 안내 자체를 생략한다(부가 정보라 실패해도 목록 표시는 막지 않음).
+  const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
 
-  // 거래 현황(시세 랭킹과 별개로 플랫폼 전체 거래량/거래가 중간값을 보여주는 개요) - rise/fall 탭 전환과
+  // 거래 현황(시세 랭킹과 별개로 플랫폼 전체 거래량/거래가 평균을 보여주는 개요) - rise/fall 탭 전환과
   // 무관한 데이터라 위 급등락 목록과는 별도의 effect/상태로 관리한다.
   const [overview, setOverview] = useState<MarketOverviewResponse | null>(null);
   const [overviewLoadState, setOverviewLoadState] = useState<LoadState>("loading");
@@ -42,6 +58,14 @@ export default function RankingPage() {
   useEffect(() => {
     if (authStatus !== "authenticated") return;
     let cancelled = false;
+
+    fetchPriceRankingRefreshedAt(type)
+      .then((res) => {
+        if (!cancelled) setRefreshedAt(res.refreshedAt);
+      })
+      .catch(() => {
+        // 부가 정보 - 실패해도 안내를 생략할 뿐 목록 표시는 그대로 진행한다.
+      });
 
     fetchPriceRanking(type)
       .then(async (res) => {
@@ -113,6 +137,9 @@ export default function RankingPage() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[340px_1fr]">
           {/* 왼쪽: 급등/급락 TOP 10 (컴팩트) */}
           <div className="overflow-hidden rounded-2xl border border-[#EDEDF0] bg-white">
+            <div className="px-3.5 pt-3.5">
+              <h2 className="text-[15px] font-extrabold">7일 급등락 TOP 10</h2>
+            </div>
             <div className="flex gap-1.5 border-b border-[#EDEDF0] p-3">
               {TABS.map((t) => {
                 const active = type === t.key;
@@ -137,6 +164,12 @@ export default function RankingPage() {
                 );
               })}
             </div>
+
+            {refreshedAt && (
+              <div className="px-3.5 pt-2 text-[10.5px] font-semibold text-[#B4B4BC]">
+                마지막 갱신 {formatRefreshedAt(refreshedAt)}
+              </div>
+            )}
 
             {loadState === "loading" && (
               <div className="flex flex-col items-center justify-center gap-2.5 py-16">
@@ -214,7 +247,7 @@ export default function RankingPage() {
             )}
           </div>
 
-          {/* 오른쪽: 거래 현황(플랫폼 전체 거래량 + 거래가 중간값) */}
+          {/* 오른쪽: 거래 현황(플랫폼 전체 거래량 + 거래가 평균) */}
           <div>
             {overviewLoadState === "error" && (
               <div className="flex flex-col items-center justify-center gap-2.5 rounded-2xl border border-[#EDEDF0] bg-white py-24">

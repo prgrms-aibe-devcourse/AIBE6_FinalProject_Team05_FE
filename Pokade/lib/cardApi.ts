@@ -16,6 +16,7 @@ import {
   PriceRankingResponse,
   PriceStatsResponse,
   PriceSummaryResponse,
+  RankingRefreshedAtResponse,
   RankingType,
   TradeSummaryResponse,
 } from "@/types/price";
@@ -224,6 +225,12 @@ export async function fetchGradeChart(
 // 로그인 필요(401 가능). 서버가 limit=10을 고정 적용하므로 페이지네이션 파라미터는 없음.
 export async function fetchPriceRanking(type: RankingType): Promise<PriceRankingResponse[]> {
   return apiGet<PriceRankingResponse[]>(`/api/prices/ranking?type=${type}`);
+}
+
+// GET /api/prices/ranking/refreshed-at?type=rise|fall — 이 랭킹이 마지막으로 계산된 시각(배치가
+// 한 번도 안 돈 상태면 null). 로그인 필요(401 가능).
+export async function fetchPriceRankingRefreshedAt(type: RankingType): Promise<RankingRefreshedAtResponse> {
+  return apiGet<RankingRefreshedAtResponse>(`/api/prices/ranking/refreshed-at?type=${type}`);
 }
 
 // GET /api/prices/market-overview — 플랫폼 전체(카드/등급 구분 없음) 최근 30일 일별 거래량 + 거래가
