@@ -397,7 +397,7 @@ function UploadView({
               <img
                 src={previews[i] as string}
                 alt={`업로드 ${label}`}
-                className="h-full w-full object-contain"
+                className="h-full w-full object-cover"
               />
               <button
                 onClick={() => setAt(i, null)}
