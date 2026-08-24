@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { signup, sendEmailCode } from "@/lib/authApi";
 import { useRouter } from "next/navigation";
-import { ApiError } from "@/lib/apiClient";
+import { ApiError, API_BASE_URL } from "@/lib/apiClient";
 import { authErrorInfo, type AuthErrorInfo } from "@/lib/authErrorMessages";
 import EmailVerificationForm from "@/components/EmailVerificationForm";
 import AgreementSection, {
@@ -284,6 +284,34 @@ export default function SignupPage() {
             >
               {submitting ? "처리 중…" : "다음 단계 →"}
             </button>
+
+            <div className="my-6 flex items-center gap-3">
+              <div className="h-px flex-1 bg-[#EDEDF0]" />
+              <span className="text-[12px] font-semibold text-[#B0B0B8]">또는</span>
+              <div className="h-px flex-1 bg-[#EDEDF0]" />
+            </div>
+
+            {/* 같은 엔드포인트가 계정 유무에 따라 로그인·가입으로 갈리므로 "가입"이 아니라 "시작"으로 적는다. */}
+            <div className="flex flex-col gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.href = `${API_BASE_URL}/api/oauth2/authorization/kakao`;
+                }}
+                className="flex w-full items-center justify-center gap-2 rounded-[11px] border border-[#E8D000] bg-[#FEE500] py-3 text-[14.5px] font-bold text-[#191600] transition active:translate-y-0.5"
+              >
+                <span className="text-base">💬</span>카카오로 시작하기
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.href = `${API_BASE_URL}/api/oauth2/authorization/google`;
+                }}
+                className="flex w-full items-center justify-center gap-2 rounded-[11px] border border-[#DADCE0] bg-white py-3 text-[14.5px] font-bold text-[#3C4043] transition active:translate-y-0.5"
+              >
+                <span className="font-extrabold text-[#4285F4]">G</span>Google로 시작하기
+              </button>
+            </div>
           </div>
         )}
 
