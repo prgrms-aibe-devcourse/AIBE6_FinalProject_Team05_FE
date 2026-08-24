@@ -6,6 +6,7 @@ import { signup, sendEmailCode } from "@/lib/authApi";
 import { useRouter } from "next/navigation";
 import { ApiError, API_BASE_URL } from "@/lib/apiClient";
 import { authErrorInfo, type AuthErrorInfo } from "@/lib/authErrorMessages";
+import { nicknameError } from "@/lib/nickname";
 import EmailVerificationForm from "@/components/EmailVerificationForm";
 import AgreementSection, {
   Agreements,
@@ -73,8 +74,9 @@ export default function SignupPage() {
       setError("비밀번호가 일치하지 않습니다.");
       return;
     }
-    if (nickname.trim().length < 2 || nickname.trim().length > 20) {
-      setError("닉네임은 2~20자로 입력해 주세요.");
+    const nicknameProblem = nicknameError(nickname);
+    if (nicknameProblem) {
+      setError(nicknameProblem);
       return;
     }
     // 버튼도 막고 있지만 BE와 같은 조건을 여기서 한 번 더 본다 — 미동의로 요청이 나가면 400이다.
@@ -90,7 +92,7 @@ export default function SignupPage() {
         await signup({
           email: email.trim(),
           password,
-          nickname: nickname.trim(),
+          nickname,
           ...agreements, // 키가 BE 요청 필드명과 같아 변환 없이 그대로 넘긴다
         });
         setSignedUp(true);

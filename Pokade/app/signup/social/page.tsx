@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUserStore } from "@/store/useUserStore";
 import { oauth2Register } from "@/lib/authApi";
+import { isValidNickname, nicknameError } from "@/lib/nickname";
 import AgreementSection, {
   Agreements,
   EMPTY_AGREEMENTS,
@@ -37,6 +38,11 @@ export default function SocialSignupPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ticket) return;
+    const nicknameProblem = nicknameError(nickname);
+    if (nicknameProblem) {
+      setError(nicknameProblem);
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
@@ -69,7 +75,7 @@ export default function SocialSignupPage() {
         {error && <p className="text-[13.5px] text-red-500">{error}</p>}
         <button
           type="submit"
-          disabled={loading || !isRequiredAgreed(agreements) || nickname.length < 2}
+          disabled={loading || !isRequiredAgreed(agreements) || !isValidNickname(nickname)}
           className="rounded-[11px] bg-primary py-3.5 font-bold text-white transition active:translate-y-0.5 disabled:opacity-60"
         >
           {loading ? "가입 중..." : "가입 완료"}
