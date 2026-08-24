@@ -192,6 +192,14 @@ function NewListingForm() {
       setError("등급을 선택해 주세요.");
       return;
     }
+    const buyPrice = priceSummary?.buyPrice;
+    if (buyPrice != null && buyPrice > 0) {
+      const diffRatio = (priceNumber - buyPrice) / buyPrice;
+      if (diffRatio >= PRICE_OUTLIER_THRESHOLD) {
+        setError("입력하신 가격이 현재 최저 시세보다 많이 높습니다. 가격을 다시 확인해 주세요.");
+        return;
+      }
+    }
 
     // 실제 등록(createListing)은 여기서 하지 않는다 - 정산계좌/반송주소를 받는 주문서
     // 단계(/listings/new/order)로 이동해서, 그 화면에서 최종 제출한다.

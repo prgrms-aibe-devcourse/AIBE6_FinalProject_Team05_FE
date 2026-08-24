@@ -183,6 +183,14 @@ function NewBuyOfferForm() {
       setError(`가격은 ${step.toLocaleString("ko-KR")}원 단위로 입력해 주세요.`);
       return;
     }
+    const topBidPrice = priceSummary?.sellPrice;
+    if (topBidPrice != null && topBidPrice > 0) {
+      const diffRatio = (priceNumber - topBidPrice) / topBidPrice;
+      if (diffRatio >= PRICE_OUTLIER_THRESHOLD) {
+        setError("입력하신 입찰가가 현재 최고 구매입찰가보다 많이 높습니다. 가격을 다시 확인해 주세요.");
+        return;
+      }
+    }
 
     // 실제 등록(readyBuyOffer)은 여기서 하지 않는다 - 받는사람 정보를 받는 주문서 단계
     // (/buy-offers/new/order)로 이동해서, 그 화면에서 결제 준비→체결까지 이어간다.
