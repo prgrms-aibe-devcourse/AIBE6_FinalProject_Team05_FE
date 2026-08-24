@@ -118,12 +118,15 @@ export type ListingStatus = "ACTIVE" | "TRADING" | "SOLD" | "EXPIRED" | "CANCELL
 
 // com.pokade.domain.listing.dto.ListingSummaryResponse 미러링.
 // cardId/cardName은 "내 매물" 화면에서 카드 상세로 연결하기 위해 BE에 추가 요청해 받은 필드.
-// 매물 사진은 없음 — 매칭은 플랫폼이 중개하므로 실물 사진을 보여줄 필요가 없어 제외.
 export interface ListingSummaryResponse {
   id: number;
   sellerId: number;
   cardId: number;
   cardName: string | null;
+  // 한글 매핑이 없으면 null(어설픈 오번역보다 안전하다는 BE 쪽 설계, watchlist.ts와 동일). 표시할 땐
+  // cardNameKo ?? cardName.
+  cardNameKo: string | null;
+  cardImageUrl: string | null;
   price: number;
   grade: ListingGrade | null;
   status: ListingStatus;
@@ -214,17 +217,55 @@ export interface BuyOfferResponse {
   createdAt: string;
 }
 
-// GET /api/buy-offers/me 응답 항목 — com.pokade.domain.price.dto.MyBuyOfferResponse 미러링.
+// GET /api/buy-offers/me, GET·PATCH /api/buy-offers/{id} 응답 — com.pokade.domain.price.dto.MyBuyOfferResponse 미러링.
 // 마이페이지 "입찰" 섹션(구매입찰 탭)에서 카드 정보와 함께 보여주기 위한 별도 DTO
 // (BuyOfferResponse는 카드 정보 없이 등록 직후 응답용).
 export interface MyBuyOfferResponse {
   buyOfferId: number;
   cardId: number;
   cardName: string | null;
+  // 한글 매핑이 없으면 null(어설픈 오번역보다 안전하다는 BE 쪽 설계). 표시할 땐 cardNameKo ?? cardName.
+  cardNameKo: string | null;
   cardImageUrl: string | null;
   variantId: number | null;
   price: number;
   grade: ListingGrade | null;
   status: string;
+  shippingFee: number | null;
+  pointsUsed: number | null;
+  recipientName: string | null;
+  recipientPhone: string | null;
+  recipientAddress: string | null;
+  createdAt: string;
+}
+
+// PATCH /api/buy-offers/{id} 요청 바디 — com.pokade.domain.price.dto.BuyOfferRecipientUpdateRequest 미러링.
+// ACTIVE 상태(아직 체결 전)에서만 수정 가능 - 체결 이후엔 BE가 BUY_OFFER_ALREADY_MATCHED(409)를 반환한다.
+export interface BuyOfferRecipientUpdateRequest {
+  recipientName: string;
+  recipientPhone: string;
+  recipientAddress: string;
+}
+
+// GET /api/listings/{id} 응답 — com.pokade.domain.listing.dto.MyListingResponse 미러링.
+// 마이페이지 "입찰" 섹션(판매 등록 탭)에서 항목을 클릭했을 때 보여주는 주문서 상세 - ListingSummaryResponse
+// (목록용)와 달리 등록 시점에 입력한 정산계좌/반송주소까지 포함한다.
+export interface MyListingResponse {
+  id: number;
+  cardId: number;
+  cardName: string | null;
+  // 한글 매핑이 없으면 null(어설픈 오번역보다 안전하다는 BE 쪽 설계). 표시할 땐 cardNameKo ?? cardName.
+  cardNameKo: string | null;
+  cardImageUrl: string | null;
+  variantId: number | null;
+  price: number;
+  grade: ListingGrade | null;
+  status: ListingStatus;
+  settlementBankName: string | null;
+  settlementAccountNumber: string | null;
+  settlementAccountHolder: string | null;
+  returnRecipientName: string | null;
+  returnRecipientPhone: string | null;
+  returnAddress: string | null;
   createdAt: string;
 }

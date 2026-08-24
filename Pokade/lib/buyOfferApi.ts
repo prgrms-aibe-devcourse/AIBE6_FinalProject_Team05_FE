@@ -1,5 +1,11 @@
-import { apiGet, apiPost, PageResponse } from "@/lib/apiClient";
-import { BuyOfferReadyRequest, BuyOfferReadyResponse, BuyOfferResponse, MyBuyOfferResponse } from "@/types/price";
+import { apiGet, apiPatch, apiPost, PageResponse } from "@/lib/apiClient";
+import {
+  BuyOfferReadyRequest,
+  BuyOfferReadyResponse,
+  BuyOfferRecipientUpdateRequest,
+  BuyOfferResponse,
+  MyBuyOfferResponse,
+} from "@/types/price";
 import { TradeResponse } from "@/types/trade";
 
 // POST /api/buy-offers/ready — 구매입찰 결제창을 띄우기 전, 주문을 먼저 PENDING으로 만든다.
@@ -53,4 +59,19 @@ export async function fetchMyBuyOffers(
   const query = new URLSearchParams({ page: String(page), size: String(size) });
   if (status) query.set("status", status);
   return apiGet<PageResponse<MyBuyOfferResponse>>(`/api/buy-offers/me?${query.toString()}`);
+}
+
+// GET /api/buy-offers/{id} — 마이페이지 "입찰" 목록에서 항목을 클릭했을 때 보여주는 주문서 상세 (인증 필요).
+// 본인 것이 아니면 403.
+export async function fetchMyBuyOffer(buyOfferId: number): Promise<MyBuyOfferResponse> {
+  return apiGet<MyBuyOfferResponse>(`/api/buy-offers/${buyOfferId}`);
+}
+
+// PATCH /api/buy-offers/{id} — 받는사람 정보 수정 (인증 필요). ACTIVE 상태(체결 전)에서만 가능하며,
+// 그 외 상태면 409(BUY_OFFER_ALREADY_MATCHED)가 온다.
+export async function updateBuyOfferRecipient(
+  buyOfferId: number,
+  request: BuyOfferRecipientUpdateRequest,
+): Promise<MyBuyOfferResponse> {
+  return apiPatch<MyBuyOfferResponse>(`/api/buy-offers/${buyOfferId}`, request);
 }

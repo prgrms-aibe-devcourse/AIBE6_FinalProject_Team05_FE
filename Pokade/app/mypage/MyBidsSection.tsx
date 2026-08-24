@@ -219,15 +219,15 @@ function MyBidsSectionInner() {
           {buyOfferResult.page.content.map((b) => (
             <li key={b.buyOfferId}>
               <Link
-                href={`/cards/${b.cardId}`}
+                href={`/buy-offers/${b.buyOfferId}`}
                 className="flex items-center gap-3 rounded-[10px] border border-[#EDEDF0] p-3 hover:bg-[#FAFAFB]"
               >
                 <div className="relative h-14 w-10 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
-                  <CardImage src={b.cardImageUrl ?? undefined} alt={b.cardName ?? "카드"} />
+                  <CardImage src={b.cardImageUrl ?? undefined} alt={b.cardNameKo ?? b.cardName ?? "카드"} />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13.5px] font-bold text-[#3A3A42]">
-                    {b.cardName ?? "알 수 없는 카드"}
+                    {b.cardNameKo ?? b.cardName ?? "알 수 없는 카드"}
                   </p>
                   <p className="text-[12px] text-[#8A8A92]">
                     {b.price.toLocaleString("ko-KR")}원 · {formatDateTime(b.createdAt)}
@@ -251,12 +251,15 @@ function MyBidsSectionInner() {
           {listingResult.page.content.map((l) => (
             <li key={l.id}>
               <Link
-                href={`/cards/${l.cardId}`}
-                className="flex items-center justify-between gap-3 rounded-[10px] border border-[#EDEDF0] p-3 hover:bg-[#FAFAFB]"
+                href={`/listings/${l.id}`}
+                className="flex items-center gap-3 rounded-[10px] border border-[#EDEDF0] p-3 hover:bg-[#FAFAFB]"
               >
+                <div className="relative h-14 w-10 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
+                  <CardImage src={l.cardImageUrl ?? undefined} alt={l.cardNameKo ?? l.cardName ?? "카드"} />
+                </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13.5px] font-bold text-[#3A3A42]">
-                    {l.cardName ?? "알 수 없는 카드"}
+                    {l.cardNameKo ?? l.cardName ?? "알 수 없는 카드"}
                   </p>
                   <p className="text-[12px] text-[#8A8A92]">
                     {l.price.toLocaleString("ko-KR")}원 · {formatDateTime(l.createdAt)}
