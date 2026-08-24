@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
+import { useState } from "react";
 
 interface Faq {
   q: string;
@@ -112,8 +112,8 @@ export default function SupportPage() {
           <aside className="flex h-fit flex-col gap-3 rounded-2xl border border-[#EDEDF0] bg-neutral p-6">
             <h3 className="text-base font-extrabold text-ink">더 궁금한 점이 있으신가요?</h3>
             <p className="text-sm leading-relaxed text-[#6E6E76]">
-              시세, 거래, 진단 결과에 대한 질문은 1:1 채팅 상담을 통해 실시간으로 도와드립니다.
-              사진 첨부가 필요하거나 답변까지 시간이 걸려도 괜찮다면 1:1 문의를 남겨주세요.
+              시세, 거래, 진단 결과에 대한 질문은 1:1 채팅 상담을 통해 실시간으로 도와드립니다. 사진
+              첨부가 필요하거나 답변까지 시간이 걸려도 괜찮다면 1:1 문의를 남겨주세요.
             </p>
             <Link
               href="/chat"
@@ -128,7 +128,7 @@ export default function SupportPage() {
               1:1 문의 작성하기
             </Link>
             <div className="mt-3 border-t border-[#E5E5EA] pt-3 text-[13px] leading-relaxed text-[#8A8A92]">
-              <div>이메일: support@pockettrade.example</div>
+              <div>이메일: pokade6@gmail.com</div>
               <div>운영시간: 평일 10:00 ~ 18:00 (주말·공휴일 휴무)</div>
             </div>
           </aside>
