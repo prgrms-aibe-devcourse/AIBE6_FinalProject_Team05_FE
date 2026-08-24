@@ -12,6 +12,7 @@
   "dependencies": {
     "@microsoft/fetch-event-source": "^2.0.1",
     "@tosspayments/tosspayments-sdk": "^2.8.0",
+    "heic2any": "^0.0.4",
     "next": "^16.2.11",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

@@ -10,6 +10,7 @@ import ConditionBar from "@/components/ConditionBar";
 import PixelCharizard from "@/components/PixelCharizard";
 import { apiPostFormRaw, ApiError, PageResponse } from "@/lib/apiClient";
 import { fetchGradeHistory } from "@/lib/aiApi";
+import { ensureUploadableImage } from "@/lib/heicConvert";
 import { addPortfolioItemFromGrade } from "@/lib/portfolioApi";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useUserStore } from "@/store/useUserStore";
@@ -246,10 +247,11 @@ function UploadView({
     });
   };
 
-  const onPick = (i: number) => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onPick = (i: number) => async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setAt(i, file);
     e.target.value = "";
+    if (!file) return;
+    setAt(i, await ensureUploadableImage(file));
   };
 
   const onLoadDemo = async () => {
@@ -358,7 +360,7 @@ function UploadView({
               <img
                 src={previews[i] as string}
                 alt={`업로드 ${label}`}
-                className="h-full w-full object-cover"
+                className="h-full w-full object-contain"
               />
               <button
                 onClick={() => setAt(i, null)}
