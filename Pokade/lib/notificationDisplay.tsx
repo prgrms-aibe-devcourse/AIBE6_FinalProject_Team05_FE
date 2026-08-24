@@ -130,6 +130,103 @@ export function notifStyle(
           </svg>
         ),
       };
+    // 거래 단계 알림 4종(#392). 넷이 한 화면에 나란히 쌓일 수 있고 기존 TRADE_CONFIRMED(남색
+    // 상자)까지 더하면 "거래"만 다섯 줄이 되므로, 색보다 아이콘 모양으로 갈라 읽히게 한다 —
+    // 트럭(발송) / 체크된 서류(배송 완료) / X(취소) / 마주 보는 화살표(체결). 색은 새로 만들지
+    // 않고 이 파일에 이미 있는 네 쌍에서 의미가 맞는 것을 골라 쓴다.
+    case "TRADE_SHIPPING_REQUIRED":
+      // 주황(LISTING_STALE과 같은 쌍) — 둘 다 "네가 움직이지 않으면 멈춰 있다"는 재촉 신호다.
+      return {
+        tint: "#FFF3E0",
+        icon: (
+          <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#C2790A"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 7h11v9H3z" />
+            <path d="M14 10h3.5l3 3v3H14z" />
+            <circle cx="7" cy="18" r="1.6" />
+            <circle cx="17.5" cy="18" r="1.6" />
+          </svg>
+        ),
+      };
+    case "TRADE_DELIVERED":
+      // 초록(INQUIRY_HANDLED와 같은 쌍) — "한 단계가 무사히 끝났다"는 같은 결의 신호.
+      // 아이콘은 말풍선이 아니라 체크된 서류라 초록끼리도 헷갈리지 않는다.
+      return {
+        tint: "#EAF7EF",
+        icon: (
+          <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#059669"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M9 4h6v3H9z" />
+            <path d="M15 5.5h3V20H6V5.5h3" />
+            <path d="M9 13.5l2 2 4-4" />
+          </svg>
+        ),
+      };
+    case "TRADE_CANCELLED":
+      // 회색 — 이 파일에 부정/중단을 나타낼 색이 이것뿐이다(빨강 계열은 이 파일에 없고,
+      // 새 색은 만들지 않는다). 아래 default도 같은 회색이지만 그쪽은 종 아이콘이라 구분된다.
+      return {
+        tint: "#F2F2F5",
+        icon: (
+          <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#8A8A92"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M15 9l-6 6" />
+            <path d="M9 9l6 6" />
+          </svg>
+        ),
+      };
+    case "BUY_OFFER_MATCHED":
+      // 금색(PRICE_TARGET과 같은 쌍) — 둘 다 "걸어 둔 조건이 맞아떨어졌다"는 성사 신호다.
+      // 아이콘은 양쪽에서 마주 보고 만나는 화살표 — 내 입찰과 상대 판매가 붙었다는 뜻.
+      return {
+        tint: "#FFF6DA",
+        icon: (
+          <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#B8860B"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 12h5" />
+            <path d="M16 12h5" />
+            <path d="M6.5 8.5L10 12l-3.5 3.5" />
+            <path d="M17.5 8.5L14 12l3.5 3.5" />
+          </svg>
+        ),
+      };
     default: {
       // 타입에 값을 추가하면 여기서 컴파일이 막힌다 - 분기를 빠뜨릴 수 없다.
       const exhaustive: never = type;
@@ -217,6 +314,15 @@ const ADMIN_INQUIRIES_PATH = "/admin/inquiries";
 // cardId를 먼저 보는 이유: 카드가 딸린 알림은 타입과 무관하게 카드 상세가 가장 구체적인
 // 도착지다. 문의 계열(INQUIRY_HANDLED / INQUIRY_RECEIVED)은 BE가 cardId를 채우지 않으므로
 // (NotificationService의 빌더에 cardId 자체가 없다) 항상 아래 분기로 떨어진다.
+//
+// 거래 단계 알림 4종(#392, TRADE_SHIPPING_REQUIRED / TRADE_DELIVERED / TRADE_CANCELLED /
+// BUY_OFFER_MATCHED)은 cardId가 채워져 오므로 이 첫 분기를 타 카드 상세로 간다. 알림이 말하는
+// 내용("발송해 주세요", "구매확정 해주세요")을 실제로 처리하는 곳은 카드 상세가 아니라 거래
+// 상세(/trade-status/{id})지만, 지금은 거기로 보낼 방법이 없다 — notifications 테이블에는
+// card_id와 inquiry_id만 있고 trade_id 컬럼이 없어서(V1 baseline 이후 추가된 적 없음) 알림
+// 레코드만으로는 어느 거래인지 알 수 없다. 메시지 문자열에서 거래를 역추적하는 건 문의 쪽에서
+// 이미 접었던 방식이라 되풀이하지 않는다. BE에 trade_id가 생기면 여기서 타입별로 갈라
+// /trade-status/{tradeId}로 보내면 된다 — 그 전까지는 카드 상세가 차선책이다.
 //
 // 문의 계열은 목록까지만 보내고 해당 문의를 펼쳐 주지는 못한다. 예전 주석은 "알림 레코드에
 // 문의 식별자가 없다"고 적혀 있었는데 지금은 사실이 아니다 — V12(#338)가 notifications에
