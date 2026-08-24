@@ -63,6 +63,9 @@ const SORT_OPTIONS: { key: Sort; label: string }[] = [
   { key: "latest", label: "등록 최신순" },
 ];
 
+// BE WatchlistService.WATCHLIST_LIMIT(= 20)과 맞출 것. API로 노출되지 않아 하드코딩.
+const WATCHLIST_LIMIT = 20;
+
 // 목표가를 하나도 정하지 않은 상태 — 하트만 눌러 등록하면(빠른 등록) 여기서 시작한다.
 // 배지와 필터 탭이 같은 기준을 쓰도록 판정을 한 곳에 둔다.
 function hasNoTarget(item: WatchlistResponse): boolean {
@@ -113,8 +116,11 @@ function DeleteConfirmModal({
           >
             취소
           </button>
+          {/* 모달 오픈 시 삭제 버튼으로 포커스 이동 — 엔터로 즉시 확정 가능.
+              마운트 시 submitting은 항상 false라 autoFocus가 정상 동작한다. */}
           <button
             type="button"
+            autoFocus
             disabled={submitting}
             onClick={onConfirm}
             className="flex-1 rounded-[10px] bg-primary py-2.5 text-[13.5px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
@@ -307,6 +313,18 @@ export default function WatchlistPage() {
               관심 카드의 목표가 도달 알림을 관리하세요
             </p>
           </div>
+          {/* 상한 대비 현재 등록 수. rows는 원본이라 탭 필터와 무관하게 총계를 유지한다.
+              18개 이상(남은 자리 2개 이하)에서 앰버로 전환, 색각 이상 대비 문구도 함께 표시. */}
+          {loadState === "ready" && rows.length > 0 && (
+            <p
+              className={`m-0 whitespace-nowrap text-[13px] font-semibold ${
+                rows.length >= WATCHLIST_LIMIT - 2 ? "text-[#8A6A00]" : "text-[#8A8A92]"
+              }`}
+            >
+              {rows.length} / {WATCHLIST_LIMIT}개 등록됨
+              {rows.length >= WATCHLIST_LIMIT - 2 && ` · ${WATCHLIST_LIMIT - rows.length}개 남음`}
+            </p>
+          )}
         </div>
 
         {loadState === "loading" && (

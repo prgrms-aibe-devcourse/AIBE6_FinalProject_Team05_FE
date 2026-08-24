@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import GradeBadge from "@/components/GradeBadge";
 import ConditionBar from "@/components/ConditionBar";
@@ -66,12 +66,23 @@ const STATS = [
 
 type LoadState = "loading" | "error" | "ready";
 
+// 하트가 쓰는 useQuickWatchlistToggle이 useSearchParams(로그인 후 복귀 URL 조립)를 부르므로,
+// /search·/cards/[id]와 같은 모양으로 Suspense 경계를 둔다 — 없으면 Next.js가 정적 프리렌더를
+// 포기하며 빌드에서 막는다.
 export default function HomePage() {
+  return (
+    <Suspense fallback={null}>
+      <HomeView />
+    </Suspense>
+  );
+}
+
+function HomeView() {
   const { toast, showToast, pauseToast, resumeToast } = useToast();
   const { triggerPunch, punchKey, punchClass } = useHeartPunch();
   // 하트에 필요한 워치리스트 상태 한 세트(마켓과 공용) — 상태만 담당하고, 토스트·펀치는
-  // handleHeartClick이 돌려주는 status를 보고 아래 버튼에서 직접 처리한다.
-  const { myWatchlist, watchlistError, handleHeartClick, pendingCardId } = useWatchlistMap();
+  // handleHeartClick이 돌려주는 결과를 보고 아래 버튼에서 직접 처리한다.
+  const { myWatchlist, handleHeartClick, pendingCardId } = useWatchlistMap();
 
   const [popularCards, setPopularCards] = useState<CardSearchItem[]>([]);
   const [priceSummaries, setPriceSummaries] = useState<Map<number, CardPriceSummaryResponse>>(
@@ -319,9 +330,9 @@ export default function HomePage() {
                           // 서버가 등록을 확정한 뒤에만 펀치(useHeartPunch 주석 참고) —
                           // 클릭 시점 상태로 미리 재생하면 등록이 실패해도 하트가 튀어올라
                           // 성공한 것처럼 보인다.
-                          const status = await handleHeartClick(c.id);
-                          if (status === "added") triggerPunch(c.id);
-                          showWatchlistToggleToast(status, showToast);
+                          const result = await handleHeartClick(c.id);
+                          if (result.status === "added") triggerPunch(c.id);
+                          showWatchlistToggleToast(result, showToast);
                         }}
                         disabled={pendingCardId === c.id}
                         aria-label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}
@@ -344,14 +355,6 @@ export default function HomePage() {
                         </svg>
                       </button>
                     </IconTooltip>
-                    {watchlistError?.cardId === c.id && (
-                      <div
-                        role="alert"
-                        className="absolute bottom-14 right-3.5 z-10 max-w-[150px] rounded-lg bg-[#3A3A3E] px-2.5 py-1.5 text-[11px] font-semibold leading-snug text-white shadow-lg"
-                      >
-                        {watchlistError.message}
-                      </div>
-                    )}
                   </div>
                 );
               })}
