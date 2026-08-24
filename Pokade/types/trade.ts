@@ -20,6 +20,7 @@ export interface TradeResponse {
   sellerId: number;
   cardId: number;
   cardName: string | null;
+  cardImageUrl: string | null;
   price: number;
   status: TradeStatus;
   shippedAt: string | null;
