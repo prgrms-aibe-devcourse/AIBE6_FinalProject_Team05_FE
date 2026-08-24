@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import AddressSearchField from "@/components/AddressSearchField";
 import BankSelector from "@/components/BankSelector";
 import CardImage from "@/components/CardImage";
+import ListingCompletedNotice from "@/components/ListingCompletedNotice";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
 import { fetchCardDetail } from "@/lib/cardApi";
@@ -73,6 +74,9 @@ function NewListingOrderForm() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 등록 완료 후엔 카드 상세로 바로 이동시키는 대신, BuyOfferCompletedNotice와 동일하게 완료
+  // 안내(마이페이지 보기/돌아가기)를 이 페이지 안에서 보여준다.
+  const [completedCardId, setCompletedCardId] = useState<number | null>(null);
 
   useEffect(() => {
     if (cardId == null) return;
@@ -101,6 +105,16 @@ function NewListingOrderForm() {
   }, [cardId]);
 
   if (status !== "authenticated") return null;
+
+  if (completedCardId !== null) {
+    return (
+      <main className="main-content flex items-center justify-center bg-neutral px-10 py-14">
+        <div className="w-full max-w-[420px] rounded-[18px] border border-[#EDEDF0] bg-white px-[34px] py-10 text-center shadow-card">
+          <ListingCompletedNotice cardId={completedCardId} />
+        </div>
+      </main>
+    );
+  }
 
   if (
     cardId == null ||
@@ -150,7 +164,7 @@ function NewListingOrderForm() {
         returnRecipientPhone: returnRecipientPhone.trim(),
         returnAddress: returnAddress.trim(),
       });
-      router.push(`/cards/${cardId}`);
+      setCompletedCardId(cardId);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "상품 등록에 실패했습니다.");
       setSubmitting(false);
