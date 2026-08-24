@@ -64,8 +64,6 @@ interface SearchResultsViewProps {
   priceMax: number;
   setPriceMax: Dispatch<SetStateAction<number>>;
   setPriceRangeNow: (min: number, max: number) => void;
-  activeHandle: "min" | "max" | null;
-  setActiveHandle: Dispatch<SetStateAction<"min" | "max" | null>>;
   sort: UiSort;
   setSort: Dispatch<SetStateAction<UiSort>>;
   setLoadState: Dispatch<SetStateAction<LoadState>>;
@@ -149,8 +147,6 @@ export default function SearchResultsView({
   priceMax,
   setPriceMax,
   setPriceRangeNow,
-  activeHandle,
-  setActiveHandle,
   sort,
   setSort,
   setLoadState,
@@ -274,8 +270,6 @@ export default function SearchResultsView({
         setPriceMin={setPriceMin}
         priceMax={priceMax}
         setPriceMax={setPriceMax}
-        activeHandle={activeHandle}
-        setActiveHandle={setActiveHandle}
         setLoadState={setLoadState}
         resetFilters={resetFilters}
       />

@@ -58,11 +58,8 @@ function SearchDashboard() {
     const max = parsePriceQueryParam(searchParams.get("maxPrice"));
     return max != null ? Math.max(max, min ?? 0) : PRICE_MAX;
   });
-  // min/max 핸들이 겹쳐 있을 때(값이 근접) 마지막으로 조작한 쪽이 위로 오도록
-  // z-index를 정하는 데만 쓰는 state — null이면 기존처럼 max가 위(기본 동작).
-  const [activeHandle, setActiveHandle] = useState<"min" | "max" | null>(null);
-  // API 요청/URL 동기화용 디바운스된 값 — 라벨/thumb는 priceMin/priceMax(즉시값)를 그대로 쓰고,
-  // 이 값은 드래그가 멈춘 뒤에만 갱신되어 재요청 트리거로 쓰인다.
+  // API 요청/URL 동기화용 디바운스된 값 — 입력창 라벨은 priceMin/priceMax(즉시값)를 그대로 쓰고,
+  // 이 값은 타이핑이 멈춘 뒤에만 갱신되어 재요청 트리거로 쓰인다.
   const [debouncedPriceMin, setDebouncedPriceMin] = useState(priceMin);
   const [debouncedPriceMax, setDebouncedPriceMax] = useState(priceMax);
   // facet 목록이 비동기로 오기 전이라 여기서는 화이트리스트 검증 없이 URL 값을 그대로 받는다.
@@ -342,7 +339,6 @@ function SearchDashboard() {
 
   const resetFilters = () => {
     setPriceRangeNow(0, PRICE_MAX);
-    setActiveHandle(null);
     setLoadState("loading");
     setSelectedExpansionId(null);
     setSelectedTypes([]);
@@ -416,8 +412,6 @@ function SearchDashboard() {
           priceMax={priceMax}
           setPriceMax={setPriceMax}
           setPriceRangeNow={setPriceRangeNow}
-          activeHandle={activeHandle}
-          setActiveHandle={setActiveHandle}
           sort={sort}
           setSort={setSort}
           setLoadState={setLoadState}
