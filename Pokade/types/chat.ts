@@ -11,9 +11,9 @@ export interface QuickQuestion {
 
 export interface RankingItem {
   cardName: string;
-  price: number;        // 원 단위 정수 (예: 15000)
-  changeRate: number;   // 등락률 % (양수=급등, 음수=급락)
-  changeAmount: number; // 등락액 원 단위 (양수=상승, 음수=하락)
+  price: number | null;        // 원 단위 정수 (예: 15000), 시세 미집계 시 null
+  changeRate: number | null;   // 등락률 % (양수=급등, 음수=급락), 시세 미집계 시 null
+  changeAmount: number | null; // 등락액 원 단위 (양수=상승, 음수=하락), 시세 미집계 시 null
 }
 
 export interface ChatQueryResponse {
