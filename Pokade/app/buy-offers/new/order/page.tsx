@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AddressSearchField from "@/components/AddressSearchField";
+import BuyOfferCompletedNotice from "@/components/BuyOfferCompletedNotice";
 import CardImage from "@/components/CardImage";
 import PriceInput from "@/components/PriceInput";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
@@ -69,6 +70,9 @@ function NewBuyOfferOrderForm() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 포인트로 전액 결제되면 토스 위젯 없이 바로 승인되므로, 이 페이지 안에서 완료 화면을 보여준다
+  // (checkout/success 페이지로 이동할 필요 없음 - 승인은 이미 끝났다).
+  const [completedCardId, setCompletedCardId] = useState<number | null>(null);
 
   useEffect(() => {
     if (cardId == null) return;
@@ -107,6 +111,16 @@ function NewBuyOfferOrderForm() {
   }, []);
 
   if (status !== "authenticated") return null;
+
+  if (completedCardId !== null) {
+    return (
+      <main className="main-content flex items-center justify-center bg-neutral px-10 py-14">
+        <div className="w-full max-w-[420px] rounded-[18px] border border-[#EDEDF0] bg-white px-[34px] py-10 text-center shadow-card">
+          <BuyOfferCompletedNotice cardId={completedCardId} />
+        </div>
+      </main>
+    );
+  }
 
   if (cardId == null || !price || !Number.isFinite(price) || price <= 0) {
     return (
@@ -172,7 +186,7 @@ function NewBuyOfferOrderForm() {
       if (ready.amount <= 0) {
         // 포인트로 전액 충당 - 토스 결제창 없이 바로 승인 처리한다.
         const buyOffer = await confirmBuyOfferPayment(ready.orderId, ready.amount);
-        router.push(`/cards/${buyOffer.cardId}`);
+        setCompletedCardId(buyOffer.cardId);
         return;
       }
 

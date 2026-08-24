@@ -5,6 +5,7 @@ import {
   ListingStatus,
   ListingSummaryResponse,
   ListingUpdateRequest,
+  MyListingResponse,
 } from "@/types/price";
 
 // POST /api/listings — 매물 등록. 인증 필요(Authorization 헤더는 apiClient가 자동 첨부).
@@ -25,6 +26,11 @@ export async function fetchMyListings(
   const query = new URLSearchParams({ page: String(page), size: String(size), sort });
   if (status) query.set("status", status);
   return apiGet<PageResponse<ListingSummaryResponse>>(`/api/listings/me?${query.toString()}`);
+}
+
+// GET /api/listings/{id} — 마이페이지 "입찰"(판매 등록 탭) 항목 클릭 시 보여줄 주문서 상세 (인증 필요, 본인 소유 아니면 403).
+export async function fetchMyListing(listingId: number): Promise<MyListingResponse> {
+  return apiGet<MyListingResponse>(`/api/listings/${listingId}`);
 }
 
 // PUT /api/listings/{id} — 매물 가격 수정. 본인 소유 + ACTIVE 상태에서만 가능(그 외 400/403/404).

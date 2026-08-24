@@ -7,6 +7,7 @@ import { getMyInfo, cancelWithdrawal } from "@/lib/authApi";
 import { authErrorMessage } from "@/lib/authErrorMessages";
 import { MyInfo } from "@/types/auth";
 import MyTradesSection from "./MyTradesSection";
+import MyBidsSection from "./MyBidsSection";
 import Avatar from "@/components/Avatar";
 
 export default function MyPage() {
@@ -151,6 +152,8 @@ export default function MyPage() {
             </section>
 
             <MyTradesSection />
+
+            <MyBidsSection />
 
             <Link
               href="/listings/me"
