@@ -51,10 +51,16 @@ function StatusBadge({ status, className = "" }: { status: Status; className?: s
 //
 // name을 string이 아니라 Status로 묶어 둔다 — 상태 이름이 바뀌거나 늘었을 때 설명이 조용히
 // 어긋나는 대신 컴파일에서 걸리게 하기 위함이다.
+//
+// "목표도달"을 알림 발송 여부로 설명하지 않는다. 판정 근거는 statusOf()가 쓰는 targetReached이고
+// 이건 조회 시점마다 다시 계산되는 "지금 시세가 조건에 들어와 있나"이지, 알림을 보낸 적이 있나
+// (isNotified)가 아니다. 둘은 실제로 어긋난다 — 재알림 요청으로 isNotified를 리셋해도 시세가
+// 그대로면 targetReached는 true라 배지는 계속 "목표도달"이고, 반대로 알림이 나간 뒤 가격이
+// 범위를 벗어나면 배지는 "대기중"으로 돌아간다.
 const STATUS_HELP: { name: Status; desc: string }[] = [
   { name: "미설정", desc: "목표가 없음" },
   { name: "대기중", desc: "목표가 도달 전" },
-  { name: "목표도달", desc: "알림 발송됨" },
+  { name: "목표도달", desc: "현재 시세가 목표가에 도달" },
 ];
 
 type LoadState = "loading" | "error" | "ready";
