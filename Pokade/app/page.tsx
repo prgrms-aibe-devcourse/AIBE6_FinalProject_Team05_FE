@@ -148,18 +148,18 @@ export default function HomePage() {
   return (
     <main className="main-content">
       {/* HERO */}
-      <section className="relative overflow-hidden bg-navy px-10 py-12">
+      <section className="relative overflow-hidden bg-navy px-6 py-12 sm:px-10">
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: "url(/images/hero-bg.jpg)" }}
         />
         <div className="absolute inset-0 bg-gradient-to-r from-navy via-navy/85 to-navy/40" />
-        <div className="relative mx-auto flex max-w-container items-center justify-between gap-12">
-          <div className="max-w-[600px]">
+        <div className="relative mx-auto flex max-w-container flex-col items-center justify-between gap-10 md:flex-row md:gap-12">
+          <div className="max-w-[600px] text-center md:text-left">
             <span className="inline-block rounded-md bg-primary/15 px-3 py-1.5 text-xs font-extrabold tracking-[1.5px] text-[#FF6B6B]">
               EXCLUSIVE DROP
             </span>
-            <h1 className="mt-5 text-[44px] font-extrabold leading-[1.18] tracking-[-1px] text-white [text-wrap:balance]">
+            <h1 className="mt-5 text-[32px] font-extrabold leading-[1.18] tracking-[-1px] text-white [text-wrap:balance] sm:text-[44px]">
               믿을 수 있는 카드 거래,
               <br />
               PocketTrade에서 시작하세요
@@ -168,7 +168,7 @@ export default function HomePage() {
               AI 등급진단과 안전거래 시스템으로 컬렉터가 신뢰하는 포켓몬 카드 마켓플레이스. 지금 내
               카드의 정확한 시세를 확인해보세요.
             </p>
-            <div className="mt-8 flex gap-3.5">
+            <div className="mt-8 flex flex-wrap justify-center gap-3.5 md:justify-start">
               <Link
                 href="/ai-diagnosis"
                 className="rounded-[11px] border-2 border-primary-dark bg-primary px-[26px] py-3.5 text-[15.5px] font-bold text-white shadow-tactile transition hover:text-white hover:shadow-tactile-hover active:translate-y-0.5 active:shadow-tactile-active"
@@ -184,7 +184,7 @@ export default function HomePage() {
               </Link>
             </div>
           </div>
-          <div className="h-[462px] w-[330px] flex-shrink-0 overflow-visible rounded-[18px] bg-navy-700 shadow-[0_20px_50px_rgba(0,0,0,0.4)]">
+          <div className="h-[380px] w-[270px] flex-shrink-0 overflow-visible rounded-[18px] bg-navy-700 shadow-[0_20px_50px_rgba(0,0,0,0.4)] sm:h-[462px] sm:w-[330px]">
             <HeroTiltCard
               src={HERO_CARD.image}
               alt={HERO_CARD.alt}
