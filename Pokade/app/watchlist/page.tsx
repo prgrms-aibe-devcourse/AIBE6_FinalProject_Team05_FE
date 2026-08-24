@@ -145,7 +145,9 @@ function DeleteConfirmModal({
   );
 }
 
-// targetBuyPrice/targetSellPrice 중 최소 하나는 항상 있다(둘 다 없으면 BE가 400).
+// 목표가는 하나도 없을 수 있다 — 하트로만 등록한 카드(빠른 등록)가 그렇고, 수정 모달에서
+// 두 칸을 모두 지워 미설정으로 되돌린 경우도 그렇다(clearTargetBuyPrice/clearTargetSellPrice).
+// 빈 배열이 정상 결과이므로 호출부는 targets.length로 "설정하기" 안내와 갈라 준다.
 // 둘 다 등록된 경우 하나만 보여주면 다른 쪽 목표가가 화면에서 사라지므로, 있는 것을 모두 반환한다.
 function formatTargets(item: WatchlistResponse): { label: string; value: string }[] {
   const targets: { label: string; value: string }[] = [];

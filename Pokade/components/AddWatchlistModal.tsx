@@ -9,7 +9,7 @@ import { stripFieldPrefix } from "@/lib/apiErrorMessage";
 import { loginUrlFor } from "@/lib/authRedirect";
 import { addWatchlist, updateWatchlist } from "@/lib/watchlistApi";
 import { useUserStore } from "@/store/useUserStore";
-import { WatchlistResponse } from "@/types/watchlist";
+import { WatchlistResponse, WatchlistUpdateRequest } from "@/types/watchlist";
 
 // BE는 0보다 큰 정수만 요구(@Positive)하지만, 1원처럼 실질적 의미가 없는 목표가 등록을
 // 막기 위해 FE에서 더 엄격한 최소값을 둔다. BE 요구사항이 바뀐 게 아니라 UX상의 선제 검증.
@@ -46,7 +46,9 @@ type AddWatchlistModalProps = {
 );
 
 // 카드 상세/마켓 등 여러 화면에서 재사용할 워치리스트 등록·수정 겸용 모달.
-// 목표 구매가/판매가 중 최소 하나 입력 필요(BE 검증과 동일 규칙을 클라이언트에서도 선제 검사).
+// 등록할 때는 목표 구매가/판매가 중 최소 하나가 필요하다(BE 검증과 동일 규칙을 선제 검사).
+// 수정할 때는 이미 있던 값을 비워 "지우기"로 보낼 수 있어, 빈 칸이 곧 오류는 아니다 —
+// handleSubmit의 clearBuy/clearSell 참고.
 export default function AddWatchlistModal(props: AddWatchlistModalProps) {
   const { isOpen, onClose, onSuccess, currentPriceLabel } = props;
   const mode = props.mode ?? "create";
@@ -117,7 +119,15 @@ export default function AddWatchlistModal(props: AddWatchlistModalProps) {
     const buy = parsePrice(buyPrice);
     const sell = parsePrice(sellPrice);
 
-    if (buy == null && sell == null) {
+    // 수정 모드에서 "원래 값이 있던 칸을 비웠다"는 지우기 요청이다. BE는 안 보낸 필드를 기존 값
+    // 유지로 읽으므로 빈 값으로는 표현할 수 없고, clear* 플래그로만 전달된다.
+    const clearBuy = props.mode === "edit" && initialTargetBuyPrice != null && buy == null;
+    const clearSell = props.mode === "edit" && initialTargetSellPrice != null && sell == null;
+
+    // 둘 다 비어 있어도 지우기 요청이면 유효하다 — 목표가를 전부 지워 미설정으로 되돌리는 건
+    // BE가 허용하는 동작이다. 지울 것도 입력한 것도 없는 경우(등록 모드, 또는 원래 목표가가
+    // 없던 항목을 빈 채로 저장)만 막는다.
+    if (buy == null && sell == null && !clearBuy && !clearSell) {
       setError("목표 구매가 또는 판매가 중 하나는 입력해야 합니다.");
       return;
     }
@@ -136,9 +146,17 @@ export default function AddWatchlistModal(props: AddWatchlistModalProps) {
     setSubmitting(true);
     setError(null);
     try {
+      // 지울 칸은 값을 빼고 플래그만 넣는다 — 값과 clear를 함께 보내면 BE가 INVALID_INPUT으로
+      // 거절한다. 값도 플래그도 없는 칸은 그대로 생략돼 기존 값이 유지된다.
+      const updateRequest: WatchlistUpdateRequest = {};
+      if (clearBuy) updateRequest.clearTargetBuyPrice = true;
+      else if (buy != null) updateRequest.targetBuyPrice = buy;
+      if (clearSell) updateRequest.clearTargetSellPrice = true;
+      else if (sell != null) updateRequest.targetSellPrice = sell;
+
       const result =
         props.mode === "edit"
-          ? await updateWatchlist(props.watchlistId, { targetBuyPrice: buy, targetSellPrice: sell })
+          ? await updateWatchlist(props.watchlistId, updateRequest)
           : await addWatchlist({
               cardId: props.cardId,
               variantId: props.variantId ?? undefined,
@@ -152,6 +170,8 @@ export default function AddWatchlistModal(props: AddWatchlistModalProps) {
       // 모두 BE가 내려주는 msg를 그대로 보여준다(이미 사용자 친화적).
       // TARGET_PRICE_REQUIRED는 수정(PATCH) 모드에서만 올 수 있다 — 등록(POST)에서는 목표가가
       // 선택 입력이 되며 빠졌고(BE #308), 그나마도 위 handleSubmit이 먼저 걸러 여기까지 오지 않는다.
+      // INVALID_INPUT(가격과 clear 플래그를 같이 보냄)도 마찬가지로 위에서 배타적으로 조립하므로
+      // 도달하지 않는다 — 온다면 요청 조립 규칙이 깨진 것이니 메시지를 그대로 보여주는 게 맞다.
       // 다만 bean validation(@Max 등)에서 온 것만 "targetBuyPrice: ..."처럼 필드명이 앞에 붙어
       // 오므로 그 접두사만 걷어낸다(#238) — 나머지 메시지는 매칭되지 않아 그대로 통과한다.
       setError(
@@ -173,20 +193,6 @@ export default function AddWatchlistModal(props: AddWatchlistModalProps) {
   // 적혀 있으면 고칠 게 없는데 왜 수정이냐는 인상을 준다.
   const hasExistingTarget = initialTargetBuyPrice != null || initialTargetSellPrice != null;
   const title = mode === "edit" ? (hasExistingTarget ? "목표가 수정" : "목표가 설정") : "관심 등록";
-
-  // 이미 설정돼 있던 목표가를 비워서 저장하려는 시도. BE는 안 보낸 필드를 "기존 값 유지"로 해석하므로
-  // (Watchlist.updateTargetPrices) 그대로 보내면 지운 값이 조용히 되살아난다 - 실패했다는 신호가
-  // 아무 데도 없어서, 아예 저장을 막고 이유를 알려준다. "목표가 지우기"는 지원하지 않기로 확정된 사양.
-  // 등록 모드에서는 initial*이 undefined라 항상 false지만, 규칙이 편집 전용임을 드러내려 mode도 함께 본다.
-  const clearedExistingTarget =
-    mode === "edit" &&
-    ((initialTargetBuyPrice != null && !buyPrice.trim()) ||
-      (initialTargetSellPrice != null && !sellPrice.trim()));
-
-  // 지우기 시도는 기존 "둘 다 비어있음" 가드와 겹칠 수 있다(원래 구매가만 있던 항목에서 그걸 비운 경우).
-  // 그때는 더 구체적인 원인인 이쪽을 보여준다 - 남은 케이스(원래 목표가가 없던 항목에서 둘 다 빈 채로
-  // 저장)는 handleSubmit의 기존 가드가 그대로 담당한다.
-  const notice = clearedExistingTarget ? "목표가를 지우려면 삭제 후 다시 등록해주세요." : error;
 
   // placeholder는 카드와 무관한 고정값(예: 100000) 대신 이 카드의 현재 시세를 예시로 쓴다 —
   // 자릿수 감이 바로 잡히고, 구매/판매 목표를 현재가 기준 위아래로 떠올리기 쉬워진다.
@@ -259,15 +265,15 @@ export default function AddWatchlistModal(props: AddWatchlistModalProps) {
             />
           </label>
 
-          {notice && (
+          {error && (
             <span role="alert" className="text-[12.5px] font-semibold text-primary">
-              {notice}
+              {error}
             </span>
           )}
 
           <button
             type="button"
-            disabled={submitting || clearedExistingTarget}
+            disabled={submitting}
             onClick={handleSubmit}
             className="mt-1 w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3 text-[14.5px] font-bold text-white shadow-tactile-sm active:translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
           >
