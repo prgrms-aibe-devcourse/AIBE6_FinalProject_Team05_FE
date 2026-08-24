@@ -16,17 +16,25 @@ import { DailyMarketStatResponse } from "@/types/price";
 const VOLUME_COLOR = "#A5B4FC";
 const MEDIAN_COLOR = "#EE1515";
 
+// "YYYY-MM-DD" 문자열을 직접 분해해서 파싱한다 - new Date(iso)는 이 형식을 UTC 자정으로 해석하는데
+// getMonth()/getDate() 같은 로컬 게터와 섞어 쓰면 UTC보다 offset이 음수인 타임존에서 하루 밀린다.
+function parseDateParts(iso: string): { year: number; month: number; day: number } | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match) return null;
+  return { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
+}
+
 function formatAxisDate(iso: string) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return `${d.getMonth() + 1}/${d.getDate()}`;
+  const parts = parseDateParts(iso);
+  if (!parts) return iso;
+  return `${parts.month}/${parts.day}`;
 }
 
 function formatTooltipDate(iso: string) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
+  const parts = parseDateParts(iso);
+  if (!parts) return iso;
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`;
+  return `${parts.year}.${pad(parts.month)}.${pad(parts.day)}`;
 }
 
 // changeRate가 null이면(비교 대상 시점에 체결이 없어 비교 불가) 배지 자체를 숨긴다 - 0%처럼 보이는 거짓 신호 방지.
@@ -107,25 +115,37 @@ export default function MarketOverviewChart({
       <div className="mb-3 grid grid-cols-3 gap-3">
         <div className="rounded-xl bg-[#FAFAFB] px-4 py-3.5">
           <div className="text-[11.5px] font-semibold text-[#9A9AA2]">오늘 거래량</div>
-          <div className="mt-1 text-[19px] font-extrabold">{todayVolume.toLocaleString("ko-KR")}건</div>
+          <div className="mt-1 text-[19px] font-extrabold">
+            {loading ? "-" : `${todayVolume.toLocaleString("ko-KR")}건`}
+          </div>
           <div className="mt-1">
-            <ChangeBadge label="전일 대비" rate={volumeChangeRate} />
+            {loading ? (
+              <span className="text-[12px] font-semibold text-[#B4B4BC]">전일 대비 -</span>
+            ) : (
+              <ChangeBadge label="전일 대비" rate={volumeChangeRate} />
+            )}
           </div>
         </div>
         <div className="rounded-xl bg-[#FAFAFB] px-4 py-3.5">
           <div className="text-[11.5px] font-semibold text-[#9A9AA2]">오늘 거래가 중간값</div>
           <div className="mt-1 text-[19px] font-extrabold">
-            {todayMedianPrice !== null ? `${todayMedianPrice.toLocaleString("ko-KR")}원` : "-"}
+            {loading ? "-" : todayMedianPrice !== null ? `${todayMedianPrice.toLocaleString("ko-KR")}원` : "-"}
           </div>
           <div className="mt-1">
-            <AmountChangeBadge label="전일 대비" amount={medianChangeAmount1d} rate={medianChangeRate1d} />
+            {loading ? (
+              <span className="text-[12px] font-semibold text-[#B4B4BC]">전일 대비 -</span>
+            ) : (
+              <AmountChangeBadge label="전일 대비" amount={medianChangeAmount1d} rate={medianChangeRate1d} />
+            )}
           </div>
         </div>
         <div className="rounded-xl bg-[#FAFAFB] px-4 py-3.5">
           <div className="text-[11.5px] font-semibold text-[#9A9AA2]">최근 30일 총 거래량</div>
-          <div className="mt-1 text-[19px] font-extrabold">{totalVolume.toLocaleString("ko-KR")}건</div>
+          <div className="mt-1 text-[19px] font-extrabold">
+            {loading ? "-" : `${totalVolume.toLocaleString("ko-KR")}건`}
+          </div>
           <div className="mt-1 text-[12px] font-semibold text-[#9A9AA2]">
-            오늘 {todayVolume.toLocaleString("ko-KR")}건
+            {loading ? "-" : `오늘 ${todayVolume.toLocaleString("ko-KR")}건`}
           </div>
         </div>
       </div>
@@ -134,8 +154,17 @@ export default function MarketOverviewChart({
           여기서는 더 긴 기준선 두 개만 보여준다. */}
       <div className="mb-5 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl bg-[#FAFAFB] px-4 py-3">
         <span className="text-[11.5px] font-semibold text-[#9A9AA2]">거래가 중간값 변동</span>
-        <ChangeBadge label="1주일 전 대비" rate={medianChangeRate7d} />
-        <ChangeBadge label="30일 전 대비" rate={medianChangeRate30d} />
+        {loading ? (
+          <>
+            <span className="text-[12px] font-semibold text-[#B4B4BC]">1주일 전 대비 -</span>
+            <span className="text-[12px] font-semibold text-[#B4B4BC]">30일 전 대비 -</span>
+          </>
+        ) : (
+          <>
+            <ChangeBadge label="1주일 전 대비" rate={medianChangeRate7d} />
+            <ChangeBadge label="30일 전 대비" rate={medianChangeRate30d} />
+          </>
+        )}
       </div>
 
       {loading && (
@@ -182,8 +211,8 @@ export default function MarketOverviewChart({
             />
             <Tooltip
               labelFormatter={(label) => formatTooltipDate(String(label))}
-              formatter={(value, name) => {
-                if (name === "volume") return [`${Number(value).toLocaleString("ko-KR")}건`, "거래량"];
+              formatter={(value, _name, item) => {
+                if (item?.dataKey === "volume") return [`${Number(value).toLocaleString("ko-KR")}건`, "거래량"];
                 return [`${Number(value).toLocaleString("ko-KR")}원`, "거래가 중간값"];
               }}
               contentStyle={{
