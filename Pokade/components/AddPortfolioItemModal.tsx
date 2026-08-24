@@ -156,7 +156,7 @@ export default function AddPortfolioItemModal(props: AddPortfolioItemModalProps)
       acquiredPriceNumber != null &&
       (!Number.isInteger(acquiredPriceNumber) || acquiredPriceNumber < 0)
     ) {
-      setError("취득가는 0 이상의 정수로 입력해 주세요.");
+      setError("카드 구매가는 0 이상의 정수로 입력해 주세요.");
       return;
     }
     const acquiredAtIso = acquiredAt ? new Date(acquiredAt).toISOString() : undefined;
@@ -360,7 +360,7 @@ export default function AddPortfolioItemModal(props: AddPortfolioItemModalProps)
           </label>
 
           <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#4B4B52]">
-            취득가 (선택)
+            카드 구매가 (선택)
             <PriceInput
               value={acquiredPrice}
               onChange={setAcquiredPrice}
