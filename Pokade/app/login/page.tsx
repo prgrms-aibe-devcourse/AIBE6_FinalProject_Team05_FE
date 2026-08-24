@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useUserStore } from "@/store/useUserStore";
@@ -77,7 +77,12 @@ function LoginForm() {
     error?.kind === "credential" ? "border-[1.5px] border-primary bg-[#FFF6F6]" : "border-[#DDDDE3]"
   }`;
 
+  // 재시도는 "마지막으로 시도한 자격 증명"으로 보내야 한다. 데모 로그인 버튼은 입력 상태를
+  // 거치지 않고 doLogin을 직접 호출하므로, 입력값만 보면 빈 값으로 재시도된다.
+  const lastAttempt = useRef<{ email: string; password: string } | null>(null);
+
   const doLogin = async (loginEmail: string, loginPassword: string) => {
+    lastAttempt.current = { email: loginEmail, password: loginPassword };
     setNeedVerify(false);
     setError(null);
     setLoading(true);
@@ -173,7 +178,10 @@ function LoginForm() {
                 <p className="text-[12.5px] font-semibold text-[#4B4B52]">{error.message}</p>
                 <button
                   type="button"
-                  onClick={() => doLogin(email, password)}
+                  onClick={() => {
+                    const last = lastAttempt.current;
+                    if (last) doLogin(last.email, last.password);
+                  }}
                   disabled={loading}
                   className="mt-2 text-[12.5px] font-bold text-secondary underline underline-offset-2 disabled:text-[#A0A0A8] disabled:no-underline"
                 >
