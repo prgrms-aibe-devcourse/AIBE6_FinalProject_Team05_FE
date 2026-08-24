@@ -188,15 +188,19 @@ function NewListingForm() {
       setError(`가격은 ${step.toLocaleString("ko-KR")}원 단위로 입력해 주세요.`);
       return;
     }
+    if (!grade) {
+      setError("등급을 선택해 주세요.");
+      return;
+    }
 
     // 실제 등록(createListing)은 여기서 하지 않는다 - 정산계좌/반송주소를 받는 주문서
     // 단계(/listings/new/order)로 이동해서, 그 화면에서 최종 제출한다.
     const params = new URLSearchParams({
       cardId: String(selectedCard.id),
       price: String(priceNumber),
+      grade,
     });
     if (selectedVariantId != null) params.set("variantId", String(selectedVariantId));
-    if (grade) params.set("grade", grade);
     router.push(`/listings/new/order?${params.toString()}`);
   };
 
@@ -385,7 +389,7 @@ function NewListingForm() {
           {/* 등급 */}
           <div className="mb-[7px] flex items-center gap-1.5">
             <label htmlFor="grade" className="block text-[13px] font-bold text-[#4B4B52]">
-              등급 (선택)
+              등급
             </label>
             <div className="group relative flex items-center">
               <button
@@ -410,7 +414,9 @@ function NewListingForm() {
             onChange={(e) => setGrade(e.target.value as ListingGrade | "")}
             className={inputCls}
           >
-            <option value="">선택 안 함</option>
+            <option value="" disabled>
+              등급을 선택해 주세요
+            </option>
             {GRADE_OPTIONS.map((g) => (
               <option key={g} value={g}>
                 {g}
