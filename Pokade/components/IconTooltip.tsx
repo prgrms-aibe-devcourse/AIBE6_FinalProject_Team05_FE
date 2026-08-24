@@ -9,14 +9,28 @@ import React from "react";
 // 관심 목록 →")가 같은 학습을 담당하므로, 여기서 터치용 대체 트리거를 따로 만들지 않는다.
 //
 // placement: 타일처럼 overflow-hidden인 컨테이너 안에서는 잘리지 않는 쪽을 골라야 한다.
+//
+// label이 string이 아니라 ReactNode인 이유: 관심 목록 표의 "상태" 헤더처럼 한 줄로는 담기지
+// 않는 설명(상태 3종 × 뜻)을 넣어야 하는 자리가 생겼다. whitespace-nowrap은 그대로 두는데,
+// 블록 자식(flex-col 등)을 넘기면 각 줄이 블록 박스라 nowrap과 무관하게 세로로 쌓이고 줄
+// 안에서만 줄바꿈이 막힌다 — 즉 nowrap을 조건부로 풀지 않아도 여러 줄이 그려지고, 기존
+// 일곱 군데 호출부(짧은 string 라벨)의 동작은 한 글자도 바뀌지 않는다.
+//
+// align: 툴팁을 아이콘 중앙에 맞출지, 오른쪽 끝에 맞출지. 기본은 기존과 같은 중앙이고,
+// 화면·컨테이너 오른쪽 끝에 붙은 아이콘에서만 "right"를 쓴다(중앙 정렬이면 툴팁 폭의 절반이
+// 오른쪽으로 삐져나가 잘린다). 넘침을 런타임에 재서 자동으로 뒤집는 방법도 있지만, 이 컴포넌트는
+// 아직 상태도 effect도 없는 순수 렌더라 측정 하나 때문에 클라이언트 훅을 들이는 대신, 호출부가
+// 이미 알고 있는 사실(끝에 붙어 있음)을 prop으로 받는다.
 export default function IconTooltip({
   label,
   placement = "top",
+  align = "center",
   className = "",
   children,
 }: {
-  label: string;
+  label: React.ReactNode;
   placement?: "top" | "bottom";
+  align?: "center" | "right";
   className?: string;
   children: React.ReactNode;
 }) {
@@ -33,9 +47,9 @@ export default function IconTooltip({
         {children}
         <span
           aria-hidden="true"
-          className={`pointer-events-none absolute left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-[8px] border border-[#EDEDF0] bg-white px-2.5 py-1.5 text-[11.5px] font-semibold text-[#4B4B52] opacity-0 shadow-card transition group-focus-within/tooltip:opacity-100 group-hover/tooltip:opacity-100 ${
+          className={`pointer-events-none absolute z-20 whitespace-nowrap rounded-[8px] border border-[#EDEDF0] bg-white px-2.5 py-1.5 text-[11.5px] font-semibold text-[#4B4B52] opacity-0 shadow-card transition group-focus-within/tooltip:opacity-100 group-hover/tooltip:opacity-100 ${
             placement === "top" ? "bottom-full mb-2" : "top-full mt-2"
-          }`}
+          } ${align === "right" ? "right-0" : "left-1/2 -translate-x-1/2"}`}
         >
           {label}
         </span>

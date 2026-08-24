@@ -45,6 +45,24 @@ function StatusBadge({ status, className = "" }: { status: Status; className?: s
   );
 }
 
+// 배지 3종의 뜻. 배지에는 아무 설명이 없고, 뜻을 짐작하게 해 주던 안내 문구는 빈 상태 카드
+// 안에만 있어 카드가 한 장이라도 생기면 사라진다 — 특히 "대기중"은 배지만 봐서는 무엇을
+// 기다리는 중인지(목표가 도달 전) 알 수 없다. 표 헤더의 도움말 아이콘 한 곳에서만 노출한다.
+//
+// name을 string이 아니라 Status로 묶어 둔다 — 상태 이름이 바뀌거나 늘었을 때 설명이 조용히
+// 어긋나는 대신 컴파일에서 걸리게 하기 위함이다.
+//
+// "목표도달"을 알림 발송 여부로 설명하지 않는다. 판정 근거는 statusOf()가 쓰는 targetReached이고
+// 이건 조회 시점마다 다시 계산되는 "지금 시세가 조건에 들어와 있나"이지, 알림을 보낸 적이 있나
+// (isNotified)가 아니다. 둘은 실제로 어긋난다 — 재알림 요청으로 isNotified를 리셋해도 시세가
+// 그대로면 targetReached는 true라 배지는 계속 "목표도달"이고, 반대로 알림이 나간 뒤 가격이
+// 범위를 벗어나면 배지는 "대기중"으로 돌아간다.
+const STATUS_HELP: { name: Status; desc: string }[] = [
+  { name: "미설정", desc: "목표가 없음" },
+  { name: "대기중", desc: "목표가 도달 전" },
+  { name: "목표도달", desc: "현재 시세가 목표가에 도달" },
+];
+
 type LoadState = "loading" | "error" | "ready";
 type Filter = "all" | "unset" | "wait" | "reached";
 type Sort = "oldest" | "latest";
@@ -133,7 +151,9 @@ function DeleteConfirmModal({
   );
 }
 
-// targetBuyPrice/targetSellPrice 중 최소 하나는 항상 있다(둘 다 없으면 BE가 400).
+// 목표가는 하나도 없을 수 있다 — 하트로만 등록한 카드(빠른 등록)가 그렇고, 수정 모달에서
+// 두 칸을 모두 지워 미설정으로 되돌린 경우도 그렇다(clearTargetBuyPrice/clearTargetSellPrice).
+// 빈 배열이 정상 결과이므로 호출부는 targets.length로 "설정하기" 안내와 갈라 준다.
 // 둘 다 등록된 경우 하나만 보여주면 다른 쪽 목표가가 화면에서 사라지므로, 있는 것을 모두 반환한다.
 function formatTargets(item: WatchlistResponse): { label: string; value: string }[] {
   const targets: { label: string; value: string }[] = [];
@@ -429,7 +449,53 @@ export default function WatchlistPage() {
                         <div>현재 시세</div>
                         <div>목표가</div>
                         <div>등락</div>
-                        <div>상태</div>
+                        {/* 도움말은 이 헤더 한 곳에만 둔다 — 행마다 붙이면 20번 반복되고, 뜻은
+                            행이 아니라 컬럼 전체에 걸리는 정보다. placement가 top이 아닌 이유:
+                            헤더는 표의 첫 줄이고 바깥 래퍼가 overflow-hidden이라 위로 뜨면
+                            잘린다. align이 right인 이유: 상태 컬럼이 표 오른쪽 끝(가로 87%
+                            지점)이라 중앙 정렬이면 툴팁 절반이 컨테이너 밖으로 나간다. */}
+                        <div className="flex items-center gap-1">
+                          상태
+                          <IconTooltip
+                            placement="bottom"
+                            align="right"
+                            label={
+                              <span className="flex flex-col gap-1 text-left font-normal">
+                                {STATUS_HELP.map(({ name, desc }) => (
+                                  <span key={name}>
+                                    <b className="font-bold">{name}</b> — {desc}
+                                  </span>
+                                ))}
+                              </span>
+                            }
+                          >
+                            {/* 툴팁 본문은 aria-hidden(IconTooltip)이라 스크린리더에는 이
+                                aria-label만 전달된다. 누를 것이 없는 도움말이지만 button으로
+                                두는 이유는 키보드 포커스 — group-focus-within으로 툴팁이
+                                뜨려면 초점을 받을 수 있어야 한다. */}
+                            <button
+                              type="button"
+                              aria-label={`상태 설명. ${STATUS_HELP.map(({ name, desc }) => `${name}은 ${desc}`).join(", ")}`}
+                              className="flex h-4 w-4 items-center justify-center rounded-full text-[#C4C4CC] outline-none transition-colors hover:text-[#8A8A92] focus-visible:ring-2 focus-visible:ring-secondary"
+                            >
+                              <svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                aria-hidden="true"
+                              >
+                                <circle cx="12" cy="12" r="10" />
+                                <path d="M9.2 9.2a2.9 2.9 0 015.6 1c0 1.9-2.8 2.4-2.8 2.4" />
+                                <path d="M12 17.2h.01" />
+                              </svg>
+                            </button>
+                          </IconTooltip>
+                        </div>
                         <div />
                       </div>
                       {sorted.map((row, i) => {
@@ -475,8 +541,20 @@ export default function WatchlistPage() {
                             >
                               {targets.length > 0 ? (
                                 targets.map((t) => (
-                                  <div key={t.label}>
-                                    {t.label}: {t.value}
+                                  // 라벨과 값을 각각 span으로 끊어 flex 항목으로 만든다 —
+                                  // 한 텍스트 흐름이면 컬럼이 좁아질 때 "목표 구매가: 12,"에서
+                                  // 꺾여 금액이 두 동강 난다. 끊어 두면 자리가 모자랄 때 값이
+                                  // 통째로 아랫줄로 내려가고(flex-wrap), 값 쪽 whitespace-nowrap이
+                                  // 금액 자체는 절대 쪼개지지 않게 잡아 준다.
+                                  //
+                                  // 금액만 font-semibold — 라벨까지 굵게 하면 같은 행의 현재 시세
+                                  // (font-bold)와 무게가 뒤엉켜 어느 쪽이 값인지 흐려진다. 모바일
+                                  // 카드(아래)도 값 span만 semibold라 두 레이아웃이 같아진다.
+                                  <div key={t.label} className="flex flex-wrap gap-x-1">
+                                    <span>{t.label}:</span>
+                                    <span className="whitespace-nowrap font-semibold">
+                                      {t.value}
+                                    </span>
                                   </div>
                                 ))
                               ) : (
@@ -635,10 +713,17 @@ export default function WatchlistPage() {
                               targets.map((t) => (
                                 <div
                                   key={t.label}
-                                  className="flex w-full items-center justify-between"
+                                  className="flex w-full items-center justify-between gap-x-2"
                                 >
+                                  {/* 여기는 데스크톱처럼 flex-wrap으로 바꾸지 않는다 —
+                                      justify-between이라 값이 아랫줄로 내려가면 오른쪽 정렬이
+                                      풀려 왼쪽에 홀로 붙는다. 대신 값이 숫자 중간에서 꺾이는
+                                      것만 막고(둘 다 flex 항목이라 기본적으로 줄어들 수 있다),
+                                      자리가 모자라면 라벨 쪽이 줄어들게 둔다. */}
                                   <span className="text-[#9A9AA2]">{t.label}</span>
-                                  <span className="font-semibold text-[#4B4B52]">{t.value}</span>
+                                  <span className="whitespace-nowrap font-semibold text-[#4B4B52]">
+                                    {t.value}
+                                  </span>
                                 </div>
                               ))
                             ) : (
