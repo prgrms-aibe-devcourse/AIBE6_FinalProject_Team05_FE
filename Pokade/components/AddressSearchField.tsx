@@ -27,9 +27,10 @@ export default function AddressSearchField({
   }, []);
 
   const combine = (zc: string, base: string, detail: string) => {
-    if (!base) return "";
-    const detailPart = detail.trim() ? ` ${detail.trim()}` : "";
-    return zc ? `[${zc}] ${base}${detailPart}` : `${base}${detailPart}`;
+    // 상세주소까지 입력해야 완성된 주소로 취급 - 부모 페이지들은 이 문자열이 비어있는지만으로
+    // 필수 입력 검증을 하므로, 상세주소가 비어있으면 아직 미완성으로 보고 빈 문자열을 돌려준다.
+    if (!base || !detail.trim()) return "";
+    return zc ? `[${zc}] ${base} ${detail.trim()}` : `${base} ${detail.trim()}`;
   };
 
   const handleSearch = async () => {
