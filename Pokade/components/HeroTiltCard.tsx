@@ -37,6 +37,7 @@ export default function HeroTiltCard({ src, alt, onClick }: HeroTiltCardProps) {
           src={src}
           alt={alt}
           fill
+          unoptimized
           sizes="330px"
           className="rounded-[18px] object-contain"
           priority
