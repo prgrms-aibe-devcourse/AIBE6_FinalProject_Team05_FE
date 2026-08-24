@@ -104,7 +104,7 @@ async function request(
     });
   } catch (e) {
     // 타임아웃(AbortSignal.timeout)과 연결 실패를 구분한다 — 둘 다 NETWORK_ERROR로 뭉개면
-    // 서버가 정상 동작 중인데도 "BE 서버 실행 여부를 확인해 주세요"가 떠서 원인 파악을 방해한다.
+    // 서버가 정상 동작 중인데도 연결 실패 문구가 떠서 원인 파악을 방해한다.
     if (e instanceof DOMException && e.name === "TimeoutError") {
       throw new ApiError(
         0,
@@ -112,11 +112,7 @@ async function request(
         `응답이 너무 오래 걸려 요청을 중단했습니다. (${Math.round(timeoutMs / 1000)}초 초과)`,
       );
     }
-    throw new ApiError(
-      0,
-      "NETWORK_ERROR",
-      "서버에 연결할 수 없습니다. BE 서버 실행 여부를 확인해 주세요.",
-    );
+    throw new ApiError(0, "NETWORK_ERROR", "네트워크 연결을 확인한 뒤 다시 시도해 주세요.");
   }
   //access 만료(401) → reissue 후 원요청 1회 재시도 (auth 엔드포인트 자신은 제외)
   if (res.status === 401 && retry && !path.startsWith("/api/auth/")) {

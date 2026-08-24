@@ -12,6 +12,7 @@ const AUTH_ERROR_MESSAGES: Record<string, string> = {
   EMAIL_VERIFY_ATTEMPT_EXCEEDED: "인증 시도 횟수를 초과했습니다. 코드를 재발송해 주세요.",
   LOGIN_FAILED:
     "이메일 또는 비밀번호가 일치하지 않습니다.\n소셜 로그인으로 가입하셨다면 아래 소셜 버튼으로 로그인해 주세요.",
+  ACCOUNT_SUSPENDED: "이용이 정지된 계정입니다.\n문의는 pokade6@gmail.com으로 보내주세요.",
   USER_NOT_FOUND: "가입되지 않은 이메일입니다.",
   PASSWORD_CHANGE_NOT_ALLOWED: "소셜 로그인 계정은 비밀번호를 재설정할 수 없습니다.",
   NICKNAME_CHANGE_LIMITED: "닉네임은 마지막 변경 후 30일이 지나야 다시 변경할 수 있습니다.",
@@ -19,6 +20,26 @@ const AUTH_ERROR_MESSAGES: Record<string, string> = {
   WITHDRAWAL_NOT_ALLOWED: "탈퇴할 수 없는 계정 상태입니다.",
   NOT_WITHDRAWAL_PENDING: "탈퇴 진행 중인 상태가 아닙니다.",
 };
+
+// 통신·서버 문제는 사용자가 입력을 고쳐서 해결할 수 없다. 자격 증명 오류와 같은 모양으로
+// 보여주면 "내 계정에 문제가 있다"로 읽혀 원인 진단을 방해한다(#282).
+const CONNECTION_ERROR_CODES = new Set(["NETWORK_ERROR", "REQUEST_TIMEOUT"]);
+
+export type AuthErrorKind = "credential" | "connection";
+
+export interface AuthErrorInfo {
+  kind: AuthErrorKind;
+  message: string;
+}
+
+// 오류를 "사용자가 고칠 수 있는 것(credential)"과 "기다렸다 다시 시도할 것(connection)"으로 나눈다.
+// 문구 결정은 authErrorMessage에 그대로 위임해 한 곳에서만 관리한다.
+export function authErrorInfo(e: unknown, fallback?: string): AuthErrorInfo {
+  if (e instanceof ApiError && CONNECTION_ERROR_CODES.has(e.code)) {
+    return { kind: "connection", message: e.message };
+  }
+  return { kind: "credential", message: authErrorMessage(e, fallback) };
+}
 
 // ApiError면 코드별 메시지(미매핑은 서버가 준 메시지), 그 외는 fallback
 export function authErrorMessage(
@@ -38,7 +59,7 @@ const OAUTH_REDIRECT_MESSAGES: Record<string, string> = {
     "소셜 계정에서 이메일을 받지 못했습니다. 이메일 제공에 동의한 뒤 다시 시도해 주세요.",
   unsupported_provider: "지원하지 않는 소셜 로그인입니다.",
   login_failed: "로그인할 수 없는 계정입니다. 이메일 인증을 완료했는지 확인해 주세요.",
-  account_suspended: "정지된 계정입니다. 고객센터에 문의해 주세요.",
+  account_suspended: "이용이 정지된 계정입니다.\n문의는 pokade6@gmail.com으로 보내주세요.",
   access_denied: "소셜 로그인을 취소했습니다.",
   oauth2_failed: "소셜 로그인에 실패했습니다. 다시 시도해 주세요.",
 };

@@ -9,7 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 //
 // durationMs를 show() 인자로 받는 이유: 같은 화면에서도 토스트마다 필요한 시간이 다르다.
 // 관심 "등록" 토스트는 눌러서 목표가를 설정하러 갈 수 있어 여유가 필요하고(4초), 단순 알림인
-// "해제"는 기존처럼 짧게(2.5초) 두는 게 방해되지 않는다. 실패 토스트도 원인을 읽어야 하므로
+// "해제"는 기본값(3.5초)으로 두는 게 방해되지 않는다. 실패 토스트도 원인을 읽어야 하므로
 // 등록과 같은 4초를 쓴다(lib/watchlistToast.ts).
 export interface ToastState {
   message: string;
@@ -30,7 +30,7 @@ export interface ToastState {
 // 나가므로 어느 쪽이 들어왔는지/나갔는지를 구분해서 받는다.
 export type ToastHoldSource = "pointer" | "focus";
 
-export const TOAST_DEFAULT_MS = 2500;
+export const TOAST_DEFAULT_MS = 3500;
 
 export function useToast() {
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -44,7 +44,7 @@ export function useToast() {
   // 타이머 만기 시각은 지났는데 콜백이 아직 실행되기 전에 pause가 끼어들 수 있다(브라우저가
   // 입력 이벤트를 만기된 타이머보다 먼저 처리하거나, 스로틀링·롱태스크로 콜백이 늦는 경우).
   // 그때 남은 시간은 정확히 0으로 계산되는데, 예전 코드는 이를 "값 없음"으로 보고 기본
-  // 2.5초를 새로 얹었다 — 벗어나는 순간 사라져야 할 토스트가 오히려 더 오래 붙어 있었다.
+  // 시간(TOAST_DEFAULT_MS)을 새로 얹었다 — 벗어나는 순간 사라져야 할 토스트가 오히려 더 오래 붙어 있었다.
   const remainingRef = useRef<number | null>(null);
   const startedAtRef = useRef(0);
   // hover/focus가 토스트 "안에 있는 동안" true. 일시정지 여부를 플래그로 따로 들고 있는
@@ -149,7 +149,7 @@ export function useToast() {
       if (remaining == null) return; // 진행 중인 카운트다운 없음 — 유령 타이머를 만들지 않는다
       if (remaining <= 0) {
         // 붙잡혀 있는 동안(또는 붙잡히기 직전에) 이미 시간을 다 쓴 토스트. 기본 시간으로
-        // 되살리지 않고 그대로 닫는다 — 벗어났는데 오히려 2.5초 더 남는 역전을 막는다.
+        // 되살리지 않고 그대로 닫는다 — 벗어났는데 오히려 기본 시간만큼 더 남는 역전을 막는다.
         remainingRef.current = null;
         setToast(null);
         return;

@@ -192,7 +192,10 @@ function NewListingForm() {
       setSearching(true);
       fetchCardsByKeywordPage(trimmed)
         .then((page) => {
-          if (!cancelled) setSuggestions(page.content.slice(0, 8));
+          // 8개로 잘라서 보여주면 "피카츄"처럼 동명이인 카드(다른 세트/레어도)가 많은 경우
+          // 뒤쪽 매물이 아예 안 보이는 문제가 있어, 조회한 페이지(기본 20개)를 그대로 보여주고
+          // 드롭다운을 스크롤 가능하게 한다.
+          if (!cancelled) setSuggestions(page.content);
         })
         .catch(() => {
           if (!cancelled) setSuggestions([]);
@@ -393,7 +396,7 @@ function NewListingForm() {
                       autoFocus
                     />
                     {query.trim().length >= MIN_QUERY_LENGTH && (
-                      <div className="absolute z-10 mt-1.5 w-full rounded-[11px] border border-[#EDEDF0] bg-white shadow-card">
+                      <div className="absolute z-10 mt-1.5 max-h-[280px] w-full overflow-y-auto rounded-[11px] border border-[#EDEDF0] bg-white shadow-card">
                         {searching ? (
                           <div className="px-3.5 py-3 text-[13px] text-[#8A8A92]">검색 중...</div>
                         ) : suggestions.length === 0 ? (

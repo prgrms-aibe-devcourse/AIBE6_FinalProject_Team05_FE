@@ -90,6 +90,12 @@ export default function AdminTradesPage() {
 
   const [processingId, setProcessingId] = useState<number | null>(null);
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
+  // 검수/배송 처리는 되돌리기 어려운 상태 전이라, 버튼 클릭 즉시 실행하지 않고 모달로 한 번 더 확인한다.
+  const [confirmTarget, setConfirmTarget] = useState<{
+    id: number;
+    status: TradeResponse["status"];
+    label: string;
+  } | null>(null);
 
   const load = () => {
     setLoadState("loading");
@@ -166,7 +172,9 @@ export default function AdminTradesPage() {
               actionLabel="검수 완료"
               processingId={processingId}
               rowErrors={rowErrors}
-              onAction={(id) => handleAction(id, "SHIPPED_TO_PLATFORM")}
+              onAction={(id) =>
+                setConfirmTarget({ id, status: "SHIPPED_TO_PLATFORM", label: "검수 완료" })
+              }
             />
             <TradeTable
               title="배송 대기"
@@ -175,11 +183,51 @@ export default function AdminTradesPage() {
               actionLabel="배송 완료"
               processingId={processingId}
               rowErrors={rowErrors}
-              onAction={(id) => handleAction(id, "INSPECTED")}
+              onAction={(id) => setConfirmTarget({ id, status: "INSPECTED", label: "배송 완료" })}
             />
           </>
         )}
       </div>
+
+      {confirmTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setConfirmTarget(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${confirmTarget.label} 확인`}
+        >
+          <div
+            className="w-full max-w-[360px] rounded-2xl bg-white p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="mb-2 text-[16px] font-extrabold">{confirmTarget.label} 처리</h2>
+            <p className="mb-5 text-[13.5px] text-[#8A8A92]">
+              거래 #{confirmTarget.id}를 {confirmTarget.label} 처리하시겠어요? 되돌릴 수 없습니다.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmTarget(null)}
+                className="flex-1 rounded-[10px] border border-[#DDDDE3] py-2.5 text-[13.5px] font-semibold text-[#4B4B52] hover:border-primary hover:text-primary"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const target = confirmTarget;
+                  setConfirmTarget(null);
+                  await handleAction(target.id, target.status);
+                }}
+                className="flex-1 rounded-[10px] border-2 border-primary-dark bg-primary py-2.5 text-[13.5px] font-bold text-white active:translate-y-0.5"
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

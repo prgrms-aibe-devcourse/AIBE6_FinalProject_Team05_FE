@@ -80,6 +80,34 @@ export function notifStyle(
           </svg>
         ),
       };
+    case "INQUIRY_RECEIVED":
+      // INQUIRY_HANDLED(초록 말풍선 = 내 문의가 처리됨)와 같은 "문의" 계열이지만 방향이 반대라
+      // — 이건 관리자에게 "처리할 것이 들어왔다"고 알리는 쪽이다 — 색과 모양을 모두 갈라 둔다.
+      // 새 색을 만들지 않고 이 파일에 이미 있는 남색(TRADE_CONFIRMED와 같은 쌍)을 재사용한다.
+      // 겹쳐도 헷갈리지 않는 이유: TRADE_CONFIRMED는 BE에 생성 코드가 없어 실제로 내려오지
+      // 않는 값이고(아래 notificationHref 주석 참고), 아이콘 모양이 서로 다르다.
+      // 아이콘은 받은 문서함(트레이로 들어가는 화살표) — "도착"을 나타낸다.
+      return {
+        tint: "#EEF0FA",
+        icon: (
+          <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#3B4CCA"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 13h5l1.5 3h5L16 13h5" />
+            <path d="M4.5 6.5L3 13v5.5h18V13l-1.5-6.5" />
+            <path d="M12 3v6" />
+            <path d="M9.5 6.5L12 9l2.5-2.5" />
+          </svg>
+        ),
+      };
     case "LISTING_AVAILABLE":
       // 기존 4개(금색/남색/주황/초록)와 안 겹치는 청록 계열 — 재입고(새 상품)를 나타내는 상자 아이콘.
       return {
@@ -99,6 +127,103 @@ export function notifStyle(
             <path d="M21 8l-9-5-9 5v8l9 5 9-5V8z" />
             <path d="M3 8l9 5 9-5" />
             <path d="M12 13v8" />
+          </svg>
+        ),
+      };
+    // 거래 단계 알림 4종(#392). 넷이 한 화면에 나란히 쌓일 수 있고 기존 TRADE_CONFIRMED(남색
+    // 상자)까지 더하면 "거래"만 다섯 줄이 되므로, 색보다 아이콘 모양으로 갈라 읽히게 한다 —
+    // 트럭(발송) / 체크된 서류(배송 완료) / X(취소) / 마주 보는 화살표(체결). 색은 새로 만들지
+    // 않고 이 파일에 이미 있는 네 쌍에서 의미가 맞는 것을 골라 쓴다.
+    case "TRADE_SHIPPING_REQUIRED":
+      // 주황(LISTING_STALE과 같은 쌍) — 둘 다 "네가 움직이지 않으면 멈춰 있다"는 재촉 신호다.
+      return {
+        tint: "#FFF3E0",
+        icon: (
+          <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#C2790A"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 7h11v9H3z" />
+            <path d="M14 10h3.5l3 3v3H14z" />
+            <circle cx="7" cy="18" r="1.6" />
+            <circle cx="17.5" cy="18" r="1.6" />
+          </svg>
+        ),
+      };
+    case "TRADE_DELIVERED":
+      // 초록(INQUIRY_HANDLED와 같은 쌍) — "한 단계가 무사히 끝났다"는 같은 결의 신호.
+      // 아이콘은 말풍선이 아니라 체크된 서류라 초록끼리도 헷갈리지 않는다.
+      return {
+        tint: "#EAF7EF",
+        icon: (
+          <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#059669"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M9 4h6v3H9z" />
+            <path d="M15 5.5h3V20H6V5.5h3" />
+            <path d="M9 13.5l2 2 4-4" />
+          </svg>
+        ),
+      };
+    case "TRADE_CANCELLED":
+      // 회색 — 이 파일에 부정/중단을 나타낼 색이 이것뿐이다(빨강 계열은 이 파일에 없고,
+      // 새 색은 만들지 않는다). 아래 default도 같은 회색이지만 그쪽은 종 아이콘이라 구분된다.
+      return {
+        tint: "#F2F2F5",
+        icon: (
+          <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#8A8A92"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M15 9l-6 6" />
+            <path d="M9 9l6 6" />
+          </svg>
+        ),
+      };
+    case "BUY_OFFER_MATCHED":
+      // 금색(PRICE_TARGET과 같은 쌍) — 둘 다 "걸어 둔 조건이 맞아떨어졌다"는 성사 신호다.
+      // 아이콘은 양쪽에서 마주 보고 만나는 화살표 — 내 입찰과 상대 판매가 붙었다는 뜻.
+      return {
+        tint: "#FFF6DA",
+        icon: (
+          <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#B8860B"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 12h5" />
+            <path d="M16 12h5" />
+            <path d="M6.5 8.5L10 12l-3.5 3.5" />
+            <path d="M17.5 8.5L14 12l3.5 3.5" />
           </svg>
         ),
       };
@@ -177,21 +302,44 @@ export function formatNotifTime(iso: string): string {
 // /inquiries 목록 라우트는 존재하지 않으므로(app/inquiries에는 new/만 있다) 여기로 보낸다.
 const MY_INQUIRIES_PATH = "/mypage/inquiries";
 
+// 관리자 문의 관리 화면(app/admin/inquiries). INQUIRY_RECEIVED는 관리자에게만 가는 알림이라
+// 내 문의 목록이 아니라 이쪽으로 보낸다 — 받는 사람이 처리해야 할 곳이 여기다.
+const ADMIN_INQUIRIES_PATH = "/admin/inquiries";
+
 // 알림을 눌렀을 때 이동할 곳. null이면 이동 없이 읽음 처리만 한다.
 // 헤더 드롭다운(components/Header.tsx)과 전체 알림 페이지(app/notifications/page.tsx)가 각자
 // `if (n.cardId != null) router.push(...)`를 들고 있었는데, 목적지 규칙이 타입별로 갈라지기
 // 시작해서(#238) 한 곳으로 합쳤다 — 두 화면이 다른 곳으로 가는 일이 없게 한다.
 //
 // cardId를 먼저 보는 이유: 카드가 딸린 알림은 타입과 무관하게 카드 상세가 가장 구체적인
-// 도착지다. INQUIRY_HANDLED는 BE가 cardId를 채우지 않으므로(NotificationService의 빌더에
-// cardId 자체가 없다) 항상 아래 분기로 떨어진다.
+// 도착지다. 문의 계열(INQUIRY_HANDLED / INQUIRY_RECEIVED)은 BE가 cardId를 채우지 않으므로
+// (NotificationService의 빌더에 cardId 자체가 없다) 항상 아래 분기로 떨어진다.
 //
-// 문의 목록까지만 보내고 해당 문의를 열어주지는 못한다 — 알림 레코드에 문의 식별자가 없고
-// (notifications 테이블에 card_id만 있다) 메시지에 박힌 제목 문자열로 매칭하는 건 제목에
-// 따옴표가 섞이면 바로 깨진다. 식별자가 응답에 추가되면 그때 특정 문의를 열도록 확장한다.
+// 거래 단계 알림 4종(#392, TRADE_SHIPPING_REQUIRED / TRADE_DELIVERED / TRADE_CANCELLED /
+// BUY_OFFER_MATCHED)은 cardId가 채워져 오므로 이 첫 분기를 타 카드 상세로 간다. 알림이 말하는
+// 내용("발송해 주세요", "구매확정 해주세요")을 실제로 처리하는 곳은 카드 상세가 아니라 거래
+// 상세(/trade-status/{id})지만, 지금은 거기로 보낼 방법이 없다 — notifications 테이블에는
+// card_id와 inquiry_id만 있고 trade_id 컬럼이 없어서(V1 baseline 이후 추가된 적 없음) 알림
+// 레코드만으로는 어느 거래인지 알 수 없다. 메시지 문자열에서 거래를 역추적하는 건 문의 쪽에서
+// 이미 접었던 방식이라 되풀이하지 않는다. BE에 trade_id가 생기면 여기서 타입별로 갈라
+// /trade-status/{tradeId}로 보내면 된다 — 그 전까지는 카드 상세가 차선책이다.
 //
-// 그 외 cardId가 없는 타입(TRADE_CONFIRMED, LISTING_STALE - 현재 BE에 생성 코드가 없는 값들)은
-// 갈 곳이 없으므로 기존과 동일하게 null을 반환해 읽음 처리만 되게 둔다.
+// 문의 계열은 목록까지만 보내고 해당 문의를 펼쳐 주지는 못한다. 남은 걸림돌은 식별자가 아니라
+// 화면이다 — V12(#338)가 notifications에 inquiry_id를 추가했고 BE NotificationResponse가
+// inquiryId를 내려주며 types/notification.ts도 이미 그 필드를 미러링하고 있다. 다만 두 문의
+// 화면(/mypage/inquiries, /admin/inquiries) 어느 쪽에도 "특정 문의를 펼친 상태로 여는" 진입점이
+// 없어서, 지금 여기서 id를 붙여 봐야 받아 줄 곳이 없다. 그 진입점이 생기면 n.inquiryId를 그대로
+// 얹으면 된다 — 값은 이미 손안에 있다.
+//
+// 그래서 지금은 이 함수가 null을 돌려줄 일이 사실상 없다. BE가 실제로 만드는 열 종류를 훑어보면
+// (NotificationService의 create*Notification 메서드들) cardId 없이 오는 것은 문의 계열 둘뿐이고
+// — 그 둘의 빌더에는 cardId 대신 inquiryId만 있다 — 나머지 여덟은 전부 cardId를 채워 보내 위
+// 첫 분기로 빠진다. 문의 둘도 바로 위에서 각자의 목록으로 보내진다.
+//
+// 그럼에도 null 반환을 남겨 두는 이유는 notifications.card_id가 nullable이기 때문이다. 채워
+// 보내야 할 알림이 어떤 사정으로 cardId 없이 내려오면 여기서 "갈 곳 없음"으로 떨어져 읽음
+// 처리만 되고, /cards/null 같은 존재하지 않는 주소로 튀지 않는다. FE 유니온에 아직 없는 새
+// 타입이 내려오는 경우에도 같은 안전망이 된다.
 
 // 재입고 알림을 타고 들어왔다는 표시(#238). 카드 상세가 "매물이 하나도 없는데 왜 알림이 왔지"를
 // 설명할 수 있게 붙인다 — 도착 시점엔 이미 팔렸거나 다른 사람이 결제 중이라 ACTIVE에서 빠졌을 수
@@ -213,6 +361,7 @@ export function notificationHref(n: NotificationResponse): string | null {
     return `/cards/${n.cardId}${origin}`;
   }
   if (n.type === "INQUIRY_HANDLED") return MY_INQUIRIES_PATH;
+  if (n.type === "INQUIRY_RECEIVED") return ADMIN_INQUIRIES_PATH;
   return null;
 }
 

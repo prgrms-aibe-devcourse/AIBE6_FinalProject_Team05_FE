@@ -86,18 +86,28 @@ interface SearchResultsViewProps {
 }
 
 // 페이지네이션 — 현재 페이지를 가운데 두고 좌우로 번호를 펼친다(창 방식). 양 끝에서는 창이
-// 더 밀리지 않으므로 한쪽으로 붙는다(1페이지면 1~10, 마지막이면 마지막-9~마지막).
+// 더 밀리지 않으므로 한쪽으로 붙는다(1페이지면 1~9, 마지막이면 마지막-8~마지막).
 // 이전에는 고정 구간을 통째로 보여주는 블록 방식이었는데, 블록 경계를 넘을 때마다 현재 페이지가
 // 왼쪽 끝으로 튀어(5→6에서 "1 2 3 4 5"가 "6 7 8 9 10"으로) 지금 어디쯤인지 읽기 어려웠다.
 // 이 화면(카탈로그 탐색)만 번호 방식을 쓴다 — MyTradesSection.tsx/notifications 전체보기처럼
 // 시간순으로 훑어보는 개인 활동 피드는 임의 페이지 점프가 필요 없어 components/Pagination.tsx의
 // 단순 prev/next를 쓴다. 페이지 수보다 "탐색 vs 피드"라는 화면 성격 차이가 기준이라 이 둘을
 // 하나의 컴포넌트로 통합하지 않는다.
-const PAGE_BLOCK_SIZE = 10;
-// 좁은 화면(<640px)용 개수. 10개를 그대로 두면 화살표까지 12개가 늘어서 약 450px가 필요해
-// 360px에서 두 줄로 접힌다. 번호 세트를 두 벌 렌더하고 CSS로만 고르므로(아래 JSX) 화면 폭을
+//
+// 짝수가 아니라 홀수(9)인 이유: 창의 시작점을 half = floor(size/2)만큼 왼쪽으로 잡으므로,
+// 10개면 현재 페이지가 6번째에 놓여 왼쪽 4개·오른쪽 5개로 비대칭이 된다. 9개면 정확히
+// 5번째, 좌우 4개씩으로 대칭이라 "지금 여기"가 눈에 바로 잡힌다.
+const PAGE_BLOCK_SIZE = 9;
+// 좁은 화면(<768px)용 개수. 번호 세트를 두 벌 렌더하고 CSS로만 고르므로(아래 JSX) 화면 폭을
 // 재는 훅이나 상태 없이 처리된다 — SSR 결과와 첫 렌더가 어긋날 일도 없다.
-const PAGE_BLOCK_SIZE_MOBILE = 5;
+// 3으로 잡은 근거(360px 기준 실측): 결과 카드 안쪽 가용 폭은 360 - 32(main px-4) - 48(카드 p-6)
+// = 280px이고, 한 줄에 놓이는 버튼은 « ‹ 번호 › » 로 번호 개수 + 4개다. 32px 버튼 + 6px gap이라
+// 5개일 때 336px가 필요해 세 줄로 접혔고, 3개면 260px로 한 줄에 들어간다.
+//
+// 전환 경계가 sm(640)이 아니라 md(768)인 이유: 640px에서는 sm:px-10이 적용돼 가용 폭이 512px인데
+// 9개 세트는 13개 × 36px + 12 × 6px = 540px를 요구해 여전히 넘친다. 768px가 되어야 가용 폭
+// 640px로 들어간다 — 개수가 아니라 경계가 문제였다.
+const PAGE_BLOCK_SIZE_MOBILE = 3;
 
 interface PageBlock {
   pages: number[];
@@ -119,8 +129,9 @@ function getPageBlock(current: number, total: number, size = PAGE_BLOCK_SIZE): P
   return { pages: Array.from({ length: end - start + 1 }, (_, i) => start + i) };
 }
 
-// 페이지네이션 버튼 공통 스타일 — 번호와 한 페이지 이동 화살표가 같은 크기·모양을 쓴다.
-// sm 미만에서는 버튼을 한 단계 작게(32px) 잡고 번호도 5개만 그려 한 줄에 담는다.
+// 페이지네이션 버튼 공통 스타일 — 번호와 블록 이동 화살표가 같은 크기·모양을 쓴다.
+// sm 미만에서는 버튼을 한 단계 작게(32px) 잡고, md 미만에서는 번호도 3개만 그려 한 줄에 담는다
+// (버튼 크기 경계는 sm, 번호 개수 경계는 md — 서로 다른 폭에서 걸린다).
 const PAGE_BUTTON_SIZE_CLASS =
   "h-8 w-8 rounded-[9px] text-[12px] font-bold sm:h-9 sm:w-9 sm:text-[13px]";
 const PAGE_NAV_BUTTON_CLASS = `flex items-center justify-center border border-[#DDDDE3] bg-white text-[#4B4B52] enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-40 ${PAGE_BUTTON_SIZE_CLASS}`;
@@ -235,6 +246,33 @@ export default function SearchResultsView({
     >
       {p}
     </button>
+  );
+
+  // 한 세트 = 블록 이동 화살표(‹ ›) + 번호. 이동 폭이 블록 크기에 따라 다르므로(모바일 5 /
+  // 데스크톱 10) 화살표를 세트 밖에 두면 어느 쪽 블록을 기준으로 움직일지 정해지지 않는다 —
+  // 그래서 화살표까지 세트 안에 넣고 두 벌 그린다. 숨는 쪽은 display:none이라 접근성 트리에서도
+  // 빠지므로 스크린리더에 중복으로 읽히지 않는다.
+  // pages는 getPageBlock이 항상 1개 이상 채워 주므로(safeTotal >= 1) 첫/끝 원소 접근은 안전하다.
+  const renderPageBlockSet = (pages: number[], className: string) => (
+    <div className={className}>
+      <button
+        onClick={() => goToPage(pages[0] - 1)}
+        disabled={pages[0] <= 1}
+        aria-label="이전 페이지 블록"
+        className={PAGE_NAV_BUTTON_CLASS}
+      >
+        &lsaquo;
+      </button>
+      {pages.map(renderPageButton)}
+      <button
+        onClick={() => goToPage(pages[pages.length - 1] + 1)}
+        disabled={pages[pages.length - 1] >= totalPages}
+        aria-label="다음 페이지 블록"
+        className={PAGE_NAV_BUTTON_CLASS}
+      >
+        &rsaquo;
+      </button>
+    </div>
   );
 
   // 입력 → 이동. 이동 후 표시되는 블록은 page에서 파생되므로(getPageBlock) 해당 페이지가 속한
@@ -647,29 +685,26 @@ export default function SearchResultsView({
         {loadState !== "error" && totalPages > 1 && (
           <div className="mt-6 flex flex-col items-center gap-2.5">
             <div className="flex flex-wrap items-center justify-center gap-1.5">
+              {/* 처음/마지막 페이지로 한 번에 이동 — 블록 크기와 무관하게 목적지가 같아서
+                  세트 밖에 한 번만 둔다(‹ ›와 달리 두 벌 그릴 이유가 없다). */}
               <button
-                onClick={() => goToPage(Math.max(1, page - 1))}
+                onClick={() => goToPage(1)}
                 disabled={page <= 1}
-                aria-label="이전 페이지"
+                aria-label="첫 페이지"
                 className={PAGE_NAV_BUTTON_CLASS}
               >
-                &lsaquo;
+                &laquo;
               </button>
-              {/* 같은 번호를 두 벌 그리고 CSS로 하나만 남긴다 — 숨는 쪽은 display:none이라
-                  접근성 트리에서도 빠지므로 스크린리더에 중복으로 읽히지 않는다. */}
-              <div className="flex items-center gap-1.5 sm:hidden">
-                {pageBlockMobile.pages.map(renderPageButton)}
-              </div>
-              <div className="hidden items-center gap-1.5 sm:flex">
-                {pageBlock.pages.map(renderPageButton)}
-              </div>
+              {/* 화살표 + 번호를 두 벌 그리고 CSS로 하나만 남긴다. */}
+              {renderPageBlockSet(pageBlockMobile.pages, "flex items-center gap-1.5 md:hidden")}
+              {renderPageBlockSet(pageBlock.pages, "hidden items-center gap-1.5 md:flex")}
               <button
-                onClick={() => goToPage(Math.min(totalPages, page + 1))}
+                onClick={() => goToPage(totalPages)}
                 disabled={page >= totalPages}
-                aria-label="다음 페이지"
+                aria-label="마지막 페이지"
                 className={PAGE_NAV_BUTTON_CLASS}
               >
-                &rsaquo;
+                &raquo;
               </button>
             </div>
 
