@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import CardImage from "@/components/CardImage";
@@ -295,22 +295,25 @@ export default function TradeStatusPage() {
               </div>
             )}
 
-            {/* 진행 단계 */}
+            {/* 진행 단계 — 연결선을 원(circle+label) 컬럼 밖, 컬럼 사이에 별도로 두어야
+                각 단계의 체크 아이콘과 라벨이 항상 같은 중심선에서 정렬된다. 연결선을 컬럼 안에
+                같이 넣으면 선이 flex-1로 늘어나면서 아이콘이 컬럼 중심이 아니라 한쪽으로 밀려
+                라벨(가운데 정렬)과 어긋나 보인다. */}
             {trade.status !== "CANCELLED" && (
               <div className="rounded-2xl border border-[#EDEDF0] bg-white px-6 py-7">
-                <div className="flex items-center">
+                <div className="flex items-start">
                   {STEPS.map((step, i) => {
                     const doneCount = completedStepCount(trade);
                     const isDone = i < doneCount;
                     const isCurrent = i === doneCount && doneCount < STEPS.length;
                     return (
-                      <div key={step.key} className="flex flex-1 flex-col items-center last:flex-none">
-                        <div className="flex w-full items-center">
-                          {i > 0 && (
-                            <div
-                              className={`h-[3px] flex-1 ${i <= doneCount ? "bg-primary" : "bg-[#EDEDF0]"}`}
-                            />
-                          )}
+                      <Fragment key={step.key}>
+                        {i > 0 && (
+                          <div
+                            className={`mt-4 h-[3px] flex-1 ${i <= doneCount ? "bg-primary" : "bg-[#EDEDF0]"}`}
+                          />
+                        )}
+                        <div className="flex flex-col items-center">
                           <div
                             className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-[12px] font-bold ${
                               isDone
@@ -322,15 +325,15 @@ export default function TradeStatusPage() {
                           >
                             {isDone ? "✓" : i + 1}
                           </div>
+                          <span
+                            className={`mt-2 whitespace-nowrap text-center text-[11.5px] font-semibold ${
+                              isDone || isCurrent ? "text-ink" : "text-[#B0B0B8]"
+                            }`}
+                          >
+                            {step.label}
+                          </span>
                         </div>
-                        <span
-                          className={`mt-2 whitespace-nowrap text-center text-[11.5px] font-semibold ${
-                            isDone || isCurrent ? "text-ink" : "text-[#B0B0B8]"
-                          }`}
-                        >
-                          {step.label}
-                        </span>
-                      </div>
+                      </Fragment>
                     );
                   })}
                 </div>
@@ -341,7 +344,7 @@ export default function TradeStatusPage() {
             <div className="rounded-2xl border border-[#EDEDF0] bg-white p-6">
               <div className="flex gap-4">
                 <div className="relative h-[100px] w-[72px] flex-shrink-0 overflow-hidden rounded-[10px] bg-[#F2F2F5]">
-                  <CardImage alt={trade.cardName ?? "카드"} />
+                  <CardImage src={trade.cardImageUrl ?? undefined} alt={trade.cardName ?? "카드"} />
                 </div>
                 <div className="flex-1">
                   <Link
@@ -463,7 +466,9 @@ export default function TradeStatusPage() {
               </div>
             )}
 
-            {cancellable && (
+            {(cancellable ||
+              (isSeller && trade.status === "PENDING") ||
+              (isBuyer && trade.status === "DELIVERED")) && (
               <div className="flex flex-col gap-[11px]">
                 {isSeller && trade.status === "PENDING" && (
                   <button
@@ -475,6 +480,8 @@ export default function TradeStatusPage() {
                     {actionSubmitting ? "처리 중..." : "발송하기"}
                   </button>
                 )}
+                {/* 구매 확정은 DELIVERED에서만 가능한데, DELIVERED는 더 이상 취소 가능 상태가 아니라서
+                    (CANCELLABLE 참고) cancellable 여부와 무관하게 독립적으로 노출해야 한다. */}
                 {isBuyer && trade.status === "DELIVERED" && (
                   <button
                     type="button"
@@ -485,38 +492,39 @@ export default function TradeStatusPage() {
                     {actionSubmitting ? "처리 중..." : "구매 확정"}
                   </button>
                 )}
-                {confirmingCancel ? (
-                  <div className="flex items-center gap-2 rounded-xl border-[1.5px] border-[#F6C6C6] bg-[#FFF1F1] px-4 py-3">
-                    <span className="flex-1 text-[13px] font-semibold text-[#C21414]">
-                      정말 거래를 취소하시겠어요?
-                    </span>
+                {cancellable &&
+                  (confirmingCancel ? (
+                    <div className="flex items-center gap-2 rounded-xl border-[1.5px] border-[#F6C6C6] bg-[#FFF1F1] px-4 py-3">
+                      <span className="flex-1 text-[13px] font-semibold text-[#C21414]">
+                        정말 거래를 취소하시겠어요?
+                      </span>
+                      <button
+                        type="button"
+                        disabled={actionSubmitting}
+                        onClick={handleCancel}
+                        className="rounded-[9px] border-2 border-primary-dark bg-primary px-3 py-1.5 text-[12.5px] font-bold text-white disabled:opacity-60"
+                      >
+                        {actionSubmitting ? "취소 중..." : "취소하기"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={actionSubmitting}
+                        onClick={() => setConfirmingCancel(false)}
+                        className="rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#4B4B52]"
+                      >
+                        돌아가기
+                      </button>
+                    </div>
+                  ) : (
                     <button
                       type="button"
                       disabled={actionSubmitting}
-                      onClick={handleCancel}
-                      className="rounded-[9px] border-2 border-primary-dark bg-primary px-3 py-1.5 text-[12.5px] font-bold text-white disabled:opacity-60"
+                      onClick={() => setConfirmingCancel(true)}
+                      className="w-full rounded-xl border-[1.5px] border-[#DDDDE3] bg-white py-[15px] text-[15px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary disabled:opacity-60"
                     >
-                      {actionSubmitting ? "취소 중..." : "취소하기"}
+                      거래 취소
                     </button>
-                    <button
-                      type="button"
-                      disabled={actionSubmitting}
-                      onClick={() => setConfirmingCancel(false)}
-                      className="rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#4B4B52]"
-                    >
-                      돌아가기
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={actionSubmitting}
-                    onClick={() => setConfirmingCancel(true)}
-                    className="w-full rounded-xl border-[1.5px] border-[#DDDDE3] bg-white py-[15px] text-[15px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary disabled:opacity-60"
-                  >
-                    거래 취소
-                  </button>
-                )}
+                  ))}
               </div>
             )}
           </div>
