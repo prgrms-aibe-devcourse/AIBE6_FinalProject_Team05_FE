@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
+import GuestGuard from "@/components/GuestGuard";
 export const metadata: Metadata = { title: "Signup - Pokade" };
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return children;
+  return <GuestGuard>{children}</GuestGuard>;
 }
