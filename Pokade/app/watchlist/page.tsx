@@ -533,11 +533,20 @@ export default function WatchlistPage() {
                             >
                               {targets.length > 0 ? (
                                 targets.map((t) => (
+                                  // 라벨과 값을 각각 span으로 끊어 flex 항목으로 만든다 —
+                                  // 한 텍스트 흐름이면 컬럼이 좁아질 때 "목표 구매가: 12,"에서
+                                  // 꺾여 금액이 두 동강 난다. 끊어 두면 자리가 모자랄 때 값이
+                                  // 통째로 아랫줄로 내려가고(flex-wrap), 값 쪽 whitespace-nowrap이
+                                  // 금액 자체는 절대 쪼개지지 않게 잡아 준다.
+                                  //
                                   // 금액만 font-semibold — 라벨까지 굵게 하면 같은 행의 현재 시세
                                   // (font-bold)와 무게가 뒤엉켜 어느 쪽이 값인지 흐려진다. 모바일
                                   // 카드(아래)도 값 span만 semibold라 두 레이아웃이 같아진다.
-                                  <div key={t.label}>
-                                    {t.label}: <span className="font-semibold">{t.value}</span>
+                                  <div key={t.label} className="flex flex-wrap gap-x-1">
+                                    <span>{t.label}:</span>
+                                    <span className="whitespace-nowrap font-semibold">
+                                      {t.value}
+                                    </span>
                                   </div>
                                 ))
                               ) : (
@@ -696,10 +705,17 @@ export default function WatchlistPage() {
                               targets.map((t) => (
                                 <div
                                   key={t.label}
-                                  className="flex w-full items-center justify-between"
+                                  className="flex w-full items-center justify-between gap-x-2"
                                 >
+                                  {/* 여기는 데스크톱처럼 flex-wrap으로 바꾸지 않는다 —
+                                      justify-between이라 값이 아랫줄로 내려가면 오른쪽 정렬이
+                                      풀려 왼쪽에 홀로 붙는다. 대신 값이 숫자 중간에서 꺾이는
+                                      것만 막고(둘 다 flex 항목이라 기본적으로 줄어들 수 있다),
+                                      자리가 모자라면 라벨 쪽이 줄어들게 둔다. */}
                                   <span className="text-[#9A9AA2]">{t.label}</span>
-                                  <span className="font-semibold text-[#4B4B52]">{t.value}</span>
+                                  <span className="whitespace-nowrap font-semibold text-[#4B4B52]">
+                                    {t.value}
+                                  </span>
                                 </div>
                               ))
                             ) : (
