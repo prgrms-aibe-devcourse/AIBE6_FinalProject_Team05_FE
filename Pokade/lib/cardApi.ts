@@ -227,7 +227,7 @@ export async function fetchPriceRanking(type: RankingType): Promise<PriceRanking
 }
 
 // GET /api/prices/market-overview — 플랫폼 전체(카드/등급 구분 없음) 최근 30일 일별 거래량 + 거래가
-// 중간값(median) 현황. 로그인 필요(401 가능). 파라미터 없음(BE가 30일 고정).
+// 평균(avg) 현황. 로그인 필요(401 가능). 파라미터 없음(BE가 30일 고정).
 export async function fetchMarketOverview(): Promise<MarketOverviewResponse> {
   return apiGet<MarketOverviewResponse>("/api/prices/market-overview");
 }

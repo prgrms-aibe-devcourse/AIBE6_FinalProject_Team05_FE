@@ -89,26 +89,27 @@ export interface PriceRankingResponse {
 }
 
 // com.pokade.domain.price.dto.DailyMarketStatResponse 미러링 — 일별 거래 현황 한 포인트.
-// medianPrice: 그 날 체결이 하나도 없으면 null.
+// avgPrice: 그 날 체결이 하나도 없으면 null.
 export interface DailyMarketStatResponse {
   date: string;
   volume: number;
-  medianPrice: number | null;
+  avgPrice: number | null;
 }
 
 // com.pokade.domain.price.dto.MarketOverviewResponse 미러링 — GET /api/prices/market-overview 응답.
 // 카드/등급 구분 없이 플랫폼 전체 체결 기준 - PriceRankingResponse(카드별 평균가 등락률)와는 별개 지표다.
-// 거래가는 평균이 아니라 중간값(median)으로 계산해서 소수의 초고가/초저가 체결에 덜 흔들린다.
-// volumeChangeRate/medianChangeRate*는 비교 대상 시점에 거래가 없어 비교 자체가 불가능하면 null.
+// 거래가는 평균(avg)으로 계산한다(과거엔 초고가/초저가 체결에 덜 흔들리는 중간값을 썼으나 사용자
+// 요청으로 평균값으로 전환).
+// volumeChangeRate/avgChangeRate*는 비교 대상 시점에 거래가 없어 비교 자체가 불가능하면 null.
 export interface MarketOverviewResponse {
   todayVolume: number;
   volumeChangeRate: number | null;
   volumeChangeAmount: number;
-  todayMedianPrice: number | null;
-  medianChangeRate1d: number | null;
-  medianChangeAmount1d: number | null;
-  medianChangeRate7d: number | null;
-  medianChangeRate30d: number | null;
+  todayAvgPrice: number | null;
+  avgChangeRate1d: number | null;
+  avgChangeAmount1d: number | null;
+  avgChangeRate7d: number | null;
+  avgChangeRate30d: number | null;
   totalVolume: number;
   dailyStats: DailyMarketStatResponse[];
 }

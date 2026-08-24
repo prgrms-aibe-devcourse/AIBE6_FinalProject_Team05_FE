@@ -238,11 +238,11 @@ export default function RankingPage() {
                 todayVolume={overview?.todayVolume ?? 0}
                 volumeChangeRate={overview?.volumeChangeRate ?? null}
                 volumeChangeAmount={overview?.volumeChangeAmount ?? 0}
-                todayMedianPrice={overview?.todayMedianPrice ?? null}
-                medianChangeRate1d={overview?.medianChangeRate1d ?? null}
-                medianChangeAmount1d={overview?.medianChangeAmount1d ?? null}
-                medianChangeRate7d={overview?.medianChangeRate7d ?? null}
-                medianChangeRate30d={overview?.medianChangeRate30d ?? null}
+                todayAvgPrice={overview?.todayAvgPrice ?? null}
+                avgChangeRate1d={overview?.avgChangeRate1d ?? null}
+                avgChangeAmount1d={overview?.avgChangeAmount1d ?? null}
+                avgChangeRate7d={overview?.avgChangeRate7d ?? null}
+                avgChangeRate30d={overview?.avgChangeRate30d ?? null}
                 totalVolume={overview?.totalVolume ?? 0}
                 dailyStats={overview?.dailyStats ?? []}
                 loading={overviewLoadState === "loading"}
