@@ -95,7 +95,12 @@ export default function Toast({
             // 시각 요소는 전부 aria-hidden이라, 링크의 이름은 여기서 직접 준다 —
             // sr-only 영역이 읽어준 문구와 "어디로 가는지"를 한 번에 전달한다.
             aria-label={`${toast.message} — ${linkLabel}(으)로 이동`}
-            className="flex items-center gap-2.5 rounded-full text-white outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
+            // hover:text-white가 필요한 이유: globals.css가 전역으로 a:hover { text-secondary-dark }를
+            // 걸어 두는데, 그 선택자(0,1,1)가 유틸리티 .text-white(0,1,0)를 이긴다. 그대로 두면 마우스를
+            // 올리는 순간 앵커가 파랑(#2C3AA0)이 되고, 색 지정이 없는 아래 메시지 span이 그 색을
+            // 상속해 어두운 토스트 배경에서 거의 보이지 않는다. 행선지 라벨 span은 자신이
+            // text-tertiary를 갖고 있어 상속을 받지 않으므로 그대로 유지된다.
+            className="flex items-center gap-2.5 rounded-full text-white outline-none hover:text-white focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
           >
             <span aria-hidden="true">{toast.message}</span>
             {/* 구분선 + 행선지 라벨 — "누를 수 있다"와 "누르면 어디로 간다"를 문구를 늘리지 않고
