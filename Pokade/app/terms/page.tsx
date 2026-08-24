@@ -9,7 +9,7 @@ const CHAPTERS: { title: string; articles: Article[] }[] = [
     articles: [
       {
         title: "제1조 (목적)",
-        body: "이 약관은 포켓트레이드(이하 “회사”)가 운영하는 트레이딩카드 거래 중개 플랫폼 “PocketTrade”(이하 “서비스”)의 이용과 관련하여 회사와 회원 간의 권리, 의무 및 책임사항, 기타 필요한 사항을 규정함을 목적으로 합니다.",
+        body: "이 약관은 포케이드(이하 “회사”)가 운영하는 트레이딩카드 거래 중개 플랫폼 “Pokade”(이하 “서비스”)의 이용과 관련하여 회사와 회원 간의 권리, 의무 및 책임사항, 기타 필요한 사항을 규정함을 목적으로 합니다.",
       },
       {
         title: "제2조 (정의)",
@@ -195,7 +195,7 @@ export default function TermsPage() {
         <p className="mt-2 text-sm text-[#8A8A92]">시행일자: 2026년 1월 1일</p>
 
         <div className="mt-6 rounded-2xl border border-[#F5D9A8] bg-[#FFF7E8] px-5 py-4 text-[13px] leading-relaxed text-[#8A6A00]">
-          본 약관은 PocketTrade 서비스 운영을 위해 마련한 템플릿으로, 회사의 사업자 정보(상호,
+          본 약관은 Pokade 서비스 운영을 위해 마련한 템플릿으로, 회사의 사업자 정보(상호,
           대표자, 사업자등록번호, 주소, 연락처 등)를 반영하지 않은 상태입니다. 정식 서비스 오픈 전
           사업자 정보 기재 및 법률 전문가 검토를 거쳐 확정해야 합니다.
         </div>
