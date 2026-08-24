@@ -324,14 +324,22 @@ const ADMIN_INQUIRIES_PATH = "/admin/inquiries";
 // 이미 접었던 방식이라 되풀이하지 않는다. BE에 trade_id가 생기면 여기서 타입별로 갈라
 // /trade-status/{tradeId}로 보내면 된다 — 그 전까지는 카드 상세가 차선책이다.
 //
-// 문의 계열은 목록까지만 보내고 해당 문의를 펼쳐 주지는 못한다. 예전 주석은 "알림 레코드에
-// 문의 식별자가 없다"고 적혀 있었는데 지금은 사실이 아니다 — V12(#338)가 notifications에
-// inquiry_id를 추가했고 BE NotificationResponse도 inquiryId를 함께 내려준다. 다만 FE 쪽
-// types/notification.ts가 아직 그 필드를 미러링하지 않았고 두 문의 화면에도 "특정 문의 열기"
-// 진입점이 없어, 지금 당장은 목록으로만 보낸다. 필드를 받아오면 여기서 바로 확장할 수 있다.
+// 문의 계열은 목록까지만 보내고 해당 문의를 펼쳐 주지는 못한다. 남은 걸림돌은 식별자가 아니라
+// 화면이다 — V12(#338)가 notifications에 inquiry_id를 추가했고 BE NotificationResponse가
+// inquiryId를 내려주며 types/notification.ts도 이미 그 필드를 미러링하고 있다. 다만 두 문의
+// 화면(/mypage/inquiries, /admin/inquiries) 어느 쪽에도 "특정 문의를 펼친 상태로 여는" 진입점이
+// 없어서, 지금 여기서 id를 붙여 봐야 받아 줄 곳이 없다. 그 진입점이 생기면 n.inquiryId를 그대로
+// 얹으면 된다 — 값은 이미 손안에 있다.
 //
-// 그 외 cardId가 없는 타입(TRADE_CONFIRMED, LISTING_STALE - 현재 BE에 생성 코드가 없는 값들)은
-// 갈 곳이 없으므로 기존과 동일하게 null을 반환해 읽음 처리만 되게 둔다.
+// 그래서 지금은 이 함수가 null을 돌려줄 일이 사실상 없다. BE가 실제로 만드는 열 종류를 훑어보면
+// (NotificationService의 create*Notification 메서드들) cardId 없이 오는 것은 문의 계열 둘뿐이고
+// — 그 둘의 빌더에는 cardId 대신 inquiryId만 있다 — 나머지 여덟은 전부 cardId를 채워 보내 위
+// 첫 분기로 빠진다. 문의 둘도 바로 위에서 각자의 목록으로 보내진다.
+//
+// 그럼에도 null 반환을 남겨 두는 이유는 notifications.card_id가 nullable이기 때문이다. 채워
+// 보내야 할 알림이 어떤 사정으로 cardId 없이 내려오면 여기서 "갈 곳 없음"으로 떨어져 읽음
+// 처리만 되고, /cards/null 같은 존재하지 않는 주소로 튀지 않는다. FE 유니온에 아직 없는 새
+// 타입이 내려오는 경우에도 같은 안전망이 된다.
 
 // 재입고 알림을 타고 들어왔다는 표시(#238). 카드 상세가 "매물이 하나도 없는데 왜 알림이 왔지"를
 // 설명할 수 있게 붙인다 — 도착 시점엔 이미 팔렸거나 다른 사람이 결제 중이라 ACTIVE에서 빠졌을 수
