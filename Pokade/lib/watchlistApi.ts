@@ -20,8 +20,8 @@ export async function addWatchlist(request: WatchlistCreateRequest): Promise<Wat
   return apiPost<WatchlistResponse>("/api/watchlist", request);
 }
 
-// PATCH /api/watchlist/{id} — 등록(POST)과 달리 여기서는 목표가가 필수다. targetBuyPrice/
-// targetSellPrice 둘 다 없으면 400(TARGET_PRICE_REQUIRED),
+// PATCH /api/watchlist/{id} — 가격이든 clear* 플래그든 최소 하나는 있어야 한다. 아무것도 없는
+// 빈 요청이면 400(TARGET_PRICE_REQUIRED), 같은 칸의 가격과 clear를 함께 보내면 400(INVALID_INPUT).
 // 단 resendNotification=true면 이 검증을 건너뛰고 가격은 그대로 둔 채 isNotified만 false로 리셋한다.
 // 본인 소유가 아니거나 없는 id면 404(WATCHLIST_NOT_FOUND). 응답은 WatchlistResponse.of()로 만들어져
 // cardName/setName/imageUrl/currentPrice/changeRate/targetReached가 전부 null/false로 오지만

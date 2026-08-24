@@ -26,7 +26,7 @@ import { NotificationResponse } from "@/types/notification";
 const PAGE_SIZE = 20;
 
 // 삭제를 눌러도 이만큼은 서버에 반영하지 않고 되돌릴 기회를 준다(#238).
-// 이 화면의 다른 토스트보다 길게 잡았다 — 단순 알림(2.5초)이나 링크 토스트(4초)와 달리
+// 이 화면의 다른 토스트보다 길게 잡았다 — 단순 알림(기본 3.5초)이나 링크 토스트(4초)와 달리
 // "눈치채고 → 마우스를 옮겨 → 누르는" 시간이 필요하고, 반대로 더 길면 삭제가 확정됐는지
 // 아닌지 애매한 구간만 늘어난다. 토스트 표시 시간도 같은 값으로 맞춰 둘이 어긋나지 않게 한다.
 const UNDO_DELETE_MS = 5000;
@@ -57,6 +57,14 @@ export default function NotificationsPage() {
   // .then()/.catch() 안에서만 한다. 이러면 effect 본문에 동기 setState 호출이 없어져
   // react-hooks/set-state-in-effect 위반이 사라진다 — "로딩 중"은 별도 플래그가 아니라
   // "지금 페이지에 대한 결과가 아직 없다"는 것으로 파생 계산한다.
+  //
+  // 다만 key 비교만으로는 부족하다. 낡은 key가 result에 들어오면 loadState가 "loading"으로
+  // 굳는데, 그걸 풀 재조회 트리거가 없기 때문이다(load effect는 page가 바뀔 때만 돈다).
+  // 그래서 애초에 낡은 응답이 setResult까지 오지 못하게 막고(load의 requestKeyRef 가드),
+  // 지연 실행되는 호출부는 최신 load를 보게 한다(loadRef).
+  //
+  // 그리고 key만으로는 "같은 페이지를 두 번 조회한 경우"를 아예 구분하지 못한다 — 아래
+  // requestSeqRef가 그 몫을 맡는다. 두 가드는 막는 대상이 다르므로 함께 둔다.
   const [result, setResult] = useState<{
     key: string;
     data: PageResponse<NotificationResponse> | null;
@@ -82,21 +90,51 @@ export default function NotificationsPage() {
 
   const requestKey = String(page);
 
+  // "지금 화면이 보고 있는 key". load()가 캡처해 둔 key와 달리 항상 최신이라, 응답이 돌아온
+  // 시점에 그 응답이 아직 유효한지 판정하는 기준이 된다 — 아래 load()의 stale 응답 폐기에 쓴다.
+  // pendingTimersRef와 목적이 다르다: 저 ref는 "렌더에 안 쓰는 값 보관"이고, 이 ref는
+  // "클로저가 캡처한 낡은 값 대신 최신 값을 보게 하는 창구"다(아래 loadRef도 같은 목적).
+  const requestKeyRef = useRef(requestKey);
+  useEffect(() => {
+    requestKeyRef.current = requestKey;
+  }, [requestKey]);
+
+  // load() 호출마다 하나씩 올라가는 일련번호. 같은 페이지를 다시 조회하는 경로가 여럿이라
+  // (읽음 처리·삭제 확정/실패·모두 읽음이 전부 같은 page로 load()를 다시 부른다) requestKey가
+  // 이전 요청과 새 요청 사이에서 완전히 같아진다 — key 가드만으로는 먼저 보낸 요청이 나중에
+  // 도착해 결과를 덮어쓰는 것을 막을 수 없다. 실제 증상은 방금 지운 알림이 목록에 되살아나거나,
+  // 성공적으로 다시 불러온 화면이 이전 요청의 오류 메시지로 바뀌는 것이다.
+  //
+  // "마지막에 도착한 응답"이 아니라 "마지막에 시작한 요청"을 정답으로 삼는다 — 사용자가 가장
+  // 최근에 요구한 상태가 그것이고, 네트워크 도착 순서는 사용자 의도와 아무 관계가 없다.
+  const requestSeqRef = useRef(0);
+
   const load = useCallback(() => {
     if (authStatus !== "authenticated") return;
     const key = requestKey;
+    const seq = ++requestSeqRef.current;
     fetchNotifications({ page, size: PAGE_SIZE })
       .then((res) => {
+        // 이 요청보다 나중에 시작된 load()가 이미 있으면 이 응답은 버린다(같은 페이지 재조회).
+        if (requestSeqRef.current !== seq) return;
+        // 이 응답이 도착했을 때 화면이 이미 다른 페이지를 보고 있으면 버린다. setResult로 낡은
+        // key를 써 버리면 아래 current 계산이 null이 되어 화면이 "로딩"에 갇히는데, 그 상태를
+        // 풀어 줄 재조회 트리거가 없다(load effect는 page가 바뀔 때만 돈다).
+        if (requestKeyRef.current !== key) return;
         // 삭제(개별/전체보기 마지막 항목) 또는 BE 배치가 알림을 지워 이 페이지가 비게 된 경우 —
         // 프론트에서 totalPages를 직접 추측하지 않고, 서버가 다시 알려주는 대로 이전 페이지로
         // 물러난다. 0페이지가 비면 그냥 "새 알림이 없습니다" 빈 상태로 둔다.
+        // Math.max(0, ...)로 하한을 거는 이유: 가드의 page는 이 load()가 캡처한 값이고 업데이터의
+        // p는 현재 값이라 둘이 다를 수 있다 — 그대로 빼면 0페이지에서 -1로 내려가 page=-1을 조회한다.
         if (res.content.length === 0 && page > 0) {
-          setPage((p) => p - 1);
+          setPage((p) => Math.max(0, p - 1));
           return;
         }
         setResult({ key, data: res, errorMessage: "" });
       })
       .catch((err) => {
+        if (requestSeqRef.current !== seq) return;
+        if (requestKeyRef.current !== key) return;
         setResult({
           key,
           data: null,
@@ -104,6 +142,13 @@ export default function NotificationsPage() {
         });
       });
   }, [authStatus, page, requestKey]);
+
+  // 항상 "지금 페이지" 기준의 load. setTimeout으로 미뤄 둔 콜백(commitDelete)이 클릭 시점의
+  // load를 그대로 들고 있으면 5초 뒤 옛 페이지를 조회하게 되므로, 그 경로만 이 ref를 거친다.
+  const loadRef = useRef(load);
+  useEffect(() => {
+    loadRef.current = load;
+  }, [load]);
 
   useEffect(() => {
     load();
@@ -136,6 +181,8 @@ export default function NotificationsPage() {
   }, [retryFeed]);
 
   // 지금 페이지(requestKey)에 대한 결과가 아니면(요청 중이거나 막 페이지가 바뀐 직후) 로딩으로 본다.
+  // 위 가드 덕에 여기서 null이 되는 경우는 "아직 응답이 안 왔다"뿐이다 — 낡은 페이지의 응답이
+  // result를 덮어써서 영영 null로 남는 경로는 막혀 있다.
   const current = result?.key === requestKey ? result : null;
   const data = current?.data ?? null;
   const loadState: LoadState = current === null ? "loading" : data ? "ready" : "error";
@@ -188,18 +235,22 @@ export default function NotificationsPage() {
         toastOwnerIdRef.current = null;
         hideToast();
       }
+      // loadRef를 거치는 이유: 이 함수는 handleDelete의 setTimeout에 캡처돼 5초 뒤에 실행되는데,
+      // 그 사이 페이지가 바뀌면 캡처된 load는 옛 페이지를 조회한다. deps에서 load를 뺀 덕에
+      // commitDelete 자체도 page와 무관한 고정 참조가 되어, 타이머가 어떤 시점의 것이든
+      // 실행 시점의 "지금 페이지"를 갱신한다.
       deleteNotification(id)
         .then(() => {
-          load();
+          loadRef.current();
           retryFeed();
         })
         .catch(() => {
           // 실패했으면 서버엔 그대로 남아 있다 — 재조회하면 목록에 다시 나타난다.
-          load();
+          loadRef.current();
           retryFeed();
         });
     },
-    [hideToast, load, retryFeed],
+    [hideToast, retryFeed],
   );
 
   const undoDelete = useCallback(

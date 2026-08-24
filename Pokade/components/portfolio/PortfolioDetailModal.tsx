@@ -75,7 +75,7 @@ export default function PortfolioDetailModal({
             <div className="mt-0.5 text-[12.5px] text-[#9A9AA2]">{variantLabel(item.variantName)}</div>
           )}
           <div className="mt-4 flex items-center justify-between text-[13px]">
-            <span className="text-[#8A8A92]">취득가</span>
+            <span className="text-[#8A8A92]">카드 구매가</span>
             <span className="font-semibold">
               {item.acquiredPrice != null ? `${item.acquiredPrice.toLocaleString("ko-KR")}원` : "-"}
             </span>

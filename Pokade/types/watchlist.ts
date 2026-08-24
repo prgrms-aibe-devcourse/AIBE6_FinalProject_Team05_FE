@@ -39,12 +39,20 @@ export interface WatchlistCountResponse {
 }
 
 // PATCH /api/watchlist/{id} 요청 바디 — com.pokade.domain.watchlist.dto.WatchlistUpdateRequest 미러링.
-// 등록(POST)과 달리 목표가가 필수다 — targetBuyPrice/targetSellPrice 둘 다 없으면 BE가
-// 400(TARGET_PRICE_REQUIRED) 반환. 단 resendNotification=true면 이 검증을 건너뛴다(가격 없이
+// 안 보낸 가격 필드는 "기존 값 유지"로 해석된다. 그래서 목표가를 지우는 건 값으로는 표현할 수
+// 없고(빈 값을 보낼 방법이 없다) 아래 clear* 플래그로만 가능하다.
+//
+// 요청이 유효하려면 가격이든 clear 플래그든 최소 하나는 있어야 한다 — 둘 다 없는 빈 요청만
+// 400(TARGET_PRICE_REQUIRED)이다. 단 resendNotification=true면 이 검증을 건너뛴다(가격 없이
 // 재알림 리셋만 요청 가능).
 export interface WatchlistUpdateRequest {
   targetBuyPrice?: number;
   targetSellPrice?: number;
+  // 해당 목표가를 null로 되돌린다. 같은 칸의 가격과 동시에 보내면 BE가 INVALID_INPUT으로
+  // 거절하므로("얼마로 바꿔라"와 "지워라"가 모순), 지울 칸은 값을 빼고 이 플래그만 보낸다.
+  // 둘 다 지우는 것도 허용 — 목표가 미설정 상태로 되돌아간다.
+  clearTargetBuyPrice?: boolean;
+  clearTargetSellPrice?: boolean;
   // true면 가격 검증 없이 isNotified만 false로 리셋한다. 생략(undefined)/false는
   // "재알림 요청 없음"으로 기존 동작과 동일.
   resendNotification?: boolean;
