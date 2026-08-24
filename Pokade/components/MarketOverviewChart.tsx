@@ -57,11 +57,10 @@ function ChangeBadge({ label, rate }: { label: string; rate: number | null }) {
   );
 }
 
-// 전일 대비 거래가 중간값 변동 - 비율뿐 아니라 원화 금액도 같이 보여준다(사용자 요청).
-// amount/rate 둘 다 있어야 의미가 있으므로, 어느 한쪽이라도 null이면 통째로 "-" 처리한다
-// (BE가 두 값을 항상 같이 채우거나 같이 비워두므로 실제로는 둘 다 null이거나 둘 다 값이 있다).
-function AmountChangeBadge({ label, amount, rate }: { label: string; amount: number | null; rate: number | null }) {
-  if (amount === null || rate === null) {
+// 전일 대비 변동 - 비율뿐 아니라 실제 값(원/건)도 같이 보여준다(사용자 요청). rate가 없어도
+// amount는 그대로 보여준다(예: 거래량은 어제가 0건이면 rate는 null이지만 amount는 항상 있음).
+function AmountChangeBadge({ label, amount, rate, unit }: { label: string; amount: number | null; rate: number | null; unit: string }) {
+  if (amount === null) {
     return (
       <span className="text-[12px] font-semibold text-[#B4B4BC]">
         {label} -
@@ -73,8 +72,11 @@ function AmountChangeBadge({ label, amount, rate }: { label: string; amount: num
   const cls = isFlat ? "text-[#9A9AA2]" : isRise ? "text-primary" : "text-secondary";
   return (
     <span className={`text-[12.5px] font-bold ${cls}`}>
-      {isFlat ? "-" : isRise ? "▲" : "▼"} {Math.abs(amount).toLocaleString("ko-KR")}원 ({isFlat ? "" : isRise ? "+" : "-"}
-      {Math.abs(rate).toFixed(2)}%)
+      {isFlat ? "-" : isRise ? "▲" : "▼"} {Math.abs(amount).toLocaleString("ko-KR")}
+      {unit}
+      {rate !== null && (
+        <> ({isFlat ? "" : isRise ? "+" : "-"}{Math.abs(rate).toFixed(2)}%)</>
+      )}
       <span className="ml-1 font-semibold text-[#9A9AA2]">{label}</span>
     </span>
   );
@@ -83,6 +85,7 @@ function AmountChangeBadge({ label, amount, rate }: { label: string; amount: num
 export default function MarketOverviewChart({
   todayVolume,
   volumeChangeRate,
+  volumeChangeAmount,
   todayMedianPrice,
   medianChangeRate1d,
   medianChangeAmount1d,
@@ -94,6 +97,7 @@ export default function MarketOverviewChart({
 }: {
   todayVolume: number;
   volumeChangeRate: number | null;
+  volumeChangeAmount: number;
   todayMedianPrice: number | null;
   medianChangeRate1d: number | null;
   medianChangeAmount1d: number | null;
@@ -122,7 +126,7 @@ export default function MarketOverviewChart({
             {loading ? (
               <span className="text-[12px] font-semibold text-[#B4B4BC]">전일 대비 -</span>
             ) : (
-              <ChangeBadge label="전일 대비" rate={volumeChangeRate} />
+              <AmountChangeBadge label="전일 대비" amount={volumeChangeAmount} rate={volumeChangeRate} unit="건" />
             )}
           </div>
         </div>
@@ -135,7 +139,7 @@ export default function MarketOverviewChart({
             {loading ? (
               <span className="text-[12px] font-semibold text-[#B4B4BC]">전일 대비 -</span>
             ) : (
-              <AmountChangeBadge label="전일 대비" amount={medianChangeAmount1d} rate={medianChangeRate1d} />
+              <AmountChangeBadge label="전일 대비" amount={medianChangeAmount1d} rate={medianChangeRate1d} unit="원" />
             )}
           </div>
         </div>
