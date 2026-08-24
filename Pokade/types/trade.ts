@@ -4,6 +4,7 @@ export type TradeStatus =
 
 // POST /api/trades/ready 응답 — com.pokade.domain.trade.dto.TradeReadyResponse 미러링.
 // 결제창을 띄우기 전 주문만 먼저 만든 상태라, 이 시점엔 아직 매물이 잠기지 않는다.
+// amount는 상품가+배송비에서 pointsToUse를 뺀, 실제 토스로 결제할 금액이다.
 export interface TradeReadyResponse {
   orderId: string;
   amount: number;
@@ -30,6 +31,7 @@ export interface TradeResponse {
   recipientPhone: string | null;
   recipientAddress: string | null;
   createdAt: string;
+  pointsUsed: number | null;
 }
 
 // 라우트 파라미터(문자열)를 거래 id로 파싱 — 양의 정수가 아니면 null (types/card.ts의 parseCardId와 동일 규칙).
