@@ -27,6 +27,7 @@ export default function CardImage({
         src={src}
         alt={resolvedAlt}
         fill
+        unoptimized
         sizes="(min-width: 768px) 25vw, 50vw"
         onError={() => setFailed(true)}
         className={`object-cover ${rounded} ${className}`}

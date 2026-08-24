@@ -1,20 +1,22 @@
 import { RankingItem } from "@/types/chat";
 
-function formatPrice(price: number): string {
+function formatPrice(price: number | null | undefined): string {
+  if (price == null) return "-";
   return price.toLocaleString("ko-KR") + "원";
 }
 
-function formatChangeRate(rate: number): string {
-  if (rate === 0) return "0%";
+function formatChangeRate(rate: number | null | undefined): string {
+  if (rate == null || rate === 0) return "0%";
   return (rate > 0 ? "+" : "") + rate.toFixed(1) + "%";
 }
 
-function formatChangeAmount(amount: number): string {
-  if (amount === 0) return "0원";
+function formatChangeAmount(amount: number | null | undefined): string {
+  if (amount == null || amount === 0) return "0원";
   return (amount > 0 ? "+" : "") + amount.toLocaleString("ko-KR") + "원";
 }
 
-function changeColor(value: number): string {
+function changeColor(value: number | null | undefined): string {
+  if (value == null) return "text-[#4B4B55]";
   if (value > 0) return "text-[#E03131]"; // 급등 빨간색
   if (value < 0) return "text-[#1971C2]"; // 급락 파란색
   return "text-[#4B4B55]";

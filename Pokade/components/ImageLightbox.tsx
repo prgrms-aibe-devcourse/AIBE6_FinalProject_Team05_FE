@@ -53,6 +53,7 @@ export default function ImageLightbox({ isOpen, onClose, imageSrc, alt }: ImageL
               alt={alt}
               width={500}
               height={700}
+              unoptimized
               sizes="90vw"
               className="h-auto max-h-[90vh] w-auto max-w-[90vw] rounded-2xl object-contain shadow-[0_25px_60px_rgba(0,0,0,0.45)]"
             />
