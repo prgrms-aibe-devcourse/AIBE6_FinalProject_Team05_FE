@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import BuyOfferCompletedNotice from "@/components/BuyOfferCompletedNotice";
 import { confirmBuyOfferPayment } from "@/lib/buyOfferApi";
 import { ApiError } from "@/lib/apiClient";
 
@@ -17,11 +18,12 @@ export default function BuyOfferCheckoutSuccessPage() {
   );
 }
 
-// app/trades/checkout/success/page.tsx와 동일한 구조 - 구매입찰은 상세 상태 페이지가 없으므로
-// 성공 시 카드 상세로 이동한다(cardId는 checkout 페이지가 쿼리로 넘겨준 값을 그대로 이어받는다).
+// app/trades/checkout/success/page.tsx와 유사한 구조. 성공하면 바로 카드 상세로 이동시키지 않고
+// "입찰이 완료되었습니다" 안내(BuyOfferCompletedNotice)를 보여준다 - 사용자 요청.
 function BuyOfferCheckoutSuccessContent() {
   const searchParams = useSearchParams();
   const [state, setState] = useState<ConfirmState>("confirming");
+  const [cardId, setCardId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const requestedRef = useRef(false);
 
@@ -42,9 +44,8 @@ function BuyOfferCheckoutSuccessContent() {
 
     confirmBuyOfferPayment(orderId, Number(amount), paymentKey)
       .then((buyOffer) => {
-        // 완전한 새 페이지 로드로 이동 - trades/checkout/success와 동일한 이유(토스 리다이렉트
-        // 직후 세션 복원 타이밍 문제를 피하기 위함).
-        window.location.href = `/cards/${buyOffer.cardId}`;
+        setCardId(buyOffer.cardId);
+        setState("success");
       })
       .catch((err) => {
         setErrorMessage(err instanceof ApiError ? err.message : "구매입찰 등록에 실패했습니다.");
@@ -59,6 +60,8 @@ function BuyOfferCheckoutSuccessContent() {
         {state === "confirming" && (
           <p className="text-[15px] font-semibold text-[#4B4B52]">결제를 확인하고 있습니다...</p>
         )}
+
+        {state === "success" && cardId !== null && <BuyOfferCompletedNotice cardId={cardId} />}
 
         {state === "error" && (
           <>
