@@ -62,6 +62,8 @@ export default function AddWatchlistModal(props: AddWatchlistModalProps) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const buyPriceInputRef = useRef<HTMLInputElement>(null);
+  // 이번 클릭이 오버레이에서 "시작"됐는지. 아래 오버레이 onClick의 판정 기준이다.
+  const overlayMouseDownRef = useRef(false);
 
   // buy/sell 기본값은 빈 문자열(등록 모드). 수정 모드 오픈 시 아래 useEffect가 기존 값으로 덮어쓴다.
   const resetForm = useCallback((buy = "", sell = "") => {
@@ -195,15 +197,25 @@ export default function AddWatchlistModal(props: AddWatchlistModalProps) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-      onClick={handleClose}
+      // 배경을 눌러 닫는 동작은 click의 target만으로는 판정할 수 없다. 브라우저는 mousedown과
+      // mouseup 지점이 다르면 click의 target을 그 둘의 공통 조상으로 정하는데, 목표가 입력창에서
+      // 드래그를 시작해 오버레이에서 손을 떼면 그 공통 조상이 바로 이 오버레이다 — 즉 e.target이
+      // 진짜로 오버레이가 되어 어떤 target 검사도 통과한다(그래서 입력값이 통째로 날아갔다).
+      // 그래서 "어디서 끝났나"가 아니라 "어디서 시작했나"를 mousedown에 기록해 두고 그걸로 닫는다.
+      // click의 target 검사를 함께 두는 이유: 패널 안에서 시작해 패널 안에서 끝난 클릭은 애초에
+      // 여기까지 버블링되지만 target이 패널 하위 노드라 걸러진다(패널 쪽 stopPropagation이 필요 없다).
+      onMouseDown={(e) => {
+        overlayMouseDownRef.current = e.target === e.currentTarget;
+      }}
+      onClick={(e) => {
+        if (overlayMouseDownRef.current && e.target === e.currentTarget) handleClose();
+        overlayMouseDownRef.current = false;
+      }}
       role="dialog"
       aria-modal="true"
       aria-label={title}
     >
-      <div
-        className="w-full max-w-[380px] rounded-2xl bg-white p-6"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="w-full max-w-[380px] rounded-2xl bg-white p-6">
         <div className="mb-5 flex items-center justify-between">
           <h2 className="text-[16px] font-extrabold">{title}</h2>
           <button
