@@ -133,7 +133,7 @@ export interface ListingCreateRequest {
   cardId: number;
   variantId?: number;
   price: number;
-  grade?: ListingGrade;
+  grade: ListingGrade;
   settlementBankName: string;
   settlementAccountNumber: string;
   settlementAccountHolder: string;

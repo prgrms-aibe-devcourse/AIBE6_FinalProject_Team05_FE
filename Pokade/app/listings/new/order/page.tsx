@@ -107,6 +107,7 @@ function NewListingOrderForm() {
     !price ||
     !Number.isFinite(price) ||
     price <= 0 ||
+    grade == null ||
     (variantIdParam != null && (!Number.isInteger(variantId) || (variantId ?? 0) <= 0))
   ) {
     return (
