@@ -103,6 +103,7 @@ export interface DailyMarketStatResponse {
 export interface MarketOverviewResponse {
   todayVolume: number;
   volumeChangeRate: number | null;
+  volumeChangeAmount: number;
   todayMedianPrice: number | null;
   medianChangeRate1d: number | null;
   medianChangeAmount1d: number | null;

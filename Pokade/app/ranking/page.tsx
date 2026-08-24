@@ -237,6 +237,7 @@ export default function RankingPage() {
               <MarketOverviewChart
                 todayVolume={overview?.todayVolume ?? 0}
                 volumeChangeRate={overview?.volumeChangeRate ?? null}
+                volumeChangeAmount={overview?.volumeChangeAmount ?? 0}
                 todayMedianPrice={overview?.todayMedianPrice ?? null}
                 medianChangeRate1d={overview?.medianChangeRate1d ?? null}
                 medianChangeAmount1d={overview?.medianChangeAmount1d ?? null}
