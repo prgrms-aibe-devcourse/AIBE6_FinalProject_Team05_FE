@@ -79,6 +79,9 @@ export type RankingType = "rise" | "fall";
 export interface PriceRankingResponse {
   cardId: number;
   cardName: string | null;
+  // 한글 매핑이 없으면 null(어설픈 오번역보다 안전하다는 BE 쪽 설계, watchlist.ts와 동일).
+  // 표시할 땐 cardNameKo ?? cardName.
+  cardNameKo: string | null;
   imageUrl: string | null;
   price: number;
   changeRate: number;
