@@ -45,13 +45,16 @@ function StatusBadge({ status, className = "" }: { status: Status; className?: s
   );
 }
 
-// 배지 3종의 뜻. 배지 자체에는 툴팁이 없고, 뜻을 짐작하게 해 주던 안내 문구는 빈 상태 카드
+// 배지 3종의 뜻. 배지에는 아무 설명이 없고, 뜻을 짐작하게 해 주던 안내 문구는 빈 상태 카드
 // 안에만 있어 카드가 한 장이라도 생기면 사라진다 — 특히 "대기중"은 배지만 봐서는 무엇을
-// 기다리는 중인지(목표가 도달 전) 알 수 없어 목록이 있을 때 헤더에서 대신 설명한다.
-const STATUS_LEGEND: { status: Status; desc: string }[] = [
-  { status: "미설정", desc: "목표가 없음" },
-  { status: "대기중", desc: "목표가 도달 전" },
-  { status: "목표도달", desc: "알림 발송됨" },
+// 기다리는 중인지(목표가 도달 전) 알 수 없다. 표 헤더의 도움말 아이콘 한 곳에서만 노출한다.
+//
+// name을 string이 아니라 Status로 묶어 둔다 — 상태 이름이 바뀌거나 늘었을 때 설명이 조용히
+// 어긋나는 대신 컴파일에서 걸리게 하기 위함이다.
+const STATUS_HELP: { name: Status; desc: string }[] = [
+  { name: "미설정", desc: "목표가 없음" },
+  { name: "대기중", desc: "목표가 도달 전" },
+  { name: "목표도달", desc: "알림 발송됨" },
 ];
 
 type LoadState = "loading" | "error" | "ready";
@@ -321,22 +324,6 @@ export default function WatchlistPage() {
             <p className="mt-1.5 text-sm text-[#8A8A92]">
               관심 카드의 목표가 도달 알림을 관리하세요
             </p>
-            {/* 범례는 아래 표/카드의 배지와 같은 StatusBadge를 그대로 쓴다 — 색을 새로 만들지
-                않을뿐더러, 모양이 같아야 "여기 설명한 그것"이 표의 배지와 곧바로 이어진다.
-                목록이 비어 있으면 숨긴다(빈 상태 카드가 이미 자기 안내를 갖고 있다). */}
-            {loadState === "ready" && rows.length > 0 && (
-              <ul className="m-0 mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 p-0 text-[13px] text-[#8A8A92]">
-                {STATUS_LEGEND.map(({ status, desc }) => (
-                  <li
-                    key={status}
-                    className="flex list-none items-center gap-1.5 before:text-[#D5D5DC] before:content-['·'] first:before:content-none"
-                  >
-                    <StatusBadge status={status} />
-                    {desc}
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
           {/* 상한 대비 현재 등록 수. rows는 원본이라 탭 필터와 무관하게 총계를 유지한다.
               18개 이상(남은 자리 2개 이하)에서 앰버로 전환, 색각 이상 대비 문구도 함께 표시. */}
@@ -454,7 +441,53 @@ export default function WatchlistPage() {
                         <div>현재 시세</div>
                         <div>목표가</div>
                         <div>등락</div>
-                        <div>상태</div>
+                        {/* 도움말은 이 헤더 한 곳에만 둔다 — 행마다 붙이면 20번 반복되고, 뜻은
+                            행이 아니라 컬럼 전체에 걸리는 정보다. placement가 top이 아닌 이유:
+                            헤더는 표의 첫 줄이고 바깥 래퍼가 overflow-hidden이라 위로 뜨면
+                            잘린다. align이 right인 이유: 상태 컬럼이 표 오른쪽 끝(가로 87%
+                            지점)이라 중앙 정렬이면 툴팁 절반이 컨테이너 밖으로 나간다. */}
+                        <div className="flex items-center gap-1">
+                          상태
+                          <IconTooltip
+                            placement="bottom"
+                            align="right"
+                            label={
+                              <span className="flex flex-col gap-1 text-left font-normal">
+                                {STATUS_HELP.map(({ name, desc }) => (
+                                  <span key={name}>
+                                    <b className="font-bold">{name}</b> — {desc}
+                                  </span>
+                                ))}
+                              </span>
+                            }
+                          >
+                            {/* 툴팁 본문은 aria-hidden(IconTooltip)이라 스크린리더에는 이
+                                aria-label만 전달된다. 누를 것이 없는 도움말이지만 button으로
+                                두는 이유는 키보드 포커스 — group-focus-within으로 툴팁이
+                                뜨려면 초점을 받을 수 있어야 한다. */}
+                            <button
+                              type="button"
+                              aria-label={`상태 설명. ${STATUS_HELP.map(({ name, desc }) => `${name}은 ${desc}`).join(", ")}`}
+                              className="flex h-4 w-4 items-center justify-center rounded-full text-[#C4C4CC] outline-none transition-colors hover:text-[#8A8A92] focus-visible:ring-2 focus-visible:ring-secondary"
+                            >
+                              <svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                aria-hidden="true"
+                              >
+                                <circle cx="12" cy="12" r="10" />
+                                <path d="M9.2 9.2a2.9 2.9 0 015.6 1c0 1.9-2.8 2.4-2.8 2.4" />
+                                <path d="M12 17.2h.01" />
+                              </svg>
+                            </button>
+                          </IconTooltip>
+                        </div>
                         <div />
                       </div>
                       {sorted.map((row, i) => {
