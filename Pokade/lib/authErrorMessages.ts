@@ -21,6 +21,26 @@ const AUTH_ERROR_MESSAGES: Record<string, string> = {
   NOT_WITHDRAWAL_PENDING: "탈퇴 진행 중인 상태가 아닙니다.",
 };
 
+// 통신·서버 문제는 사용자가 입력을 고쳐서 해결할 수 없다. 자격 증명 오류와 같은 모양으로
+// 보여주면 "내 계정에 문제가 있다"로 읽혀 원인 진단을 방해한다(#282).
+const CONNECTION_ERROR_CODES = new Set(["NETWORK_ERROR", "REQUEST_TIMEOUT"]);
+
+export type AuthErrorKind = "credential" | "connection";
+
+export interface AuthErrorInfo {
+  kind: AuthErrorKind;
+  message: string;
+}
+
+// 오류를 "사용자가 고칠 수 있는 것(credential)"과 "기다렸다 다시 시도할 것(connection)"으로 나눈다.
+// 문구 결정은 authErrorMessage에 그대로 위임해 한 곳에서만 관리한다.
+export function authErrorInfo(e: unknown, fallback?: string): AuthErrorInfo {
+  if (e instanceof ApiError && CONNECTION_ERROR_CODES.has(e.code)) {
+    return { kind: "connection", message: e.message };
+  }
+  return { kind: "credential", message: authErrorMessage(e, fallback) };
+}
+
 // ApiError면 코드별 메시지(미매핑은 서버가 준 메시지), 그 외는 fallback
 export function authErrorMessage(
   e: unknown,

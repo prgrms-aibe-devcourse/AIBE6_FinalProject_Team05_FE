@@ -5,7 +5,7 @@ import Link from "next/link";
 import { signup, sendEmailCode } from "@/lib/authApi";
 import { useRouter } from "next/navigation";
 import { ApiError } from "@/lib/apiClient";
-import { authErrorMessage } from "@/lib/authErrorMessages";
+import { authErrorInfo, type AuthErrorInfo } from "@/lib/authErrorMessages";
 import EmailVerificationForm from "@/components/EmailVerificationForm";
 import AgreementSection, {
   Agreements,
@@ -23,8 +23,13 @@ export default function SignupPage() {
   const [birth, setBirth] = useState("");
   const [signedUp, setSignedUp] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setErrorState] = useState<AuthErrorInfo | null>(null);
   const [needVerify, setNeedVerify] = useState(false);
+
+  // 입력 검증 실패는 전부 사용자가 고칠 수 있는 오류라 문자열을 그대로 받는다.
+  // 통신 오류만 authErrorInfo로 분류해 넘긴다(#282).
+  const setError = (e: string | AuthErrorInfo | null) =>
+    setErrorState(typeof e === "string" ? { kind: "credential", message: e } : e);
   const [agreements, setAgreements] = useState<Agreements>(EMPTY_AGREEMENTS);
 
   // 생년월일 완성 여부 + 만 나이(월·일까지) 계산
@@ -98,7 +103,7 @@ export default function SignupPage() {
         setNeedVerify(true);
         sessionStorage.setItem("pendingVerifyEmail", email.trim());
       } else {
-        setError(authErrorMessage(e));
+        setError(authErrorInfo(e));
       }
     } finally {
       setSubmitting(false);
@@ -233,13 +238,31 @@ export default function SignupPage() {
               <AgreementSection value={agreements} onChange={setAgreements} />
             </div>
 
-            {error && (
-              <p
+            {error?.kind === "connection" ? (
+              // 통신 오류는 입력 문제가 아니다. 빨간 경고 대신 중립 톤 + 재시도 수단을 준다.
+              <div
                 role="alert"
-                className="mt-4 rounded-[11px] border border-[#F6C6C6] bg-[#FFF1F1] px-[15px] py-3 text-[13px] font-semibold text-[#C21414]"
+                className="mt-4 rounded-[11px] border border-[#DDDDE3] bg-[#F7F7F8] px-[15px] py-3"
               >
-                {error}
-              </p>
+                <p className="text-[13px] font-semibold text-[#4B4B52]">{error.message}</p>
+                <button
+                  type="button"
+                  onClick={handleStep1Submit}
+                  disabled={submitting}
+                  className="mt-2 text-[12.5px] font-bold text-secondary underline underline-offset-2 disabled:text-[#A0A0A8] disabled:no-underline"
+                >
+                  {submitting ? "다시 시도하는 중…" : "다시 시도"}
+                </button>
+              </div>
+            ) : (
+              error && (
+                <p
+                  role="alert"
+                  className="mt-4 rounded-[11px] border border-[#F6C6C6] bg-[#FFF1F1] px-[15px] py-3 text-[13px] font-semibold text-[#C21414]"
+                >
+                  {error.message}
+                </p>
+              )
             )}
             {needVerify && (
               <button
