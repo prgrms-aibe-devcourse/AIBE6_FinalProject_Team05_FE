@@ -144,6 +144,81 @@ interface SearchFilterSidebarProps {
   resetFilters: () => void;
 }
 
+// 필터 체크박스(#238) — 브라우저 기본 체크박스는 OS 기본색(파란색)이라 이 화면에서 유일하게
+// 팔레트 밖 색이었다. appearance-none으로 "그리기"만 가져오고 <input type="checkbox"> 요소
+// 자체는 그대로 두므로 Tab 이동/Space 토글/label 연결·클릭이 전부 기존과 동일하게 유지된다.
+// 체크 표시는 인라인 SVG를 background-image로 얹는다 — input은 대체 요소라 ::after가 렌더되지
+// 않아 가상 요소로는 그릴 수 없고, 이 방식은 아이콘 컴포넌트나 파일을 추가하지 않아도 된다.
+// 선택 상태는 primary 면 + 흰 체크만으로 알린다 — 그림자를 쓰지 않아 아래 패널/검색창과 같은
+// 선 기반 마감을 유지한다. 미선택은 2px #C9C9CF 각진 테두리, radius 2px로 카드 마켓 톤을 따른다.
+// appearance-none은 기본 포커스 링까지 지우므로 focus-visible 링을 직접 되살린다.
+const FILTER_CHECKBOX_CLASS = [
+  "h-4 w-4 flex-shrink-0 cursor-pointer appearance-none rounded-[2px] border-2 border-[#C9C9CF] bg-white",
+  "bg-center bg-no-repeat",
+  "checked:border-primary-dark checked:bg-primary",
+  "checked:bg-[url(data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2010%2010%22%3E%3Cpath%20d=%22M1.6%205.3L3.9%207.4L8.4%202.7%22%20fill=%22none%22%20stroke=%22white%22%20stroke-width=%222%22/%3E%3C/svg%3E)] checked:bg-[length:10px_10px]",
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
+].join(" ");
+
+// 아코디언 화살표(#238) — 텍스트 글리프는 폰트/OS에 따라 두께와 세로 정렬이 달라 흐릿하다.
+// clip-path 삼각형은 어디서나 픽셀이 딱 떨어지고 rotate-90도 깔끔하게 돈다. 섹션 헤더/세트
+// series/레어도 그룹 3곳이 같은 모양을 쓰므로 한 컴포넌트로 묶는다.
+function AccordionChevron({ expanded }: { expanded: boolean }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`h-2 w-2 flex-shrink-0 bg-[#9A9AA2] transition-transform [clip-path:polygon(0_0,100%_50%,0_100%)] ${
+        expanded ? "rotate-90" : ""
+      }`}
+    />
+  );
+}
+
+// 필터 섹션 아코디언(#238) — 5개 섹션이 전부 펼쳐진 채 고정이라 사이드바 콘텐츠가 1,400px를
+// 넘어(패널 가시 높이의 2배 이상) 레어도/언어/가격대는 존재 자체가 스크롤해야 보였다.
+type FilterSectionKey = "set" | "type" | "rarity" | "language" | "price";
+
+// 섹션 헤더 — 세트/레어도 "하위 그룹" 아코디언과 같은 마크업(aria-expanded/aria-controls +
+// AccordionChevron 회전)을 그대로 쓰되, 접힌 상태에서도 뭘 골랐는지 알 수 있게 선택 개수
+// 배지를 붙인다.
+// 가격대처럼 개수 세기가 어색한 섹션은 "적용됨"을 1로 넘긴다 — 결과 영역의 필터 칩도 가격대를
+// 칩 하나로 세므로 배지 숫자와 칩 개수가 어긋나지 않는다.
+function FilterSectionHeader({
+  title,
+  panelId,
+  expanded,
+  selectedCount,
+  onToggle,
+}: {
+  title: string;
+  panelId: string;
+  expanded: boolean;
+  selectedCount: number;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={expanded}
+      aria-controls={panelId}
+      // 선 기반(#238): 배경으로 감싼 카드형 행 대신 구분선으로만 나뉘는 목록 행으로 바꾼다 —
+      // rounded-md/hover 배경을 걷어내고, hover 피드백은 글자색 변화로만 준다.
+      className="flex w-full items-center justify-between py-3 text-[12.5px] font-bold text-[#4B4B52] transition-colors hover:text-ink"
+    >
+      <span className="flex items-baseline gap-1.5">
+        {title}
+        {/* 선택 개수는 채운 배지 대신 숫자만 둔다 — pill 형태를 줄이면서도 primary 색으로
+            "선택됨"은 그대로 읽힌다. 개수 계산 로직(selectedCounts)은 기존 것을 그대로 쓴다. */}
+        {selectedCount > 0 && (
+          <span className="text-[11.5px] font-extrabold text-primary">{selectedCount}</span>
+        )}
+      </span>
+      <AccordionChevron expanded={expanded} />
+    </button>
+  );
+}
+
 // SearchResultsView의 필터 사이드바/드로어 — 세트(series 그룹)/타입/레어도(그룹)/언어/가격대
 // 필터 전부와 그 UI 전용 상태를 담는다(#142, 순수 구조 분리). 필터 "선택값"(selectedTypes 등)은
 // 여전히 page.tsx가 소유해 props로만 받고, 세트/레어도 그룹의 펼침 여부(expandedSeries/
@@ -211,6 +286,37 @@ export default function SearchFilterSidebar({
     setPrevPriceMax(priceMax);
     setMaxInputText(priceMax.toLocaleString("ko-KR"));
   }
+
+  // 섹션별 선택 개수 — 헤더 배지, 초기 펼침 판단, 상단 "N개 선택" 요약이 모두 같은 값을 써야
+  // 어긋나지 않으므로 한 곳에서만 센다(이전에는 세 군데에 같은 식이 흩어져 있었다).
+  const selectedCounts = {
+    set: selectedExpansionId ? 1 : 0,
+    type: selectedTypes.length,
+    rarity: selectedRarities.length,
+    language: selectedLanguages.length,
+    price: priceMin > 0 || priceMax < PRICE_MAX ? 1 : 0,
+  };
+  const totalSelected = Object.values(selectedCounts).reduce((sum, n) => sum + n, 0);
+
+  // 초기 펼침: 이미 선택값이 있는 섹션은 자동으로 펼쳐 "필터를 열었는데 내가 고른 값이 안 보이는"
+  // 상황을 피한다(아래 expandedSeries/expandedRarityGroups가 하위 그룹에 쓰는 규칙과 동일).
+  // 새로고침/뒤로가기로 URL의 필터가 복원된 경우에도 page.tsx가 첫 렌더에 이미 그 값을 props로
+  // 넘겨주므로 여기서 그대로 반영된다. 아무것도 선택돼 있지 않으면 가장 자주 쓰는 타입만 펼친다.
+  const [expandedSections, setExpandedSections] = useState<Set<FilterSectionKey>>(() => {
+    const initial = new Set<FilterSectionKey>();
+    for (const [key, count] of Object.entries(selectedCounts)) {
+      if (count > 0) initial.add(key as FilterSectionKey);
+    }
+    if (initial.size === 0) initial.add("type");
+    return initial;
+  });
+
+  const toggleSection = (key: FilterSectionKey) => {
+    const next = new Set(expandedSections);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setExpandedSections(next);
+  };
 
   // 세트는 항상 series 기준 아코디언으로 묶어서 보여준다 — BE가 이미 series 그룹
   // 최신순 → 그룹 내부 이름순으로 정렬해 내려주므로 여기서는 순서를 재정렬하지 않고
@@ -296,6 +402,7 @@ export default function SearchFilterSidebar({
     <label key={r} className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]">
       <input
         type="checkbox"
+        className={FILTER_CHECKBOX_CLASS}
         checked={selectedRarities.includes(r)}
         onChange={() => {
           setLoadState("loading");
@@ -327,227 +434,279 @@ export default function SearchFilterSidebar({
       <div
         ref={filterPanelRef}
         tabIndex={-1}
+        // 스타일 경계(#238): 이 패널 껍데기는 결과 카드와 같은 페이지 레벨 카드 언어(rounded-2xl
+        // + shadow-card)를 유지하고, 안의 섹션/체크박스/칩만 선 기반으로 재설계했다 — 의도된
+        // 이중 언어이지 정리가 덜 된 게 아니다.
         // lg의 max-h/overflow-y-auto(#235): sticky top-[88px]로 붙여둬도 필터 자체가 뷰포트보다
         // 길면(아코디언을 펼치면 쉽게 그렇게 된다) 아래쪽이 화면 밖으로 나가 sticky가 무의미해진다.
         // 헤더(88px) + 아래 여백(16px)을 뺀 높이로 잘라 필터가 자체 스크롤되게 한다.
         className="max-h-[85vh] w-full overflow-y-auto rounded-t-2xl border border-[#EDEDF0] bg-white p-[22px] outline-none lg:sticky lg:top-[88px] lg:max-h-[calc(100vh-104px)] lg:w-auto lg:overflow-y-auto lg:rounded-2xl lg:shadow-card"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-4 flex items-center justify-between lg:relative">
-          <span className="flex items-center gap-1.5 text-[15px] font-extrabold">
+        {/* 상단 행(#238) — "필터 / 초기화"를 한 줄에 놓고, 아래 섹션 목록과 같은 구분선으로
+            끊는다. 초기화가 맨 아래에 있으면 섹션을 다 지나쳐야 보여 발견이 늦었다.
+            "N개 선택"은 섹션을 접어둔 상태에서도 지금 몇 개가 걸려 있는지 알려준다. */}
+        <div className="flex items-center justify-between border-b border-[#F0F0F0] pb-3">
+          <span className="flex items-baseline gap-2 text-[15px] font-extrabold">
             <span id="filter-drawer-title">필터</span>
+            {totalSelected > 0 && (
+              <span className="text-[12px] font-bold text-[#9A9AA2]">{totalSelected}개 선택</span>
+            )}
           </span>
-          <button
-            type="button"
-            onClick={() => setFilterOpen(false)}
-            aria-label="필터 닫기"
-            className="flex h-6 w-6 items-center justify-center rounded-full text-[#9A9AA2] hover:bg-[#F2F2F5] hover:text-ink lg:hidden"
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={resetFilters}
+              disabled={totalSelected === 0}
+              className="px-1 py-1 text-[12.5px] font-bold text-[#9A9AA2] transition-colors enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              초기화
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterOpen(false)}
+              aria-label="필터 닫기"
+              className="flex h-6 w-6 items-center justify-center rounded-[6px] text-[#9A9AA2] hover:bg-[#F2F2F5] hover:text-ink lg:hidden"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+        <FilterSectionHeader
+          title="세트"
+          panelId="filter-section-set"
+          expanded={expandedSections.has("set")}
+          selectedCount={selectedCounts.set}
+          onToggle={() => toggleSection("set")}
+        />
+        {expandedSections.has("set") && (
+          <div
+            id="filter-section-set"
+            className="flex max-h-[260px] flex-col gap-1 overflow-y-auto pb-4"
           >
-            ×
-          </button>
-        </div>
-        <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">세트</div>
-        <div className="mb-5 flex max-h-[260px] flex-col gap-1 overflow-y-auto">
-          {facetsLoading ? (
-            <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
-          ) : (
-            [...seriesGroups.entries()].map(([series, options], i) => {
-              const isExpanded = expandedSeries.has(series);
-              const panelId = `set-series-panel-${i}`;
-              return (
-                <div key={series}>
-                  <button
-                    type="button"
-                    onClick={() => toggleSeries(series)}
-                    aria-expanded={isExpanded}
-                    aria-controls={panelId}
-                    className="flex w-full items-center justify-between rounded-md px-1 py-1.5 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F2F2F5]"
-                  >
-                    <span>{series}</span>
-                    <span
-                      aria-hidden="true"
-                      className={`text-[10px] text-[#9A9AA2] transition-transform ${isExpanded ? "rotate-90" : ""}`}
+            {facetsLoading ? (
+              <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
+            ) : (
+              [...seriesGroups.entries()].map(([series, options], i) => {
+                const isExpanded = expandedSeries.has(series);
+                const panelId = `set-series-panel-${i}`;
+                return (
+                  <div key={series}>
+                    <button
+                      type="button"
+                      onClick={() => toggleSeries(series)}
+                      aria-expanded={isExpanded}
+                      aria-controls={panelId}
+                      className="flex w-full items-center justify-between rounded-md px-1 py-1.5 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F2F2F5]"
                     >
-                      ▸
-                    </span>
-                  </button>
-                  {isExpanded && (
-                    <div id={panelId} className="flex flex-col gap-[9px] py-1 pl-3">
-                      {options.map(renderSetOption)}
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
-        <div className="mb-[18px] h-px bg-[#F0F0F0]" />
-        <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">타입</div>
-        <div className="mb-5 flex flex-col gap-[9px]">
-          {facetsLoading ? (
-            <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
-          ) : (
-            typeOptions.map((opt) => (
+                      <span>{series}</span>
+                      <AccordionChevron expanded={isExpanded} />
+                    </button>
+                    {isExpanded && (
+                      <div id={panelId} className="flex flex-col gap-[9px] py-1 pl-3">
+                        {options.map(renderSetOption)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+        <div className="h-px bg-[#F0F0F0]" />
+        <FilterSectionHeader
+          title="타입"
+          panelId="filter-section-type"
+          expanded={expandedSections.has("type")}
+          selectedCount={selectedCounts.type}
+          onToggle={() => toggleSection("type")}
+        />
+        {expandedSections.has("type") && (
+          <div id="filter-section-type" className="flex flex-col gap-[9px] pb-4">
+            {facetsLoading ? (
+              <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
+            ) : (
+              typeOptions.map((opt) => (
+                <label
+                  key={opt.value}
+                  className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
+                >
+                  <input
+                    type="checkbox"
+                    className={FILTER_CHECKBOX_CLASS}
+                    checked={selectedTypes.includes(opt.value)}
+                    onChange={() => {
+                      setLoadState("loading");
+                      setSelectedTypes(toggleValue(selectedTypes, opt.value));
+                    }}
+                  />
+                  {opt.value}
+                  <span className="text-[#9A9AA2]">
+                    ({(opt.count ?? 0).toLocaleString("ko-KR")})
+                  </span>
+                </label>
+              ))
+            )}
+          </div>
+        )}
+        <div className="h-px bg-[#F0F0F0]" />
+        <FilterSectionHeader
+          title="레어도"
+          panelId="filter-section-rarity"
+          expanded={expandedSections.has("rarity")}
+          selectedCount={selectedCounts.rarity}
+          onToggle={() => toggleSection("rarity")}
+        />
+        {expandedSections.has("rarity") && (
+          <div id="filter-section-rarity" className="flex flex-col gap-1 pb-4">
+            {facetsLoading ? (
+              <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
+            ) : (
+              [...rarityGroups.entries()].map(([groupName, rarities], i) => {
+                const isExpanded = expandedRarityGroups.has(groupName);
+                const panelId = `rarity-group-panel-${i}`;
+                return (
+                  <div key={groupName}>
+                    <button
+                      type="button"
+                      onClick={() => toggleRarityGroup(groupName)}
+                      aria-expanded={isExpanded}
+                      aria-controls={panelId}
+                      className="flex w-full items-center justify-between rounded-md px-1 py-1.5 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F2F2F5]"
+                    >
+                      <span>{groupName}</span>
+                      <AccordionChevron expanded={isExpanded} />
+                    </button>
+                    {isExpanded && (
+                      <div id={panelId} className="flex flex-col gap-[9px] py-1 pl-3">
+                        {rarities.map(renderRarityOption)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+        <div className="h-px bg-[#F0F0F0]" />
+        <FilterSectionHeader
+          title="언어"
+          panelId="filter-section-language"
+          expanded={expandedSections.has("language")}
+          selectedCount={selectedCounts.language}
+          onToggle={() => toggleSection("language")}
+        />
+        {expandedSections.has("language") && (
+          <div id="filter-section-language" className="flex flex-col gap-[9px] pb-4">
+            {LANGUAGE_OPTIONS.map((opt) => (
               <label
                 key={opt.value}
                 className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
               >
                 <input
                   type="checkbox"
-                  checked={selectedTypes.includes(opt.value)}
+                  className={FILTER_CHECKBOX_CLASS}
+                  checked={selectedLanguages.includes(opt.value)}
                   onChange={() => {
                     setLoadState("loading");
-                    setSelectedTypes(toggleValue(selectedTypes, opt.value));
+                    setSelectedLanguages(toggleValue(selectedLanguages, opt.value));
                   }}
                 />
-                {opt.value}
-                <span className="text-[#9A9AA2]">({(opt.count ?? 0).toLocaleString("ko-KR")})</span>
+                {opt.label}
               </label>
-            ))
-          )}
-        </div>
-        <div className="mb-[18px] h-px bg-[#F0F0F0]" />
-        <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">레어도</div>
-        <div className="mb-5 flex max-h-[260px] flex-col gap-1 overflow-y-auto">
-          {facetsLoading ? (
-            <span className="text-[12.5px] text-[#9A9AA2]">불러오는 중...</span>
-          ) : (
-            [...rarityGroups.entries()].map(([groupName, rarities], i) => {
-              const isExpanded = expandedRarityGroups.has(groupName);
-              const panelId = `rarity-group-panel-${i}`;
-              return (
-                <div key={groupName}>
-                  <button
-                    type="button"
-                    onClick={() => toggleRarityGroup(groupName)}
-                    aria-expanded={isExpanded}
-                    aria-controls={panelId}
-                    className="flex w-full items-center justify-between rounded-md px-1 py-1.5 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F2F2F5]"
-                  >
-                    <span>{groupName}</span>
-                    <span
-                      aria-hidden="true"
-                      className={`text-[10px] text-[#9A9AA2] transition-transform ${isExpanded ? "rotate-90" : ""}`}
-                    >
-                      ▸
-                    </span>
-                  </button>
-                  {isExpanded && (
-                    <div id={panelId} className="flex flex-col gap-[9px] py-1 pl-3">
-                      {rarities.map(renderRarityOption)}
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
-        <div className="mb-[18px] h-px bg-[#F0F0F0]" />
-        <div className="mb-[9px] text-[12.5px] font-bold text-[#4B4B52]">언어</div>
-        <div className="mb-5 flex flex-col gap-[9px]">
-          {LANGUAGE_OPTIONS.map((opt) => (
-            <label
-              key={opt.value}
-              className="flex cursor-pointer items-center gap-2 text-[13px] text-[#5A5A62]"
-            >
-              <input
-                type="checkbox"
-                checked={selectedLanguages.includes(opt.value)}
-                onChange={() => {
-                  setLoadState("loading");
-                  setSelectedLanguages(toggleValue(selectedLanguages, opt.value));
+            ))}
+          </div>
+        )}
+        <div className="h-px bg-[#F0F0F0]" />
+        <FilterSectionHeader
+          title="가격대"
+          panelId="filter-section-price"
+          expanded={expandedSections.has("price")}
+          selectedCount={selectedCounts.price}
+          onToggle={() => toggleSection("price")}
+        />
+        {expandedSections.has("price") && (
+          <div id="filter-section-price" className="pb-4">
+            <div className="mb-3 flex flex-col gap-2">
+              <label
+                htmlFor="price-min-input"
+                className="flex items-center gap-1.5 rounded-[9px] border border-[#DDDDE3] px-2.5 py-2 focus-within:border-primary"
+              >
+                <span className="shrink-0 text-[11px] font-semibold text-[#9A9AA2]">최소</span>
+                <input
+                  id="price-min-input"
+                  type="text"
+                  inputMode="numeric"
+                  value={minInputText}
+                  onChange={(e) => setMinInputText(formatPriceInputChange(e))}
+                  onBlur={(e) => handleMinChange(Number(sanitizePriceInput(e.target.value) || "0"))}
+                  className="w-full min-w-0 border-none p-0 text-right text-[12.5px] font-bold text-ink outline-none"
+                />
+                <span className="shrink-0 text-[11px] text-[#9A9AA2]">원</span>
+              </label>
+              <label
+                htmlFor="price-max-input"
+                className="flex items-center gap-1.5 rounded-[9px] border border-[#DDDDE3] px-2.5 py-2 focus-within:border-primary"
+              >
+                <span className="shrink-0 text-[11px] font-semibold text-[#9A9AA2]">최대</span>
+                <input
+                  id="price-max-input"
+                  type="text"
+                  inputMode="numeric"
+                  value={maxInputText}
+                  onChange={(e) => setMaxInputText(formatPriceInputChange(e))}
+                  onBlur={(e) => handleMaxChange(Number(sanitizePriceInput(e.target.value) || "0"))}
+                  className="w-full min-w-0 border-none p-0 text-right text-[12.5px] font-bold text-ink outline-none"
+                />
+                <span className="shrink-0 text-[11px] text-[#9A9AA2]">원</span>
+              </label>
+            </div>
+            <div className="relative h-6">
+              <div className="absolute left-0 right-0 top-[11px] h-1 rounded-sm bg-[#E7E7EB]" />
+              <div
+                className="absolute top-[11px] h-1 rounded-sm bg-primary"
+                style={{
+                  left: `${(priceMin / PRICE_MAX) * 100}%`,
+                  right: `${100 - (priceMax / PRICE_MAX) * 100}%`,
                 }}
               />
-              {opt.label}
-            </label>
-          ))}
-        </div>
-        <div className="mb-[18px] h-px bg-[#F0F0F0]" />
-        <div className="mb-3 text-[12.5px] font-bold text-[#4B4B52]">가격대</div>
-        <div className="mb-3 flex flex-col gap-2">
-          <label
-            htmlFor="price-min-input"
-            className="flex items-center gap-1.5 rounded-[9px] border border-[#DDDDE3] px-2.5 py-2 focus-within:border-primary"
-          >
-            <span className="shrink-0 text-[11px] font-semibold text-[#9A9AA2]">최소</span>
-            <input
-              id="price-min-input"
-              type="text"
-              inputMode="numeric"
-              value={minInputText}
-              onChange={(e) => setMinInputText(formatPriceInputChange(e))}
-              onBlur={(e) => handleMinChange(Number(sanitizePriceInput(e.target.value) || "0"))}
-              className="w-full min-w-0 border-none p-0 text-right text-[12.5px] font-bold text-ink outline-none"
-            />
-            <span className="shrink-0 text-[11px] text-[#9A9AA2]">원</span>
-          </label>
-          <label
-            htmlFor="price-max-input"
-            className="flex items-center gap-1.5 rounded-[9px] border border-[#DDDDE3] px-2.5 py-2 focus-within:border-primary"
-          >
-            <span className="shrink-0 text-[11px] font-semibold text-[#9A9AA2]">최대</span>
-            <input
-              id="price-max-input"
-              type="text"
-              inputMode="numeric"
-              value={maxInputText}
-              onChange={(e) => setMaxInputText(formatPriceInputChange(e))}
-              onBlur={(e) => handleMaxChange(Number(sanitizePriceInput(e.target.value) || "0"))}
-              className="w-full min-w-0 border-none p-0 text-right text-[12.5px] font-bold text-ink outline-none"
-            />
-            <span className="shrink-0 text-[11px] text-[#9A9AA2]">원</span>
-          </label>
-        </div>
-        <div className="relative h-6">
-          <div className="absolute left-0 right-0 top-[11px] h-1 rounded-sm bg-[#E7E7EB]" />
-          <div
-            className="absolute top-[11px] h-1 rounded-sm bg-primary"
-            style={{
-              left: `${(priceMin / PRICE_MAX) * 100}%`,
-              right: `${100 - (priceMax / PRICE_MAX) * 100}%`,
-            }}
-          />
-          <input
-            type="range"
-            min={0}
-            max={PRICE_MAX}
-            step={50000}
-            value={priceMin}
-            onChange={(e) => handleMinChange(+e.target.value)}
-            aria-label="최소 가격"
-            aria-valuetext={`${priceMin.toLocaleString("ko-KR")}원`}
-            className={`dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent ${
-              activeHandle === "min" ? "z-20" : "z-10"
-            }`}
-          />
-          <input
-            type="range"
-            min={0}
-            max={PRICE_MAX}
-            step={50000}
-            value={priceMax}
-            onChange={(e) => handleMaxChange(+e.target.value)}
-            aria-label="최대 가격"
-            aria-valuetext={`${priceMax.toLocaleString("ko-KR")}원`}
-            className={`dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent ${
-              activeHandle === "min" ? "z-10" : "z-20"
-            }`}
-          />
-        </div>
-        <div className="mt-1.5 flex justify-between text-xs text-[#9A9AA2]">
-          <span>0원</span>
-          <span>{PRICE_MAX.toLocaleString("ko-KR")}원</span>
-        </div>
-        <button
-          onClick={resetFilters}
-          className="mt-[22px] w-full rounded-[10px] border-[1.5px] border-[#DDDDE3] bg-white py-2.5 text-[13.5px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary"
-        >
-          필터 초기화
-        </button>
+              <input
+                type="range"
+                min={0}
+                max={PRICE_MAX}
+                step={50000}
+                value={priceMin}
+                onChange={(e) => handleMinChange(+e.target.value)}
+                aria-label="최소 가격"
+                aria-valuetext={`${priceMin.toLocaleString("ko-KR")}원`}
+                className={`dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent ${
+                  activeHandle === "min" ? "z-20" : "z-10"
+                }`}
+              />
+              <input
+                type="range"
+                min={0}
+                max={PRICE_MAX}
+                step={50000}
+                value={priceMax}
+                onChange={(e) => handleMaxChange(+e.target.value)}
+                aria-label="최대 가격"
+                aria-valuetext={`${priceMax.toLocaleString("ko-KR")}원`}
+                className={`dual-range pointer-events-none absolute left-0 top-0 m-0 h-6 w-full appearance-none bg-transparent ${
+                  activeHandle === "min" ? "z-10" : "z-20"
+                }`}
+              />
+            </div>
+            <div className="mt-1.5 flex justify-between text-xs text-[#9A9AA2]">
+              <span>0원</span>
+              <span>{PRICE_MAX.toLocaleString("ko-KR")}원</span>
+            </div>
+          </div>
+        )}
         <button
           type="button"
           onClick={() => setFilterOpen(false)}
-          className="mt-2.5 w-full rounded-[10px] bg-primary py-2.5 text-[13.5px] font-bold text-white lg:hidden"
+          className="mt-5 w-full rounded-[10px] bg-primary py-2.5 text-[13.5px] font-bold text-white lg:hidden"
         >
           필터 적용하기
         </button>
