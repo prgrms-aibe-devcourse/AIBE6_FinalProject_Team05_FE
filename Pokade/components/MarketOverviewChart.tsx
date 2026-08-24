@@ -14,7 +14,7 @@ import {
 import { DailyMarketStatResponse } from "@/types/price";
 
 const VOLUME_COLOR = "#A5B4FC";
-const MEDIAN_COLOR = "#EE1515";
+const AVG_COLOR = "#EE1515";
 
 // "YYYY-MM-DD" 문자열을 직접 분해해서 파싱한다 - new Date(iso)는 이 형식을 UTC 자정으로 해석하는데
 // getMonth()/getDate() 같은 로컬 게터와 섞어 쓰면 UTC보다 offset이 음수인 타임존에서 하루 밀린다.
@@ -86,11 +86,11 @@ export default function MarketOverviewChart({
   todayVolume,
   volumeChangeRate,
   volumeChangeAmount,
-  todayMedianPrice,
-  medianChangeRate1d,
-  medianChangeAmount1d,
-  medianChangeRate7d,
-  medianChangeRate30d,
+  todayAvgPrice,
+  avgChangeRate1d,
+  avgChangeAmount1d,
+  avgChangeRate7d,
+  avgChangeRate30d,
   totalVolume,
   dailyStats,
   loading,
@@ -98,11 +98,11 @@ export default function MarketOverviewChart({
   todayVolume: number;
   volumeChangeRate: number | null;
   volumeChangeAmount: number;
-  todayMedianPrice: number | null;
-  medianChangeRate1d: number | null;
-  medianChangeAmount1d: number | null;
-  medianChangeRate7d: number | null;
-  medianChangeRate30d: number | null;
+  todayAvgPrice: number | null;
+  avgChangeRate1d: number | null;
+  avgChangeAmount1d: number | null;
+  avgChangeRate7d: number | null;
+  avgChangeRate30d: number | null;
   totalVolume: number;
   dailyStats: DailyMarketStatResponse[];
   loading: boolean;
@@ -131,15 +131,15 @@ export default function MarketOverviewChart({
           </div>
         </div>
         <div className="rounded-xl bg-[#FAFAFB] px-4 py-3.5">
-          <div className="text-[11.5px] font-semibold text-[#9A9AA2]">오늘 거래가 중간값</div>
+          <div className="text-[11.5px] font-semibold text-[#9A9AA2]">오늘 거래가 평균</div>
           <div className="mt-1 text-[19px] font-extrabold">
-            {loading ? "-" : todayMedianPrice !== null ? `${todayMedianPrice.toLocaleString("ko-KR")}원` : "-"}
+            {loading ? "-" : todayAvgPrice !== null ? `${todayAvgPrice.toLocaleString("ko-KR")}원` : "-"}
           </div>
           <div className="mt-1">
             {loading ? (
               <span className="text-[12px] font-semibold text-[#B4B4BC]">전일 대비 -</span>
             ) : (
-              <AmountChangeBadge label="전일 대비" amount={medianChangeAmount1d} rate={medianChangeRate1d} unit="원" />
+              <AmountChangeBadge label="전일 대비" amount={avgChangeAmount1d} rate={avgChangeRate1d} unit="원" />
             )}
           </div>
         </div>
@@ -154,10 +154,10 @@ export default function MarketOverviewChart({
         </div>
       </div>
 
-      {/* 거래가 중간값의 1주일 전/30일 전 대비 변화율 - 전일 대비는 위 카드에서 금액과 함께 이미 보여주므로
+      {/* 거래가 평균의 1주일 전/30일 전 대비 변화율 - 전일 대비는 위 카드에서 금액과 함께 이미 보여주므로
           여기서는 더 긴 기준선 두 개만 보여준다. */}
       <div className="mb-5 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl bg-[#FAFAFB] px-4 py-3">
-        <span className="text-[11.5px] font-semibold text-[#9A9AA2]">거래가 중간값 변동</span>
+        <span className="text-[11.5px] font-semibold text-[#9A9AA2]">거래가 평균 변동</span>
         {loading ? (
           <>
             <span className="text-[12px] font-semibold text-[#B4B4BC]">1주일 전 대비 -</span>
@@ -165,8 +165,8 @@ export default function MarketOverviewChart({
           </>
         ) : (
           <>
-            <ChangeBadge label="1주일 전 대비" rate={medianChangeRate7d} />
-            <ChangeBadge label="30일 전 대비" rate={medianChangeRate30d} />
+            <ChangeBadge label="1주일 전 대비" rate={avgChangeRate7d} />
+            <ChangeBadge label="30일 전 대비" rate={avgChangeRate30d} />
           </>
         )}
       </div>
@@ -204,7 +204,7 @@ export default function MarketOverviewChart({
               allowDecimals={false}
             />
             <YAxis
-              yAxisId="median"
+              yAxisId="avg"
               orientation="right"
               tick={{ fontSize: 10.5, fill: "#8A8A92" }}
               axisLine={{ stroke: "#EDEDF0" }}
@@ -217,7 +217,7 @@ export default function MarketOverviewChart({
               labelFormatter={(label) => formatTooltipDate(String(label))}
               formatter={(value, _name, item) => {
                 if (item?.dataKey === "volume") return [`${Number(value).toLocaleString("ko-KR")}건`, "거래량"];
-                return [`${Number(value).toLocaleString("ko-KR")}원`, "거래가 중간값"];
+                return [`${Number(value).toLocaleString("ko-KR")}원`, "거래가 평균"];
               }}
               contentStyle={{
                 borderRadius: 12,
@@ -234,16 +234,16 @@ export default function MarketOverviewChart({
               barSize={10}
             />
             <Line
-              yAxisId="median"
+              yAxisId="avg"
               type="monotone"
-              dataKey="medianPrice"
-              name="거래가 중간값"
-              stroke={MEDIAN_COLOR}
+              dataKey="avgPrice"
+              name="거래가 평균"
+              stroke={AVG_COLOR}
               strokeWidth={2}
               dot={false}
               connectNulls
             />
-            {/* 막대=거래량(왼쪽 축), 선=거래가 중간값(오른쪽 축)임을 알려주는 범례 - 두 지표가 서로
+            {/* 막대=거래량(왼쪽 축), 선=거래가 평균(오른쪽 축)임을 알려주는 범례 - 두 지표가 서로
                 다른 축 스케일을 쓰기 때문에 범례 없이는 어떤 색이 뭘 뜻하는지 헷갈리기 쉽다.
                 iconType을 따로 안 주면 recharts가 Bar는 사각형, Line은 선 아이콘으로 각자 실제
                 그려진 모양대로 자동 표시한다. */}
