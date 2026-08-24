@@ -45,6 +45,15 @@ function StatusBadge({ status, className = "" }: { status: Status; className?: s
   );
 }
 
+// 배지 3종의 뜻. 배지 자체에는 툴팁이 없고, 뜻을 짐작하게 해 주던 안내 문구는 빈 상태 카드
+// 안에만 있어 카드가 한 장이라도 생기면 사라진다 — 특히 "대기중"은 배지만 봐서는 무엇을
+// 기다리는 중인지(목표가 도달 전) 알 수 없어 목록이 있을 때 헤더에서 대신 설명한다.
+const STATUS_LEGEND: { status: Status; desc: string }[] = [
+  { status: "미설정", desc: "목표가 없음" },
+  { status: "대기중", desc: "목표가 도달 전" },
+  { status: "목표도달", desc: "알림 발송됨" },
+];
+
 type LoadState = "loading" | "error" | "ready";
 type Filter = "all" | "unset" | "wait" | "reached";
 type Sort = "oldest" | "latest";
@@ -312,6 +321,22 @@ export default function WatchlistPage() {
             <p className="mt-1.5 text-sm text-[#8A8A92]">
               관심 카드의 목표가 도달 알림을 관리하세요
             </p>
+            {/* 범례는 아래 표/카드의 배지와 같은 StatusBadge를 그대로 쓴다 — 색을 새로 만들지
+                않을뿐더러, 모양이 같아야 "여기 설명한 그것"이 표의 배지와 곧바로 이어진다.
+                목록이 비어 있으면 숨긴다(빈 상태 카드가 이미 자기 안내를 갖고 있다). */}
+            {loadState === "ready" && rows.length > 0 && (
+              <ul className="m-0 mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 p-0 text-[13px] text-[#8A8A92]">
+                {STATUS_LEGEND.map(({ status, desc }) => (
+                  <li
+                    key={status}
+                    className="flex list-none items-center gap-1.5 before:text-[#D5D5DC] before:content-['·'] first:before:content-none"
+                  >
+                    <StatusBadge status={status} />
+                    {desc}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           {/* 상한 대비 현재 등록 수. rows는 원본이라 탭 필터와 무관하게 총계를 유지한다.
               18개 이상(남은 자리 2개 이하)에서 앰버로 전환, 색각 이상 대비 문구도 함께 표시. */}
@@ -475,8 +500,11 @@ export default function WatchlistPage() {
                             >
                               {targets.length > 0 ? (
                                 targets.map((t) => (
+                                  // 금액만 font-semibold — 라벨까지 굵게 하면 같은 행의 현재 시세
+                                  // (font-bold)와 무게가 뒤엉켜 어느 쪽이 값인지 흐려진다. 모바일
+                                  // 카드(아래)도 값 span만 semibold라 두 레이아웃이 같아진다.
                                   <div key={t.label}>
-                                    {t.label}: {t.value}
+                                    {t.label}: <span className="font-semibold">{t.value}</span>
                                   </div>
                                 ))
                               ) : (
