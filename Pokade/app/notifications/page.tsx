@@ -62,6 +62,9 @@ export default function NotificationsPage() {
   // 굳는데, 그걸 풀 재조회 트리거가 없기 때문이다(load effect는 page가 바뀔 때만 돈다).
   // 그래서 애초에 낡은 응답이 setResult까지 오지 못하게 막고(load의 requestKeyRef 가드),
   // 지연 실행되는 호출부는 최신 load를 보게 한다(loadRef).
+  //
+  // 그리고 key만으로는 "같은 페이지를 두 번 조회한 경우"를 아예 구분하지 못한다 — 아래
+  // requestSeqRef가 그 몫을 맡는다. 두 가드는 막는 대상이 다르므로 함께 둔다.
   const [result, setResult] = useState<{
     key: string;
     data: PageResponse<NotificationResponse> | null;
@@ -96,11 +99,24 @@ export default function NotificationsPage() {
     requestKeyRef.current = requestKey;
   }, [requestKey]);
 
+  // load() 호출마다 하나씩 올라가는 일련번호. 같은 페이지를 다시 조회하는 경로가 여럿이라
+  // (읽음 처리·삭제 확정/실패·모두 읽음이 전부 같은 page로 load()를 다시 부른다) requestKey가
+  // 이전 요청과 새 요청 사이에서 완전히 같아진다 — key 가드만으로는 먼저 보낸 요청이 나중에
+  // 도착해 결과를 덮어쓰는 것을 막을 수 없다. 실제 증상은 방금 지운 알림이 목록에 되살아나거나,
+  // 성공적으로 다시 불러온 화면이 이전 요청의 오류 메시지로 바뀌는 것이다.
+  //
+  // "마지막에 도착한 응답"이 아니라 "마지막에 시작한 요청"을 정답으로 삼는다 — 사용자가 가장
+  // 최근에 요구한 상태가 그것이고, 네트워크 도착 순서는 사용자 의도와 아무 관계가 없다.
+  const requestSeqRef = useRef(0);
+
   const load = useCallback(() => {
     if (authStatus !== "authenticated") return;
     const key = requestKey;
+    const seq = ++requestSeqRef.current;
     fetchNotifications({ page, size: PAGE_SIZE })
       .then((res) => {
+        // 이 요청보다 나중에 시작된 load()가 이미 있으면 이 응답은 버린다(같은 페이지 재조회).
+        if (requestSeqRef.current !== seq) return;
         // 이 응답이 도착했을 때 화면이 이미 다른 페이지를 보고 있으면 버린다. setResult로 낡은
         // key를 써 버리면 아래 current 계산이 null이 되어 화면이 "로딩"에 갇히는데, 그 상태를
         // 풀어 줄 재조회 트리거가 없다(load effect는 page가 바뀔 때만 돈다).
@@ -117,6 +133,7 @@ export default function NotificationsPage() {
         setResult({ key, data: res, errorMessage: "" });
       })
       .catch((err) => {
+        if (requestSeqRef.current !== seq) return;
         if (requestKeyRef.current !== key) return;
         setResult({
           key,
