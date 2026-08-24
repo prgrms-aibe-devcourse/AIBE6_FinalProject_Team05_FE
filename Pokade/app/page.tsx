@@ -48,7 +48,7 @@ const STEPS = [
   {
     n: "02",
     t: "안전결제 & 전문 검수",
-    d: "결제 금액은 PocketTrade가 안전하게 보관하고, 실물 카드를 전문가가 직접 검수합니다.",
+    d: "결제 금액은 Pokade가 안전하게 보관하고, 실물 카드를 전문가가 직접 검수합니다.",
   },
   {
     n: "03",
@@ -173,7 +173,7 @@ function HomeView() {
             <h1 className="mt-5 text-[32px] font-extrabold leading-[1.18] tracking-[-1px] text-white [text-wrap:balance] sm:text-[44px]">
               믿을 수 있는 카드 거래,
               <br />
-              PocketTrade에서 시작하세요
+              Pokade에서 시작하세요
             </h1>
             <p className="mt-4 max-w-[500px] text-base leading-relaxed text-[#A7ADC4]">
               AI 등급진단과 안전거래 시스템으로 컬렉터가 신뢰하는 포켓몬 카드 마켓플레이스. 지금 내
@@ -372,7 +372,7 @@ function HomeView() {
               <div className="flex items-start justify-between">
                 <div>
                   <div className="text-[13px] font-semibold text-[#A7ADC4]">
-                    PocketTrade 종합 시세 지수
+                    Pokade 종합 시세 지수
                   </div>
                   <div className="mt-2 flex items-baseline gap-2.5">
                     <div className="text-[34px] font-extrabold tracking-[-1px] text-white">
@@ -457,7 +457,7 @@ function HomeView() {
               안전한 거래, 세 단계면 충분합니다
             </h2>
             <p className="mt-2 text-[14.5px] text-[#8A8A92]">
-              PocketTrade가 검수부터 정산까지 책임집니다
+              Pokade가 검수부터 정산까지 책임집니다
             </p>
           </div>
           <div className="grid grid-cols-3 gap-[22px]">

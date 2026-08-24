@@ -103,7 +103,7 @@ function LoginForm() {
       <div className="w-full max-w-[420px] rounded-[18px] border border-[#EDEDF0] bg-white px-[34px] py-9 shadow-card">
         <div className="mb-[26px] text-center">
           <div className="text-[22px] font-extrabold tracking-[-0.5px] text-primary">
-            POCKET TRADE
+            POKADE
           </div>
           <p className="mt-2 text-sm text-[#8A8A92]">컬렉터를 위한 안전한 카드 거래</p>
         </div>
