@@ -7,7 +7,12 @@ import CardImage from "@/components/CardImage";
 import GradeMarketReference from "@/components/GradeMarketReference";
 import PriceInput from "@/components/PriceInput";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { fetchCardDetail, fetchCardsByKeywordPage, fetchPriceSummary } from "@/lib/cardApi";
+import {
+  fetchCardDetail,
+  fetchCardsByKeywordPage,
+  fetchPriceSummaries,
+  fetchPriceSummary,
+} from "@/lib/cardApi";
 import { getPriceStep } from "@/lib/priceStep";
 import {
   CardDetailResponse,
@@ -16,7 +21,7 @@ import {
   VariantSummary,
   variantLabel,
 } from "@/types/card";
-import { ListingGrade, PriceSummaryResponse } from "@/types/price";
+import { CardPriceSummaryResponse, ListingGrade, PriceSummaryResponse } from "@/types/price";
 
 const MIN_QUERY_LENGTH = 2;
 const GRADE_OPTIONS: ListingGrade[] = ["S", "A", "B", "PSA10", "PSA9", "PSA8"];
@@ -76,6 +81,11 @@ function NewListingForm() {
 
   const [priceSummary, setPriceSummary] = useState<PriceSummaryResponse | null>(null);
   const [priceSummaryLoading, setPriceSummaryLoading] = useState(false);
+
+  // 등급별 최저 시세(grade 선택 시에만 조회) - 등급 없이 조회하면 다른 등급(특히 낮은 등급)의
+  // 최저가가 섞여 나와, PSA10처럼 시세가 높은 등급을 등록할 때 기준 가격이 실제와 크게 어긋난다.
+  const [gradePriceSummary, setGradePriceSummary] = useState<CardPriceSummaryResponse | null>(null);
+  const [gradePriceSummaryLoading, setGradePriceSummaryLoading] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
 
@@ -146,6 +156,33 @@ function NewListingForm() {
     };
   }, [selectedCard, selectedVariantId]);
 
+  // 등급을 선택하면 그 등급 기준 최저 시세를 별도로 조회 - 등급 선택 전에는 보여줄 등급 기준이
+  // 없으므로 위 priceSummary(등급 무관 전체 최저가)를 그대로 참고용으로 쓴다.
+  useEffect(() => {
+    // grade가 없을 때는 렌더링 쪽에서 이 값을 읽지 않으므로(등급 무관 priceSummary로 대체),
+    // 굳이 null로 지우지 않고 조회 자체를 건너뛴다.
+    if (!selectedCard || !grade) return;
+    let cancelled = false;
+    // 등급을 바꿀 때마다 조회 중 상태를 다시 보여주기 위해 필요 - GradeMarketReference와 동일한 이유.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setGradePriceSummaryLoading(true);
+    // includeRecentTradePrice: 그 등급으로 걸린 활성 매물이 하나도 없어도(buyPrice=null) 최근
+    // 체결가라도 최소한의 참고 지표로 보여주기 위해 함께 요청한다.
+    fetchPriceSummaries([selectedCard.id], { grade, includeRecentTradePrice: true })
+      .then((summaries) => {
+        if (!cancelled) setGradePriceSummary(summaries.get(selectedCard.id) ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setGradePriceSummary(null);
+      })
+      .finally(() => {
+        if (!cancelled) setGradePriceSummaryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCard, grade]);
+
   // 카드 검색 자동완성 (디바운스)
   useEffect(() => {
     const trimmed = query.trim();
@@ -192,9 +229,11 @@ function NewListingForm() {
       setError("등급을 선택해 주세요.");
       return;
     }
-    const buyPrice = priceSummary?.buyPrice;
-    if (buyPrice != null && buyPrice > 0) {
-      const diffRatio = (priceNumber - buyPrice) / buyPrice;
+    // grade는 위에서 이미 필수 검증됐으므로, 등급 무관 전체가(priceSummary)로는 다시 떨어지지
+    // 않는다 - 그러면 등급별 기준을 적용하는 원래 목적이 무의미해진다.
+    const referenceBuyPrice = gradePriceSummary?.buyPrice ?? gradePriceSummary?.recentTradePrice;
+    if (referenceBuyPrice != null && referenceBuyPrice > 0) {
+      const diffRatio = (priceNumber - referenceBuyPrice) / referenceBuyPrice;
       if (diffRatio >= PRICE_OUTLIER_THRESHOLD) {
         setError("입력하신 가격이 현재 최저 시세보다 많이 높습니다. 가격을 다시 확인해 주세요.");
         return;
@@ -225,16 +264,28 @@ function NewListingForm() {
     priceStep != null && priceNumber % priceStep !== 0
       ? `${priceStep.toLocaleString("ko-KR")}원 단위로 입력해 주세요.`
       : null;
-  const buyPrice = priceSummary?.buyPrice;
+  // 등급을 선택했으면 그 등급 기준으로 삼는다 - 활성 매물이 있으면 최저가, 없으면(buyPrice=null)
+  // 최근 체결가라도 최소한의 참고 지표로 보여준다. 등급 선택 전에는 등급 무관 전체 최저가를 쓴다.
+  const gradeReferenceIsRecentTrade =
+    !!grade && gradePriceSummary?.buyPrice == null && gradePriceSummary?.recentTradePrice != null;
+  const referenceBuyPrice = grade
+    ? gradePriceSummary?.buyPrice ?? gradePriceSummary?.recentTradePrice
+    : priceSummary?.buyPrice;
+  const referencePriceLoading = grade ? gradePriceSummaryLoading : priceSummaryLoading;
+  const referenceLabel = grade
+    ? gradeReferenceIsRecentTrade
+      ? `${grade} 등급 최근 체결가`
+      : `현재 ${grade} 등급 최저 시세`
+    : "현재 최저 시세";
   let priceOutlierWarning: string | null = null;
   if (
     price &&
     Number.isInteger(priceNumber) &&
     priceNumber > 0 &&
-    buyPrice != null &&
-    buyPrice > 0
+    referenceBuyPrice != null &&
+    referenceBuyPrice > 0
   ) {
-    const diffRatio = (priceNumber - buyPrice) / buyPrice;
+    const diffRatio = (priceNumber - referenceBuyPrice) / referenceBuyPrice;
     if (diffRatio >= PRICE_OUTLIER_THRESHOLD) {
       priceOutlierWarning =
         "입력하신 가격이 현재 최저 시세보다 많이 높습니다. 다시 한번 확인해 주세요.";
@@ -267,12 +318,12 @@ function NewListingForm() {
                 </div>
                 <div className="my-4 h-px bg-[#EDEDF0]" />
                 <div className="text-center">
-                  <div className="text-[11.5px] font-semibold text-[#8A8A92]">현재 최저 시세</div>
+                  <div className="text-[11.5px] font-semibold text-[#8A8A92]">{referenceLabel}</div>
                   <div className="mt-1 text-[17px] font-extrabold text-primary">
-                    {priceSummaryLoading
+                    {referencePriceLoading
                       ? "조회 중..."
-                      : priceSummary?.buyPrice != null
-                        ? `${priceSummary.buyPrice.toLocaleString("ko-KR")}원`
+                      : referenceBuyPrice != null
+                        ? `${referenceBuyPrice.toLocaleString("ko-KR")}원`
                         : "정보 없음"}
                   </div>
                 </div>
@@ -420,10 +471,10 @@ function NewListingForm() {
                       가격
                     </label>
                     <span className="text-[12px] font-semibold text-[#8A8A92]">
-                      {priceSummaryLoading
+                      {referencePriceLoading
                         ? "시세 조회 중..."
-                        : priceSummary?.buyPrice != null
-                          ? `현재 최저 시세 ${priceSummary.buyPrice.toLocaleString("ko-KR")}원`
+                        : referenceBuyPrice != null
+                          ? `${referenceLabel} ${referenceBuyPrice.toLocaleString("ko-KR")}원`
                           : "시세 정보 없음"}
                     </span>
                   </div>
