@@ -50,6 +50,10 @@ function LoginForm() {
     oauthRedirectErrorMessage(searchParams.get("error"), searchParams.get("provider")),
   );
 
+  // 충돌은 "비밀번호로 로그인하라"고 안내하는데, 소셜 버튼을 누르는 사용자는 대개 비밀번호를
+  // 기억하지 못한다. 그 경우에만 재설정 경로를 함께 준다(취소·실패에는 엉뚱한 안내가 된다).
+  const [oauthConflict] = useState(() => searchParams.get("error") === "email_conflict");
+
   // 사유는 위에서 이미 읽었다. URL에 남겨두면 새로고침마다 다시 뜨므로 지운다.
   // redirect는 보존한다 - 보호된 페이지로 가려다 실패한 경우 목적지를 잃으면 안 된다.
   useEffect(() => {
@@ -113,12 +117,20 @@ function LoginForm() {
           <p className="mt-2 text-sm text-[#8A8A92]">컬렉터를 위한 안전한 카드 거래</p>
         </div>
         {oauthNotice && (
-          <p
+          <div
             role="alert"
-            className="mb-4 break-keep rounded-[11px] border border-[#FFD9D9] bg-[#FFF6F6] px-3.5 py-3 text-[13px] font-semibold text-primary"
+            className="mb-4 break-keep rounded-[11px] border border-[#FFD9D9] bg-[#FFF6F6] px-3.5 py-3"
           >
-            {oauthNotice}
-          </p>
+            <p className="text-[13px] font-semibold text-primary">{oauthNotice}</p>
+            {oauthConflict && (
+              <Link
+                href="/reset-password"
+                className="mt-1.5 inline-block text-[12.5px] font-bold text-secondary underline underline-offset-2"
+              >
+                비밀번호가 기억나지 않나요? 비밀번호 찾기
+              </Link>
+            )}
+          </div>
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
