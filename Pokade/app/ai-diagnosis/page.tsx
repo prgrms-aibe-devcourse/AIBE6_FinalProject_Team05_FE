@@ -282,8 +282,12 @@ function UploadView({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="mb-1 mt-0 text-base font-extrabold">카드 사진 업로드</h2>
-          <p className="mb-3 text-[13px] text-[#8A8A92]">
+          <p className="mb-1 text-[13px] text-[#8A8A92]">
             앞면·뒷면·모서리 4곳을 촬영해 올려주세요 (6장 모두 필요)
+          </p>
+          <p className="mb-3 text-[12px] text-[#B4B4BC]">
+            아이폰에서 촬영한 사진(HEIC)은 업로드 시 자동 변환되며, 이 과정에서 약간의 화질
+            손상이 있을 수 있습니다.
           </p>
         </div>
         <button
