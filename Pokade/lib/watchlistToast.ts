@@ -17,8 +17,8 @@ export const WATCHLIST_ADDED_TOAST: ToastState = {
   linkLabel: "목표가 설정하러 가기",
 };
 
-// 기본 2.5초보다 길게 두는 이유: 이 토스트는 눌러야 의미가 있는데, 2.5초는 알아채고 커서를
-// 옮기기에 촉박하다. 해제 토스트는 누를 대상이 없어 기존 기본값(2.5초)을 그대로 쓴다.
+// 기본값(3.5초)보다 길게 두는 이유: 이 토스트는 눌러야 의미가 있는데, 기본 시간은 알아채고
+// 커서를 옮기기에 촉박하다. 해제 토스트는 누를 대상이 없어 기본값을 그대로 쓴다.
 export const WATCHLIST_ADDED_TOAST_MS = 4000;
 
 export const WATCHLIST_REMOVED_TOAST: ToastState = {
@@ -26,7 +26,7 @@ export const WATCHLIST_REMOVED_TOAST: ToastState = {
 };
 
 // 실패는 읽고 지나가는 알림이 아니라 원인을 확인해야 하는 알림이라 등록 토스트와 같은 4초를 준다 —
-// "워치리스트는 최대 20개까지 등록할 수 있습니다" 같은 BE 문구는 기본 2.5초로는 짧다.
+// "워치리스트는 최대 20개까지 등록할 수 있습니다" 같은 BE 문구는 기본 시간으로는 짧다.
 export const WATCHLIST_ERROR_TOAST_MS = 4000;
 
 // 토글 결과를 그에 맞는 토스트로 옮기는 매핑. 토스트를 띄우는 주체는 여전히 화면이지만
