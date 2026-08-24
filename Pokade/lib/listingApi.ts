@@ -33,8 +33,10 @@ export async function fetchMyListing(listingId: number): Promise<MyListingRespon
   return apiGet<MyListingResponse>(`/api/listings/${listingId}`);
 }
 
-// PUT /api/listings/{id} — 매물 가격 수정. 본인 소유 + ACTIVE 상태에서만 가능(그 외 400/403/404).
-export async function updateListingPrice(
+// PUT /api/listings/{id} — 매물 가격/정산계좌/반송주소 수정. 본인 소유 + ACTIVE 상태에서만 가능(그 외
+// 400/403/404). 정산계좌/반송주소는 생략 가능(BE가 기존 값 유지) - "내 매물 관리"의 빠른 가격 수정은
+// price만 넘긴다.
+export async function updateListing(
   listingId: number,
   request: ListingUpdateRequest,
 ): Promise<ListingResponse> {

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { GRADE_BG } from "@/components/GradeBadge";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError, PageResponse } from "@/lib/apiClient";
-import { deleteListing, fetchMyListings, MyListingsSort, updateListingPrice } from "@/lib/listingApi";
+import { deleteListing, fetchMyListings, MyListingsSort, updateListing } from "@/lib/listingApi";
 import { ListingGrade, ListingStatus, ListingSummaryResponse } from "@/types/price";
 
 const PAGE_SIZE = 10;
@@ -148,7 +148,7 @@ export default function MyListingsPage() {
     setEditSubmitting(true);
     setEditError(null);
     try {
-      const updated = await updateListingPrice(listingId, { price: priceNumber });
+      const updated = await updateListing(listingId, { price: priceNumber });
       setPageData((prev) =>
         prev
           ? {

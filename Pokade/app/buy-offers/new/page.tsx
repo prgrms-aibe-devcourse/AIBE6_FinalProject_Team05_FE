@@ -13,6 +13,7 @@ import {
   fetchPriceSummaries,
   fetchPriceSummary,
 } from "@/lib/cardApi";
+import { resolveGradeReferencePrice } from "@/lib/priceDisplay";
 import { getPriceStep } from "@/lib/priceStep";
 import {
   CardDetailResponse,
@@ -257,19 +258,23 @@ function NewBuyOfferForm() {
     priceStep != null && priceNumber % priceStep !== 0
       ? `${priceStep.toLocaleString("ko-KR")}원 단위로 입력해 주세요.`
       : null;
-  // 등급을 선택했으면 그 등급 기준으로 삼는다 - 활성 구매입찰이 있으면 최고가, 없으면
-  // (sellPrice=null) 최근 체결가라도 최소한의 참고 지표로 보여준다. 등급 선택 전/미선택 시에는
-  // 등급 무관 전체 최고가를 쓴다.
-  const gradeReferenceIsRecentTrade =
-    !!grade && gradePriceSummary?.sellPrice == null && gradePriceSummary?.recentTradePrice != null;
+  // 등급을 선택했으면 그 등급 기준으로 삼는다 - 활성 구매입찰이 있으면 최고가, 없으면 최근 체결가,
+  // 그마저 없으면 마켓 검색 화면과 동일한 참고 시세(marketPrice, KRW 환산)까지 최소한의 참고
+  // 지표로 보여준다. 등급 선택 전/미선택 시에는 등급 무관 전체 최고가를 쓴다.
+  const gradeReference = grade ? resolveGradeReferencePrice(gradePriceSummary, "sellPrice") : null;
+  // 이상치 경고/차단 계산에는 마켓 참고가(marketPrice)를 포함하지 않는다 - KRW 환산이 고정 근사
+  // 환율이라 실제 시세와 오차가 있을 수 있어, 잘못된 기준으로 등록을 막지 않도록 정보 표시 전용으로만 쓴다.
   const referenceTopBidPrice = grade
     ? gradePriceSummary?.sellPrice ?? gradePriceSummary?.recentTradePrice
     : priceSummary?.sellPrice;
+  const displayReferencePrice = grade ? gradeReference?.price ?? null : (priceSummary?.sellPrice ?? null);
   const referencePriceLoading = grade ? gradePriceSummaryLoading : priceSummaryLoading;
   const referenceLabel = grade
-    ? gradeReferenceIsRecentTrade
+    ? gradeReference?.tier === "recentTrade"
       ? `${grade} 등급 최근 체결가`
-      : `현재 ${grade} 등급 최고 구매입찰가`
+      : gradeReference?.tier === "market"
+        ? "마켓 참고 시세"
+        : `현재 ${grade} 등급 최고 구매입찰가`
     : "현재 최고 구매입찰가";
   let priceOutlierWarning: string | null = null;
   if (
@@ -413,8 +418,8 @@ function NewBuyOfferForm() {
               <span className="text-[12px] font-semibold text-[#8A8A92]">
                 {referencePriceLoading
                   ? "시세 조회 중..."
-                  : referenceTopBidPrice != null
-                    ? `${referenceLabel} ${referenceTopBidPrice.toLocaleString("ko-KR")}원`
+                  : displayReferencePrice != null
+                    ? `${referenceLabel} ${displayReferencePrice.toLocaleString("ko-KR")}원`
                     : "시세 정보 없음"}
               </span>
             )}

@@ -13,6 +13,7 @@ import {
   fetchPriceSummaries,
   fetchPriceSummary,
 } from "@/lib/cardApi";
+import { resolveGradeReferencePrice } from "@/lib/priceDisplay";
 import { getPriceStep } from "@/lib/priceStep";
 import {
   CardDetailResponse,
@@ -268,17 +269,22 @@ function NewListingForm() {
       ? `${priceStep.toLocaleString("ko-KR")}원 단위로 입력해 주세요.`
       : null;
   // 등급을 선택했으면 그 등급 기준으로 삼는다 - 활성 매물이 있으면 최저가, 없으면(buyPrice=null)
-  // 최근 체결가라도 최소한의 참고 지표로 보여준다. 등급 선택 전에는 등급 무관 전체 최저가를 쓴다.
-  const gradeReferenceIsRecentTrade =
-    !!grade && gradePriceSummary?.buyPrice == null && gradePriceSummary?.recentTradePrice != null;
+  // 최근 체결가, 그마저 없으면 마켓 검색 화면과 동일한 참고 시세(marketPrice, KRW 환산)까지
+  // 최소한의 참고 지표로 보여준다. 등급 선택 전에는 등급 무관 전체 최저가를 쓴다.
+  const gradeReference = grade ? resolveGradeReferencePrice(gradePriceSummary, "buyPrice") : null;
+  // 이상치 경고/차단 계산에는 마켓 참고가(marketPrice)를 포함하지 않는다 - KRW 환산이 고정 근사
+  // 환율이라 실제 시세와 오차가 있을 수 있어, 잘못된 기준으로 등록을 막지 않도록 정보 표시 전용으로만 쓴다.
   const referenceBuyPrice = grade
     ? gradePriceSummary?.buyPrice ?? gradePriceSummary?.recentTradePrice
     : priceSummary?.buyPrice;
+  const displayReferencePrice = grade ? gradeReference?.price ?? null : (priceSummary?.buyPrice ?? null);
   const referencePriceLoading = grade ? gradePriceSummaryLoading : priceSummaryLoading;
   const referenceLabel = grade
-    ? gradeReferenceIsRecentTrade
+    ? gradeReference?.tier === "recentTrade"
       ? `${grade} 등급 최근 체결가`
-      : `현재 ${grade} 등급 최저 시세`
+      : gradeReference?.tier === "market"
+        ? "마켓 참고 시세"
+        : `현재 ${grade} 등급 최저 시세`
     : "현재 최저 시세";
   let priceOutlierWarning: string | null = null;
   if (
@@ -325,8 +331,8 @@ function NewListingForm() {
                   <div className="mt-1 text-[17px] font-extrabold text-primary">
                     {referencePriceLoading
                       ? "조회 중..."
-                      : referenceBuyPrice != null
-                        ? `${referenceBuyPrice.toLocaleString("ko-KR")}원`
+                      : displayReferencePrice != null
+                        ? `${displayReferencePrice.toLocaleString("ko-KR")}원`
                         : "정보 없음"}
                   </div>
                 </div>
@@ -476,8 +482,8 @@ function NewListingForm() {
                     <span className="text-[12px] font-semibold text-[#8A8A92]">
                       {referencePriceLoading
                         ? "시세 조회 중..."
-                        : referenceBuyPrice != null
-                          ? `${referenceLabel} ${referenceBuyPrice.toLocaleString("ko-KR")}원`
+                        : displayReferencePrice != null
+                          ? `${referenceLabel} ${displayReferencePrice.toLocaleString("ko-KR")}원`
                           : "시세 정보 없음"}
                     </span>
                   </div>

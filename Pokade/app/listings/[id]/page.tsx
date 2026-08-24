@@ -2,11 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import AddressSearchField from "@/components/AddressSearchField";
+import BankSelector from "@/components/BankSelector";
 import CardImage from "@/components/CardImage";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
 import { fetchPriceSummaries, fetchPriceSummary } from "@/lib/cardApi";
-import { fetchMyListing, updateListingPrice } from "@/lib/listingApi";
+import { fetchMyListing, updateListing } from "@/lib/listingApi";
+import { formatPhoneNumber } from "@/lib/phoneFormat";
+import { resolveGradeReferencePrice } from "@/lib/priceDisplay";
 import { GRADE_LABELS, GradeKey, MyListingResponse } from "@/types/price";
 
 type LoadState = "loading" | "error" | "ready";
@@ -16,8 +20,8 @@ type LoadState = "loading" | "error" | "ready";
 const PRICE_OUTLIER_THRESHOLD = 0.3;
 
 // 마이페이지 "입찰" 목록(판매 등록 탭)에서 항목을 클릭했을 때 보여주는 화면 - 카드 상세로 보내는
-// 대신, 등록했던 주문서를 다시 보여준다. ACTIVE(판매중)일 때만 판매 가격을 수정할 수 있고,
-// 정산계좌/반송주소는 등록 시점 값을 읽기 전용으로만 보여준다(BE에 수정 API가 없음).
+// 대신, 등록했던 주문서를 다시 보여준다. ACTIVE(판매중)일 때만 판매 가격과 정산계좌/반송주소를
+// 수정할 수 있다.
 export default function MyListingDetailPage() {
   const status = useRequireAuth();
   const router = useRouter();
@@ -28,14 +32,27 @@ export default function MyListingDetailPage() {
   const [loadState, setLoadState] = useState<LoadState>("loading");
 
   const [priceInput, setPriceInput] = useState("");
+  const [settlementBankName, setSettlementBankName] = useState("");
+  const [settlementAccountNumber, setSettlementAccountNumber] = useState("");
+  const [settlementAccountHolder, setSettlementAccountHolder] = useState("");
+  const [returnRecipientName, setReturnRecipientName] = useState("");
+  const [returnRecipientPhone, setReturnRecipientPhone] = useState("");
+  const [returnAddress, setReturnAddress] = useState("");
+  // AddressSearchField는 기존 주소를 미리 채울 수 없는 컴포넌트라, 처음엔 등록된 주소를 읽기
+  // 전용으로 보여주고 "변경"을 눌렀을 때만 검색 필드로 바꾼다(buy-offers/[id]와 동일한 패턴).
+  const [editingAddress, setEditingAddress] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 이 매물의 등급 기준 참고 시세 - 등급이 있으면 그 등급의 최저 매물가(없으면 최근 체결가),
-  // 등급이 없는(RAW) 매물이면 등급 무관 전체 최저가를 쓴다. 등급은 이 화면에서 바꿀 수 없으므로
-  // /listings/new처럼 등급별로 나눠 관리할 필요 없이 값 하나로 충분하다.
+  // 이 매물의 등급 기준 참고 시세 - 등급이 있으면 그 등급의 최저 매물가 → 최근 체결가 → 마켓
+  // 검색 화면과 동일한 참고 시세(marketPrice, KRW 환산) 순으로, 등급이 없는(RAW) 매물이면 등급
+  // 무관 전체 최저가를 쓴다. 등급은 이 화면에서 바꿀 수 없으므로 /listings/new처럼 등급별로
+  // 나눠 관리할 필요 없이 값 하나로 충분하다.
   const [referencePrice, setReferencePrice] = useState<number | null>(null);
-  const [referenceIsRecentTrade, setReferenceIsRecentTrade] = useState(false);
+  const [referenceTier, setReferenceTier] = useState<"primary" | "recentTrade" | "market" | null>(null);
+  // 이상치 경고/차단 계산 전용 - referencePrice와 달리 마켓 참고가(market) 단계는 절대 포함하지
+  // 않는다(KRW 환산이 고정 근사 환율이라 잘못된 기준으로 등록을 막을 수 있어 정보 표시 전용으로만 씀).
+  const [outlierReferencePrice, setOutlierReferencePrice] = useState<number | null>(null);
   const [referenceLoading, setReferenceLoading] = useState(false);
 
   useEffect(() => {
@@ -46,6 +63,12 @@ export default function MyListingDetailPage() {
         if (cancelled) return;
         setListing(res);
         setPriceInput(String(res.price));
+        setSettlementBankName(res.settlementBankName ?? "");
+        setSettlementAccountNumber(res.settlementAccountNumber ?? "");
+        setSettlementAccountHolder(res.settlementAccountHolder ?? "");
+        setReturnRecipientName(res.returnRecipientName ?? "");
+        setReturnRecipientPhone(res.returnRecipientPhone ?? "");
+        setReturnAddress(res.returnAddress ?? "");
         setLoadState("ready");
       })
       .catch(() => {
@@ -68,26 +91,31 @@ export default function MyListingDetailPage() {
           includeRecentTradePrice: true,
         }).then((summaries) => {
           const summary = summaries.get(listing.cardId);
+          const resolved = resolveGradeReferencePrice(summary, "buyPrice");
           return {
-            price: summary?.buyPrice ?? summary?.recentTradePrice ?? null,
-            isRecentTrade: summary?.buyPrice == null && summary?.recentTradePrice != null,
+            price: resolved?.price ?? null,
+            tier: resolved?.tier ?? null,
+            outlierPrice: summary?.buyPrice ?? summary?.recentTradePrice ?? null,
           };
         })
       : fetchPriceSummary(listing.cardId, listing.variantId ?? undefined).then((summary) => ({
           price: summary.buyPrice,
-          isRecentTrade: false,
+          tier: summary.buyPrice != null ? ("primary" as const) : null,
+          outlierPrice: summary.buyPrice,
         }));
 
     request
       .then((result) => {
         if (cancelled) return;
         setReferencePrice(result.price);
-        setReferenceIsRecentTrade(result.isRecentTrade);
+        setReferenceTier(result.tier);
+        setOutlierReferencePrice(result.outlierPrice);
       })
       .catch(() => {
         if (cancelled) return;
         setReferencePrice(null);
-        setReferenceIsRecentTrade(false);
+        setReferenceTier(null);
+        setOutlierReferencePrice(null);
       })
       .finally(() => {
         if (!cancelled) setReferenceLoading(false);
@@ -127,9 +155,11 @@ export default function MyListingDetailPage() {
   const gradeKey: GradeKey = listing.grade ?? "RAW";
   const parsedPrice = Number(priceInput.replace(/[^0-9]/g, ""));
   const referenceLabel = listing.grade
-    ? referenceIsRecentTrade
+    ? referenceTier === "recentTrade"
       ? `${GRADE_LABELS[gradeKey]} 등급 최근 체결가`
-      : `현재 ${GRADE_LABELS[gradeKey]} 등급 최저 시세`
+      : referenceTier === "market"
+        ? "마켓 참고 시세"
+        : `현재 ${GRADE_LABELS[gradeKey]} 등급 최저 시세`
     : "현재 최저 시세";
 
   let priceOutlierWarning: string | null = null;
@@ -137,10 +167,10 @@ export default function MyListingDetailPage() {
     priceInput &&
     Number.isFinite(parsedPrice) &&
     parsedPrice > 0 &&
-    referencePrice != null &&
-    referencePrice > 0
+    outlierReferencePrice != null &&
+    outlierReferencePrice > 0
   ) {
-    const diffRatio = (parsedPrice - referencePrice) / referencePrice;
+    const diffRatio = (parsedPrice - outlierReferencePrice) / outlierReferencePrice;
     if (diffRatio >= PRICE_OUTLIER_THRESHOLD) {
       priceOutlierWarning = "입력하신 가격이 현재 최저 시세보다 많이 높습니다. 다시 한번 확인해 주세요.";
     } else if (diffRatio <= -PRICE_OUTLIER_THRESHOLD) {
@@ -156,8 +186,19 @@ export default function MyListingDetailPage() {
       setError("올바른 가격을 입력해 주세요.");
       return;
     }
-    if (referencePrice != null && referencePrice > 0) {
-      const diffRatio = (parsedPrice - referencePrice) / referencePrice;
+    if (
+      !settlementBankName.trim() ||
+      !settlementAccountNumber.trim() ||
+      !settlementAccountHolder.trim() ||
+      !returnRecipientName.trim() ||
+      !returnRecipientPhone.trim() ||
+      !returnAddress.trim()
+    ) {
+      setError("정산계좌/반송주소 항목을 모두 입력해 주세요.");
+      return;
+    }
+    if (outlierReferencePrice != null && outlierReferencePrice > 0) {
+      const diffRatio = (parsedPrice - outlierReferencePrice) / outlierReferencePrice;
       if (diffRatio >= PRICE_OUTLIER_THRESHOLD) {
         setError("입력하신 가격이 현재 최저 시세보다 많이 높습니다. 가격을 다시 확인해 주세요.");
         return;
@@ -166,11 +207,19 @@ export default function MyListingDetailPage() {
 
     setSaving(true);
     try {
-      await updateListingPrice(listingId, { price: parsedPrice });
+      await updateListing(listingId, {
+        price: parsedPrice,
+        settlementBankName: settlementBankName.trim(),
+        settlementAccountNumber: settlementAccountNumber.trim(),
+        settlementAccountHolder: settlementAccountHolder.trim(),
+        returnRecipientName: returnRecipientName.trim(),
+        returnRecipientPhone: returnRecipientPhone.trim(),
+        returnAddress: returnAddress.trim(),
+      });
       // 수정 완료 후엔 이 화면에 머물 이유가 없다 - 원래 있던 마이페이지(입찰 탭)로 바로 돌려보낸다.
       router.push("/mypage?bidTab=listing");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "판매 가격 수정에 실패했습니다.");
+      setError(err instanceof ApiError ? err.message : "매물 정보 수정에 실패했습니다.");
       setSaving(false);
     }
   };
@@ -258,43 +307,102 @@ export default function MyListingDetailPage() {
             )}
           </section>
 
-          {/* ③ 판매 정산 계좌 / 반송 주소 */}
+          {/* ③ 판매 정산 계좌 */}
           <section className={sectionCls}>
             <h2 className={sectionTitleCls}>판매 정산 계좌</h2>
-            <dl className="space-y-2.5">
-              <div className="flex items-center justify-between">
-                <dt className="text-[13px] font-semibold text-[#8A8A92]">은행</dt>
-                <dd className="text-[14px] font-bold">{listing.settlementBankName ?? "-"}</dd>
-              </div>
-              <div className="flex items-center justify-between">
-                <dt className="text-[13px] font-semibold text-[#8A8A92]">계좌번호</dt>
-                <dd className="text-[14px] font-bold">{listing.settlementAccountNumber ?? "-"}</dd>
-              </div>
-              <div className="flex items-center justify-between">
-                <dt className="text-[13px] font-semibold text-[#8A8A92]">예금주</dt>
-                <dd className="text-[14px] font-bold">{listing.settlementAccountHolder ?? "-"}</dd>
-              </div>
-            </dl>
 
-            <div className="my-5 h-px bg-[#EDEDF0]" />
+            <label className={labelCls}>은행명</label>
+            <BankSelector
+              value={settlementBankName}
+              onChange={setSettlementBankName}
+              inputCls={inputCls}
+              disabled={!isEditable}
+            />
 
+            <div className="h-4" />
+
+            <label htmlFor="settlement-account-number" className={labelCls}>
+              계좌번호
+            </label>
+            <input
+              id="settlement-account-number"
+              type="text"
+              value={settlementAccountNumber}
+              disabled={!isEditable}
+              onChange={(e) => setSettlementAccountNumber(e.target.value)}
+              placeholder="- 없이 숫자만 입력"
+              className={inputCls}
+            />
+
+            <div className="h-4" />
+
+            <label htmlFor="settlement-account-holder" className={labelCls}>
+              예금주
+            </label>
+            <input
+              id="settlement-account-holder"
+              type="text"
+              value={settlementAccountHolder}
+              disabled={!isEditable}
+              onChange={(e) => setSettlementAccountHolder(e.target.value)}
+              className={inputCls}
+            />
+          </section>
+
+          {/* ④ 반송 주소 */}
+          <section className={sectionCls}>
             <h2 className={sectionTitleCls}>반송 주소</h2>
-            <dl className="space-y-2.5">
-              <div className="flex items-center justify-between">
-                <dt className="text-[13px] font-semibold text-[#8A8A92]">받는사람</dt>
-                <dd className="text-[14px] font-bold">{listing.returnRecipientName ?? "-"}</dd>
+            <p className="mb-4 text-[12.5px] text-[#8A8A92]">
+              검수 실패 등으로 매물이 반송될 경우 사용됩니다.
+            </p>
+
+            <label htmlFor="return-recipient-name" className={labelCls}>
+              받는사람 이름
+            </label>
+            <input
+              id="return-recipient-name"
+              type="text"
+              value={returnRecipientName}
+              disabled={!isEditable}
+              onChange={(e) => setReturnRecipientName(e.target.value)}
+              className={inputCls}
+            />
+
+            <div className="h-4" />
+
+            <label htmlFor="return-recipient-phone" className={labelCls}>
+              전화번호
+            </label>
+            <input
+              id="return-recipient-phone"
+              type="text"
+              inputMode="numeric"
+              value={returnRecipientPhone}
+              disabled={!isEditable}
+              onChange={(e) => setReturnRecipientPhone(formatPhoneNumber(e.target.value))}
+              placeholder="010-0000-0000"
+              className={inputCls}
+            />
+
+            <div className="h-4" />
+
+            <label className={labelCls}>주소</label>
+            {editingAddress ? (
+              <AddressSearchField onChange={setReturnAddress} inputCls={inputCls} />
+            ) : (
+              <div className="flex items-center gap-2">
+                <input type="text" value={returnAddress} disabled className={inputCls} />
+                {isEditable && (
+                  <button
+                    type="button"
+                    onClick={() => setEditingAddress(true)}
+                    className="shrink-0 rounded-[11px] border border-[#DDDDE3] bg-white px-4 py-3 text-[13px] font-bold text-[#4B4B52] transition hover:border-primary hover:text-primary"
+                  >
+                    변경
+                  </button>
+                )}
               </div>
-              <div className="flex items-center justify-between">
-                <dt className="text-[13px] font-semibold text-[#8A8A92]">전화번호</dt>
-                <dd className="text-[14px] font-bold">{listing.returnRecipientPhone ?? "-"}</dd>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <dt className="shrink-0 text-[13px] font-semibold text-[#8A8A92]">주소</dt>
-                <dd className="truncate text-right text-[14px] font-bold">
-                  {listing.returnAddress ?? "-"}
-                </dd>
-              </div>
-            </dl>
+            )}
           </section>
         </form>
       </div>

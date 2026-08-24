@@ -150,8 +150,16 @@ export interface ListingCreateRequest {
 }
 
 // PUT /api/listings/{id} 요청 바디 — com.pokade.domain.listing.dto.ListingUpdateRequest 미러링.
+// 정산계좌/반송주소는 전부 선택 - 생략하면 BE가 기존 값을 그대로 둔다(부분 수정). "내 매물 관리"의
+// 빠른 가격 수정은 price만 보내고, 주문서 화면의 전체 수정은 6개 필드를 다 함께 보낸다.
 export interface ListingUpdateRequest {
   price: number;
+  settlementBankName?: string;
+  settlementAccountNumber?: string;
+  settlementAccountHolder?: string;
+  returnRecipientName?: string;
+  returnRecipientPhone?: string;
+  returnAddress?: string;
 }
 
 // GET /api/prices/{cardId}/buy-offers 응답 항목 — com.pokade.domain.price.dto.BuyOfferOrderbookEntryResponse 미러링.
