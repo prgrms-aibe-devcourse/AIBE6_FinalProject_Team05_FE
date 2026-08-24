@@ -16,7 +16,10 @@ export type CardPriceSummaryResponse = {
   sellPrice: number | null;
   currency: string;
   recentTradePrice?: number | null;
-} & ({ marketPrice: number; marketPriceCurrency: string } | { marketPrice?: null; marketPriceCurrency?: null });
+} & (
+  | { marketPrice: number; marketPriceCurrency: string }
+  | { marketPrice?: null; marketPriceCurrency?: null }
+);
 
 // 매물/체결 등급 — com.pokade.domain.listing.ListingGrade 미러링.
 // AI 등급진단 도메인의 Grade("S"|"A"|"B")와는 별개 개념(판매자가 매물 등록 시 직접 표기하는 등급).
@@ -82,6 +85,30 @@ export interface PriceRankingResponse {
   changeAmount: number;
 }
 
+// com.pokade.domain.price.dto.DailyMarketStatResponse 미러링 — 일별 거래 현황 한 포인트.
+// medianPrice: 그 날 체결이 하나도 없으면 null.
+export interface DailyMarketStatResponse {
+  date: string;
+  volume: number;
+  medianPrice: number | null;
+}
+
+// com.pokade.domain.price.dto.MarketOverviewResponse 미러링 — GET /api/prices/market-overview 응답.
+// 카드/등급 구분 없이 플랫폼 전체 체결 기준 - PriceRankingResponse(카드별 평균가 등락률)와는 별개 지표다.
+// 거래가는 평균이 아니라 중간값(median)으로 계산해서 소수의 초고가/초저가 체결에 덜 흔들린다.
+// volumeChangeRate/medianChangeRate*는 비교 대상 시점에 거래가 없어 비교 자체가 불가능하면 null.
+export interface MarketOverviewResponse {
+  todayVolume: number;
+  volumeChangeRate: number | null;
+  todayMedianPrice: number | null;
+  medianChangeRate1d: number | null;
+  medianChangeAmount1d: number | null;
+  medianChangeRate7d: number | null;
+  medianChangeRate30d: number | null;
+  totalVolume: number;
+  dailyStats: DailyMarketStatResponse[];
+}
+
 // com.pokade.domain.listing.ListingStatus 미러링.
 export type ListingStatus = "ACTIVE" | "TRADING" | "SOLD" | "EXPIRED" | "CANCELLED" | "HIDDEN";
 
@@ -101,8 +128,7 @@ export interface ListingSummaryResponse {
 }
 
 // POST /api/listings 요청 바디 — com.pokade.domain.listing.dto.ListingCreateRequest 미러링.
-// settlement*/return*는 BE에서 전부 @NotBlank 필수 — 정산 계좌(판매 대금 받을 곳)와
-// 반송지(검수 반려 등으로 카드를 돌려받을 곳)는 서로 다른 정보라 별도 필드로 분리돼 있다.
+// 정산계좌/반송주소 6개 필드는 "주문서" 단계(app/listings/new/order)에서 입력받아 이 시점에 함께 보낸다.
 export interface ListingCreateRequest {
   cardId: number;
   variantId?: number;
@@ -138,5 +164,48 @@ export interface ListingResponse {
   price: number;
   grade: ListingGrade | null;
   status: ListingStatus;
+  settlementBankName: string | null;
+  settlementAccountNumber: string | null;
+  settlementAccountHolder: string | null;
+  returnRecipientName: string | null;
+  returnRecipientPhone: string | null;
+  returnAddress: string | null;
+  createdAt: string;
+}
+
+// POST /api/buy-offers/ready 요청 바디 — com.pokade.domain.price.dto.BuyOfferReadyRequest 미러링.
+// 구매입찰은 등록과 동시에 토스 에스크로 결제를 진행하므로, 등록 정보와 받는사람 정보를 한 번에 보낸다.
+export interface BuyOfferReadyRequest {
+  cardId: number;
+  variantId?: number;
+  price: number;
+  grade?: ListingGrade;
+  // 입찰가+배송비 중 결제 전에 미리 차감할 포인트 액수 — 0이면 포인트 미사용.
+  pointsToUse: number;
+  recipientName: string;
+  recipientPhone: string;
+  recipientAddress: string;
+}
+
+// POST /api/buy-offers/ready 응답 — com.pokade.domain.price.dto.BuyOfferReadyResponse 미러링.
+// amount는 입찰가 + 배송비에서 pointsToUse를 뺀 실제 결제(토스) 금액 — 포인트로 전액을 충당하면 0.
+export interface BuyOfferReadyResponse {
+  orderId: string;
+  amount: number;
+}
+
+// POST /api/buy-offers/confirm-payment 응답 — com.pokade.domain.price.dto.BuyOfferResponse 미러링.
+// status는 BE에서 아직 별도 enum이 아니라 문자열("ACTIVE" 고정)로 내려온다.
+export interface BuyOfferResponse {
+  id: number;
+  cardId: number;
+  buyerId: number;
+  variantId: number | null;
+  price: number;
+  grade: ListingGrade | null;
+  status: string;
+  recipientName: string | null;
+  recipientPhone: string | null;
+  recipientAddress: string | null;
   createdAt: string;
 }

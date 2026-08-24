@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import CardImage from "@/components/CardImage";
+import PriceInput from "@/components/PriceInput";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 import { ApiError } from "@/lib/apiClient";
 import { fetchCardDetail, fetchCardsByKeywordPage } from "@/lib/cardApi";
@@ -360,12 +361,10 @@ export default function AddPortfolioItemModal(props: AddPortfolioItemModalProps)
 
           <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#4B4B52]">
             취득가 (선택)
-            <input
-              type="number"
-              min={0}
+            <PriceInput
               value={acquiredPrice}
-              onChange={(e) => setAcquiredPrice(e.target.value)}
-              placeholder="예: 50000"
+              onChange={setAcquiredPrice}
+              placeholder="예: 50,000"
               className={inputCls}
             />
           </label>

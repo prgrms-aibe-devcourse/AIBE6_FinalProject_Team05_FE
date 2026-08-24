@@ -12,6 +12,7 @@ import {
   CardPriceSummaryResponse,
   ListingGrade,
   ListingSummaryResponse,
+  MarketOverviewResponse,
   PriceRankingResponse,
   PriceStatsResponse,
   PriceSummaryResponse,
@@ -223,6 +224,12 @@ export async function fetchGradeChart(
 // 로그인 필요(401 가능). 서버가 limit=10을 고정 적용하므로 페이지네이션 파라미터는 없음.
 export async function fetchPriceRanking(type: RankingType): Promise<PriceRankingResponse[]> {
   return apiGet<PriceRankingResponse[]>(`/api/prices/ranking?type=${type}`);
+}
+
+// GET /api/prices/market-overview — 플랫폼 전체(카드/등급 구분 없음) 최근 30일 일별 거래량 + 거래가
+// 중간값(median) 현황. 로그인 필요(401 가능). 파라미터 없음(BE가 30일 고정).
+export async function fetchMarketOverview(): Promise<MarketOverviewResponse> {
+  return apiGet<MarketOverviewResponse>("/api/prices/market-overview");
 }
 
 // GET /api/listings?cardId= — 판매 중(ACTIVE) 매물 목록, 가격 오름차순.

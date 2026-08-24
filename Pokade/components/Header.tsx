@@ -8,10 +8,16 @@ import CardImage from "@/components/CardImage";
 import Avatar from "@/components/Avatar";
 import { SearchBar } from "@/components/CardSearchBar";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
-import { notifStyle, formatNotifTime } from "@/lib/notificationDisplay";
+import { useMinuteTick } from "@/hooks/useMinuteTick";
+import {
+  notifStyle,
+  formatNotifTime,
+  notificationHref,
+  MARK_ALL_READ_BUTTON_CLASS,
+} from "@/lib/notificationDisplay";
 import { NotificationResponse } from "@/types/notification";
 import { useUserStore } from "@/store/useUserStore";
-import { useNotificationStore } from "@/store/useNotificationStore";
+import { selectUnreadCount, useNotificationStore } from "@/store/useNotificationStore";
 
 const NAV: { label: string; href: string }[] = [
   { label: "마켓", href: "/search" },
@@ -70,14 +76,22 @@ function LoggedInRight({
   const markOneRead = useNotificationStore((s) => s.markOneRead);
   const markAllRead = useNotificationStore((s) => s.markAllRead);
 
-  // /app/notifications/page.tsx와 동일한 정책 — cardId가 있으면 읽음 여부와 무관하게 항상
-  // 카드 상세로 이동하고, 드롭다운은 페이지 전환 후 열려있지 않도록 닫는다. cardId가 없는
-  // 알림(문의 처리 등)은 기존처럼 읽음 처리만 하고 드롭다운은 그대로 둔다.
+  // 드롭다운이 열린 동안 "N분 전" 상대시간이 굳지 않도록 1분마다 리렌더한다(#238).
+  // 30초 폴링이 목록을 교체하며 갱신하지만 그 사이 구간(최대 30초)엔 굳고, SSE 모드에선
+  // 새 알림이 오기 전까지 갱신 트리거가 없다. 드롭다운이 닫혀 있으면(open !== "notif")
+  // 상대시간이 화면에 없으므로 타이머를 걸지 않아 불필요한 리렌더를 피한다.
+  useMinuteTick(open === "notif");
+
+  // 목적지 규칙은 /app/notifications/page.tsx와 공유한다(lib/notificationDisplay의
+  // notificationHref) — 읽음 여부와 무관하게 항상 이동하고, 드롭다운은 페이지 전환 후
+  // 열려있지 않도록 닫는다. 갈 곳이 없는 알림(href가 null)은 읽음 처리만 하고 드롭다운을
+  // 그대로 둔다.
   const handleNotificationClick = (n: NotificationResponse) => {
     markOneRead(n);
-    if (n.cardId != null) {
+    const href = notificationHref(n);
+    if (href != null) {
       setOpen(null);
-      router.push(`/cards/${n.cardId}`);
+      router.push(href);
     }
   };
 
@@ -101,7 +115,7 @@ function LoggedInRight({
   //  붙일 수 없다 — prefers-reduced-motion 처리는 그 클래스 정의 자체가 미디어쿼리 안에 있다.)
   const arrivalSeq = useNotificationStore((s) => s.arrivalSeq);
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const unreadCount = useNotificationStore(selectUnreadCount);
   const notifLabel = unreadCount > 0 ? `안 읽은 알림 ${unreadCount}개` : "알림";
 
   return (
@@ -128,8 +142,20 @@ function LoggedInRight({
           <path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.7 21a2 2 0 01-3.4 0" />
         </svg>
+        {/* 안 읽은 개수 배지(#238) — 예전에는 7px 점이라 "뭔가 있다"까지만 알 수 있고 몇 건인지는
+            aria-label에만 있었다(시각 사용자에게만 정보가 빠져 있던 셈). 숫자를 직접 띄우되 두 자리
+            이상은 배지가 벨을 덮어버려 "9+"로 줄인다.
+            배경이 primary가 아니라 primary-dark인 이유: 10px 흰 글씨는 WCAG 기준상 일반 텍스트라
+            4.5:1이 필요한데 primary(#EE1515)는 4.43:1로 아슬하게 미달이고 primary-dark(#B80F0F)는
+            6.75:1이다. 정확한 개수는 계속 버튼 aria-label이 읽어주므로(9+로 줄지 않는다) 배지 자체는
+            aria-hidden으로 두어 스크린리더가 같은 정보를 두 번 읽지 않게 한다. */}
         {unreadCount > 0 && (
-          <span className="absolute right-2 top-[7px] h-[7px] w-[7px] rounded-full border-[1.5px] border-neutral bg-primary" />
+          <span
+            aria-hidden="true"
+            className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-white bg-primary-dark px-1 text-[10px] font-bold leading-none text-white"
+          >
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
         )}
       </button>
       <button
@@ -161,22 +187,43 @@ function LoggedInRight({
       {open === "notif" &&
         createPortal(
           <div className="pointer-events-none fixed inset-x-0 top-0 z-[90] px-4 sm:px-10">
+            {/* dropdown-pop-in: 조건부 마운트라 transition으로는 잡히지 않아 globals.css의
+                keyframes를 한 번 재생한다(#238). 벨(우상단)에서 자라나는 느낌이 되도록
+                transform-origin을 그쪽에 두었고, prefers-reduced-motion은 클래스 정의 자체가
+                미디어쿼리 안에 있어 자동으로 꺼진다(bell-shake와 같은 방식).
+                프로필 드롭다운에는 일부러 붙이지 않았다 — 같은 파일이지만 임현호 소유 영역이라
+                알림 쪽만 손댄다. */}
             <div
               id={notifId}
               aria-label="알림 목록"
-              className="pointer-events-auto absolute right-[44px] top-16 w-[344px] overflow-hidden rounded-[14px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]"
+              className="dropdown-pop-in pointer-events-auto absolute right-[44px] top-16 w-[344px] overflow-hidden rounded-[14px] border border-[#EDEDF0] bg-white shadow-[0_14px_38px_rgba(20,26,52,0.18)]"
             >
-              <div className="flex items-center justify-between border-b border-[#F0F0F0] px-4 py-3.5">
+              <div className="flex min-h-[52px] items-center justify-between border-b border-[#F0F0F0] px-4 py-2">
                 <span className="text-[14.5px] font-extrabold">알림</span>
-                <button
-                  type="button"
-                  onClick={markAllRead}
-                  className="cursor-pointer text-xs font-bold text-secondary hover:text-secondary-dark"
-                >
-                  모두 읽음 처리
-                </button>
+                {/* 안읽음이 없으면 숨긴다(#238) — store의 markAllRead도 안읽음 0건이면 그대로
+                    return하므로, 예전에는 눌러도 아무 일이 없는 버튼이 늘 떠 있었다.
+                    전체 알림 페이지와 같은 기준(selectUnreadCount)을 쓴다.
+                    버튼이 사라져도 헤더 높이가 흔들리지 않도록 min-h를 준다. */}
+                {unreadCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={markAllRead}
+                    className={`cursor-pointer ${MARK_ALL_READ_BUTTON_CLASS}`}
+                  >
+                    모두 읽음 처리
+                  </button>
+                )}
               </div>
-              <div className="max-h-[340px] overflow-y-auto">
+              {/* 340px 고정이던 시절엔 2줄 메시지(행 83px) 기준 4건밖에 안 보여, 피드가 들고 있는
+                  20건 중 대부분이 스크롤 뒤에 숨었다(#238). 뷰포트에 맞춰 늘리되 상한을 둔다 —
+                  세로가 긴 모니터에서 화면을 꽉 채우는 드롭다운은 오히려 부담스럽다.
+                  vh가 아니라 dvh를 쓰는 이유: 모바일 브라우저의 주소창이 접히고 펴질 때 vh는
+                  갱신되지 않아, 주소창이 펼쳐진 상태에서 목록이 화면 밖으로 밀려난다.
+                  단순 비율(예: 60dvh) 대신 100dvh에서 200px을 빼는 이유: 목록 위아래로 패널
+                  자체가 차지하는 높이(상단 여백 58 + 헤더 48 + 푸터 46 ≒ 152)가 고정이라,
+                  비율만 쓰면 화면이 아주 낮을 때(400px대) 그 고정분 때문에 아래가 잘린다.
+                  빼고 시작하면 어떤 높이에서도 최소 37px 여백이 남는다. */}
+              <div className="max-h-[min(calc(100dvh-200px),520px)] overflow-y-auto">
                 {loadState === "loading" && (
                   <div className="px-4 py-8 text-center text-[13px] text-[#9A9AA2]">
                     불러오는 중...
@@ -204,11 +251,20 @@ function LoggedInRight({
                         key={n.id}
                         type="button"
                         onClick={() => handleNotificationClick(n)}
-                        className={`flex w-full cursor-pointer gap-[11px] border-b border-[#F5F5F7] px-4 py-[13px] text-left hover:bg-[#FAFAFB] ${!n.isRead ? "bg-[#FFF7F7]" : ""}`}
+                        className={`relative flex w-full cursor-pointer gap-[11px] border-b border-[#F5F5F7] px-4 py-[13px] text-left hover:bg-[#FAFAFB] ${!n.isRead ? "bg-[#FFF1F1]" : ""}`}
                       >
-                        <span
-                          className={`mt-[15px] h-[7px] w-[7px] flex-shrink-0 rounded-full ${!n.isRead ? "bg-primary" : "bg-transparent"}`}
-                        />
+                        {/* 안읽음 표시(#238) — 예전에는 배경 틴트(#FFF7F7)와 7px 점뿐이었는데,
+                            틴트는 흰 배경과 명도 대비 1.06:1이라 옆에 나란히 놓기 전엔 구분이
+                            안 되고 점은 너무 작아 목록을 훑을 때 놓치기 쉬웠다. 행 왼쪽 끝의
+                            3px 바로 바꾸면 세로로 이어져 스캔이 쉽고, primary는 흰 배경 대비
+                            4:1 이상이라 그래픽 요소 기준(3:1)을 넘긴다. 틴트는 보조 단서로만
+                            남기되 프로젝트에서 이미 쓰는 #FFF1F1로 살짝 올렸다. */}
+                        {!n.isRead && (
+                          <span
+                            aria-hidden="true"
+                            className="absolute inset-y-0 left-0 w-[3px] bg-primary"
+                          />
+                        )}
                         {/* /app/notifications/page.tsx와 동일한 정책 — cardImageUrl 있으면 카드
                             썸네일, 없으면(또는 조회 실패) 기존 타입 아이콘. 좁은 드롭다운이라도
                             34px 그대로 유지(전체 목록과 다른 크기 분기를 또 만들지 않는다).
@@ -378,7 +434,11 @@ export default function Header() {
         <nav className="hidden items-center gap-[30px] text-[15px] font-semibold md:flex">
           {NAV.map((n) => {
             const isActive =
-              n.href !== "#" && (pathname === n.href || pathname.startsWith(n.href + "/"));
+              n.href !== "#" &&
+              (pathname === n.href ||
+                pathname.startsWith(n.href + "/") ||
+                // 카드 상세(/cards/[id])는 시맨틱상 마켓 하위라 "마켓"을 활성 처리한다.
+                (n.href === "/search" && pathname.startsWith("/cards/")));
             return (
               <Link
                 key={n.label}
@@ -495,7 +555,11 @@ export default function Header() {
               <nav className="flex flex-col gap-1">
                 {NAV.map((n) => {
                   const isActive =
-                    n.href !== "#" && (pathname === n.href || pathname.startsWith(n.href + "/"));
+                    n.href !== "#" &&
+                    (pathname === n.href ||
+                      pathname.startsWith(n.href + "/") ||
+                      // 카드 상세(/cards/[id])는 시맨틱상 마켓 하위라 "마켓"을 활성 처리한다.
+                      (n.href === "/search" && pathname.startsWith("/cards/")));
                   return (
                     <Link
                       key={n.label}

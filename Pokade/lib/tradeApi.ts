@@ -1,26 +1,38 @@
 import { apiGet, apiPatch, apiPost, PageResponse } from "@/lib/apiClient";
 import {
   MyTradeResponse,
-  TradeReadyRequest,
   TradeReadyResponse,
   TradeResponse,
   TradeRole,
   TradeStatus,
 } from "@/types/trade";
 
+export interface TradeRecipientInfo {
+  recipientName: string;
+  recipientPhone: string;
+  recipientAddress: string;
+}
+
 // POST /api/trades/ready — 즉시구매 결제창을 띄우기 전, 주문을 먼저 PENDING으로 만든다.
-// 이 시점엔 매물을 잠그지 않는다 - 결제를 실제로 완료해야 매물이 잠기고 거래가 생성된다.
-// recipientName/Phone/Address는 BE에서 필수(@NotBlank) — 배송지 입력 없이는 호출할 수 없다. 인증 필요.
-export async function readyTradePurchase(request: TradeReadyRequest): Promise<TradeReadyResponse> {
-  return apiPost<TradeReadyResponse>("/api/trades/ready", request);
+// 이 시점엔 매물을 잠그지 않는다 - 결제를 실제로 완료해야 매물이 잠기고 거래가 생성된다. 인증 필요.
+// 받는사람 정보(주문서 단계에서 입력)를 함께 보내면 amount에 고정 배송비가 포함되어 돌아온다.
+// pointsToUse만큼 결제 전에 미리 차감되어, 응답 amount는 그만큼 뺀 실제 결제(토스) 금액이다.
+export async function readyTradePurchase(
+  listingId: number,
+  pointsToUse: number,
+  recipient: TradeRecipientInfo,
+): Promise<TradeReadyResponse> {
+  return apiPost<TradeReadyResponse>("/api/trades/ready", { listingId, pointsToUse, ...recipient });
 }
 
 // POST /api/trades/confirm-payment — 토스 결제창 successUrl 리다이렉트 쿼리(paymentKey/orderId/amount)를
 // 그대로 전달한다. 결제 승인 후 매물을 잠그고 거래를 생성한다. 인증 필요.
+// paymentKey는 옵션 — 포인트로 전액을 충당해 결제금액이 0원인 주문은 토스 결제 자체가 없어
+// paymentKey 없이 바로 이 함수를 호출한다(BE도 이 경우 paymentKey 없이 승인을 허용한다).
 export async function confirmTradePurchase(
-  paymentKey: string,
   orderId: string,
   amount: number,
+  paymentKey?: string,
 ): Promise<TradeResponse> {
   return apiPost<TradeResponse>("/api/trades/confirm-payment", { paymentKey, orderId, amount });
 }

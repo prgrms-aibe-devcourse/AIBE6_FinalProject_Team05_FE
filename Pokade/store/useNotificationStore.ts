@@ -46,6 +46,18 @@ interface NotificationState {
   markAllRead: () => void;
 }
 
+// 안 읽은 알림 개수 — 헤더 벨 배지/드롭다운과 전체 알림 페이지(/notifications)가 같은 값을
+// 보도록 한 곳에 둔다(#238). 예전에는 두 화면이 각자 다른 기준을 썼다: 헤더는 이 피드 기준,
+// 전체 목록 페이지는 "지금 보고 있는 페이지" 기준이라 2페이지로 넘어가면 안읽음이 남아 있어도
+// "모두 읽음 처리" 버튼이 사라졌다.
+//
+// 한계는 그대로 남는다 — 이 값은 store가 들고 있는 최신 FEED_SIZE(20)건 안에서만 정확하다.
+// BE에 안읽음 개수만 알려주는 API가 없어 전체 집계를 알 방법이 없다(NotificationController에
+// GET /api/notifications와 PATCH /{id}/read만 있음). 다만 화면마다 다른 기준으로 버튼이
+// 나타났다 사라지는 것보다는, 세 곳이 같은 한계를 공유하는 편이 예측 가능하다.
+export const selectUnreadCount = (s: NotificationState) =>
+  s.notifications.filter((n) => !n.isRead).length;
+
 // 폴링 타이머는 컴포넌트 인스턴스가 아니라 이 모듈이 유일하게 소유한다 — 여러 컴포넌트가
 // start()를 동시에 불러도(Header, /notifications 페이지) 실제 fetch+interval은 하나만 존재한다.
 let pollTimer: ReturnType<typeof setInterval> | null = null;

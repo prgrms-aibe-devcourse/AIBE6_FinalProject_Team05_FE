@@ -3,26 +3,26 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { confirmTradePurchase } from "@/lib/tradeApi";
+import { confirmBuyOfferPayment } from "@/lib/buyOfferApi";
 import { ApiError } from "@/lib/apiClient";
 
 type ConfirmState = "confirming" | "success" | "error";
 
 // useSearchParams는 정적 프리렌더 시 Suspense 경계를 요구함(next build에서 강제됨)
-export default function TradeCheckoutSuccessPage() {
+export default function BuyOfferCheckoutSuccessPage() {
   return (
     <Suspense>
-      <TradeCheckoutSuccessContent />
+      <BuyOfferCheckoutSuccessContent />
     </Suspense>
   );
 }
 
-function TradeCheckoutSuccessContent() {
+// app/trades/checkout/success/page.tsx와 동일한 구조 - 구매입찰은 상세 상태 페이지가 없으므로
+// 성공 시 카드 상세로 이동한다(cardId는 checkout 페이지가 쿼리로 넘겨준 값을 그대로 이어받는다).
+function BuyOfferCheckoutSuccessContent() {
   const searchParams = useSearchParams();
   const [state, setState] = useState<ConfirmState>("confirming");
   const [errorMessage, setErrorMessage] = useState("");
-  // 개발 모드 StrictMode는 effect를 두 번 실행한다 - confirm은 BE에서 멱등 처리되지만(두 번째 호출은
-  // 409), 그 사이 응답 순서에 따라 성공 상태가 에러로 덮어써질 수 있어 실제 호출 자체를 한 번으로 막는다.
   const requestedRef = useRef(false);
 
   useEffect(() => {
@@ -40,19 +40,16 @@ function TradeCheckoutSuccessContent() {
       return;
     }
 
-    confirmTradePurchase(orderId, Number(amount), paymentKey)
-      .then((trade) => {
-        // router.replace(SPA 전환)이 아니라 완전한 새 페이지 로드로 이동한다 - 토스 리다이렉트
-        // 직후라 세션 복원(AuthInitializer)이 막 시작된 시점이라, 그 상태를 그대로 들고 SPA
-        // 전환하면 거래 상세 페이지의 첫 조회가 인증 확정 전에 나가 실패할 수 있다. 새 페이지
-        // 로드는 이 페이지가 이미 검증한 것과 동일하게 세션 복원을 처음부터 다시(안정적으로) 거친다.
-        window.location.href = `/trade-status/${trade.id}`;
+    confirmBuyOfferPayment(orderId, Number(amount), paymentKey)
+      .then((buyOffer) => {
+        // 완전한 새 페이지 로드로 이동 - trades/checkout/success와 동일한 이유(토스 리다이렉트
+        // 직후 세션 복원 타이밍 문제를 피하기 위함).
+        window.location.href = `/cards/${buyOffer.cardId}`;
       })
       .catch((err) => {
-        setErrorMessage(err instanceof ApiError ? err.message : "구매 승인에 실패했습니다.");
+        setErrorMessage(err instanceof ApiError ? err.message : "구매입찰 등록에 실패했습니다.");
         setState("error");
       });
-    // 승인 콜백은 정확히 한 번만 호출되어야 한다 - searchParams 값 자체는 이 페이지가 살아있는 동안 바뀌지 않는다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -65,7 +62,9 @@ function TradeCheckoutSuccessContent() {
 
         {state === "error" && (
           <>
-            <p className="mb-2 text-[18px] font-extrabold text-primary">구매에 실패했습니다</p>
+            <p className="mb-2 text-[18px] font-extrabold text-primary">
+              구매입찰 등록에 실패했습니다
+            </p>
             <p className="mb-6 text-[13.5px] text-[#8A8A92]">{errorMessage}</p>
             <Link
               href="/mypage"
