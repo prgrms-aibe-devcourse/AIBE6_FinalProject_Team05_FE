@@ -187,6 +187,13 @@ function SearchDashboard() {
   useEffect(() => {
     let cancelled = false;
 
+    // 요청이 시작될 때마다 loading으로 되돌린다 — 예전에는 페이지 이동이 이 값을 건드리지 않아
+    // 진행 중이라는 표시가 전혀 없다가 응답이 오는 순간 목록이 통째로 갈리며 깜빡였다.
+    // setCards([])는 하지 않는다: 이전 페이지 카드를 남겨 두고 그리드만 흐려지게 해야
+    // 레이아웃 높이가 유지되고(스크롤 위치가 튀지 않는다) 빈 화면이 스쳐 지나가지 않는다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 비동기 페치 수명주기 표시
+    setLoadState("loading");
+
     // #308: q(키워드)와 필터를 항상 같이 보낸다 — BE가 q 없으면 기존 필터 전용 검색과
     // 동일하게 동작하므로 q 유무로 호출을 분기할 필요가 없어졌다.
     fetchCardsPage({
@@ -323,9 +330,11 @@ function SearchDashboard() {
 
   // 페이지 번호/이전·다음 버튼 클릭 시에만 맨 위로 스크롤 — 필터/정렬 변경으로
   // 인한 자동 setPage(1)은 이 핸들러를 거치지 않으므로 스크롤 동작이 없다.
+  // behavior는 "auto"(즉시) — smooth로 두면 스크롤이 흐르는 도중에 새 목록이 도착해 교체되면서
+  // 화면이 두 번 움직이는 것처럼 보인다. 즉시 올린 뒤 그 자리에서 목록만 바뀌게 한다.
   const goToPage = (p: number) => {
     setPage(p);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: "auto" });
   };
 
   // 슬라이더 드래그가 아닌 즉시 액션(초기화, 칩 제거)은 debounce를 기다리지 않고
