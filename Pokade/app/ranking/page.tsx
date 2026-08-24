@@ -191,13 +191,13 @@ export default function RankingPage() {
                         <div className="relative h-10 w-7 flex-shrink-0 overflow-hidden rounded-[6px] bg-[#F2F2F5]">
                           <CardImage
                             src={item.imageUrl ?? undefined}
-                            alt={item.cardName ?? undefined}
+                            alt={item.cardNameKo ?? item.cardName ?? undefined}
                             label="카드"
                           />
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-[12.5px] font-bold">
-                            {item.cardName ?? "이름 없는 카드"}
+                            {item.cardNameKo ?? item.cardName ?? "이름 없는 카드"}
                           </div>
                           <div className="mt-0.5 text-[11.5px] font-semibold text-[#7A7A82]">
                             {currentPrice.toLocaleString("ko-KR")}원
