@@ -101,11 +101,19 @@ export interface ListingSummaryResponse {
 }
 
 // POST /api/listings 요청 바디 — com.pokade.domain.listing.dto.ListingCreateRequest 미러링.
+// settlement*/return*는 BE에서 전부 @NotBlank 필수 — 정산 계좌(판매 대금 받을 곳)와
+// 반송지(검수 반려 등으로 카드를 돌려받을 곳)는 서로 다른 정보라 별도 필드로 분리돼 있다.
 export interface ListingCreateRequest {
   cardId: number;
   variantId?: number;
   price: number;
   grade?: ListingGrade;
+  settlementBankName: string;
+  settlementAccountNumber: string;
+  settlementAccountHolder: string;
+  returnRecipientName: string;
+  returnRecipientPhone: string;
+  returnAddress: string;
 }
 
 // PUT /api/listings/{id} 요청 바디 — com.pokade.domain.listing.dto.ListingUpdateRequest 미러링.

@@ -73,6 +73,15 @@ function NewListingForm() {
   const [price, setPrice] = useState("");
   const [grade, setGrade] = useState<ListingGrade | "">("");
 
+  // 정산 계좌(판매 대금 받을 곳) — 반송지와는 별개 정보.
+  const [settlementBankName, setSettlementBankName] = useState("");
+  const [settlementAccountNumber, setSettlementAccountNumber] = useState("");
+  const [settlementAccountHolder, setSettlementAccountHolder] = useState("");
+  // 반송지(검수 반려 등으로 카드를 돌려받을 곳).
+  const [returnRecipientName, setReturnRecipientName] = useState("");
+  const [returnRecipientPhone, setReturnRecipientPhone] = useState("");
+  const [returnAddress, setReturnAddress] = useState("");
+
   const [priceSummary, setPriceSummary] = useState<PriceSummaryResponse | null>(null);
   const [priceSummaryLoading, setPriceSummaryLoading] = useState(false);
 
@@ -167,6 +176,18 @@ function NewListingForm() {
       setError("가격을 올바르게 입력해 주세요.");
       return;
     }
+    if (
+      !settlementBankName.trim() ||
+      !settlementAccountNumber.trim() ||
+      !settlementAccountHolder.trim()
+    ) {
+      setError("정산 계좌 정보를 모두 입력해 주세요.");
+      return;
+    }
+    if (!returnRecipientName.trim() || !returnRecipientPhone.trim() || !returnAddress.trim()) {
+      setError("반송지 정보를 모두 입력해 주세요.");
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -175,6 +196,12 @@ function NewListingForm() {
         variantId: selectedVariantId ?? undefined,
         price: priceNumber,
         grade: grade || undefined,
+        settlementBankName: settlementBankName.trim(),
+        settlementAccountNumber: settlementAccountNumber.trim(),
+        settlementAccountHolder: settlementAccountHolder.trim(),
+        returnRecipientName: returnRecipientName.trim(),
+        returnRecipientPhone: returnRecipientPhone.trim(),
+        returnAddress: returnAddress.trim(),
       });
       router.push(`/cards/${selectedCard.id}`);
     } catch (err) {
@@ -435,6 +462,72 @@ function NewListingForm() {
                       {GRADE_GUIDE[grade]}
                     </p>
                   )}
+
+                  <div className="h-5" />
+
+                  {/* 정산 계좌 */}
+                  <div className="mb-2.5 text-[13px] font-bold text-[#4B4B52]">
+                    정산 계좌 정보
+                    <span className="ml-1.5 text-[11.5px] font-semibold text-[#9A9AA2]">
+                      판매 대금을 받을 계좌입니다
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-2.5">
+                    <input
+                      type="text"
+                      value={settlementBankName}
+                      onChange={(e) => setSettlementBankName(e.target.value)}
+                      placeholder="은행명"
+                      className={inputCls}
+                    />
+                    <input
+                      type="text"
+                      value={settlementAccountNumber}
+                      onChange={(e) => setSettlementAccountNumber(e.target.value)}
+                      placeholder="계좌번호"
+                      className={inputCls}
+                    />
+                    <input
+                      type="text"
+                      value={settlementAccountHolder}
+                      onChange={(e) => setSettlementAccountHolder(e.target.value)}
+                      placeholder="예금주명"
+                      className={inputCls}
+                    />
+                  </div>
+
+                  <div className="h-5" />
+
+                  {/* 반송지 */}
+                  <div className="mb-2.5 text-[13px] font-bold text-[#4B4B52]">
+                    반송지 정보
+                    <span className="ml-1.5 text-[11.5px] font-semibold text-[#9A9AA2]">
+                      검수 반려 시 카드를 돌려받을 곳입니다
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-2.5">
+                    <input
+                      type="text"
+                      value={returnRecipientName}
+                      onChange={(e) => setReturnRecipientName(e.target.value)}
+                      placeholder="받는 사람"
+                      className={inputCls}
+                    />
+                    <input
+                      type="tel"
+                      value={returnRecipientPhone}
+                      onChange={(e) => setReturnRecipientPhone(e.target.value)}
+                      placeholder="연락처"
+                      className={inputCls}
+                    />
+                    <input
+                      type="text"
+                      value={returnAddress}
+                      onChange={(e) => setReturnAddress(e.target.value)}
+                      placeholder="주소"
+                      className={inputCls}
+                    />
+                  </div>
 
                   {error && <p className="mt-4 text-[12.5px] font-semibold text-primary">{error}</p>}
 
