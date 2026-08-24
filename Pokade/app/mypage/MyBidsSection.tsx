@@ -7,7 +7,12 @@ import CardImage from "@/components/CardImage";
 import { PageResponse } from "@/lib/apiClient";
 import { fetchMyBuyOffers } from "@/lib/buyOfferApi";
 import { fetchMyListings } from "@/lib/listingApi";
-import { ListingStatus, ListingSummaryResponse, MyBuyOfferResponse } from "@/types/price";
+import {
+  GRADE_LABELS,
+  ListingStatus,
+  ListingSummaryResponse,
+  MyBuyOfferResponse,
+} from "@/types/price";
 
 const PAGE_SIZE = 10;
 
@@ -226,9 +231,14 @@ function MyBidsSectionInner() {
                   <CardImage src={b.cardImageUrl ?? undefined} alt={b.cardNameKo ?? b.cardName ?? "카드"} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13.5px] font-bold text-[#3A3A42]">
-                    {b.cardNameKo ?? b.cardName ?? "알 수 없는 카드"}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate text-[13.5px] font-bold text-[#3A3A42]">
+                      {b.cardNameKo ?? b.cardName ?? "알 수 없는 카드"}
+                    </p>
+                    <span className="flex-none rounded-[5px] bg-[#F2F2F5] px-1.5 py-0.5 text-[10.5px] font-bold text-[#4B4B52]">
+                      {GRADE_LABELS[b.grade ?? "RAW"]}
+                    </span>
+                  </div>
                   <p className="text-[12px] text-[#8A8A92]">
                     {b.price.toLocaleString("ko-KR")}원 · {formatDateTime(b.createdAt)}
                   </p>
@@ -258,9 +268,14 @@ function MyBidsSectionInner() {
                   <CardImage src={l.cardImageUrl ?? undefined} alt={l.cardNameKo ?? l.cardName ?? "카드"} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13.5px] font-bold text-[#3A3A42]">
-                    {l.cardNameKo ?? l.cardName ?? "알 수 없는 카드"}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate text-[13.5px] font-bold text-[#3A3A42]">
+                      {l.cardNameKo ?? l.cardName ?? "알 수 없는 카드"}
+                    </p>
+                    <span className="flex-none rounded-[5px] bg-[#F2F2F5] px-1.5 py-0.5 text-[10.5px] font-bold text-[#4B4B52]">
+                      {GRADE_LABELS[l.grade ?? "RAW"]}
+                    </span>
+                  </div>
                   <p className="text-[12px] text-[#8A8A92]">
                     {l.price.toLocaleString("ko-KR")}원 · {formatDateTime(l.createdAt)}
                   </p>
