@@ -2,8 +2,19 @@
 export type TradeStatus =
   "PENDING" | "SHIPPED_TO_PLATFORM" | "INSPECTED" | "DELIVERED" | "COMPLETED" | "CANCELLED";
 
+// POST /api/trades/ready 요청 — com.pokade.domain.trade.dto.TradeReadyRequest 미러링.
+// recipientName/Phone/Address는 BE에서 @NotBlank — 전부 필수. pointsToUse는 0 이상 필수(안 쓰면 0).
+export interface TradeReadyRequest {
+  listingId: number;
+  pointsToUse: number;
+  recipientName: string;
+  recipientPhone: string;
+  recipientAddress: string;
+}
+
 // POST /api/trades/ready 응답 — com.pokade.domain.trade.dto.TradeReadyResponse 미러링.
 // 결제창을 띄우기 전 주문만 먼저 만든 상태라, 이 시점엔 아직 매물이 잠기지 않는다.
+// amount는 상품가+배송비에서 pointsToUse를 뺀, 실제 토스로 결제할 금액이다.
 export interface TradeReadyResponse {
   orderId: string;
   amount: number;
@@ -26,6 +37,9 @@ export interface TradeResponse {
   deliveredAt: string | null;
   confirmedAt: string | null;
   settledAt: string | null;
+  recipientName: string | null;
+  recipientPhone: string | null;
+  recipientAddress: string | null;
   createdAt: string;
 }
 

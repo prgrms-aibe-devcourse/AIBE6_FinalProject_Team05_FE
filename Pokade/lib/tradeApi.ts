@@ -1,6 +1,7 @@
 import { apiGet, apiPatch, apiPost, PageResponse } from "@/lib/apiClient";
 import {
   MyTradeResponse,
+  TradeReadyRequest,
   TradeReadyResponse,
   TradeResponse,
   TradeRole,
@@ -8,9 +9,10 @@ import {
 } from "@/types/trade";
 
 // POST /api/trades/ready — 즉시구매 결제창을 띄우기 전, 주문을 먼저 PENDING으로 만든다.
-// 이 시점엔 매물을 잠그지 않는다 - 결제를 실제로 완료해야 매물이 잠기고 거래가 생성된다. 인증 필요.
-export async function readyTradePurchase(listingId: number): Promise<TradeReadyResponse> {
-  return apiPost<TradeReadyResponse>("/api/trades/ready", { listingId });
+// 이 시점엔 매물을 잠그지 않는다 - 결제를 실제로 완료해야 매물이 잠기고 거래가 생성된다.
+// recipientName/Phone/Address는 BE에서 필수(@NotBlank) — 배송지 입력 없이는 호출할 수 없다. 인증 필요.
+export async function readyTradePurchase(request: TradeReadyRequest): Promise<TradeReadyResponse> {
+  return apiPost<TradeReadyResponse>("/api/trades/ready", request);
 }
 
 // POST /api/trades/confirm-payment — 토스 결제창 successUrl 리다이렉트 쿼리(paymentKey/orderId/amount)를

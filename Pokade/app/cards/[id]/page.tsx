@@ -34,7 +34,8 @@ import {
 import { ApiError } from "@/lib/apiClient";
 import { fetchWatchlist, fetchWatchlistCounts } from "@/lib/watchlistApi";
 import { WatchlistResponse } from "@/types/watchlist";
-import { readyTradePurchase } from "@/lib/tradeApi";
+import BuyRecipientModal from "@/components/BuyRecipientModal";
+import { TradeReadyResponse } from "@/types/trade";
 import { useUserStore } from "@/store/useUserStore";
 import { loginUrlFor } from "@/lib/authRedirect";
 import { toKrw } from "@/lib/currency";
@@ -157,9 +158,8 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
   // GET /api/listings는 (summary/trades와 달리) 아직 인증이 필요해 401이 날 수 있다 —
   // "매물 없음"과 "조회 권한 없음"을 구분해서 보여주기 위한 별도 상태.
   const [listingsError, setListingsError] = useState<ApiError | null>(null);
-  // 즉시구매 — 한 번에 하나의 매물만 처리(동시 클릭 방지)하고, 에러는 구매 박스 안에 표시한다.
-  const [buyingListingId, setBuyingListingId] = useState<number | null>(null);
-  const [buyError, setBuyError] = useState<string | null>(null);
+  // 즉시구매 — 배송지 입력 모달을 먼저 띄우고, ready() 성공 후에만 체크아웃으로 넘어간다.
+  const [buyModalListingId, setBuyModalListingId] = useState<number | null>(null);
   const [priceLoadState, setPriceLoadState] = useState<RelatedLoadState>("loading");
 
   // /search에서 저장해 둔 마지막 검색 URL(필터 쿼리 포함)로 돌아간다.
@@ -208,36 +208,34 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
     setSelectedGrade((prev) => (prev != null && nextSummary[prev] != null ? prev : null));
   };
 
-  // 결제창을 띄우기 전 주문만 먼저 만들고(매물은 아직 안 잠금), 실제 결제는 별도 체크아웃
-  // 페이지(/trades/checkout)에서 토스 위젯으로 진행한다 - 포인트 충전과 동일한 ready → 위젯 → confirm 흐름.
-  const handleBuy = async (listingId: number) => {
+  // "구매하기" 클릭 시 결제로 바로 넘어가지 않고, 배송지(수령인 정보)를 먼저 입력받는다 —
+  // BE의 TradeReadyRequest가 recipientName/Phone/Address를 필수로 요구한다.
+  const handleBuyClick = (listingId: number) => {
     if (userStatus === "loading") return; // 세션 복원 중 — 확정될 때까지 아무 것도 하지 않는다.
     if (userStatus !== "authenticated") {
       router.push(loginUrlFor(pathname, searchParams));
       return;
     }
-    setBuyingListingId(listingId);
-    setBuyError(null);
-    try {
-      const ready = await readyTradePurchase(listingId);
-      const orderName = card ? (card.nameKo ?? card.name) : "카드 구매";
-      const checkoutParams = new URLSearchParams({
-        orderId: ready.orderId,
-        amount: String(ready.amount),
-        orderName,
-        cardId: String(cardId),
-      });
-      if (card) {
-        const cardImage = resolveMainImageSrc(card, selectedVariantId);
-        if (cardImage) checkoutParams.set("cardImage", cardImage);
-      }
-      if (selectedGrade) checkoutParams.set("grade", GRADE_LABELS[selectedGrade]);
-      router.push(`/trades/checkout?${checkoutParams.toString()}`);
-    } catch (err) {
-      setBuyError(err instanceof ApiError ? err.message : "구매 요청에 실패했습니다.");
-      setBuyingListingId(null);
-      await refreshListingsAndPrice();
+    setBuyModalListingId(listingId);
+  };
+
+  // 배송지 입력 모달이 ready() 요청까지 성공적으로 끝낸 뒤 호출된다 — 실제 결제는 별도 체크아웃
+  // 페이지(/trades/checkout)에서 토스 위젯으로 진행한다(포인트 충전과 동일한 ready → 위젯 → confirm 흐름).
+  const handleReadySuccess = (ready: TradeReadyResponse) => {
+    setBuyModalListingId(null);
+    const orderName = card ? (card.nameKo ?? card.name) : "카드 구매";
+    const checkoutParams = new URLSearchParams({
+      orderId: ready.orderId,
+      amount: String(ready.amount),
+      orderName,
+      cardId: String(cardId),
+    });
+    if (card) {
+      const cardImage = resolveMainImageSrc(card, selectedVariantId);
+      if (cardImage) checkoutParams.set("cardImage", cardImage);
     }
+    if (selectedGrade) checkoutParams.set("grade", GRADE_LABELS[selectedGrade]);
+    router.push(`/trades/checkout?${checkoutParams.toString()}`);
   };
 
   // /search에서 스크롤을 많이 내린 상태로 카드를 클릭하면, 상세 페이지가 처음
@@ -738,12 +736,6 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                         </span>
                       )}
 
-                      {buyError && (
-                        <div className="rounded-xl border border-[#F6C6C6] bg-[#FFF1F1] px-3.5 py-2.5 text-[12.5px] font-semibold text-[#C21414]">
-                          {buyError}
-                        </div>
-                      )}
-
                       <div className="border-t border-[#F5F5F7] pt-4">
                         <div className="mb-2.5 text-[12.5px] font-bold text-ink">등급 선택</div>
 
@@ -821,22 +813,18 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                       <div className="mt-1 flex items-stretch gap-2">
                         <button
                           type="button"
-                          disabled={
-                            userStatus === "loading" || !selectedOffer || buyingListingId != null
-                          }
+                          disabled={userStatus === "loading" || !selectedOffer}
                           onClick={() => {
                             if (!selectedOffer) return;
-                            handleBuy(selectedOffer.listingId);
+                            handleBuyClick(selectedOffer.listingId);
                           }}
                           className="flex-1 rounded-[11px] border-2 border-primary-dark bg-primary py-3.5 text-[15px] font-bold text-white shadow-tactile transition active:translate-y-0.5 active:shadow-tactile-active disabled:cursor-not-allowed disabled:border-[#DDDDE3] disabled:bg-neutral disabled:text-[#9A9AA2] disabled:shadow-none"
                         >
                           {userStatus === "loading"
                             ? "인증 확인 중..."
-                            : buyingListingId != null
-                              ? "구매 중..."
-                              : selectedOffer
-                                ? "구매하기"
-                                : "등급을 선택하세요"}
+                            : selectedOffer
+                              ? "구매하기"
+                              : "등급을 선택하세요"}
                         </button>
                         <IconTooltip
                           label={myWatchlist ? "관심 해제" : "관심 등록"}
@@ -963,6 +951,14 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
       </div>
 
       <Toast toast={toast} onPause={pauseToast} onResume={resumeToast} />
+
+      <BuyRecipientModal
+        isOpen={buyModalListingId != null}
+        listingId={buyModalListingId}
+        onClose={() => setBuyModalListingId(null)}
+        onSuccess={handleReadySuccess}
+        onFailure={refreshListingsAndPrice}
+      />
     </main>
   );
 }
