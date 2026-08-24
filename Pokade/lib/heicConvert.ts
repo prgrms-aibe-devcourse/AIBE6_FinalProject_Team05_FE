@@ -5,7 +5,8 @@
 function isHeic(file: File): boolean {
   const type = file.type.toLowerCase();
   if (type === "image/heic" || type === "image/heif") return true;
-  if (type) return false; // 타입이 있는데 heic가 아니면 확실히 heic가 아님
+  if (type.startsWith("image/")) return false; // 명확한 다른 이미지 포맷이면 heic가 아님
+  // 타입이 비어있거나 application/octet-stream 같은 범용 값이면 파일명 확장자로 판단
   return /\.hei[cf]$/i.test(file.name);
 }
 

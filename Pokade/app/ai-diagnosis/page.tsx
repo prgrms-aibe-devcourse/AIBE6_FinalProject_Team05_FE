@@ -191,7 +191,9 @@ async function requestGrade(photos: File[], retryOfId: number | null): Promise<G
           "AI 분석이 예상보다 오래 걸려 요청을 중단했습니다. 잠시 후 다시 시도해 주세요.",
         );
       }
-      throw new Error("진단 요청에 실패했습니다.");
+      // 형식 오류 등 400대는 BE가 이미 "어떤 파일이 왜 문제인지" 사용자용 문구로 내려주므로
+      // 그대로 보여준다 — 뭉뚱그린 메시지로 덮으면 6장 중 무엇이 문제인지 알 길이 없어진다.
+      throw new Error(e.message || "진단 요청에 실패했습니다.");
     }
     throw e;
   }
@@ -218,6 +220,9 @@ function UploadView({
   const count = photos.filter(Boolean).length;
   const canStart = photos.every(Boolean) && !loading;
   const pointBalance = useUserStore((s) => s.pointBalance);
+
+  // BE 에러 메시지가 "...: 파일명" 형태로 끝나면(형식 오류) 어느 슬롯이 문제인지 파일명으로 역추적한다.
+  const badSlotIndex = error ? photos.findIndex((p) => p && error.endsWith(p.name)) : -1;
 
   // 언마운트 시(진단 성공 → ResultView 전환 등) 남아있는 blob URL을 전부 해제하기 위한 최신값 참조
   const previewsRef = useRef(previews);
@@ -247,11 +252,18 @@ function UploadView({
     });
   };
 
+  // HEIC 변환이 비동기라, 변환 중에 같은 슬롯을 다시 선택하면 먼저 시작한 느린 변환이
+  // 나중에 끝나 최신 선택을 덮어쓸 수 있다 — 슬롯별 요청 번호로 최신 요청만 반영한다.
+  const pickRequestIdRef = useRef<number[]>(Array(6).fill(0));
+
   const onPick = (i: number) => async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    setAt(i, await ensureUploadableImage(file));
+    const requestId = ++pickRequestIdRef.current[i];
+    const uploadable = await ensureUploadableImage(file);
+    if (pickRequestIdRef.current[i] !== requestId) return; // 그 사이 같은 슬롯이 다시 선택됨
+    setAt(i, uploadable);
   };
 
   const onLoadDemo = async () => {
@@ -358,7 +370,9 @@ function UploadView({
           previews[i] ? (
             <div
               key={i}
-              className="relative aspect-[3/4] animate-fade-in overflow-hidden rounded-[11px] bg-[#F2F2F5]"
+              className={`relative aspect-[3/4] animate-fade-in overflow-hidden rounded-[11px] bg-[#F2F2F5] ${
+                badSlotIndex === i ? "ring-2 ring-[#E53E3E]" : ""
+              }`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
