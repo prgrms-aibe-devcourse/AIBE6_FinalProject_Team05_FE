@@ -10,6 +10,14 @@
 // TRADE_SHIPPING_REQUIRED는 판매자에게, TRADE_DELIVERED는 구매자에게, TRADE_CANCELLED는 취소를
 // 누르지 않은 반대편에게. BUY_OFFER_MATCHED만 TRADE_ 접두사를 쓰지 않는데, 받는 사람 관점에서
 // 이건 "거래 진행"이 아니라 "내가 걸어 둔 입찰이 체결됐다"이기 때문이다(BE enum 주석과 동일 기준).
+//
+// BUY_OFFER_RECEIVED(#417)는 BUY_OFFER_MATCHED와 짝이지만 방향이 반대다 — 체결이 아니라
+// "구매 입찰이 등록됐다"를 그 카드 매물을 가진 판매자에게 알린다("즉시판매로 바로 팔 수 있어요").
+// 받는 사람이 입찰자가 아니라 판매자라 같은 입찰 계열이어도 읽는 관점이 다르다.
+// INQUIRY_RECEIVED처럼 수신자가 한 명이 아니라 여럿이다 — 입찰 하나에 그 카드 매물을 가진 판매자
+// 전원이 같은 문구를 동시에 받는다(BE는 판매자별로 레코드를 따로 만든다). 팬아웃 인원과 재발송에
+// 상한이 없어서, 매물이 많은 인기 카드에 입찰이 연달아 들어오면 한 판매자의 목록에 문구가 같거나
+// 가격만 다른 알림이 계속 쌓인다 — 화면에서 묶거나 걸러 주지 않으므로 그대로 나열된다.
 export type NotificationType =
   | "PRICE_TARGET"
   | "TRADE_CONFIRMED"
@@ -20,7 +28,8 @@ export type NotificationType =
   | "TRADE_SHIPPING_REQUIRED"
   | "TRADE_DELIVERED"
   | "TRADE_CANCELLED"
-  | "BUY_OFFER_MATCHED";
+  | "BUY_OFFER_MATCHED"
+  | "BUY_OFFER_RECEIVED";
 
 // GET /api/notifications 응답 — com.pokade.domain.notification.dto.NotificationResponse 미러링.
 // message는 BE가 이미 완성된 문장으로 내려준다("리자몽 ex · ₩150,000 도달" 등) — FE에서 조합하지 않는다.
