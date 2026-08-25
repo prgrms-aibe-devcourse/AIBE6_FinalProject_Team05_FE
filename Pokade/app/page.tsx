@@ -498,7 +498,9 @@ function HomeView() {
           </div>
           <div className="flex gap-5 rounded-2xl border-t-[3px] border-secondary bg-white p-6 shadow-card">
             <div className="relative h-[180px] w-[130px] flex-shrink-0 overflow-hidden rounded-[11px] bg-[#F2F2F5]">
-              <CardImage label="진단 카드" />
+              {/* 진단 결과 예시 카드. src 없이 두면 회색 플레이스홀더만 보여 미완성으로 읽힌다.
+                  히어로와 같은 대표 카드(sm3-20)를 그대로 쓴다. */}
+              <CardImage src={HERO_CARD.image} alt={HERO_CARD.alt} />
               <GradeBadge grade="S" size="sm" className="absolute left-2 top-2" />
             </div>
             <div className="flex-1">
