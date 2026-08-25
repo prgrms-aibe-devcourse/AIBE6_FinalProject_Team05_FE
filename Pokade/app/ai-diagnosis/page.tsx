@@ -537,7 +537,11 @@ function ResultView({
   const confirmCard =
     pendingCard ??
     (result.cardId != null
-      ? { id: result.cardId, name: result.cardName ?? "카드", imageUrl: result.cardImageSmall ?? "" }
+      ? {
+          id: result.cardId,
+          name: result.cardNameKo ?? result.cardName ?? "카드",
+          imageUrl: result.cardImageSmall ?? "",
+        }
       : null);
   const confirmCardConfidence = pendingCard ? null : result.cardConfidence;
 
@@ -578,12 +582,17 @@ function ResultView({
           {result.cardId != null ? (
             <>
               <div className="flex items-center gap-3">
-                <div className="relative h-14 w-10 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
-                  <CardImage src={result.cardImageSmall ?? undefined} alt={result.cardName ?? "카드"} />
+                <div className="relative h-20 w-[57px] flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
+                  <CardImage
+                    src={result.cardImageSmall ?? undefined}
+                    alt={result.cardNameKo ?? result.cardName ?? "카드"}
+                  />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-[12px] font-semibold text-[#8A8A92]">인식된 카드</div>
-                  <div className="truncate text-[14px] font-bold">{result.cardName}</div>
+                  <div className="truncate text-[14px] font-bold">
+                    {result.cardNameKo ?? result.cardName}
+                  </div>
                 </div>
                 {result.cardConfidence != null && (
                   <div
@@ -698,7 +707,7 @@ function ResultView({
             </div>
             <p className="mt-1 text-[13px] text-[#8A8A92]">도감에 등록하기 전에 한 번 더 확인해 주세요.</p>
             <div className="mt-4 flex items-center gap-3 rounded-[11px] border border-[#DDDDE3] px-3.5 py-3">
-              <div className="relative h-16 w-11 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
+              <div className="relative h-24 w-[68px] flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
                 <CardImage src={confirmCard?.imageUrl ?? undefined} alt={confirmCard?.name ?? "카드"} />
               </div>
               <div className="min-w-0 flex-1">

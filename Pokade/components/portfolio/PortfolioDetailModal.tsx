@@ -30,7 +30,7 @@ export default function PortfolioDetailModal({
   onDelete: () => void;
   onThumbnailChange: (updated: PortfolioItemResponse) => void;
 }) {
-  const displayName = item.cardName ?? "알 수 없는 카드";
+  const displayName = item.cardNameKo ?? item.cardName ?? "알 수 없는 카드";
   const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
   const [thumbnailError, setThumbnailError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
