@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import AddressSearchField from "@/components/AddressSearchField";
 import BankSelector from "@/components/BankSelector";
 import CardImage from "@/components/CardImage";
+import RequiredMark from "@/components/RequiredMark";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { fulfillBuyOffer } from "@/lib/buyOfferApi";
 import { ApiError } from "@/lib/apiClient";
@@ -190,13 +191,15 @@ function BuyOfferFulfillOrderForm() {
           <section className={sectionCls}>
             <h2 className={sectionTitleCls}>판매 정산 계좌</h2>
 
-            <label className={labelCls}>은행명</label>
+            <label className={labelCls}>
+              은행명<RequiredMark />
+            </label>
             <BankSelector value={settlementBankName} onChange={setSettlementBankName} inputCls={inputCls} />
 
             <div className="h-4" />
 
             <label htmlFor="account-number" className={labelCls}>
-              계좌번호
+              계좌번호<RequiredMark />
             </label>
             <input
               id="account-number"
@@ -210,7 +213,7 @@ function BuyOfferFulfillOrderForm() {
             <div className="h-4" />
 
             <label htmlFor="account-holder" className={labelCls}>
-              예금주
+              예금주<RequiredMark />
             </label>
             <input
               id="account-holder"
@@ -230,7 +233,7 @@ function BuyOfferFulfillOrderForm() {
             </p>
 
             <label htmlFor="return-name" className={labelCls}>
-              받는사람 이름
+              받는사람 이름<RequiredMark />
             </label>
             <input
               id="return-name"
@@ -243,7 +246,7 @@ function BuyOfferFulfillOrderForm() {
             <div className="h-4" />
 
             <label htmlFor="return-phone" className={labelCls}>
-              전화번호
+              전화번호<RequiredMark />
             </label>
             <input
               id="return-phone"
@@ -257,7 +260,9 @@ function BuyOfferFulfillOrderForm() {
 
             <div className="h-4" />
 
-            <label className={labelCls}>주소</label>
+            <label className={labelCls}>
+              주소<RequiredMark />
+            </label>
             <AddressSearchField onChange={setReturnAddress} inputCls={inputCls} />
           </section>
 

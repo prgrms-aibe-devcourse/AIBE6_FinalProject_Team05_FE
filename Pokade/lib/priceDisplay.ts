@@ -46,3 +46,31 @@ export function resolvePriceDisplay(
 export function resolveSortablePrice(summary?: CardPriceSummaryResponse): number | null {
   return pickPrice(summary)?.value ?? null;
 }
+
+// 판매/구매입찰 등록·수정 화면의 "참고 시세" 배지 전용 - 등급별 매물가/구매입찰가(primaryField) →
+// 그 등급 최근 체결가 → 마켓 참고가(marketPrice, KRW 환산) 순으로 내려간다. resolvePriceDisplay와
+// 우선순위 개념은 같지만 primaryField를 buyPrice/sellPrice 중 호출부가 고를 수 있어야 하고
+// (판매는 buyPrice=매물 최저가, 구매입찰은 sellPrice=구매입찰 최고가 기준), 라벨도 등급명을 넣어
+// 호출부가 직접 구성하므로 값과 어느 단계에서 얻었는지(tier)만 반환한다.
+export type ReferencePriceTier = "primary" | "recentTrade" | "market";
+
+export function resolveGradeReferencePrice(
+  summary: CardPriceSummaryResponse | null | undefined,
+  primaryField: "buyPrice" | "sellPrice",
+): { price: number; tier: ReferencePriceTier } | null {
+  const primary = summary?.[primaryField];
+  if (primary != null) {
+    return { price: primary, tier: "primary" };
+  }
+  if (summary?.recentTradePrice != null) {
+    return { price: summary.recentTradePrice, tier: "recentTrade" };
+  }
+  if (summary?.marketPrice != null && summary.marketPriceCurrency != null) {
+    const krw = toKrw(summary.marketPrice, summary.marketPriceCurrency);
+    // 지원하지 않는 통화면 잘못된 환율로 추정치를 보여주는 대신 그냥 표시하지 않는다.
+    if (krw != null) {
+      return { price: krw, tier: "market" };
+    }
+  }
+  return null;
+}
