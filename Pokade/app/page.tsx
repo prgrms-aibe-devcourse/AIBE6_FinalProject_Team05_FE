@@ -170,10 +170,14 @@ function scrollToId(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+const LANDING_SEEN_KEY = "pokade-landing-seen";
+
 export default function LandingPage() {
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  // 랜딩페이지는 첫 방문에만 보여준다 — 이미 본 방문자는 실제 홈으로 바로 보낸다.
+  const [showLanding, setShowLanding] = useState(false);
   const heroRef = useRef<HTMLElement | null>(null);
   const reducedMotion = useReducedMotion();
   const mouseX = useMotionValue(0);
@@ -186,6 +190,15 @@ export default function LandingPage() {
   const heroY = useTransform(heroProgress, [0, 1], [0, 78]);
   const copyY = useTransform(heroProgress, [0, 1], [0, -56]);
   const copyOpacity = useTransform(heroProgress, [0, 0.78], [1, 0]);
+
+  useEffect(() => {
+    if (localStorage.getItem(LANDING_SEEN_KEY)) {
+      router.replace("/home");
+      return;
+    }
+    localStorage.setItem(LANDING_SEEN_KEY, "1");
+    setShowLanding(true);
+  }, [router]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 16);
@@ -206,6 +219,8 @@ export default function LandingPage() {
     mouseY.set((event.clientY - box.top) / box.height - 0.5);
   };
 
+  if (!showLanding) return null;
+
   return (
     <div
       className={`future-page min-h-screen overflow-x-clip bg-[#f8fbff] text-[#111827] ${notoSansKr.className}`}
@@ -216,9 +231,9 @@ export default function LandingPage() {
         <div className="mx-auto flex h-[76px] max-w-[1280px] items-center justify-between px-5 sm:px-8">
           <button
             className="flex items-center gap-2.5"
-            onClick={() => navigate("top")}
+            onClick={() => router.push("/home")}
             type="button"
-            aria-label="POKADE 첫 화면으로 이동"
+            aria-label="POKADE 홈으로 이동"
           >
             <span className="future-logo-mark">
               <span />
