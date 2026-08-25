@@ -69,16 +69,27 @@ export default function SocialSignupPage() {
         </p>
 
         <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-4">
-          <input
-            type="text"
-            value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
-            placeholder="닉네임 (2~20자)"
-            minLength={2}
-            maxLength={20}
-            required
-            className="w-full rounded-[11px] border border-[#DDDDE3] px-3.5 py-3 text-[14.5px] outline-none focus:border-primary"
-          />
+          <div>
+            {/* placeholder만으로는 입력 목적이 보조기술에 안정적으로 전달되지 않는다.
+                /signup의 닉네임 칸과 같은 방식으로 label을 붙인다. */}
+            <label
+              htmlFor="social-signup-nickname"
+              className="mb-[7px] block text-[13px] font-bold text-[#4B4B52]"
+            >
+              닉네임
+            </label>
+            <input
+              id="social-signup-nickname"
+              type="text"
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value)}
+              placeholder="닉네임 (2~20자)"
+              minLength={2}
+              maxLength={20}
+              required
+              className="w-full rounded-[11px] border border-[#DDDDE3] px-3.5 py-3 text-[14.5px] outline-none focus:border-primary"
+            />
+          </div>
           <AgreementSection value={agreements} onChange={setAgreements} />
 
           {/* 오류 표시는 /login·/signup과 같은 규칙을 따른다(#282) — 통신 오류는 사용자가 고칠 것이
