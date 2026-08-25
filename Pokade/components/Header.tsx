@@ -23,7 +23,7 @@ const NAV: { label: string; href: string }[] = [
   { label: "마켓", href: "/search" },
   { label: "시세 랭킹", href: "/ranking" },
   { label: "AI 등급진단", href: "/ai-diagnosis" },
-  { label: "상품 등록", href: "/listings/new" },
+  { label: "포트폴리오", href: "/portfolio" },
 ];
 
 // 로그인/비로그인 헤더가 각각 w-60·w-56으로 갈려 있던 것을 한 곳으로 모은다.
