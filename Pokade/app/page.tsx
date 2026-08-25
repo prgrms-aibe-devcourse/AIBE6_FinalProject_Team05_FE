@@ -10,8 +10,13 @@ import IconTooltip from "@/components/IconTooltip";
 import ImageLightbox from "@/components/ImageLightbox";
 import Toast from "@/components/Toast";
 import { CardSearchItem, toCardSearchItem } from "@/types/card";
-import { CardPriceSummaryResponse } from "@/types/price";
-import { fetchCards, fetchCardsByKeywordPage, fetchPriceSummaries } from "@/lib/cardApi";
+import { CardPriceSummaryResponse, PriceRankingResponse } from "@/types/price";
+import {
+  fetchCards,
+  fetchCardsByKeywordPage,
+  fetchPriceRanking,
+  fetchPriceSummaries,
+} from "@/lib/cardApi";
 import { ApiError } from "@/lib/apiClient";
 import { resolvePriceDisplay } from "@/lib/priceDisplay";
 import { useHeartPunch } from "@/hooks/useHeartPunch";
@@ -19,14 +24,14 @@ import { useWatchlistMap } from "@/hooks/useWatchlistMap";
 import { useToast } from "@/hooks/useToast";
 import { showWatchlistToggleToast } from "@/lib/watchlistToast";
 
-const TICKER = [
-  { name: "리자몽 ex SAR", price: "₩142,000", chg: "▲ 3.2%", up: true },
-  { name: "뮤 UR", price: "₩89,500", chg: "▼ 1.4%", up: false },
-  { name: "피카츄 프로모", price: "₩55,000", chg: "▲ 5.8%", up: true },
-  { name: "뮤츠 ex SAR", price: "₩211,000", chg: "▲ 1.1%", up: true },
-  { name: "가디안 ex", price: "₩38,700", chg: "▼ 0.9%", up: false },
-  { name: "이상해꽃 ex", price: "₩64,200", chg: "▲ 2.5%", up: true },
-];
+// 실시간 시세 티커 포맷 헬퍼 — RankingList.tsx의 동일 로직과 톤을 맞춘다.
+function formatWon(price: number): string {
+  return `₩${price.toLocaleString("ko-KR")}`;
+}
+
+function formatChangeRate(rate: number): string {
+  return `${rate > 0 ? "▲" : rate < 0 ? "▼" : ""} ${Math.abs(rate).toFixed(1)}%`;
+}
 
 // 인기 카드 그리드 칸 수 — 이 수만큼만 인기순 카드를 요청한다.
 const POPULAR_CARDS_SIZE = 5;
@@ -57,11 +62,22 @@ const STEPS = [
   },
 ];
 
-const STATS = [
-  { v: "128,400+", l: "누적 거래 카드" },
-  { v: "42,700+", l: "활동 트레이너" },
-  { v: "99.2%", l: "안전거래 완료율" },
-  { v: "1.2M+", l: "AI 진단 횟수" },
+const PRICE_STEPS = [
+  {
+    n: "01",
+    t: "카드별 실거래 시세",
+    d: "등급별 요약가와 체결 차트로 지금 이 카드의 가격이 적정한지 바로 확인하세요.",
+  },
+  {
+    n: "02",
+    t: "급등락 랭킹 TOP 10",
+    d: "최근 7일 평균 체결가 등락률을 기준으로, 지금 뜨는 카드를 한눈에 보여드립니다.",
+  },
+  {
+    n: "03",
+    t: "전체 거래 현황",
+    d: "플랫폼 전체 거래량과 평균 체결가 추이를 매일 업데이트해 알려드립니다.",
+  },
 ];
 
 type LoadState = "loading" | "error" | "ready";
@@ -92,6 +108,26 @@ function HomeView() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isHeroCardOpen, setIsHeroCardOpen] = useState(false);
   const [heroCardId, setHeroCardId] = useState<number | null>(null);
+
+  const [tickerItems, setTickerItems] = useState<PriceRankingResponse[]>([]);
+
+  // 실시간 시세 티커 — 로그인 필요 API라(비로그인은 401) 실패해도 나머지 화면은
+  // 그대로 정상 동작해야 하므로 조용히 빈 상태로 둔다(섹션 자체가 안 보임).
+  useEffect(() => {
+    let cancelled = false;
+
+    Promise.all([fetchPriceRanking("rise"), fetchPriceRanking("fall")])
+      .then(([rise, fall]) => {
+        if (!cancelled) setTickerItems([...rise, ...fall]);
+      })
+      .catch(() => {
+        // 티커는 그냥 안 보이면 됨 - 별도 에러 UI 없음.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -212,33 +248,45 @@ function HomeView() {
         alt={HERO_CARD.alt}
       />
 
-      {/* TICKER */}
-      <section className="bg-navy-800 px-10">
-        <div className="mx-auto flex h-[52px] max-w-container items-stretch overflow-hidden">
-          <span className="flex flex-shrink-0 items-center gap-[7px] pr-5 text-[11.5px] font-extrabold tracking-[1px] text-tertiary">
-            <span className="h-[7px] w-[7px] rounded-full bg-tertiary" />
-            실시간 시세
-          </span>
-          <div className="flex flex-1 items-center overflow-hidden">
-            <div className="flex w-max animate-ticker items-center">
-              {[...TICKER, ...TICKER].map((t, i) => (
-                <div
-                  key={i}
-                  className="flex flex-shrink-0 items-center gap-[9px] border-l border-white/[0.08] px-[22px]"
-                >
-                  <span className="text-[13.5px] font-semibold text-[#DDE0EC]">{t.name}</span>
-                  <span className="text-[13.5px] font-bold text-white">{t.price}</span>
-                  <span
-                    className={`text-[12.5px] font-bold ${t.up ? "text-[#FF6B6B]" : "text-[#7FA6FF]"}`}
+      {/* TICKER — 로그인 필요 API라 비로그인/실패 시엔 섹션 자체를 숨긴다(빈 티커보다 나음). */}
+      {tickerItems.length > 0 && (
+        <section className="bg-navy-800 px-10">
+          <div className="mx-auto flex h-[52px] max-w-container items-stretch overflow-hidden">
+            <span className="flex flex-shrink-0 items-center gap-[7px] pr-5 text-[11.5px] font-extrabold tracking-[1px] text-tertiary">
+              <span className="h-[7px] w-[7px] rounded-full bg-tertiary" />
+              실시간 시세
+            </span>
+            <div className="flex flex-1 items-center overflow-hidden">
+              <div className="flex w-max animate-ticker items-center">
+                {[...tickerItems, ...tickerItems].map((t, i) => (
+                  <div
+                    key={`${t.cardId}-${i}`}
+                    className="flex flex-shrink-0 items-center gap-[9px] border-l border-white/[0.08] px-[22px]"
                   >
-                    {t.chg}
-                  </span>
-                </div>
-              ))}
+                    <span className="text-[13.5px] font-semibold text-[#DDE0EC]">
+                      {t.cardNameKo ?? t.cardName}
+                    </span>
+                    <span className="text-[13.5px] font-bold text-white">
+                      {formatWon(t.price)}
+                    </span>
+                    <span
+                      className={`text-[12.5px] font-bold ${
+                        t.changeRate > 0
+                          ? "text-[#FF6B6B]"
+                          : t.changeRate < 0
+                            ? "text-[#7FA6FF]"
+                            : "text-[#8B90A8]"
+                      }`}
+                    >
+                      {formatChangeRate(t.changeRate)}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* POPULAR CARDS */}
       <section className="bg-white px-4 py-14 sm:px-10">
@@ -363,88 +411,30 @@ function HomeView() {
         </div>
       </section>
 
-      {/* MARKET INSIGHT */}
+      {/* PRICE INFO INTRO — 아래 SAFE TRADING JOURNEY와 같은 톤의 기능 소개 섹션.
+          라이브 데이터 위젯이 아니라 Pokade의 시세 정보가 어떤 걸 보여주는지 소개만 한다.
+          3개 항목이 카드 상세/마켓 인사이트 등 서로 다른 화면에 걸쳐 있어 단일 CTA로
+          묶을 수 없으므로 버튼은 의도적으로 두지 않는다. */}
       <section className="bg-neutral px-10 py-14">
         <div className="mx-auto max-w-container">
-          <h2 className="mb-[26px] text-[26px] font-extrabold tracking-[-0.5px]">마켓 인사이트</h2>
-          <div className="grid grid-cols-[60fr_40fr] gap-5">
-            <div className="rounded-2xl border-t-[3px] border-primary bg-navy px-[30px] py-7">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="text-[13px] font-semibold text-[#A7ADC4]">
-                    Pokade 종합 시세 지수
-                  </div>
-                  <div className="mt-2 flex items-baseline gap-2.5">
-                    <div className="text-[34px] font-extrabold tracking-[-1px] text-white">
-                      1,284.6
-                    </div>
-                    <div className="text-sm font-bold text-[#FF6B6B]">▲ 2.4% (30.1)</div>
-                  </div>
+          <div className="mb-[38px] text-center">
+            <h2 className="m-0 text-[26px] font-extrabold tracking-[-0.5px]">
+              감이 아니라, 실거래 데이터로 확인하는 시세
+            </h2>
+            <p className="mt-2 text-[14.5px] text-[#8A8A92]">
+              Pokade는 실제 체결 데이터를 기반으로 지금 이 카드의 적정가를 알려드립니다
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-[22px]">
+            {PRICE_STEPS.map((s) => (
+              <div key={s.n} className="rounded-[14px] border border-[#EDEDF0] bg-white px-7 py-[30px]">
+                <div className="text-[40px] font-extrabold leading-none tracking-[-1px] text-tertiary">
+                  {s.n}
                 </div>
-                <div className="flex gap-1.5">
-                  <span className="rounded-md bg-tertiary px-2.5 py-[5px] text-xs font-bold text-navy">
-                    7D
-                  </span>
-                  <span className="rounded-md bg-white/[0.08] px-2.5 py-[5px] text-xs font-bold text-[#A7ADC4]">
-                    1M
-                  </span>
-                  <span className="rounded-md bg-white/[0.08] px-2.5 py-[5px] text-xs font-bold text-[#A7ADC4]">
-                    1Y
-                  </span>
-                </div>
+                <h3 className="mb-2 mt-4 text-lg font-bold">{s.t}</h3>
+                <p className="m-0 text-sm leading-relaxed text-[#7A7A82]">{s.d}</p>
               </div>
-              <div className="mt-[26px] flex h-[150px] items-end gap-2.5">
-                {[52, 64, 48, 72, 60].map((h, i) => (
-                  <div
-                    key={i}
-                    className="flex-1 rounded-t-[5px] bg-secondary"
-                    style={{ height: `${h}%` }}
-                  />
-                ))}
-                {[84, 76, 100].map((h, i) => (
-                  <div
-                    key={i}
-                    className="flex-1 rounded-t-[5px] bg-primary"
-                    style={{ height: `${h}%` }}
-                  />
-                ))}
-              </div>
-              <div className="mt-2.5 flex justify-between text-[11px] text-[#6B7290]">
-                {["월", "화", "수", "목", "금", "토", "일", "오늘"].map((d) => (
-                  <span key={d}>{d}</span>
-                ))}
-              </div>
-            </div>
-            <div className="flex flex-col rounded-2xl bg-secondary px-[30px] py-7 text-white">
-              <div className="text-[13px] font-bold tracking-[0.5px] text-[#C7CEFF]">
-                급상승 키워드
-              </div>
-              <div className="mt-3.5 flex flex-wrap gap-2">
-                {["#리자몽ex", "#151", "#테라스탈", "#프로모"].map((k) => (
-                  <span
-                    key={k}
-                    className="rounded-full bg-white/[0.14] px-[13px] py-[7px] text-[13px] font-semibold"
-                  >
-                    {k}
-                  </span>
-                ))}
-              </div>
-              <div className="my-[22px] h-px bg-white/[0.18]" />
-              <div className="text-[13px] font-bold tracking-[0.5px] text-[#C7CEFF]">최근 거래</div>
-              <div className="mt-3.5 flex flex-col gap-3">
-                {[
-                  ["리자몽 ex SAR", "₩142,000"],
-                  ["뮤 UR", "₩89,500"],
-                  ["피카츄 VMAX", "₩55,000"],
-                  ["이상해꽃 ex", "₩64,200"],
-                ].map(([n, p]) => (
-                  <div key={n} className="flex items-center justify-between">
-                    <span className="text-[13.5px] font-semibold">{n}</span>
-                    <span className="text-[13.5px] font-bold">{p}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </section>
@@ -526,17 +516,6 @@ function HomeView() {
         </div>
       </section>
 
-      {/* STATS BANNER */}
-      <section className="bg-[#FDEEF0] px-10 py-11">
-        <div className="mx-auto grid max-w-container grid-cols-4 gap-5 text-center">
-          {STATS.map((s) => (
-            <div key={s.l}>
-              <div className="text-[34px] font-extrabold tracking-[-1px] text-primary">{s.v}</div>
-              <div className="mt-1 text-[13.5px] font-semibold text-[#7A6668]">{s.l}</div>
-            </div>
-          ))}
-        </div>
-      </section>
       <Toast toast={toast} onPause={pauseToast} onResume={resumeToast} />
     </main>
   );

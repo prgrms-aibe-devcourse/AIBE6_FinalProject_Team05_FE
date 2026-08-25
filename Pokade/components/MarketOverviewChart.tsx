@@ -112,7 +112,7 @@ export default function MarketOverviewChart({
   return (
     <div className="rounded-2xl border border-[#EDEDF0] bg-white p-6">
       <div className="mb-5 flex items-center justify-between">
-        <h2 className="text-[17px] font-extrabold">거래 현황</h2>
+        <h2 className="text-[17px] font-extrabold">전체 거래 현황</h2>
         <span className="text-[12px] font-semibold text-[#9A9AA2]">최근 30일</span>
       </div>
 

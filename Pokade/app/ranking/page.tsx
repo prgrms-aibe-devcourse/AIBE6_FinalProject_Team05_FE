@@ -128,7 +128,7 @@ export default function RankingPage() {
     <main className="main-content bg-neutral px-10 pb-14 pt-9">
       <div className="mx-auto max-w-[1200px]">
         <div className="mb-[22px]">
-          <h1 className="m-0 text-[26px] font-extrabold tracking-[-0.6px]">시세 랭킹</h1>
+          <h1 className="m-0 text-[26px] font-extrabold tracking-[-0.6px]">마켓 인사이트</h1>
           <p className="mt-1.5 text-sm text-[#8A8A92]">
             플랫폼 전체 거래 현황과 최근 7일간 S등급 평균 체결가 등락률 기준 TOP 10
           </p>
