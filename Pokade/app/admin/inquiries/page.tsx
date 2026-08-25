@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import AdminSidebar from "@/components/AdminSidebar";
-import { answerInquiry, fetchInquiries, updateInquiryStatus } from "@/lib/adminApi";
+import { answerInquiry, fetchInquiries, fetchInquiry, updateInquiryStatus } from "@/lib/adminApi";
 import { ApiError } from "@/lib/apiClient";
 import {
   INQUIRY_CATEGORIES,
@@ -30,6 +31,21 @@ function statusBadgeCls(status: InquiryResponse["status"]) {
 }
 
 export default function AdminInquiriesPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminInquiriesView />
+    </Suspense>
+  );
+}
+
+function AdminInquiriesView() {
+  const searchParams = useSearchParams();
+  // 알림("새 문의가 접수되었습니다")을 눌러 들어온 경우 ?inquiryId=로 특정 문의를 바로 펼친다.
+  // 목록은 페이지네이션이 있어 그 문의가 지금 보이는 페이지에 없을 수 있으므로, 목록에서 찾지
+  // 않고 상세 조회 API로 직접 가져온다. 최초 1회만 시도한다.
+  const inquiryIdParam = searchParams.get("inquiryId");
+  const didAutoOpenRef = useRef(false);
+
   const [inquiries, setInquiries] = useState<InquiryResponse[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
@@ -72,6 +88,16 @@ export default function AdminInquiriesPage() {
       cancelled = true;
     };
   }, [category, page]);
+
+  useEffect(() => {
+    if (didAutoOpenRef.current || inquiryIdParam == null) return;
+    didAutoOpenRef.current = true;
+    fetchInquiry(Number(inquiryIdParam))
+      .then((inquiry) => setSelected(inquiry))
+      .catch(() => {
+        // 이미 삭제됐거나 조회 실패 - 조용히 무시하고 목록 화면은 그대로 둔다.
+      });
+  }, [inquiryIdParam]);
 
   const handleSelectCategory = (next: InquiryCategory | null) => {
     setCategory(next);

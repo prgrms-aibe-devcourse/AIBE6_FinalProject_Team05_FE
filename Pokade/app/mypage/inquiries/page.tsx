@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
 import { deleteInquiry, fetchMyInquiries, updateInquiry } from "@/lib/inquiryApi";
@@ -28,7 +29,20 @@ function statusBadgeCls(status: InquiryResponse["status"]) {
 }
 
 export default function MyInquiriesPage() {
+  return (
+    <Suspense fallback={null}>
+      <MyInquiriesView />
+    </Suspense>
+  );
+}
+
+function MyInquiriesView() {
   const status = useRequireAuth();
+  const searchParams = useSearchParams();
+  // 알림("문의가 처리되었습니다")을 눌러 들어온 경우 ?inquiryId=로 특정 문의를 바로 펼친다.
+  // 목록을 다시 불러올 때마다(알림 실시간 반영 등) 매번 재실행되면 안 되므로 최초 1회만 시도한다.
+  const inquiryIdParam = searchParams.get("inquiryId");
+  const didAutoOpenRef = useRef(false);
   const [inquiries, setInquiries] = useState<InquiryResponse[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
@@ -70,6 +84,17 @@ export default function MyInquiriesPage() {
         setLoadState("error");
       });
   }, [status]);
+
+  useEffect(() => {
+    if (didAutoOpenRef.current) return;
+    if (loadState !== "ready" || inquiryIdParam == null) return;
+    didAutoOpenRef.current = true;
+    const target = inquiries.find((inquiry) => inquiry.id === Number(inquiryIdParam));
+    // 목록 로드가 끝난 뒤 URL의 inquiryId로 딱 한 번만 상세 패널을 여는 것 - ref 가드로 이미
+    // 1회성임을 보장하므로, 파생 상태로 대체할 수 없는 의도된 동기 setState다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (target) setSelected(target);
+  }, [loadState, inquiries, inquiryIdParam]);
 
   useEffect(() => {
     if (status !== "authenticated") return;

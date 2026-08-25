@@ -363,12 +363,10 @@ const ADMIN_INQUIRIES_PATH = "/admin/inquiries";
 // 이미 접었던 방식이라 되풀이하지 않는다. BE에 trade_id가 생기면 여기서 타입별로 갈라
 // /trade-status/{tradeId}로 보내면 된다 — 그 전까지는 카드 상세가 차선책이다.
 //
-// 문의 계열은 목록까지만 보내고 해당 문의를 펼쳐 주지는 못한다. 남은 걸림돌은 식별자가 아니라
-// 화면이다 — V12(#338)가 notifications에 inquiry_id를 추가했고 BE NotificationResponse가
-// inquiryId를 내려주며 types/notification.ts도 이미 그 필드를 미러링하고 있다. 다만 두 문의
-// 화면(/mypage/inquiries, /admin/inquiries) 어느 쪽에도 "특정 문의를 펼친 상태로 여는" 진입점이
-// 없어서, 지금 여기서 id를 붙여 봐야 받아 줄 곳이 없다. 그 진입점이 생기면 n.inquiryId를 그대로
-// 얹으면 된다 — 값은 이미 손안에 있다.
+// 문의 계열은 이제 inquiryId가 있으면 목록이 아니라 그 문의를 펼친 상태로 바로 연다 -
+// /mypage/inquiries, /admin/inquiries 둘 다 ?inquiryId= 쿼리 파라미터를 읽어 해당 문의를
+// 자동으로 연다(마이페이지는 이미 불러온 목록에서 찾고, 어드민은 페이지네이션 때문에 목록에
+// 없을 수 있어 GET /api/admin/inquiries/{id}로 직접 조회한다).
 //
 // 그래서 지금은 이 함수가 null을 돌려줄 일이 사실상 없다. BE가 실제로 만드는 열한 종류를 훑어보면
 // (NotificationService의 create*Notification 메서드들 — enum 값 수와 같다) cardId 없이 오는 것은
@@ -399,8 +397,15 @@ export function notificationHref(n: NotificationResponse): string | null {
         : "";
     return `/cards/${n.cardId}${origin}`;
   }
-  if (n.type === "INQUIRY_HANDLED") return MY_INQUIRIES_PATH;
-  if (n.type === "INQUIRY_RECEIVED") return ADMIN_INQUIRIES_PATH;
+  // 문의 계열은 목록 화면으로만 보내던 것을, inquiryId가 있으면 그 문의를 펼친 상태로 바로
+  // 열리도록 붙인다(/mypage/inquiries, /admin/inquiries 둘 다 이 쿼리 파라미터를 읽어 해당
+  // 문의를 자동으로 연다). inquiryId가 없는 경우(이론상 없어야 하지만 방어적으로)는 목록만 연다.
+  if (n.type === "INQUIRY_HANDLED") {
+    return n.inquiryId != null ? `${MY_INQUIRIES_PATH}?inquiryId=${n.inquiryId}` : MY_INQUIRIES_PATH;
+  }
+  if (n.type === "INQUIRY_RECEIVED") {
+    return n.inquiryId != null ? `${ADMIN_INQUIRIES_PATH}?inquiryId=${n.inquiryId}` : ADMIN_INQUIRIES_PATH;
+  }
   return null;
 }
 
