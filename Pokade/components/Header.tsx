@@ -429,6 +429,9 @@ export default function Header() {
     if (open === "menu") setOpen(null);
   }
 
+  // "/"는 자체 헤더(고정 네비 + Command Dock)를 쓰는 독립 랜딩페이지라 공용 헤더를 숨긴다.
+  if (pathname === "/") return null;
+
   // gap을 md부터만 키우는 이유: 좌우 그룹이 간격 0으로 맞닿아 검색창이 내비게이션에 붙어 보이는
   // 문제는 둘이 함께 있는 md 이상에서만 생긴다. md 미만은 내비가 숨겨져 그만큼 여유가 필요 없고,
   // 320px에서는 여유가 거의 없어 24px을 물리면 오히려 빠듯해진다.
