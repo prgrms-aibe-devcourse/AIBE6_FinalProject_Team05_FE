@@ -227,6 +227,45 @@ export function notifStyle(
           </svg>
         ),
       };
+    case "BUY_OFFER_RECEIVED":
+      // BUY_OFFER_MATCHED와 같은 금색 쌍 — 같은 "입찰" 계열로 묶여 읽혀야 한다. 새 색은 만들지
+      // 않고 이 파일의 규칙대로 색은 재사용하고 모양으로만 가른다. 같은 금색인 PRICE_TARGET(과녁)
+      // /BUY_OFFER_MATCHED(마주 보는 화살표)와도 실루엣이 겹치지 않게 가격표를 쓴다 — 체결이
+      // 아니라 "이 값에 사겠다는 제안이 붙었다"는 뜻이라, 판매자가 값을 보고 즉시판매를 고르는
+      // 알림에 맞는 모양이다.
+      //
+      // 좌표를 24 viewBox 한가운데로 모아 둔 이유(=태그를 굳이 작게 그린 이유): 이 아이콘이 놓이는
+      // 자리 중 가장 좁은 곳이 헤더 드롭다운의 썸네일 코너 배지인데, 거기는 16px 원에 2px 흰
+      // 테두리라 안쪽 지름이 12px뿐이다. 태그를 3~21 범위로 크게 그리면 중심에서 가장 먼 잉크가
+      // 5.4px까지 나가 배지 반경 6px에 거의 닿고, 사선 모서리와 뾰족한 끝이 tint 원을 넘어 흰
+      // 테두리 위에 얹힌다. 지금 좌표(잉크 범위 3.8~20.2, 중심에서 최대 4.4px)는 PRICE_TARGET
+      // (3.75px)·BUY_OFFER_MATCHED(4.17px)와 같은 급이라 세 금색이 배지 안에서 같은 무게로 앉는다.
+      // viewBox와 strokeWidth는 파일 전체와 맞춰 그대로 두고 좌표만 줄였다 — transform으로 줄이면
+      // 선 굵기까지 같이 줄어 이 파일의 다른 아이콘보다 가늘어진다.
+      //
+      // 두 번째 path(태그 구멍)는 길이 0이나 다름없는 선분이고 strokeLinecap="round"가 점으로
+      // 만들어 준다. size 10/11에서는 모서리 잉크에 묻혀 사실상 보이지 않지만, 목록 크기(17)에서는
+      // 또렷하게 찍혀 이 도형이 오각형이 아니라 "가격표"임을 확정한다 — 작은 크기에서 노이즈가
+      // 되지도 않아 남겨 둔다. 다만 위 svg의 strokeLinecap이 빠지면 이 점은 통째로 사라진다.
+      return {
+        tint: "#FFF6DA",
+        icon: (
+          <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#B8860B"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M18.9 13.1l-5.8 5.8a1.6 1.6 0 01-2 0l-5.8-5.8A1.6 1.6 0 014.8 12V6.2A1.4 1.4 0 016.2 4.8H12a1.6 1.6 0 011.1.5l5.8 5.8a1.6 1.6 0 010 2z" />
+            <path d="M8.4 8.4h.01" />
+          </svg>
+        ),
+      };
     default: {
       // 타입에 값을 추가하면 여기서 컴파일이 막힌다 - 분기를 빠뜨릴 수 없다.
       const exhaustive: never = type;
@@ -331,10 +370,10 @@ const ADMIN_INQUIRIES_PATH = "/admin/inquiries";
 // 없어서, 지금 여기서 id를 붙여 봐야 받아 줄 곳이 없다. 그 진입점이 생기면 n.inquiryId를 그대로
 // 얹으면 된다 — 값은 이미 손안에 있다.
 //
-// 그래서 지금은 이 함수가 null을 돌려줄 일이 사실상 없다. BE가 실제로 만드는 열 종류를 훑어보면
-// (NotificationService의 create*Notification 메서드들) cardId 없이 오는 것은 문의 계열 둘뿐이고
-// — 그 둘의 빌더에는 cardId 대신 inquiryId만 있다 — 나머지 여덟은 전부 cardId를 채워 보내 위
-// 첫 분기로 빠진다. 문의 둘도 바로 위에서 각자의 목록으로 보내진다.
+// 그래서 지금은 이 함수가 null을 돌려줄 일이 사실상 없다. BE가 실제로 만드는 열한 종류를 훑어보면
+// (NotificationService의 create*Notification 메서드들 — enum 값 수와 같다) cardId 없이 오는 것은
+// 문의 계열 둘뿐이고 — 그 둘의 빌더에는 cardId 대신 inquiryId만 있다 — 나머지 아홉은 전부 cardId를
+// 채워 보내 위 첫 분기로 빠진다. 문의 둘도 바로 위에서 각자의 목록으로 보내진다.
 //
 // 그럼에도 null 반환을 남겨 두는 이유는 notifications.card_id가 nullable이기 때문이다. 채워
 // 보내야 할 알림이 어떤 사정으로 cardId 없이 내려오면 여기서 "갈 곳 없음"으로 떨어져 읽음
