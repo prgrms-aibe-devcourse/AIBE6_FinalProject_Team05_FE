@@ -21,7 +21,7 @@ import { selectUnreadCount, useNotificationStore } from "@/store/useNotification
 
 const NAV: { label: string; href: string }[] = [
   { label: "마켓", href: "/search" },
-  { label: "시세 랭킹", href: "/ranking" },
+  { label: "마켓 인사이트", href: "/ranking" },
   { label: "AI 등급진단", href: "/ai-diagnosis" },
   { label: "상품 등록", href: "/listings/new" },
 ];
