@@ -399,9 +399,11 @@ function LoggedInRight({
 
 export default function Header() {
   const pathname = usePathname() || "/";
+  const router = useRouter();
   const isLoggedIn = useUserStore((s) => s.isLoggedIn);
   const status = useUserStore((s) => s.status);
   const role = useUserStore((s) => s.role);
+  const logout = useUserStore((s) => s.logout);
   const variant: "loading" | "in" | "out" | "admin" =
     status === "loading"
       ? "loading"
@@ -561,7 +563,7 @@ export default function Header() {
             <div
               id={mobileMenuId}
               aria-label="메뉴"
-              className="fixed inset-x-0 top-16 z-[90] border-b border-[#EDEDF0] bg-white p-4 shadow-[0_14px_38px_rgba(20,26,52,0.18)] md:hidden"
+              className="fixed inset-x-0 top-16 z-[90] max-h-[calc(100dvh-4rem)] overflow-y-auto border-b border-[#EDEDF0] bg-white p-4 shadow-[0_14px_38px_rgba(20,26,52,0.18)] md:hidden"
             >
               {/* 관리자만 모바일 메뉴에서 검색이 빠져 있었다 — 같은 원인(관리자를 별종 취급)의 누락. */}
               {variant !== "loading" && (
@@ -593,6 +595,50 @@ export default function Header() {
                   );
                 })}
               </nav>
+
+              {/* 프로필 드롭다운(계정 메뉴/로그아웃)은 데스크톱에서만 아바타 버튼으로 열 수 있고,
+                  모바일 폭에서는 그 버튼은 보여도 드롭다운이 헤더 우측 끝 기준으로 좁게 배치돼
+                  손이 닿기 불편하다 — 햄버거 메뉴 하나로 모바일의 모든 기능에 닿을 수 있도록
+                  같은 항목을 여기에도 반복한다(진입점만 둘, 목록은 PROFILE_MENU/ADMIN_MENU로 공유). */}
+              {(variant === "in" || variant === "admin") && (
+                <>
+                  <div className="my-3 h-px bg-[#F0F0F0]" />
+                  <nav className="flex flex-col gap-1">
+                    {(role === "admin" ? [...ADMIN_MENU, ...PROFILE_MENU] : PROFILE_MENU).map((m) =>
+                      m.href ? (
+                        <Link
+                          key={m.label}
+                          href={m.href}
+                          onClick={() => setOpen(null)}
+                          className="rounded-[9px] px-3 py-2.5 text-[14.5px] font-semibold text-[#3A3A42] hover:bg-[#F5F5F7]"
+                        >
+                          {m.label}
+                        </Link>
+                      ) : (
+                        <div
+                          key={m.label}
+                          aria-disabled="true"
+                          className="flex items-center gap-2.5 rounded-[9px] px-3 py-2.5 text-[14.5px] font-semibold text-[#B4B4BC]"
+                        >
+                          <span className="flex-1">{m.label}</span>
+                          <span className="text-[11px] font-bold">준비 중</span>
+                        </div>
+                      ),
+                    )}
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setOpen(null);
+                        await logout();
+                        router.push("/");
+                      }}
+                      className="rounded-[9px] px-3 py-2.5 text-left text-[14.5px] font-bold text-primary hover:bg-[#FFF5F5]"
+                    >
+                      로그아웃
+                    </button>
+                  </nav>
+                </>
+              )}
             </div>
           </>,
           document.body,
