@@ -22,6 +22,9 @@ export interface GradeResponse {
   // cardId가 있어야 FR-AI-04(도감 등록)를 진행할 수 있다.
   cardId: number | null;
   cardName: string | null;
+  // 한글 매핑이 없으면 null(어설픈 오번역보다 안전하다는 BE 쪽 설계, watchlist.ts와 동일).
+  // 표시할 땐 cardNameKo ?? cardName.
+  cardNameKo: string | null;
   cardImageSmall: string | null;
   // 카드 인식 신뢰도(%) — 등급 산출 신뢰도(confidence)와는 별개 지표.
   cardConfidence: number | null;

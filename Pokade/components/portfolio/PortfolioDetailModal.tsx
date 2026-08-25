@@ -3,7 +3,6 @@ import CardImage from "@/components/CardImage";
 import { ApiError } from "@/lib/apiClient";
 import { updatePortfolioItemThumbnail } from "@/lib/portfolioApi";
 import { formatKrw } from "@/lib/portfolioFormat";
-import { variantLabel } from "@/types/card";
 import { PortfolioItemPnlResponse, PortfolioItemResponse } from "@/types/portfolio";
 
 // 그리드에서 카드를 탭하면 뜨는 상세 카드 — 도감 앨범 페이지에서 슬롯을 눌러 도감 정보를 보는 느낌.
@@ -30,7 +29,7 @@ export default function PortfolioDetailModal({
   onDelete: () => void;
   onThumbnailChange: (updated: PortfolioItemResponse) => void;
 }) {
-  const displayName = item.cardName ?? "알 수 없는 카드";
+  const displayName = item.cardNameKo ?? item.cardName ?? "알 수 없는 카드";
   const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
   const [thumbnailError, setThumbnailError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -122,8 +121,9 @@ export default function PortfolioDetailModal({
           <div id="portfolio-detail-modal-title" className="text-[16px] font-extrabold">
             {displayName}
           </div>
+          {/* 세트/버전명은 실물 카드에 인쇄된 표기(영문)를 그대로 보여준다 — 한글 번역(variantLabel) 미적용. */}
           {item.variantName && (
-            <div className="mt-0.5 text-[12.5px] text-[#9A9AA2]">{variantLabel(item.variantName)}</div>
+            <div className="mt-0.5 text-[12.5px] text-[#9A9AA2]">{item.variantName}</div>
           )}
           <div className="mt-4 flex items-center justify-between text-[13px]">
             <span className="text-[#8A8A92]">카드 구매가</span>
