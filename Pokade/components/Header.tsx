@@ -427,10 +427,11 @@ export default function Header() {
     if (open === "menu") setOpen(null);
   }
 
-  // header에 gap-6을 두는 이유: 없으면 좁은 폭에서 좌우 그룹이 간격 0으로 맞닿아, 넘치지
-  // 않더라도 검색창이 내비게이션에 붙어 보인다. 최소 간격을 먼저 확보하면 검색창이 그만큼 더 줄어든다.
+  // gap을 md부터만 키우는 이유: 좌우 그룹이 간격 0으로 맞닿아 검색창이 내비게이션에 붙어 보이는
+  // 문제는 둘이 함께 있는 md 이상에서만 생긴다. md 미만은 내비가 숨겨져 그만큼 여유가 필요 없고,
+  // 320px에서는 여유가 거의 없어 24px을 물리면 오히려 빠듯해진다.
   return (
-    <header className="sticky top-0 z-50 flex h-16 items-center justify-between gap-6 border-b border-[#F0F0F0] bg-white px-4 sm:px-10">
+    <header className="sticky top-0 z-50 flex h-16 items-center justify-between gap-3 border-b border-[#F0F0F0] bg-white px-4 sm:px-10 md:gap-6">
       {/* md~lg 구간(768~1023px)은 로고+내비+검색창+우측 액션이 한 줄에 빠듯하다. 이 구간에서만
           간격을 좁히고 넓은 화면은 기존 여백을 그대로 둔다 — 검색창을 숨기는 방식은 쓰지 않는다.
           햄버거가 md:hidden이라 768px 이상에서는 나오지 않아, 검색창까지 감추면 검색 진입점이
@@ -494,8 +495,11 @@ export default function Header() {
             바뀔 때마다 관리자 쪽이 뒤처지고, 실제로 로그아웃 수단이 없는 상태였다. */}
         {(variant === "in" || variant === "admin") && (
           <>
+            {/* 배지는 lg부터 보인다. md 구간(768~1023px)에서 관리자 헤더는 검색창이 min-width에
+                닿을 만큼 빠듯한데, 이 배지가 폭 54px + 간격을 차지한다. 자기가 관리자인지는
+                이미 아는 정보라 좁은 폭에서 감추는 손실이 작다. */}
             {variant === "admin" && (
-              <span className="whitespace-nowrap rounded-full border border-[#F6D0D0] bg-[#FFF5F5] px-[11px] py-[5px] text-xs font-extrabold text-primary">
+              <span className="hidden whitespace-nowrap rounded-full border border-[#F6D0D0] bg-[#FFF5F5] px-[11px] py-[5px] text-xs font-extrabold text-primary lg:inline">
                 운영자
               </span>
             )}
