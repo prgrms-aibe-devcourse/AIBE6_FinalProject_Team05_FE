@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import CardImage from "@/components/CardImage";
 import MarketOverviewChart from "@/components/MarketOverviewChart";
-import { useRequireAuth } from "@/hooks/useRequireAuth";
 import {
   fetchMarketOverview,
   fetchPriceRanking,
@@ -35,8 +34,6 @@ const TABS: { key: RankingType; label: string }[] = [
 ];
 
 export default function RankingPage() {
-  const authStatus = useRequireAuth();
-
   const [type, setType] = useState<RankingType>("rise");
   const [items, setItems] = useState<PriceRankingResponse[]>([]);
   // item.price는 등락률 계산에 쓰인 "최근 7일 S등급 평균 체결가"라 실제 지금 시점의 즉시구매가와
@@ -56,7 +53,6 @@ export default function RankingPage() {
   const [overviewReloadKey, setOverviewReloadKey] = useState(0);
 
   useEffect(() => {
-    if (authStatus !== "authenticated") return;
     let cancelled = false;
 
     fetchPriceRankingRefreshedAt(type)
@@ -94,10 +90,9 @@ export default function RankingPage() {
     return () => {
       cancelled = true;
     };
-  }, [authStatus, type, reloadKey]);
+  }, [type, reloadKey]);
 
   useEffect(() => {
-    if (authStatus !== "authenticated") return;
     let cancelled = false;
 
     fetchMarketOverview()
@@ -113,22 +108,13 @@ export default function RankingPage() {
     return () => {
       cancelled = true;
     };
-  }, [authStatus, overviewReloadKey]);
-
-  // useRequireAuth가 비로그인 사용자를 /login으로 리다이렉트하는 동안 보여줄 자리표시자.
-  if (authStatus !== "authenticated") {
-    return (
-      <main className="main-content flex items-center justify-center bg-neutral">
-        <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-[#E7E7EB] border-t-primary" />
-      </main>
-    );
-  }
+  }, [overviewReloadKey]);
 
   return (
     <main className="main-content bg-neutral px-10 pb-14 pt-9">
       <div className="mx-auto max-w-[1200px]">
         <div className="mb-[22px]">
-          <h1 className="m-0 text-[26px] font-extrabold tracking-[-0.6px]">시세 랭킹</h1>
+          <h1 className="m-0 text-[26px] font-extrabold tracking-[-0.6px]">마켓 인사이트</h1>
           <p className="mt-1.5 text-sm text-[#8A8A92]">
             플랫폼 전체 거래 현황과 최근 7일간 S등급 평균 체결가 등락률 기준 TOP 10
           </p>
