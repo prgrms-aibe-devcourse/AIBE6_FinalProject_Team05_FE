@@ -6,13 +6,15 @@ import AddressSearchField from "@/components/AddressSearchField";
 import BankSelector from "@/components/BankSelector";
 import CardImage from "@/components/CardImage";
 import ListingCompletedNotice from "@/components/ListingCompletedNotice";
+import ListingStepIndicator from "@/components/ListingStepIndicator";
 import RequiredMark from "@/components/RequiredMark";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
 import { fetchCardDetail } from "@/lib/cardApi";
 import { createListing } from "@/lib/listingApi";
+import { clearListingDraft } from "@/lib/listingDraft";
 import { formatPhoneNumber } from "@/lib/phoneFormat";
-import { parseCardId } from "@/types/card";
+import { parseCardId, variantLabel } from "@/types/card";
 import { GRADE_LABELS, GradeKey, ListingGrade } from "@/types/price";
 
 // 검수비/배송비 정책이 아직 확정되지 않아 임시로 하드코딩 — 정책 확정 시 이 상수만 교체하면 된다.
@@ -28,6 +30,8 @@ interface CardContext {
   setName: string;
   printedNumber: string;
   imageUrl: string;
+  // 판본이 여러 개인 카드에서만 의미가 있다 - 단일 판본 카드는 표시하지 않는다.
+  variantName: string | null;
 }
 
 // useSearchParams는 정적 프리렌더 시 Suspense 경계를 요구함(next build에서 강제됨)
@@ -86,12 +90,17 @@ function NewListingOrderForm() {
       .then((detail) => {
         if (cancelled) return;
         setCardFetchError(false);
+        const variant =
+          detail.variants.length > 1
+            ? (detail.variants.find((v) => v.id === variantId) ?? null)
+            : null;
         setCardContext({
           displayName: detail.nameKo ?? detail.name,
           englishName: detail.name,
           setName: detail.setName,
           printedNumber: detail.printedNumber,
           imageUrl: detail.imageMedium || detail.imageSmall,
+          variantName: variant ? variantLabel(variant.variantName) : null,
         });
       })
       .catch(() => {
@@ -103,7 +112,7 @@ function NewListingOrderForm() {
     return () => {
       cancelled = true;
     };
-  }, [cardId]);
+  }, [cardId, variantId]);
 
   if (status !== "authenticated") return null;
 
@@ -165,6 +174,7 @@ function NewListingOrderForm() {
         returnRecipientPhone: returnRecipientPhone.trim(),
         returnAddress: returnAddress.trim(),
       });
+      clearListingDraft();
       setCompletedCardId(cardId);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "상품 등록에 실패했습니다.");
@@ -179,8 +189,9 @@ function NewListingOrderForm() {
   const sectionTitleCls = "mb-4 text-[15px] font-extrabold";
 
   return (
-    <main className="main-content bg-neutral px-10 pb-32 pt-14">
+    <main className="main-content bg-neutral px-4 pb-32 pt-14 sm:px-10">
       <div className="mx-auto w-full max-w-[560px]">
+        <ListingStepIndicator current={2} />
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-[20px] font-extrabold tracking-[-0.5px]">주문서 작성</h1>
           <button
@@ -305,6 +316,16 @@ function NewListingOrderForm() {
             <h2 className={sectionTitleCls}>최종 주문정보</h2>
             <dl className="space-y-2.5">
               <div className="flex items-center justify-between">
+                <dt className="text-[13px] font-semibold text-[#8A8A92]">등급</dt>
+                <dd className="text-[14px] font-bold">{GRADE_LABELS[gradeKey]}</dd>
+              </div>
+              {cardContext?.variantName && (
+                <div className="flex items-center justify-between">
+                  <dt className="text-[13px] font-semibold text-[#8A8A92]">판본</dt>
+                  <dd className="text-[14px] font-bold">{cardContext.variantName}</dd>
+                </div>
+              )}
+              <div className="flex items-center justify-between">
                 <dt className="text-[13px] font-semibold text-[#8A8A92]">판매 희망가</dt>
                 <dd className="text-[14px] font-bold">{price.toLocaleString("ko-KR")}원</dd>
               </div>
@@ -333,7 +354,7 @@ function NewListingOrderForm() {
       </div>
 
       {/* 하단 고정 제출 버튼 */}
-      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-[#EDEDF0] bg-white px-10 py-4">
+      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-[#EDEDF0] bg-white px-4 py-4 sm:px-10">
         <div className="mx-auto w-full max-w-[560px]">
           {cardFetchError && (
             <p className="mb-2.5 text-[12.5px] font-semibold text-primary">
