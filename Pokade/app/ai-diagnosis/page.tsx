@@ -3,8 +3,10 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import AddPortfolioItemModal from "@/components/AddPortfolioItemModal";
 import CardImage from "@/components/CardImage";
 import GradeBadge from "@/components/GradeBadge";
+import ImageLightbox from "@/components/ImageLightbox";
 import type { Grade } from "@/components/GradeBadge";
 import ConditionBar from "@/components/ConditionBar";
 import PixelCharizard from "@/components/PixelCharizard";
@@ -12,12 +14,17 @@ import { apiPostFormRaw, ApiError, PageResponse } from "@/lib/apiClient";
 import { fetchGradeHistory } from "@/lib/aiApi";
 import { ensureUploadableImage } from "@/lib/heicConvert";
 import { addPortfolioItemFromGrade } from "@/lib/portfolioApi";
+import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useUserStore } from "@/store/useUserStore";
 import type { GradeResponse } from "@/types/ai";
 
 const FREE_DIAGNOSES = 3;
 const DIAGNOSIS_COST = 100;
+
+// 범용 Vision 모델이 카드 인식(cardId 추론)까지 겸하다 보니 오인식이 잦다 — 자기 확신도
+// (cardConfidence)가 이 값 미만이면 "카드 확인 필요"로 경고하고 수정을 유도한다.
+const LOW_CARD_CONFIDENCE_THRESHOLD = 70;
 
 // 슬롯 순서는 백엔드 @RequestPart 이름과 그대로 매칭되어야 함 (front/back/corner_tl/tr/bl/br)
 const SLOTS: { field: string; label: string }[] = [
@@ -475,6 +482,17 @@ function ResultView({
   resetLabel?: string;
 }) {
   const [registerStatus, setRegisterStatus] = useState<RegisterStatus>({ kind: "idle" });
+  const [manualModalOpen, setManualModalOpen] = useState(false);
+  const [confirmCardOpen, setConfirmCardOpen] = useState(false);
+  // 작은 썸네일만으로는 카드 확인이 어렵다는 피드백 반영 — 클릭하면 원본 크기로 확인.
+  const [lightboxSrc, setLightboxSrc] = useState<{ src: string | undefined; alt: string } | null>(null);
+  // "카드 수정"에서 직접 고른 카드 — null이면 확인 다이얼로그에 AI가 인식한 카드를 그대로 보여준다.
+  const [pendingCard, setPendingCard] = useState<{
+    id: number;
+    name: string;
+    imageUrl: string;
+    variantId: number | null;
+  } | null>(null);
 
   const scores: [string, number | null][] = [
     ["센터링", result.centeringScore],
@@ -483,13 +501,22 @@ function ResultView({
     ["모서리", result.cornerScore],
   ];
 
-  // 정상 산출(SUCCESS) + 카드 인식(cardId) 둘 다 있어야 도감에 등록할 수 있다.
-  const canRegister = result.status === "SUCCESS" && result.cardId != null;
+  // 정상 산출(SUCCESS) + 카드 인식(cardId) 둘 다 있어야 원클릭 등록 가능. 카드 인식에
+  // 실패했어도(cardId==null) 예상 등급/점수는 나오므로, 그 경우엔 카드를 직접 골라 등록할 수 있다.
+  const canQuickRegister = result.status === "SUCCESS" && result.cardId != null;
+  const canManualRegister = result.status === "SUCCESS";
+  const cardConfidenceLow =
+    result.cardId != null &&
+    result.cardConfidence != null &&
+    result.cardConfidence < LOW_CARD_CONFIDENCE_THRESHOLD;
 
   const handleRegister = async () => {
     setRegisterStatus({ kind: "registering" });
     try {
-      await addPortfolioItemFromGrade(result.gradeResultId);
+      await addPortfolioItemFromGrade(
+        result.gradeResultId,
+        pendingCard ? { cardId: pendingCard.id, variantId: pendingCard.variantId ?? undefined } : undefined,
+      );
       setRegisterStatus({ kind: "registered" });
     } catch (e) {
       // 이미 등록된 결과(409)를 재조회해서 다시 눌렀을 때도 에러가 아니라 "등록됨"으로 보여준다.
@@ -503,6 +530,25 @@ function ResultView({
       });
     }
   };
+
+  const handleCardConfirm = (card: { id: number; name: string; imageUrl: string; variantId: number | null }) => {
+    setPendingCard(card);
+    setConfirmCardOpen(true);
+  };
+
+  // 확인 다이얼로그에 보여줄 카드 — 직접 고른 카드가 있으면 그걸, 없으면 AI가 인식한 카드를 그대로.
+  const confirmCard =
+    pendingCard ??
+    (result.cardId != null
+      ? {
+          id: result.cardId,
+          name: result.cardNameKo ?? result.cardName ?? "카드",
+          imageUrl: result.cardImageSmall ?? "",
+        }
+      : null);
+  const confirmCardConfidence = pendingCard ? null : result.cardConfidence;
+
+  useEscapeAndScrollLock(confirmCardOpen, () => setConfirmCardOpen(false));
 
   return (
     <div className="rounded-2xl border border-[#EDEDF0] bg-white p-5 sm:p-[30px]">
@@ -531,25 +577,54 @@ function ResultView({
         </div>
       )}
       {result.status === "SUCCESS" && (
-        <div className="mt-[18px] flex items-center gap-3 rounded-[11px] border border-[#EDEDF0] px-4 py-3">
+        <div
+          className={`mt-[18px] rounded-[11px] border px-4 py-3 ${
+            cardConfidenceLow ? "border-[#F6D98A] bg-[#FFFBEB]" : "border-[#EDEDF0]"
+          }`}
+        >
           {result.cardId != null ? (
             <>
-              <div className="relative h-14 w-10 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
-                <CardImage src={result.cardImageSmall ?? undefined} alt={result.cardName ?? "카드"} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-[12px] font-semibold text-[#8A8A92]">인식된 카드</div>
-                <div className="truncate text-[14px] font-bold">{result.cardName}</div>
-              </div>
-              {result.cardConfidence != null && (
-                <div className="flex-shrink-0 text-[12px] font-semibold text-[#9A9AA2]">
-                  인식 신뢰도 {result.cardConfidence.toFixed(0)}%
+              <div className="flex items-center gap-3">
+                <div
+                  className="relative h-20 w-[57px] flex-shrink-0 cursor-pointer overflow-hidden rounded-[7px] bg-[#F2F2F5]"
+                  onClick={() =>
+                    setLightboxSrc({
+                      src: result.cardImageSmall ?? undefined,
+                      alt: result.cardNameKo ?? result.cardName ?? "카드",
+                    })
+                  }
+                >
+                  <CardImage
+                    src={result.cardImageSmall ?? undefined}
+                    alt={result.cardNameKo ?? result.cardName ?? "카드"}
+                  />
                 </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[12px] font-semibold text-[#8A8A92]">인식된 카드</div>
+                  <div className="truncate text-[14px] font-bold">
+                    {result.cardNameKo ?? result.cardName}
+                  </div>
+                </div>
+                {result.cardConfidence != null && (
+                  <div
+                    className={`flex-shrink-0 text-[12px] font-semibold ${
+                      cardConfidenceLow ? "text-[#9A6B00]" : "text-[#9A9AA2]"
+                    }`}
+                  >
+                    인식 신뢰도 {result.cardConfidence.toFixed(0)}%
+                  </div>
+                )}
+              </div>
+              {cardConfidenceLow && (
+                <p className="mt-2.5 text-[12.5px] font-semibold text-[#9A6B00]">
+                  AI가 카드를 확실하게 인식하지 못했어요. 실제 카드와 다르면 아래 &quot;카드 수정&quot;으로
+                  바로잡아 주세요.
+                </p>
               )}
             </>
           ) : (
             <div className="text-[13px] font-semibold text-[#8A8A92]">
-              카드를 인식하지 못해 도감에 바로 등록할 수 없어요. 도감 화면에서 직접 추가해 주세요.
+              카드를 인식하지 못했어요. 아래 버튼으로 직접 카드를 골라 등록할 수 있어요.
             </div>
           )}
         </div>
@@ -578,6 +653,19 @@ function ResultView({
           </Link>
         </div>
       )}
+      {canQuickRegister && registerStatus.kind !== "registered" && (
+        <button
+          type="button"
+          onClick={() => setManualModalOpen(true)}
+          className={
+            cardConfidenceLow
+              ? "mt-2.5 w-full rounded-[10px] border-2 border-[#F6D98A] bg-[#FFFBEB] py-2.5 text-[13px] font-bold text-[#9A6B00] hover:border-[#E9C563]"
+              : "mt-2 text-[12.5px] font-semibold text-[#8A8A92] underline hover:text-primary"
+          }
+        >
+          카드가 다른가요? 카드 수정
+        </button>
+      )}
       <div className="mt-[18px] flex gap-3">
         <button
           onClick={onReset}
@@ -586,11 +674,12 @@ function ResultView({
           {resetLabel}
         </button>
         <button
-          disabled={!canRegister || registerStatus.kind === "registering" || registerStatus.kind === "registered"}
-          title={!canRegister ? "카드를 인식하지 못해 등록할 수 없어요" : undefined}
-          onClick={handleRegister}
+          disabled={
+            !canManualRegister || registerStatus.kind === "registering" || registerStatus.kind === "registered"
+          }
+          onClick={canQuickRegister ? () => setConfirmCardOpen(true) : () => setManualModalOpen(true)}
           className={`flex-1 rounded-[11px] border-2 py-3.5 text-[15.5px] font-bold ${
-            canRegister && registerStatus.kind !== "registered"
+            canManualRegister && registerStatus.kind !== "registered"
               ? "border-primary-dark bg-primary text-white shadow-tactile-sm active:translate-y-0.5 disabled:cursor-wait disabled:opacity-70"
               : "cursor-not-allowed border-[#D6D6DC] bg-[#E4E4E8] text-[#A0A0A8]"
           }`}
@@ -599,9 +688,96 @@ function ResultView({
             ? "등록 중..."
             : registerStatus.kind === "registered"
               ? "등록 완료"
-              : "도감에 등록하기"}
+              : canQuickRegister
+                ? "도감에 등록하기"
+                : "도감에 수동으로 입력하기"}
         </button>
       </div>
+      {confirmCardOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setConfirmCardOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="카드 확인"
+        >
+          <div
+            className="w-full max-w-[360px] rounded-2xl bg-white p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-[16px] font-extrabold">이 카드가 맞나요?</h2>
+              <button
+                type="button"
+                onClick={() => setConfirmCardOpen(false)}
+                aria-label="닫기"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-[18px] font-bold text-[#9A9AA2] hover:bg-neutral"
+              >
+                ×
+              </button>
+            </div>
+            <p className="mt-1 text-[13px] text-[#8A8A92]">도감에 등록하기 전에 한 번 더 확인해 주세요.</p>
+            <div className="mt-4 flex items-center gap-3 rounded-[11px] border border-[#DDDDE3] px-3.5 py-3">
+              <div
+                className="relative h-24 w-[68px] flex-shrink-0 cursor-pointer overflow-hidden rounded-[7px] bg-[#F2F2F5]"
+                onClick={() =>
+                  setLightboxSrc({
+                    src: confirmCard?.imageUrl ?? undefined,
+                    alt: confirmCard?.name ?? "카드",
+                  })
+                }
+              >
+                <CardImage src={confirmCard?.imageUrl ?? undefined} alt={confirmCard?.name ?? "카드"} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[14.5px] font-bold text-ink">{confirmCard?.name}</div>
+                {confirmCardConfidence != null && (
+                  <div className="mt-0.5 text-xs text-[#8A8A92]">
+                    인식 신뢰도 {confirmCardConfidence.toFixed(0)}%
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmCardOpen(false);
+                  setManualModalOpen(true);
+                }}
+                className="flex-1 rounded-[10px] border border-[#DDDDE3] py-2.5 text-[13px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary"
+              >
+                아니에요, 수정할게요
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmCardOpen(false);
+                  handleRegister();
+                }}
+                className="flex-1 rounded-[10px] border-2 border-primary-dark bg-primary py-2.5 text-[13px] font-bold text-white shadow-tactile-sm active:translate-y-0.5"
+              >
+                맞아요, 등록할게요
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <AddPortfolioItemModal
+        isOpen={manualModalOpen}
+        onClose={() => setManualModalOpen(false)}
+        mode="from-grade"
+        aiGrade={result.grade}
+        initialCardId={pendingCard?.id ?? result.cardId}
+        initialVariantId={pendingCard?.variantId}
+        onCardConfirm={handleCardConfirm}
+      />
+      <ImageLightbox
+        isOpen={lightboxSrc != null}
+        onClose={() => setLightboxSrc(null)}
+        imageSrc={lightboxSrc?.src}
+        alt={lightboxSrc?.alt ?? "카드"}
+      />
     </div>
   );
 }

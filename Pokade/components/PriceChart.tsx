@@ -333,7 +333,7 @@ export default function PriceChart({
             </span>
             <Link
               href={loginHref}
-              className="rounded-[9px] border-2 border-primary-dark bg-primary px-4 py-2 text-[12.5px] font-bold text-white shadow-tactile hover:brightness-105"
+              className="rounded-[9px] border-2 border-primary-dark bg-primary px-4 py-2 text-[12.5px] font-bold text-white shadow-tactile hover:text-white hover:brightness-105"
             >
               로그인하기
             </Link>

@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { RankingItem } from "@/types/chat";
 
 function formatPrice(price: number | null | undefined): string {
@@ -35,35 +37,40 @@ export default function RankingList({ items, size = "default" }: RankingListProp
     <ul className="flex flex-col gap-0 overflow-hidden rounded-[inherit]">
       {items.map((item, idx) => (
         <li
-          key={idx}
-          className={`flex items-center justify-between border-b border-[#F0F0F0] last:border-b-0 ${
-            isCompact ? "px-3 py-2" : "px-4 py-2.5"
-          }`}
+          key={item.cardId ?? idx}
+          className={`border-b border-[#F0F0F0] last:border-b-0`}
         >
-          {/* 순위 + 카드명 */}
-          <div className="flex min-w-0 items-center gap-2">
-            <span
-              className={`flex-shrink-0 font-extrabold tabular-nums ${
-                isCompact ? "w-4 text-[11px] text-[#9A9AA2]" : "w-5 text-[12px] text-[#9A9AA2]"
-              }`}
-            >
-              {idx + 1}
-            </span>
-            <span
-              className={`truncate font-semibold ${isCompact ? "text-[12px]" : "text-[13.5px]"}`}
-            >
-              {item.cardName}
-            </span>
-          </div>
-
-          {/* 가격 + 등락 */}
-          <div className={`flex-shrink-0 text-right ${isCompact ? "text-[11px]" : "text-[12.5px]"}`}>
-            <div className="font-semibold text-ink">{formatPrice(item.price)}</div>
-            <div className={`font-bold ${changeColor(item.changeRate)}`}>
-              {formatChangeRate(item.changeRate)}&nbsp;
-              <span className="font-semibold">{formatChangeAmount(item.changeAmount)}</span>
+          <Link
+            href={`/cards/${item.cardId}`}
+            className={`flex items-center justify-between hover:bg-[#FAFAFB] ${
+              isCompact ? "px-3 py-2" : "px-4 py-2.5"
+            }`}
+          >
+            {/* 순위 + 카드명 */}
+            <div className="flex min-w-0 items-center gap-2">
+              <span
+                className={`flex-shrink-0 font-extrabold tabular-nums ${
+                  isCompact ? "w-4 text-[11px] text-[#9A9AA2]" : "w-5 text-[12px] text-[#9A9AA2]"
+                }`}
+              >
+                {idx + 1}
+              </span>
+              <span
+                className={`truncate font-semibold ${isCompact ? "text-[12px]" : "text-[13.5px]"}`}
+              >
+                {item.cardNameKo ?? item.cardName}
+              </span>
             </div>
-          </div>
+
+            {/* 가격 + 등락 */}
+            <div className={`flex-shrink-0 text-right ${isCompact ? "text-[11px]" : "text-[12.5px]"}`}>
+              <div className="font-semibold text-ink">{formatPrice(item.price)}</div>
+              <div className={`font-bold ${changeColor(item.changeRate)}`}>
+                {formatChangeRate(item.changeRate)}&nbsp;
+                <span className="font-semibold">{formatChangeAmount(item.changeAmount)}</span>
+              </div>
+            </div>
+          </Link>
         </li>
       ))}
     </ul>

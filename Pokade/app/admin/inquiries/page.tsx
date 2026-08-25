@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import AdminSidebar from "@/components/AdminSidebar";
-import { answerInquiry, fetchInquiries, updateInquiryStatus } from "@/lib/adminApi";
+import Toast from "@/components/Toast";
+import { useToast } from "@/hooks/useToast";
+import { answerInquiry, fetchInquiries, fetchInquiry, updateInquiryStatus } from "@/lib/adminApi";
 import { ApiError } from "@/lib/apiClient";
 import {
   INQUIRY_CATEGORIES,
@@ -30,6 +33,23 @@ function statusBadgeCls(status: InquiryResponse["status"]) {
 }
 
 export default function AdminInquiriesPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminInquiriesView />
+    </Suspense>
+  );
+}
+
+function AdminInquiriesView() {
+  const searchParams = useSearchParams();
+  // 알림("새 문의가 접수되었습니다")을 눌러 들어온 경우 ?inquiryId=로 특정 문의를 바로 펼친다.
+  // 목록은 페이지네이션이 있어 그 문의가 지금 보이는 페이지에 없을 수 있으므로, 목록에서 찾지
+  // 않고 상세 조회 API로 직접 가져온다. 최초 1회만 시도한다.
+  const inquiryIdParam = searchParams.get("inquiryId");
+  const didAutoOpenRef = useRef(false);
+
+  const { toast, showToast, pauseToast, resumeToast } = useToast();
+
   const [inquiries, setInquiries] = useState<InquiryResponse[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
@@ -73,6 +93,16 @@ export default function AdminInquiriesPage() {
     };
   }, [category, page]);
 
+  useEffect(() => {
+    if (didAutoOpenRef.current || inquiryIdParam == null) return;
+    didAutoOpenRef.current = true;
+    fetchInquiry(Number(inquiryIdParam))
+      .then((inquiry) => setSelected(inquiry))
+      .catch(() => {
+        // 이미 삭제됐거나 조회 실패 - 조용히 무시하고 목록 화면은 그대로 둔다.
+      });
+  }, [inquiryIdParam]);
+
   const handleSelectCategory = (next: InquiryCategory | null) => {
     setCategory(next);
     setPage(1);
@@ -99,11 +129,15 @@ export default function AdminInquiriesPage() {
 
   const handleSubmitAnswer = async () => {
     if (!selected || answerSubmitting || !answerDraft.trim()) return;
+    // 성공 토스트 문구를 등록/수정으로 가르기 위해 호출 전 상태를 미리 기억해 둔다 -
+    // applyStatus가 selected를 갈아 끼운 뒤에는 "원래 답변이 있었는지"를 알 수 없다.
+    const wasAlreadyAnswered = selected.answerContent != null;
     setAnswerSubmitting(true);
     setAnswerError("");
     try {
       const updated = await answerInquiry(selected.id, answerDraft.trim());
       applyStatus(selected.id, updated);
+      showToast({ message: wasAlreadyAnswered ? "답변이 수정되었습니다." : "답변이 등록되었습니다." });
     } catch (err) {
       // 답변은 사용자가 직접 작성한 내용이라 상태 토글과 달리 실패를 조용히 무시하지 않는다 - 재시도할 수 있게 에러를 보여준다
       setAnswerError(err instanceof ApiError ? err.message : "답변 등록에 실패했습니다.");
@@ -359,6 +393,9 @@ export default function AdminInquiriesPage() {
           </>
         )}
       </aside>
+      {/* 상세 패널(aside, z-[80])이 열려 있을 때도 토스트가 그 위에 보여야 한다 - 기본 z-50이면
+          패널 뒤에 깔려 안 보인다(실제 보고된 문제). */}
+      <Toast toast={toast} onPause={pauseToast} onResume={resumeToast} zIndexClassName="z-[90]" />
     </>
   );
 }

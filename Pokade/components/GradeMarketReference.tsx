@@ -102,7 +102,7 @@ export default function GradeMarketReference({
     <div className="mt-1.5 rounded-[11px] border border-[#EDEDF0] bg-neutral p-3.5">
       <div className="mb-2.5 text-[12px] font-semibold text-[#8A8A92]">
         {loadState === "loading" ? (
-          "시세 참고 정보 조회 중..."
+          <span className="inline-block h-[14px] w-40 animate-pulse rounded bg-[#EDEDF0]" />
         ) : tradesError ? (
           "최근 거래가를 불러오지 못했습니다."
         ) : recentTradePrice != null ? (
@@ -114,6 +114,18 @@ export default function GradeMarketReference({
           `${grade} 등급 최근 거래 내역이 없습니다.`
         )}
       </div>
+
+      {loadState === "loading" && (
+        <div className="grid grid-cols-2 gap-3">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="space-y-1.5">
+              <div className="h-[13px] w-12 animate-pulse rounded bg-[#EDEDF0]" />
+              <div className="h-[13px] w-full animate-pulse rounded bg-[#EDEDF0]" />
+              <div className="h-[13px] w-full animate-pulse rounded bg-[#EDEDF0]" />
+            </div>
+          ))}
+        </div>
+      )}
 
       {loadState === "ready" && (
         <div className="grid grid-cols-2 gap-3 text-[12px]">

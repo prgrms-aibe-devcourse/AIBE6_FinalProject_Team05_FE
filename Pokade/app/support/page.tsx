@@ -22,7 +22,7 @@ const CATEGORIES: { title: string; faqs: Faq[] }[] = [
       },
       {
         q: "환불은 어떻게 요청하나요?",
-        a: "구매확정 전 거래는 마이페이지의 거래 상세에서 취소·환불을 요청할 수 있습니다. 구매확정 이후 하자가 발견된 경우에는 1:1 채팅 상담을 통해 분쟁처리 절차를 안내받을 수 있습니다.",
+        a: "구매확정 전 거래는 마이페이지의 거래 상세에서 취소·환불을 요청할 수 있습니다. 구매확정 이후 하자가 발견된 경우에는 1:1 문의를 남겨주시면 분쟁처리 절차를 안내해 드립니다.",
       },
     ],
   },
@@ -35,7 +35,7 @@ const CATEGORIES: { title: string; faqs: Faq[] }[] = [
       },
       {
         q: "진단 결과가 이상하게 나왔어요.",
-        a: "밝고 그림자 없는 환경에서 카드 전체가 프레임에 들어오도록 재촬영 후 다시 진단해 보세요. 반복적으로 문제가 있다면 1:1 채팅 상담으로 문의해 주세요.",
+        a: "밝고 그림자 없는 환경에서 카드 전체가 프레임에 들어오도록 재촬영 후 다시 진단해 보세요. 반복적으로 문제가 있다면 1:1 문의로 알려주세요.",
       },
     ],
   },
@@ -63,7 +63,7 @@ export default function SupportPage() {
         <div className="mx-auto max-w-container text-center">
           <h1 className="text-[28px] font-extrabold tracking-[-0.5px] text-ink">고객센터</h1>
           <p className="mt-2.5 text-[15px] text-[#6E6E76]">
-            자주 묻는 질문을 먼저 확인해보시고, 해결되지 않으면 1:1 채팅 상담으로 문의해 주세요.
+            자주 묻는 질문을 먼저 확인해보시고, 해결되지 않으면 1:1 문의를 남겨주세요.
           </p>
         </div>
       </section>
@@ -112,18 +112,13 @@ export default function SupportPage() {
           <aside className="flex h-fit flex-col gap-3 rounded-2xl border border-[#EDEDF0] bg-neutral p-6">
             <h3 className="text-base font-extrabold text-ink">더 궁금한 점이 있으신가요?</h3>
             <p className="text-sm leading-relaxed text-[#6E6E76]">
-              시세, 거래, 진단 결과에 대한 질문은 1:1 채팅 상담을 통해 실시간으로 도와드립니다. 사진
-              첨부가 필요하거나 답변까지 시간이 걸려도 괜찮다면 1:1 문의를 남겨주세요.
+              거래, 정산, 진단 결과에 대한 질문은 1:1 문의로 남겨주세요. 사진을 함께 첨부할 수 있고,
+              답변이 등록되면 알림으로 알려드립니다. 내용은 마이페이지의 문의 내역에서 확인할 수
+              있습니다.
             </p>
             <Link
-              href="/chat"
-              className="mt-1 inline-block rounded-[11px] border-2 border-primary-dark bg-primary px-5 py-3 text-center text-[14.5px] font-bold text-white shadow-tactile transition hover:text-white hover:shadow-tactile-hover active:translate-y-0.5 active:shadow-tactile-active"
-            >
-              1:1 채팅 상담 하기
-            </Link>
-            <Link
               href="/inquiries/new"
-              className="inline-block rounded-[11px] border-[1.5px] border-[#DDDDE3] bg-white px-5 py-3 text-center text-[14.5px] font-bold text-[#4B4B52] transition hover:bg-[#F4F4F6]"
+              className="mt-1 inline-block rounded-[11px] border-2 border-primary-dark bg-primary px-5 py-3 text-center text-[14.5px] font-bold text-white shadow-tactile transition hover:text-white hover:shadow-tactile-hover active:translate-y-0.5 active:shadow-tactile-active"
             >
               1:1 문의 작성하기
             </Link>

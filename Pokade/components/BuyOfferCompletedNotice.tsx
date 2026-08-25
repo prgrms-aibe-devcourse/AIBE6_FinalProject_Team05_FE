@@ -11,7 +11,7 @@ export default function BuyOfferCompletedNotice({ cardId }: { cardId: number }) 
       <p className="mb-6 text-[18px] font-extrabold">입찰이 완료되었습니다</p>
       <Link
         href="/mypage?bidTab=buyOffer"
-        className="inline-block w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3 text-[14.5px] font-bold text-white shadow-tactile-sm"
+        className="inline-block w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3 text-[14.5px] font-bold text-white shadow-tactile-sm hover:text-white"
       >
         내 입찰 내역 보러가기
       </Link>

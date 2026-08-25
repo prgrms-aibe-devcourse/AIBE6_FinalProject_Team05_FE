@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import CardImage from "@/components/CardImage";
 import GradeMarketReference from "@/components/GradeMarketReference";
+import InfoTooltip from "@/components/InfoTooltip";
+import ListingStepIndicator from "@/components/ListingStepIndicator";
 import PriceInput from "@/components/PriceInput";
 import RequiredMark from "@/components/RequiredMark";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
@@ -14,6 +16,7 @@ import {
   fetchPriceSummaries,
   fetchPriceSummary,
 } from "@/lib/cardApi";
+import { loadListingDraft, saveListingDraft } from "@/lib/listingDraft";
 import { resolveGradeReferencePrice } from "@/lib/priceDisplay";
 import { getPriceStep } from "@/lib/priceStep";
 import {
@@ -126,23 +129,45 @@ function NewListingForm() {
 
   // ?cardId=&variantId=&grade= 로 진입했으면(카드 상세의 등급 선택에서 넘어온 경우) 카드/판본/등급을
   // 미리 채운다. variantId/grade는 카드 상세 쪽에서만 붙여주는 선택적 파라미터라 없어도 그대로 동작한다.
+  // URL에 카드 지정이 없으면(예: 주문서 단계에서 취소/뒤로가기로 돌아온 경우) 직전에 임시 저장된
+  // 입력을 복원한다 - 그렇지 않으면 이 페이지가 새로 마운트되며 카드 재검색부터 다시 해야 한다.
   useEffect(() => {
     const cardIdParam = searchParams.get("cardId");
-    if (!cardIdParam) return;
-    const cardId = parseCardId(cardIdParam);
-    if (cardId == null) return;
+    const cardId = cardIdParam ? parseCardId(cardIdParam) : null;
 
-    const variantIdParam = searchParams.get("variantId");
-    const variantId = variantIdParam ? Number(variantIdParam) : null;
-    selectCardById(cardId, variantId != null && Number.isFinite(variantId) ? variantId : undefined);
+    if (cardId != null) {
+      const variantIdParam = searchParams.get("variantId");
+      const variantId = variantIdParam ? Number(variantIdParam) : null;
+      selectCardById(cardId, variantId != null && Number.isFinite(variantId) ? variantId : undefined);
 
-    const gradeParam = searchParams.get("grade");
-    if (gradeParam && (GRADE_OPTIONS as string[]).includes(gradeParam)) {
-      // URL 진입 시 딱 한 번 초기값을 채우는 것이라 파생 상태로 대체할 수 없음(그 뒤로는 select가 값을 소유).
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setGrade(gradeParam as ListingGrade);
+      const gradeParam = searchParams.get("grade");
+      if (gradeParam && (GRADE_OPTIONS as string[]).includes(gradeParam)) {
+        // URL 진입 시 딱 한 번 초기값을 채우는 것이라 파생 상태로 대체할 수 없음(그 뒤로는 select가 값을 소유).
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setGrade(gradeParam as ListingGrade);
+      }
+      return;
+    }
+
+    const draft = loadListingDraft();
+    if (!draft) return;
+    selectCardById(draft.cardId, draft.variantId ?? undefined);
+    if (draft.price) setPrice(draft.price);
+    if (draft.grade && (GRADE_OPTIONS as string[]).includes(draft.grade)) {
+      setGrade(draft.grade as ListingGrade);
     }
   }, [searchParams]);
+
+  // 카드/판본/가격/등급이 바뀔 때마다 임시 저장 - 위 복원 로직이 참조하는 draft를 최신 상태로 유지한다.
+  useEffect(() => {
+    if (!selectedCard) return;
+    saveListingDraft({
+      cardId: selectedCard.id,
+      variantId: selectedVariantId,
+      price,
+      grade: grade || null,
+    });
+  }, [selectedCard, selectedVariantId, price, grade]);
 
   // 선택된 카드/판본의 현재 시세 조회 — 가격 입력 시 참고용으로만 노출, 실패해도 등록 흐름은 막지 않는다.
   useEffect(() => {
@@ -313,6 +338,7 @@ function NewListingForm() {
   return (
     <main className="main-content bg-neutral px-4 py-14 sm:px-10">
       <div className="mx-auto w-full max-w-[880px]">
+        <ListingStepIndicator current={1} />
         <h1 className="mb-1.5 text-[22px] font-extrabold tracking-[-0.5px]">상품 등록</h1>
         <p className="mb-7 text-[13.5px] text-[#8A8A92]">
           카드를 선택하고 가격과 등급을 입력하면, 다음 단계에서 정산 계좌를 등록해 판매를 시작할 수
@@ -336,27 +362,18 @@ function NewListingForm() {
                   <div className="flex items-center justify-center gap-1 text-[11.5px] font-semibold text-[#8A8A92]">
                     {referenceLabel}
                     {gradeReference?.tier === "market" && (
-                      <span className="group relative inline-flex">
-                        <button
-                          type="button"
-                          aria-label="마켓 참고 시세 안내"
-                          className="flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-full bg-[#EDEDF0] text-[9.5px] font-bold text-[#8A8A92]"
-                        >
-                          ?
-                        </button>
-                        <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-64 -translate-x-1/2 rounded-[10px] border border-[#EDEDF0] bg-white p-3 text-left text-[12px] leading-relaxed text-[#4B4B52] opacity-0 shadow-card transition group-hover:opacity-100 group-focus-within:opacity-100 whitespace-pre-line">
-                          {MARKET_REFERENCE_TOOLTIP}
-                        </span>
-                      </span>
+                      <InfoTooltip label="마켓 참고 시세 안내">{MARKET_REFERENCE_TOOLTIP}</InfoTooltip>
                     )}
                   </div>
-                  <div className="mt-1 text-[17px] font-extrabold text-primary">
-                    {referencePriceLoading
-                      ? "조회 중..."
-                      : displayReferencePrice != null
+                  {referencePriceLoading ? (
+                    <div className="mx-auto mt-1.5 h-[20px] w-24 animate-pulse rounded bg-[#F2F2F5]" />
+                  ) : (
+                    <div className="mt-1 text-[17px] font-extrabold text-primary">
+                      {displayReferencePrice != null
                         ? `${displayReferencePrice.toLocaleString("ko-KR")}원`
                         : "정보 없음"}
-                  </div>
+                    </div>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -502,26 +519,19 @@ function NewListingForm() {
                       가격<RequiredMark />
                     </label>
                     <span className="flex items-center gap-1 text-[12px] font-semibold text-[#8A8A92]">
-                      {referencePriceLoading
-                        ? "시세 조회 중..."
-                        : displayReferencePrice != null
-                          ? `${referenceLabel} ${displayReferencePrice.toLocaleString("ko-KR")}원`
-                          : "시세 정보 없음"}
+                      {referencePriceLoading ? (
+                        <span className="inline-block h-[14px] w-20 animate-pulse rounded bg-[#F2F2F5]" />
+                      ) : displayReferencePrice != null ? (
+                        `${referenceLabel} ${displayReferencePrice.toLocaleString("ko-KR")}원`
+                      ) : (
+                        "시세 정보 없음"
+                      )}
                       {!referencePriceLoading &&
                         displayReferencePrice != null &&
                         gradeReference?.tier === "market" && (
-                          <span className="group relative inline-flex">
-                            <button
-                              type="button"
-                              aria-label="마켓 참고 시세 안내"
-                              className="flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-full bg-[#EDEDF0] text-[9.5px] font-bold text-[#8A8A92]"
-                            >
-                              ?
-                            </button>
-                            <span className="pointer-events-none absolute bottom-full right-0 z-10 mb-2 w-64 rounded-[10px] border border-[#EDEDF0] bg-white p-3 text-left text-[12px] leading-relaxed text-[#4B4B52] opacity-0 shadow-card transition group-hover:opacity-100 group-focus-within:opacity-100 whitespace-pre-line">
-                              {MARKET_REFERENCE_TOOLTIP}
-                            </span>
-                          </span>
+                          <InfoTooltip label="마켓 참고 시세 안내" align="right">
+                            {MARKET_REFERENCE_TOOLTIP}
+                          </InfoTooltip>
                         )}
                     </span>
                   </div>
@@ -532,9 +542,15 @@ function NewListingForm() {
                     placeholder="판매 가격 (원)"
                     className={inputCls}
                   />
-                  {priceStepWarning && (
+                  {priceStepWarning ? (
                     <p className="mt-1.5 text-[12px] font-semibold text-primary">
                       {priceStepWarning}
+                    </p>
+                  ) : (
+                    <p className="mt-1.5 text-[12px] text-[#9A9AA2]">
+                      {priceStep != null
+                        ? `${priceStep.toLocaleString("ko-KR")}원 단위로 입력했어요.`
+                        : "가격대에 따라 10원 ~ 5만원 단위로 입력할 수 있어요."}
                     </p>
                   )}
                   {priceOutlierWarning && (
@@ -550,28 +566,19 @@ function NewListingForm() {
                     <label htmlFor="grade" className="block text-[13px] font-bold text-[#4B4B52]">
                       등급<RequiredMark />
                     </label>
-                    <div className="group relative flex items-center">
-                      <button
-                        type="button"
-                        aria-label="등급 기준 안내"
-                        className="flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-[#EDEDF0] text-[10.5px] font-bold text-[#8A8A92]"
-                      >
-                        ?
-                      </button>
-                      <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-64 -translate-x-1/2 rounded-[10px] border border-[#EDEDF0] bg-white p-3 text-[12px] leading-relaxed text-[#4B4B52] opacity-0 shadow-card transition group-hover:opacity-100 group-focus-within:opacity-100">
-                        {GRADE_OPTIONS.map((g) => (
-                          <p key={g} className="mb-1.5 last:mb-0">
-                            <span className="font-bold text-ink">{g}</span> — {GRADE_GUIDE[g]}
-                          </p>
-                        ))}
-                      </div>
-                    </div>
+                    <InfoTooltip label="등급 기준 안내" iconClassName="h-4 w-4 text-[10.5px]">
+                      {GRADE_OPTIONS.map((g) => (
+                        <p key={g} className="mb-1.5 last:mb-0">
+                          <span className="font-bold text-ink">{g}</span> — {GRADE_GUIDE[g]}
+                        </p>
+                      ))}
+                    </InfoTooltip>
                   </div>
                   <select
                     id="grade"
                     value={grade}
                     onChange={(e) => setGrade(e.target.value as ListingGrade | "")}
-                    className={inputCls}
+                    className={`${inputCls} appearance-none bg-white bg-[url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%238A8A92" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>')] bg-[right_14px_center] bg-no-repeat pr-10`}
                   >
                     <option value="" disabled>
                       등급을 선택해 주세요
