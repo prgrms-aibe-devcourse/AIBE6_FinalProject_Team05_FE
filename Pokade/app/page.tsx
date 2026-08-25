@@ -189,7 +189,7 @@ function HomeView() {
               <Link
                 href={heroCardId != null ? `/cards/${heroCardId}` : "#"}
                 aria-disabled={heroCardId == null}
-                className="rounded-[11px] border-[1.5px] border-white/35 bg-transparent px-[26px] py-3.5 text-[15.5px] font-bold text-white transition hover:border-white hover:bg-white/[0.06]"
+                className="rounded-[11px] border-[1.5px] border-white/35 bg-transparent px-[26px] py-3.5 text-[15.5px] font-bold text-white transition hover:border-white hover:bg-white/[0.06] hover:text-white"
               >
                 자세히 보기
               </Link>

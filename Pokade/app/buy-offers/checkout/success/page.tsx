@@ -71,7 +71,7 @@ function BuyOfferCheckoutSuccessContent() {
             <p className="mb-6 text-[13.5px] text-[#8A8A92]">{errorMessage}</p>
             <Link
               href="/mypage"
-              className="inline-block w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3 text-[14.5px] font-bold text-white shadow-tactile-sm"
+              className="inline-block w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3 text-[14.5px] font-bold text-white shadow-tactile-sm hover:text-white"
             >
               마이페이지로 이동
             </Link>
