@@ -119,6 +119,22 @@ export function variantLabel(variantName: string): string {
   return VARIANT_NAME_LABELS[variantName] ?? variantName;
 }
 
+// 세트(확장팩) 이름도 BE가 Scrydex 원본(영문)을 그대로 내려준다. "151"이나 "Pokemon GO"처럼
+// 이미 널리 알려진 이름은 그대로 두고, "Base"처럼 무슨 세트인지 감이 안 오는 이름만 번역한다.
+// 매핑에 없는 값(신규 세트 동기화로 늘어날 수 있음)은 원본 문자열을 그대로 보여준다.
+const SET_NAME_LABELS: Record<string, string> = {
+  Base: "베이스",
+  "Black Bolt": "블랙 볼트",
+  "Unified Minds": "하나로 이어진 마음",
+  "Ancient Origins": "고대의 기원",
+  "Burning Shadows": "불타는 그림자",
+  "Mega Evolution": "메가진화",
+};
+
+export function setNameKo(setName: string): string {
+  return SET_NAME_LABELS[setName] ?? setName;
+}
+
 // 라우트 파라미터(문자열)를 카드 id로 파싱 — 양의 정수가 아니면 null.
 export function parseCardId(id: string): number | null {
   const n = Number(id);
