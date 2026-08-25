@@ -7,7 +7,6 @@ import { createPortal } from "react-dom";
 import {
   BuyOfferOrderbookEntryResponse,
   GRADE_LABELS,
-  GRADE_ORDER,
   GradeKey,
   ListingGrade,
   ListingSummaryResponse,
@@ -30,6 +29,13 @@ const TABS: { value: Tab; label: string }[] = [
 // 구매 박스 안에 작게 보여줄 예시 개수 — 전체는 "전체 거래내역 보기" 모달에서만.
 const COMPACT_ROW_LIMIT = 5;
 
+// 등급 컬럼 정렬(오름차순 기준 인덱스 비교)에 쓰는 기준 순서 - 카드 상세의 등급 선택 버튼
+// (types/price.ts의 GRADE_ORDER)이나 PriceChart의 정렬 순서와는 별개로, 이 파일 안에서만 쓴다.
+const GRADE_FILTER_ORDER: GradeKey[] = ["RAW", "B", "A", "S", "PSA8", "PSA9", "PSA10"];
+
+// 등급 필터 pill은 위 기준의 내림차순(높은 등급 → 낮은 등급)으로 보여준다.
+const GRADE_FILTER_PILL_ORDER: GradeKey[] = [...GRADE_FILTER_ORDER].reverse();
+
 function formatTradedAt(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
@@ -50,7 +56,7 @@ type Row = {
   quantity?: number;
 };
 
-type SortColumn = "price" | "date";
+type SortColumn = "grade" | "price" | "date";
 type SortState = { column: SortColumn; direction: "asc" | "desc" } | null;
 
 // 같은 컬럼을 다시 클릭하면 방향만 뒤집고, 다른 컬럼을 클릭하면 오름차순부터 새로 시작한다.
@@ -65,11 +71,11 @@ function sortRows(rows: Row[], sort: SortState): Row[] {
   if (!sort) return rows;
   const factor = sort.direction === "asc" ? 1 : -1;
   const sorted = [...rows];
-  sorted.sort((a, b) =>
-    sort.column === "price"
-      ? (a.price - b.price) * factor
-      : ((a.dateValue ?? 0) - (b.dateValue ?? 0)) * factor,
-  );
+  sorted.sort((a, b) => {
+    if (sort.column === "price") return (a.price - b.price) * factor;
+    if (sort.column === "date") return ((a.dateValue ?? 0) - (b.dateValue ?? 0)) * factor;
+    return (GRADE_FILTER_ORDER.indexOf(a.grade) - GRADE_FILTER_ORDER.indexOf(b.grade)) * factor;
+  });
   return sorted;
 }
 
@@ -154,7 +160,20 @@ function ActivityTable({
     <table className="w-full text-left text-[12.5px]">
       <thead>
         <tr className="text-[11px] font-semibold text-[#9A9AA2]">
-          <th className="pb-1.5 font-semibold">등급</th>
+          {sortable ? (
+            <th className="pb-1.5 font-semibold">
+              <button
+                type="button"
+                onClick={() => onToggleSort?.("grade")}
+                className="inline-flex select-none items-center hover:text-ink"
+              >
+                등급
+                <SortArrows active={sort?.column === "grade" ? sort.direction : null} />
+              </button>
+            </th>
+          ) : (
+            <th className="pb-1.5 font-semibold">등급</th>
+          )}
           {sortable ? (
             <th className="pb-1.5 text-right font-semibold">
               <button
@@ -232,7 +251,7 @@ function GradeFilterPills({
       >
         전체 <span className="font-semibold text-[#9A9AA2]">{total}</span>
       </button>
-      {GRADE_ORDER.filter((g) => (counts.get(g) ?? 0) > 0).map((g) => (
+      {GRADE_FILTER_PILL_ORDER.filter((g) => (counts.get(g) ?? 0) > 0).map((g) => (
         <button
           key={g}
           type="button"
@@ -463,8 +482,10 @@ export default function OrderActivitySection({
             aria-modal="true"
             aria-label="전체 거래내역"
           >
+            {/* 탭마다 행 개수가 달라 높이가 콘텐츠에 맞춰졌었다 - 탭을 옮길 때마다 모달 크기가
+                들쑥날쑥해지는 문제가 있어 고정 높이로 바꾸고, 표 영역만 내부 스크롤되게 한다. */}
             <div
-              className="flex max-h-[80vh] w-full max-w-[480px] flex-col rounded-2xl bg-white p-6"
+              className="flex h-[620px] max-h-[80vh] w-full max-w-[480px] flex-col rounded-2xl bg-white p-6"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="mb-4 flex items-center justify-between">
@@ -514,7 +535,7 @@ export default function OrderActivitySection({
                 onChange={setModalGradeFilter}
               />
 
-              <div className="overflow-y-auto">
+              <div className="flex-1 overflow-y-auto">
                 <ActivityTable
                   tab={modalTab}
                   rows={modalRows}
