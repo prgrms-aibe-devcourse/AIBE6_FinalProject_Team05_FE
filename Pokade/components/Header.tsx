@@ -443,7 +443,7 @@ export default function Header() {
           아예 사라지기 때문이다. */}
       <div className="flex shrink items-center gap-5 lg:gap-11">
         <Link
-          href="/"
+          href="/home"
           className="whitespace-nowrap text-xl font-extrabold tracking-[-0.5px] text-primary hover:text-primary"
         >
           POKADE

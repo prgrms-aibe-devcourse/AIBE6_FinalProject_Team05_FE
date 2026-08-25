@@ -12,7 +12,8 @@ import RankingList from "@/components/RankingList";
 // 경로 검사를 이 얇은 wrapper에서 먼저 하고, 본문(useChat 포함)은 /chat이 아닐 때만 마운트한다.
 export default function ChatWidget() {
   const pathname = usePathname();
-  if (pathname === "/chat") return null;
+  // "/"는 자체 Command Dock을 쓰는 랜딩페이지라 챗봇 FAB을 같이 띄우지 않는다.
+  if (pathname === "/chat" || pathname === "/") return null;
   return <ChatWidgetPanel />;
 }
 
