@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import CardImage from "@/components/CardImage";
 import MarketOverviewChart from "@/components/MarketOverviewChart";
-import { useRequireAuth } from "@/hooks/useRequireAuth";
 import {
   fetchMarketOverview,
   fetchPriceRanking,
@@ -35,8 +34,6 @@ const TABS: { key: RankingType; label: string }[] = [
 ];
 
 export default function RankingPage() {
-  const authStatus = useRequireAuth();
-
   const [type, setType] = useState<RankingType>("rise");
   const [items, setItems] = useState<PriceRankingResponse[]>([]);
   // item.price는 등락률 계산에 쓰인 "최근 7일 S등급 평균 체결가"라 실제 지금 시점의 즉시구매가와
@@ -56,7 +53,6 @@ export default function RankingPage() {
   const [overviewReloadKey, setOverviewReloadKey] = useState(0);
 
   useEffect(() => {
-    if (authStatus !== "authenticated") return;
     let cancelled = false;
 
     fetchPriceRankingRefreshedAt(type)
@@ -94,10 +90,9 @@ export default function RankingPage() {
     return () => {
       cancelled = true;
     };
-  }, [authStatus, type, reloadKey]);
+  }, [type, reloadKey]);
 
   useEffect(() => {
-    if (authStatus !== "authenticated") return;
     let cancelled = false;
 
     fetchMarketOverview()
@@ -113,16 +108,7 @@ export default function RankingPage() {
     return () => {
       cancelled = true;
     };
-  }, [authStatus, overviewReloadKey]);
-
-  // useRequireAuth가 비로그인 사용자를 /login으로 리다이렉트하는 동안 보여줄 자리표시자.
-  if (authStatus !== "authenticated") {
-    return (
-      <main className="main-content flex items-center justify-center bg-neutral">
-        <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-[#E7E7EB] border-t-primary" />
-      </main>
-    );
-  }
+  }, [overviewReloadKey]);
 
   return (
     <main className="main-content bg-neutral px-10 pb-14 pt-9">
