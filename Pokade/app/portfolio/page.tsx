@@ -112,6 +112,11 @@ export default function PortfolioPage() {
     fetchPortfolioAnalytics().then(setAnalytics).catch(() => {});
   };
 
+  const handleThumbnailChange = (updated: PortfolioItemResponse) => {
+    setItems((prev) => prev.map((it) => (it.id === updated.id ? updated : it)));
+    setSelectedItem(updated);
+  };
+
   const handleDelete = async (id: number) => {
     if (!window.confirm("도감에서 삭제하시겠어요?")) return;
     // 확인을 누른 뒤에만 상세 모달을 닫는다 — 취소하면 보던 카드 정보가 그대로 남아있어야 한다.
@@ -245,6 +250,7 @@ export default function PortfolioPage() {
             setSelectedItem(null);
           }}
           onDelete={() => handleDelete(selectedItem.id)}
+          onThumbnailChange={handleThumbnailChange}
         />
       )}
     </main>
