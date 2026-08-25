@@ -27,6 +27,7 @@ import {
 import { motion, useMotionValue, useReducedMotion, useScroll, useSpring, useTransform } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
+import { useUserStore } from "@/store/useUserStore";
 import "./future-landing.css";
 
 const notoSansKr = Noto_Sans_KR({
@@ -170,14 +171,11 @@ function scrollToId(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-const LANDING_SEEN_KEY = "pokade-landing-seen";
-
 export default function LandingPage() {
   const router = useRouter();
+  const authStatus = useUserStore((s) => s.status);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  // 랜딩페이지는 첫 방문에만 보여준다 — 이미 본 방문자는 실제 홈으로 바로 보낸다.
-  const [showLanding, setShowLanding] = useState(false);
   const heroRef = useRef<HTMLElement | null>(null);
   const reducedMotion = useReducedMotion();
   const mouseX = useMotionValue(0);
@@ -191,14 +189,10 @@ export default function LandingPage() {
   const copyY = useTransform(heroProgress, [0, 1], [0, -56]);
   const copyOpacity = useTransform(heroProgress, [0, 0.78], [1, 0]);
 
+  // 랜딩페이지는 비로그인 방문자에게만 보여준다 — 이미 로그인한 사용자는 실제 홈으로 바로 보낸다.
   useEffect(() => {
-    if (localStorage.getItem(LANDING_SEEN_KEY)) {
-      router.replace("/home");
-      return;
-    }
-    localStorage.setItem(LANDING_SEEN_KEY, "1");
-    setShowLanding(true);
-  }, [router]);
+    if (authStatus === "authenticated") router.replace("/home");
+  }, [authStatus, router]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 16);
@@ -219,7 +213,8 @@ export default function LandingPage() {
     mouseY.set((event.clientY - box.top) / box.height - 0.5);
   };
 
-  if (!showLanding) return null;
+  // 로그인 여부를 확인하는 동안, 그리고 로그인 사용자를 /home으로 보내는 동안은 랜딩을 그리지 않는다.
+  if (authStatus !== "unauthenticated") return null;
 
   return (
     <div
