@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import AddPortfolioItemModal from "@/components/AddPortfolioItemModal";
 import CardImage from "@/components/CardImage";
 import GradeBadge from "@/components/GradeBadge";
+import ImageLightbox from "@/components/ImageLightbox";
 import type { Grade } from "@/components/GradeBadge";
 import ConditionBar from "@/components/ConditionBar";
 import PixelCharizard from "@/components/PixelCharizard";
@@ -483,6 +484,8 @@ function ResultView({
   const [registerStatus, setRegisterStatus] = useState<RegisterStatus>({ kind: "idle" });
   const [manualModalOpen, setManualModalOpen] = useState(false);
   const [confirmCardOpen, setConfirmCardOpen] = useState(false);
+  // 작은 썸네일만으로는 카드 확인이 어렵다는 피드백 반영 — 클릭하면 원본 크기로 확인.
+  const [lightboxSrc, setLightboxSrc] = useState<{ src: string | undefined; alt: string } | null>(null);
   // "카드 수정"에서 직접 고른 카드 — null이면 확인 다이얼로그에 AI가 인식한 카드를 그대로 보여준다.
   const [pendingCard, setPendingCard] = useState<{
     id: number;
@@ -582,7 +585,15 @@ function ResultView({
           {result.cardId != null ? (
             <>
               <div className="flex items-center gap-3">
-                <div className="relative h-20 w-[57px] flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
+                <div
+                  className="relative h-20 w-[57px] flex-shrink-0 cursor-pointer overflow-hidden rounded-[7px] bg-[#F2F2F5]"
+                  onClick={() =>
+                    setLightboxSrc({
+                      src: result.cardImageSmall ?? undefined,
+                      alt: result.cardNameKo ?? result.cardName ?? "카드",
+                    })
+                  }
+                >
                   <CardImage
                     src={result.cardImageSmall ?? undefined}
                     alt={result.cardNameKo ?? result.cardName ?? "카드"}
@@ -707,7 +718,15 @@ function ResultView({
             </div>
             <p className="mt-1 text-[13px] text-[#8A8A92]">도감에 등록하기 전에 한 번 더 확인해 주세요.</p>
             <div className="mt-4 flex items-center gap-3 rounded-[11px] border border-[#DDDDE3] px-3.5 py-3">
-              <div className="relative h-24 w-[68px] flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
+              <div
+                className="relative h-24 w-[68px] flex-shrink-0 cursor-pointer overflow-hidden rounded-[7px] bg-[#F2F2F5]"
+                onClick={() =>
+                  setLightboxSrc({
+                    src: confirmCard?.imageUrl ?? undefined,
+                    alt: confirmCard?.name ?? "카드",
+                  })
+                }
+              >
                 <CardImage src={confirmCard?.imageUrl ?? undefined} alt={confirmCard?.name ?? "카드"} />
               </div>
               <div className="min-w-0 flex-1">
@@ -752,6 +771,12 @@ function ResultView({
         initialCardId={pendingCard?.id ?? result.cardId}
         initialVariantId={pendingCard?.variantId}
         onCardConfirm={handleCardConfirm}
+      />
+      <ImageLightbox
+        isOpen={lightboxSrc != null}
+        onClose={() => setLightboxSrc(null)}
+        imageSrc={lightboxSrc?.src}
+        alt={lightboxSrc?.alt ?? "카드"}
       />
     </div>
   );
