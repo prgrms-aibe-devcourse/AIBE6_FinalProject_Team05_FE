@@ -1,5 +1,4 @@
 import PokeballIcon from "@/components/portfolio/PokeballIcon";
-import { setNameKo } from "@/types/card";
 import { PortfolioSetCompletionResponse } from "@/types/portfolio";
 
 // 세트별 수집 완성도 — "구성 비율"(보유 카드가 세트별로 얼마나 나뉘어 있는지)과 달리,
@@ -21,7 +20,7 @@ export default function SetCompletionList({ items }: { items: PortfolioSetComple
           {items.map((item) => (
             <div key={item.expansionId}>
               <div className="mb-1 flex items-center justify-between text-[12.5px]">
-                <span className="font-bold text-[#4B4B52]">{setNameKo(item.setName)}</span>
+                <span className="font-bold text-[#4B4B52]">{item.setName}</span>
                 <span className="font-semibold text-[#9A9AA2]">
                   {item.ownedCount}/{item.totalCount} · {item.completionRate.toFixed(1)}%
                 </span>
