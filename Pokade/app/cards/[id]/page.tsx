@@ -742,10 +742,10 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                             return (
                               <div className="flex items-center gap-1.5">
                                 <span className="text-[11.5px] font-semibold text-[#9A9AA2]">
-                                  지난주대비
+                                  지난주 대비
                                 </span>
                                 <span
-                                  className={`rounded-full px-3.5 py-2 text-[15px] font-extrabold ${
+                                  className={`rounded-full px-2.5 py-1 text-[12.5px] font-extrabold ${
                                     isRise
                                       ? "bg-[#FFF1F1] text-[#EE1515]"
                                       : "bg-[#EEF3FF] text-[#2D5BFF]"
@@ -844,7 +844,9 @@ function CardDetailView({ cardId }: { cardId: number | null }) {
                     />
                   </div>
 
-                  <div className="flex flex-col gap-4 lg:sticky lg:top-8 lg:self-start">
+                  {/* top-8(32px)은 sticky 헤더(h-16=64px, z-50)보다 낮아서 스크롤 시 사이드박스
+                      상단이 헤더 밑으로 파고들어 잘려 보였다 - 헤더 높이보다 더 내려서 겹치지 않게 한다. */}
+                  <div className="flex flex-col gap-4 lg:sticky lg:top-20 lg:self-start">
                     <div className="flex flex-col gap-4 rounded-2xl border border-[#EDEDF0] bg-white p-5">
                       <div>
                         <div className="text-[12px] font-semibold text-[#8A8A92]">즉시구매가</div>
