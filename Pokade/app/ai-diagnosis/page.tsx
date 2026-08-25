@@ -41,12 +41,31 @@ const DEMO_PHOTO_URLS: Record<string, string> = {
   corner_br: "/demo/ai-diagnosis/corner_br.png",
 };
 
+// BE가 동일 이미지 바이트는 해시로 캐싱해 같은 등급을 재반환한다(등급 일관성 보장) — 그런데
+// 데모 사진은 매번 완전히 같은 바이트라 항상 캐시 히트로 첫 결과에 고정돼버린다. 실제 사진을
+// 흉내내려면 진단마다 "다른 파일"이어야 하므로, 눈에 안 보이는 랜덤 픽셀 하나를 찍어 재인코딩해
+// 매번 실제로 바이트가 달라지게 만든다.
+async function randomizeImageBytes(blob: Blob): Promise<Blob> {
+  const bitmap = await createImageBitmap(blob);
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(bitmap, 0, 0);
+  ctx.fillStyle = `rgba(${Math.floor(Math.random() * 256)},${Math.floor(Math.random() * 256)},${Math.floor(Math.random() * 256)},0.004)`;
+  ctx.fillRect(0, 0, 1, 1);
+  const type = blob.type || "image/png";
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("이미지 인코딩 실패"))), type);
+  });
+}
+
 async function loadDemoPhotos(): Promise<File[]> {
   return Promise.all(
     SLOTS.map(async ({ field }) => {
       const res = await fetch(DEMO_PHOTO_URLS[field]);
       if (!res.ok) throw new Error(`데모 이미지를 불러오지 못했습니다: ${field}`);
-      const blob = await res.blob();
+      const blob = await randomizeImageBytes(await res.blob());
       return new File([blob], `${field}.png`, { type: blob.type || "image/png" });
     }),
   );
@@ -64,7 +83,7 @@ const GUIDE_TIPS: Record<string, string> = {
 
 function ShootingGuide() {
   return (
-    <div className="mt-5 rounded-2xl border border-[#EDEDF0] bg-white p-[30px]">
+    <div className="mt-5 rounded-2xl border border-[#EDEDF0] bg-white p-5 sm:p-[30px]">
       <span className="inline-block rounded-md bg-[#FFF3CE] px-3 py-1.5 text-xs font-extrabold tracking-[1px] text-[#8A6A00]">
         촬영 가이드
       </span>
@@ -76,9 +95,9 @@ function ShootingGuide() {
         {SLOTS.map(({ field, label }) => (
           <div
             key={field}
-            className="flex items-center gap-5 rounded-[11px] border border-[#EDEDF0] p-4"
+            className="flex flex-col items-center gap-3 rounded-[11px] border border-[#EDEDF0] p-4 sm:flex-row sm:items-center sm:gap-5"
           >
-            <div className="relative aspect-[3/4] w-[200px] flex-shrink-0 overflow-hidden rounded-[9px] bg-[#F2F2F5]">
+            <div className="relative aspect-[3/4] w-[140px] flex-shrink-0 overflow-hidden rounded-[9px] bg-[#F2F2F5] sm:w-[200px]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={DEMO_PHOTO_URLS[field]}
@@ -86,7 +105,7 @@ function ShootingGuide() {
                 className="h-full w-full object-cover"
               />
             </div>
-            <div>
+            <div className="text-center sm:text-left">
               <div className="text-[15px] font-bold">{label}</div>
               <p className="mt-1.5 text-[13.5px] leading-relaxed text-[#8A8A92]">
                 {GUIDE_TIPS[field]}
@@ -116,7 +135,7 @@ const SCORE_INFO: { label: string; desc: string }[] = [
 
 function GradeInfo() {
   return (
-    <div className="mb-5 rounded-2xl border border-[#EDEDF0] bg-white p-[30px]">
+    <div className="mb-5 rounded-2xl border border-[#EDEDF0] bg-white p-5 sm:p-[30px]">
       <span className="inline-block rounded-md bg-[#FFF3CE] px-3 py-1.5 text-xs font-extrabold tracking-[1px] text-[#8A6A00]">
         등급 안내
       </span>
@@ -290,7 +309,7 @@ function UploadView({
   };
 
   return (
-    <div className="rounded-2xl border border-[#EDEDF0] bg-white p-[30px]">
+    <div className="rounded-2xl border border-[#EDEDF0] bg-white p-5 sm:p-[30px]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="mb-1 mt-0 text-base font-extrabold">카드 사진 업로드</h2>
@@ -310,7 +329,7 @@ function UploadView({
           {demoLoading ? "불러오는 중..." : "테스트 해보기"}
         </button>
       </div>
-      <div className="mb-5 flex items-center justify-between gap-4 rounded-[12px] border border-[#EDEDF0] bg-white px-5 py-4">
+      <div className="mb-5 flex flex-col gap-4 rounded-[12px] border border-[#EDEDF0] bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-2">
           <div className="text-[13px] text-[#4B4B52]">
             처음 {FREE_DIAGNOSES}회 무료 · 이후 <b>{DIAGNOSIS_COST.toLocaleString("ko-KR")}P / 회</b>
@@ -378,7 +397,7 @@ function UploadView({
               <img
                 src={previews[i] as string}
                 alt={`업로드 ${label}`}
-                className="h-full w-full object-contain"
+                className="h-full w-full object-cover"
               />
               <button
                 onClick={() => setAt(i, null)}
@@ -486,7 +505,7 @@ function ResultView({
   };
 
   return (
-    <div className="rounded-2xl border border-[#EDEDF0] bg-white p-[30px]">
+    <div className="rounded-2xl border border-[#EDEDF0] bg-white p-5 sm:p-[30px]">
       <div className="flex items-center gap-3">
         <span className="text-sm font-semibold text-[#8A8A92]">종합 예상 등급</span>
         {result.grade && <GradeBadge grade={result.grade} size="lg" />}
@@ -651,7 +670,7 @@ function HistoryView() {
 
   if (error) {
     return (
-      <div className="rounded-2xl border border-[#F6C6C6] bg-[#FFF1F1] p-[30px] text-center text-[13.5px] font-bold text-[#C21414]">
+      <div className="rounded-2xl border border-[#F6C6C6] bg-[#FFF1F1] p-5 sm:p-[30px] text-center text-[13.5px] font-bold text-[#C21414]">
         {error}
       </div>
     );
@@ -670,7 +689,7 @@ function HistoryView() {
   }
 
   return (
-    <div className="rounded-2xl border border-[#EDEDF0] bg-white p-[30px]">
+    <div className="rounded-2xl border border-[#EDEDF0] bg-white p-5 sm:p-[30px]">
       <div className="flex flex-col gap-3">
         {items.map((item) => (
           <button
@@ -810,7 +829,7 @@ function AIDiagnosisContent() {
   }
 
   return (
-    <main className="main-content bg-neutral px-10 pb-14 pt-9">
+    <main className="main-content bg-neutral px-4 pb-14 pt-9 sm:px-10">
       <div className="mx-auto max-w-[1000px]">
         <div className="mb-5 text-center">
           <span className="inline-block rounded-md bg-[#FFF3CE] px-3 py-1.5 text-xs font-extrabold tracking-[1px] text-[#8A6A00]">
