@@ -3,6 +3,8 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import AdminSidebar from "@/components/AdminSidebar";
+import Toast from "@/components/Toast";
+import { useToast } from "@/hooks/useToast";
 import { answerInquiry, fetchInquiries, fetchInquiry, updateInquiryStatus } from "@/lib/adminApi";
 import { ApiError } from "@/lib/apiClient";
 import {
@@ -45,6 +47,8 @@ function AdminInquiriesView() {
   // 않고 상세 조회 API로 직접 가져온다. 최초 1회만 시도한다.
   const inquiryIdParam = searchParams.get("inquiryId");
   const didAutoOpenRef = useRef(false);
+
+  const { toast, showToast, pauseToast, resumeToast } = useToast();
 
   const [inquiries, setInquiries] = useState<InquiryResponse[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -125,11 +129,15 @@ function AdminInquiriesView() {
 
   const handleSubmitAnswer = async () => {
     if (!selected || answerSubmitting || !answerDraft.trim()) return;
+    // 성공 토스트 문구를 등록/수정으로 가르기 위해 호출 전 상태를 미리 기억해 둔다 -
+    // applyStatus가 selected를 갈아 끼운 뒤에는 "원래 답변이 있었는지"를 알 수 없다.
+    const wasAlreadyAnswered = selected.answerContent != null;
     setAnswerSubmitting(true);
     setAnswerError("");
     try {
       const updated = await answerInquiry(selected.id, answerDraft.trim());
       applyStatus(selected.id, updated);
+      showToast({ message: wasAlreadyAnswered ? "답변이 수정되었습니다." : "답변이 등록되었습니다." });
     } catch (err) {
       // 답변은 사용자가 직접 작성한 내용이라 상태 토글과 달리 실패를 조용히 무시하지 않는다 - 재시도할 수 있게 에러를 보여준다
       setAnswerError(err instanceof ApiError ? err.message : "답변 등록에 실패했습니다.");
@@ -385,6 +393,7 @@ function AdminInquiriesView() {
           </>
         )}
       </aside>
+      <Toast toast={toast} onPause={pauseToast} onResume={resumeToast} />
     </>
   );
 }
