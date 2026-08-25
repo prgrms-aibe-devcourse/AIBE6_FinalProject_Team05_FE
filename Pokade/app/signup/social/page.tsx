@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useUserStore } from "@/store/useUserStore";
 import { oauth2Register } from "@/lib/authApi";
 import { isValidNickname, nicknameError } from "@/lib/nickname";
+import { authErrorInfo, type AuthErrorInfo } from "@/lib/authErrorMessages";
 import AgreementSection, {
   Agreements,
   EMPTY_AGREEMENTS,
@@ -18,7 +19,7 @@ export default function SocialSignupPage() {
   const [nickname, setNickname] = useState("");
   const [agreements, setAgreements] = useState<Agreements>(EMPTY_AGREEMENTS);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<AuthErrorInfo | null>(null);
 
   // 마운트 시 URL fragment(#ticket=)에서 티켓 추출 + URL에서 제거(노출 방지)
   useEffect(() => {
@@ -35,12 +36,12 @@ export default function SocialSignupPage() {
     window.history.replaceState(null, "", window.location.pathname);
   }, [router]);
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const onSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!ticket) return;
     const nicknameProblem = nicknameError(nickname);
     if (nicknameProblem) {
-      setError(nicknameProblem);
+      setError({ kind: "credential", message: nicknameProblem });
       return;
     }
     setError(null);
@@ -50,37 +51,73 @@ export default function SocialSignupPage() {
       await loginWithToken(accessToken);
       router.replace("/");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "가입에 실패했습니다.");
+      setError(authErrorInfo(err, "가입에 실패했습니다."));
       setLoading(false);
     }
   };
 
   if (!ticket) return null; // 티켓 파싱 전/실패 시 렌더 생략
 
+  // 컨테이너는 /login·/signup과 같은 것을 쓴다. main-content(flex-1)가 없으면 본문이 남은 공간을
+  // 차지하지 못해 푸터가 화면 하단에 붙지 않고 콘텐츠 바로 밑에 딸려 올라온다.
   return (
-    <div className="mx-auto mt-16 max-w-[400px] px-4">
-      <h1 className="mb-6 text-xl font-bold">소셜 회원가입</h1>
-      <form onSubmit={onSubmit} className="flex flex-col gap-4">
-        <input
-          type="text"
-          value={nickname}
-          onChange={(e) => setNickname(e.target.value)}
-          placeholder="닉네임 (2~20자)"
-          minLength={2}
-          maxLength={20}
-          required
-          className="rounded-[11px] border border-[#DADCE0] px-4 py-3 text-[15px] outline-none focus:border-primary"
-        />
-        <AgreementSection value={agreements} onChange={setAgreements} />
-        {error && <p className="text-[13.5px] text-red-500">{error}</p>}
-        <button
-          type="submit"
-          disabled={loading || !isRequiredAgreed(agreements) || !isValidNickname(nickname)}
-          className="rounded-[11px] bg-primary py-3.5 font-bold text-white transition active:translate-y-0.5 disabled:opacity-60"
-        >
-          {loading ? "가입 중..." : "가입 완료"}
-        </button>
-      </form>
-    </div>
+    <main className="main-content flex items-start justify-center bg-neutral px-4 py-12 sm:px-10">
+      <div className="w-full max-w-[420px] rounded-[18px] border border-[#EDEDF0] bg-white px-[34px] py-9 shadow-card">
+        <h1 className="m-0 text-[22px] font-extrabold tracking-[-0.4px]">소셜 회원가입</h1>
+        <p className="mt-2 text-[13.5px] text-[#8A8A92]">
+          닉네임과 약관 동의만 입력하면 가입이 완료됩니다.
+        </p>
+
+        <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-4">
+          <input
+            type="text"
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+            placeholder="닉네임 (2~20자)"
+            minLength={2}
+            maxLength={20}
+            required
+            className="w-full rounded-[11px] border border-[#DDDDE3] px-3.5 py-3 text-[14.5px] outline-none focus:border-primary"
+          />
+          <AgreementSection value={agreements} onChange={setAgreements} />
+
+          {/* 오류 표시는 /login·/signup과 같은 규칙을 따른다(#282) — 통신 오류는 사용자가 고칠 것이
+              없으므로 빨간 경고 대신 중립 톤 + 재시도 수단을 준다. */}
+          {error?.kind === "connection" ? (
+            <div
+              role="alert"
+              className="rounded-[11px] border border-[#DDDDE3] bg-[#F7F7F8] px-[15px] py-3"
+            >
+              <p className="text-[13px] font-semibold text-[#4B4B52]">{error.message}</p>
+              <button
+                type="button"
+                onClick={() => onSubmit()}
+                disabled={loading}
+                className="mt-2 text-[12.5px] font-bold text-secondary underline underline-offset-2 disabled:text-[#A0A0A8] disabled:no-underline"
+              >
+                {loading ? "다시 시도하는 중…" : "다시 시도"}
+              </button>
+            </div>
+          ) : (
+            error && (
+              <p
+                role="alert"
+                className="rounded-[11px] border border-[#F6C6C6] bg-[#FFF1F1] px-[15px] py-3 text-[13px] font-semibold text-[#C21414]"
+              >
+                {error.message}
+              </p>
+            )
+          )}
+
+          <button
+            type="submit"
+            disabled={loading || !isRequiredAgreed(agreements) || !isValidNickname(nickname)}
+            className="w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3.5 text-[15.5px] font-bold text-white shadow-tactile transition active:translate-y-0.5 active:shadow-tactile-active disabled:cursor-not-allowed disabled:border-[#D6D6DC] disabled:bg-[#E4E4E8] disabled:text-[#A0A0A8] disabled:shadow-none"
+          >
+            {loading ? "가입 중…" : "가입 완료"}
+          </button>
+        </form>
+      </div>
+    </main>
   );
 }
