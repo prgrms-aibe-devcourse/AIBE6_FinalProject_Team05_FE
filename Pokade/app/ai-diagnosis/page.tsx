@@ -41,12 +41,31 @@ const DEMO_PHOTO_URLS: Record<string, string> = {
   corner_br: "/demo/ai-diagnosis/corner_br.png",
 };
 
+// BE가 동일 이미지 바이트는 해시로 캐싱해 같은 등급을 재반환한다(등급 일관성 보장) — 그런데
+// 데모 사진은 매번 완전히 같은 바이트라 항상 캐시 히트로 첫 결과에 고정돼버린다. 실제 사진을
+// 흉내내려면 진단마다 "다른 파일"이어야 하므로, 눈에 안 보이는 랜덤 픽셀 하나를 찍어 재인코딩해
+// 매번 실제로 바이트가 달라지게 만든다.
+async function randomizeImageBytes(blob: Blob): Promise<Blob> {
+  const bitmap = await createImageBitmap(blob);
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(bitmap, 0, 0);
+  ctx.fillStyle = `rgba(${Math.floor(Math.random() * 256)},${Math.floor(Math.random() * 256)},${Math.floor(Math.random() * 256)},0.004)`;
+  ctx.fillRect(0, 0, 1, 1);
+  const type = blob.type || "image/png";
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("이미지 인코딩 실패"))), type);
+  });
+}
+
 async function loadDemoPhotos(): Promise<File[]> {
   return Promise.all(
     SLOTS.map(async ({ field }) => {
       const res = await fetch(DEMO_PHOTO_URLS[field]);
       if (!res.ok) throw new Error(`데모 이미지를 불러오지 못했습니다: ${field}`);
-      const blob = await res.blob();
+      const blob = await randomizeImageBytes(await res.blob());
       return new File([blob], `${field}.png`, { type: blob.type || "image/png" });
     }),
   );
@@ -378,7 +397,7 @@ function UploadView({
               <img
                 src={previews[i] as string}
                 alt={`업로드 ${label}`}
-                className="h-full w-full object-contain"
+                className="h-full w-full object-cover"
               />
               <button
                 onClick={() => setAt(i, null)}
