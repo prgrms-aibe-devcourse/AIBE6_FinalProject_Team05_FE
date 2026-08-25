@@ -1,5 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import CardImage from "@/components/CardImage";
+import { ApiError } from "@/lib/apiClient";
+import { updatePortfolioItemThumbnail } from "@/lib/portfolioApi";
 import { formatKrw } from "@/lib/portfolioFormat";
 import { variantLabel } from "@/types/card";
 import { PortfolioItemPnlResponse, PortfolioItemResponse } from "@/types/portfolio";
@@ -15,6 +17,7 @@ export default function PortfolioDetailModal({
   onShowPnl,
   onEdit,
   onDelete,
+  onThumbnailChange,
 }: {
   item: PortfolioItemResponse;
   pnl?: PortfolioItemPnlResponse;
@@ -25,8 +28,28 @@ export default function PortfolioDetailModal({
   onShowPnl: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onThumbnailChange: (updated: PortfolioItemResponse) => void;
 }) {
   const displayName = item.cardName ?? "알 수 없는 카드";
+  const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
+  const [thumbnailError, setThumbnailError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleThumbnailPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploadingThumbnail(true);
+    setThumbnailError(null);
+    try {
+      const updated = await updatePortfolioItemThumbnail(item.id, file);
+      onThumbnailChange(updated);
+    } catch (err) {
+      setThumbnailError(err instanceof ApiError ? err.message : "표지 사진 변경에 실패했습니다.");
+    } finally {
+      setUploadingThumbnail(false);
+    }
+  };
 
   // 배경(그리드) 클릭을 막지는 못하지만(포커스 트랩은 별도 과제), 최소한 Escape로는 닫을 수 있게 한다.
   useEffect(() => {
@@ -66,7 +89,35 @@ export default function PortfolioDetailModal({
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png"
+            className="hidden"
+            onChange={handleThumbnailPick}
+          />
+          <button
+            type="button"
+            disabled={uploadingThumbnail}
+            onClick={() => fileInputRef.current?.click()}
+            aria-label="표지 사진 변경"
+            className="absolute bottom-3 right-3 flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 disabled:opacity-60"
+          >
+            {uploadingThumbnail ? (
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+            ) : (
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 7h3l2-2h6l2 2h3a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1Z" />
+                <circle cx="12" cy="13" r="3.5" />
+              </svg>
+            )}
+          </button>
         </div>
+        {thumbnailError && (
+          <div role="alert" className="px-5 pt-3 text-[12.5px] font-semibold text-primary">
+            {thumbnailError}
+          </div>
+        )}
         <div className="p-5">
           <div id="portfolio-detail-modal-title" className="text-[16px] font-extrabold">
             {displayName}

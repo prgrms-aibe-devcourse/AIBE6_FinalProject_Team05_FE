@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import CardImage from "@/components/CardImage";
+import GradeBadge, { Grade } from "@/components/GradeBadge";
 import PriceInput from "@/components/PriceInput";
 import { useEscapeAndScrollLock } from "@/hooks/useEscapeAndScrollLock";
 import { ApiError } from "@/lib/apiClient";
@@ -33,12 +34,22 @@ function toSelectedCard(detail: CardDetailResponse): SelectedCard {
 type AddPortfolioItemModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (result: PortfolioItemResponse) => void;
+  // create/edit 모드에서만 사용 — from-grade 모드는 onCardConfirm을 대신 쓴다.
+  onSuccess?: (result: PortfolioItemResponse) => void;
 } & (
   | { mode?: "create" }
   | {
       mode: "edit";
       item: PortfolioItemResponse;
+    }
+  | {
+      // AI 등급 진단 결과(FR-AI-04) 등록용 카드 선택 — 여기서는 등록을 실행하지 않고 고른 카드만
+      // 돌려준다. 실제 등록은 ResultView의 확인 다이얼로그에서 한 번 더 확인 후 수행한다.
+      mode: "from-grade";
+      aiGrade: Grade | null;
+      initialCardId?: number | null;
+      initialVariantId?: number | null;
+      onCardConfirm: (card: { id: number; name: string; imageUrl: string; variantId: number | null }) => void;
     }
 );
 
@@ -48,6 +59,7 @@ export default function AddPortfolioItemModal(props: AddPortfolioItemModalProps)
   const { isOpen, onClose, onSuccess } = props;
   const mode = props.mode ?? "create";
   const editingItem = props.mode === "edit" ? props.item : null;
+  const fromGrade = props.mode === "from-grade" ? props : null;
 
   const [selectedCard, setSelectedCard] = useState<SelectedCard | null>(null);
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
@@ -75,6 +87,27 @@ export default function AddPortfolioItemModal(props: AddPortfolioItemModalProps)
     setError(null);
   }, []);
 
+  // preferredVariantId — 카드 수정을 다시 열었을 때 이전에 골랐던 판본을 유지하기 위함.
+  // 없거나 이 카드에 더 이상 없는 판본이면 대표 판본으로 대체한다.
+  const selectCardById = (cardId: number, preferredVariantId?: number | null) => {
+    const requestId = ++selectRequestIdRef.current;
+    fetchCardDetail(cardId)
+      .then((detail) => {
+        if (selectRequestIdRef.current !== requestId) return;
+        const card = toSelectedCard(detail);
+        setSelectedCard(card);
+        const preferred =
+          preferredVariantId != null ? card.variants.find((v) => v.id === preferredVariantId) : undefined;
+        const primary = preferred ?? card.variants.find((v) => v.primary) ?? card.variants[0];
+        setSelectedVariantId(primary?.id ?? null);
+        setError(null);
+      })
+      .catch(() => {
+        if (selectRequestIdRef.current !== requestId) return;
+        setError("카드 정보를 불러오지 못했습니다. 다시 선택해 주세요.");
+      });
+  };
+
   const handleClose = useCallback(() => {
     resetForm();
     onClose();
@@ -93,14 +126,17 @@ export default function AddPortfolioItemModal(props: AddPortfolioItemModalProps)
       setError(null);
     } else {
       resetForm();
+      if (fromGrade?.initialCardId != null) {
+        selectCardById(fromGrade.initialCardId, fromGrade.initialVariantId);
+      }
     }
     // editingItem은 매 렌더 새 참조(부모가 배열에서 find)라 id만 의존성으로 둔다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, editingItem?.id]);
 
-  // 카드 검색 자동완성 (디바운스) — 등록 모드에서만 동작
+  // 카드 검색 자동완성 (디바운스) — 카드 검색 UI가 있는 모드(등록/AI 진단 등록)에서만 동작
   useEffect(() => {
-    if (mode !== "create") return;
+    if (mode === "edit") return;
     const trimmed = query.trim();
     if (trimmed.length < MIN_QUERY_LENGTH) return;
     let cancelled = false;
@@ -123,26 +159,22 @@ export default function AddPortfolioItemModal(props: AddPortfolioItemModalProps)
     };
   }, [mode, query]);
 
-  const selectCardById = (cardId: number) => {
-    const requestId = ++selectRequestIdRef.current;
-    fetchCardDetail(cardId)
-      .then((detail) => {
-        if (selectRequestIdRef.current !== requestId) return;
-        const card = toSelectedCard(detail);
-        setSelectedCard(card);
-        const primary = card.variants.find((v) => v.primary) ?? card.variants[0];
-        setSelectedVariantId(primary?.id ?? null);
-        setError(null);
-      })
-      .catch(() => {
-        if (selectRequestIdRef.current !== requestId) return;
-        setError("카드 정보를 불러오지 못했습니다. 다시 선택해 주세요.");
-      });
-  };
-
   const handleSubmit = async () => {
-    if (mode === "create" && !selectedCard) {
-      setError("등록할 카드를 선택해 주세요.");
+    if (mode !== "edit" && !selectedCard) {
+      setError("카드를 선택해 주세요.");
+      return;
+    }
+
+    // from-grade 모드는 API를 직접 호출하지 않는다 — 고른 카드를 그대로 돌려주면
+    // ResultView가 확인 다이얼로그를 다시 띄운 뒤 실제 등록을 수행한다.
+    if (mode === "from-grade" && fromGrade) {
+      fromGrade.onCardConfirm({
+        id: selectedCard!.id,
+        name: selectedCard!.name,
+        imageUrl: selectedCard!.imageUrl,
+        variantId: selectedVariantId,
+      });
+      handleClose();
       return;
     }
 
@@ -178,7 +210,7 @@ export default function AddPortfolioItemModal(props: AddPortfolioItemModalProps)
               acquiredPrice: acquiredPriceNumber,
               acquiredAt: acquiredAtIso,
             });
-      onSuccess(result);
+      onSuccess?.(result);
       handleClose();
     } catch (err) {
       setError(
@@ -195,7 +227,7 @@ export default function AddPortfolioItemModal(props: AddPortfolioItemModalProps)
 
   if (!isOpen) return null;
 
-  const title = mode === "edit" ? "보유 카드 수정" : "도감에 카드 추가";
+  const title = mode === "edit" ? "보유 카드 수정" : mode === "from-grade" ? "카드 선택" : "도감에 카드 추가";
   const inputCls =
     "rounded-[9px] border border-[#DDDDE3] px-3 py-2 text-[13.5px] outline-none focus:border-primary";
 
@@ -348,36 +380,47 @@ export default function AddPortfolioItemModal(props: AddPortfolioItemModalProps)
             </>
           )}
 
-          <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#4B4B52]">
-            수량
-            <input
-              type="number"
-              min={1}
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              className={inputCls}
-            />
-          </label>
+          {fromGrade && (
+            <div className="flex items-center gap-2.5 rounded-[11px] bg-neutral px-3.5 py-3">
+              <span className="text-[13px] font-semibold text-[#4B4B52]">AI 예상 등급</span>
+              <GradeBadge grade={fromGrade.aiGrade ?? undefined} />
+            </div>
+          )}
 
-          <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#4B4B52]">
-            카드 구매가 (선택)
-            <PriceInput
-              value={acquiredPrice}
-              onChange={setAcquiredPrice}
-              placeholder="예: 50,000"
-              className={inputCls}
-            />
-          </label>
+          {mode !== "from-grade" && (
+            <>
+              <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#4B4B52]">
+                수량
+                <input
+                  type="number"
+                  min={1}
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  className={inputCls}
+                />
+              </label>
 
-          <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#4B4B52]">
-            취득일 (선택)
-            <input
-              type="date"
-              value={acquiredAt}
-              onChange={(e) => setAcquiredAt(e.target.value)}
-              className={inputCls}
-            />
-          </label>
+              <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#4B4B52]">
+                카드 구매가 (선택)
+                <PriceInput
+                  value={acquiredPrice}
+                  onChange={setAcquiredPrice}
+                  placeholder="예: 50,000"
+                  className={inputCls}
+                />
+              </label>
+
+              <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-[#4B4B52]">
+                취득일 (선택)
+                <input
+                  type="date"
+                  value={acquiredAt}
+                  onChange={(e) => setAcquiredAt(e.target.value)}
+                  className={inputCls}
+                />
+              </label>
+            </>
+          )}
 
           {error && (
             <span role="alert" className="text-[12.5px] font-semibold text-primary">
@@ -391,13 +434,15 @@ export default function AddPortfolioItemModal(props: AddPortfolioItemModalProps)
             onClick={handleSubmit}
             className="mt-1 w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3 text-[14.5px] font-bold text-white shadow-tactile-sm active:translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {submitting
-              ? mode === "edit"
-                ? "저장 중..."
-                : "등록 중..."
-              : mode === "edit"
-                ? "저장"
-                : "등록"}
+            {mode === "from-grade"
+              ? "확인"
+              : submitting
+                ? mode === "edit"
+                  ? "저장 중..."
+                  : "등록 중..."
+                : mode === "edit"
+                  ? "저장"
+                  : "등록"}
           </button>
         </div>
       </div>
