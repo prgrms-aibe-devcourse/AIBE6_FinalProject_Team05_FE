@@ -210,7 +210,7 @@ export default function MyListingsPage() {
           <h1 className="text-[22px] font-extrabold tracking-[-0.5px]">내 상품</h1>
           <Link
             href="/listings/new"
-            className="rounded-[11px] border-2 border-primary-dark bg-primary px-4 py-2.5 text-[13.5px] font-bold text-white shadow-tactile-sm transition active:translate-y-0.5"
+            className="rounded-[11px] border-2 border-primary-dark bg-primary px-4 py-2.5 text-[13.5px] font-bold text-white shadow-tactile-sm transition hover:text-white active:translate-y-0.5"
           >
             상품 등록
           </Link>

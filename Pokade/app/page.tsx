@@ -48,7 +48,7 @@ const STEPS = [
   {
     n: "02",
     t: "안전결제 & 전문 검수",
-    d: "결제 금액은 Pokade가 안전하게 보관하고, 실물 카드를 전문가가 직접 검수합니다.",
+    d: "결제 금액은 Pokade가 안전하게 보관하고, 실물 카드도 직접 검수합니다.",
   },
   {
     n: "03",
@@ -189,7 +189,7 @@ function HomeView() {
               <Link
                 href={heroCardId != null ? `/cards/${heroCardId}` : "#"}
                 aria-disabled={heroCardId == null}
-                className="rounded-[11px] border-[1.5px] border-white/35 bg-transparent px-[26px] py-3.5 text-[15.5px] font-bold text-white transition hover:border-white hover:bg-white/[0.06]"
+                className="rounded-[11px] border-[1.5px] border-white/35 bg-transparent px-[26px] py-3.5 text-[15.5px] font-bold text-white transition hover:border-white hover:bg-white/[0.06] hover:text-white"
               >
                 자세히 보기
               </Link>

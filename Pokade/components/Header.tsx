@@ -26,6 +26,11 @@ const NAV: { label: string; href: string }[] = [
   { label: "상품 등록", href: "/listings/new" },
 ];
 
+// 로그인/비로그인 헤더가 각각 w-60·w-56으로 갈려 있던 것을 한 곳으로 모은다.
+// 고정 폭이 아니라 max/min으로 두는 이유: 좁은 데스크톱 폭에서 고정 폭이 공간을 양보하지 못해
+// 검색창이 내비와 붙고 우측 아바타가 잘렸다. 줄어들 여지를 주면 넘치는 대신 좁아진다.
+const SEARCH_BAR_WIDTH = "hidden w-full min-w-[132px] max-w-[240px] md:block";
+
 // 헤더에서 동시에 하나만 열릴 수 있는 오버레이 — 알림/프로필 드롭다운과 모바일 메뉴 드로어가
 // 각자 독립된 state였을 때, 하나가 열린 채로 다른 트리거를 누르면 그 백드롭이 클릭을 가로채
 // "열려던 것 대신 지금 열린 것만 닫히는" 문제가 있었다. 하나의 값으로 합쳐 상호배타를 타입
@@ -119,8 +124,8 @@ function LoggedInRight({
   const notifLabel = unreadCount > 0 ? `안 읽은 알림 ${unreadCount}개` : "알림";
 
   return (
-    <div className="relative flex items-center gap-4">
-      <SearchBar width="hidden w-60 md:block" />
+    <div className="relative flex min-w-0 items-center gap-3 lg:gap-4">
+      <SearchBar width={SEARCH_BAR_WIDTH} />
       <button
         onClick={() => toggle("notif")}
         aria-label={notifLabel}
@@ -422,16 +427,23 @@ export default function Header() {
     if (open === "menu") setOpen(null);
   }
 
+  // gap을 md부터만 키우는 이유: 좌우 그룹이 간격 0으로 맞닿아 검색창이 내비게이션에 붙어 보이는
+  // 문제는 둘이 함께 있는 md 이상에서만 생긴다. md 미만은 내비가 숨겨져 그만큼 여유가 필요 없고,
+  // 320px에서는 여유가 거의 없어 24px을 물리면 오히려 빠듯해진다.
   return (
-    <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-b border-[#F0F0F0] bg-white px-4 sm:px-10">
-      <div className="flex items-center gap-11">
+    <header className="sticky top-0 z-50 flex h-16 items-center justify-between gap-3 border-b border-[#F0F0F0] bg-white px-4 sm:px-10 md:gap-6">
+      {/* md~lg 구간(768~1023px)은 로고+내비+검색창+우측 액션이 한 줄에 빠듯하다. 이 구간에서만
+          간격을 좁히고 넓은 화면은 기존 여백을 그대로 둔다 — 검색창을 숨기는 방식은 쓰지 않는다.
+          햄버거가 md:hidden이라 768px 이상에서는 나오지 않아, 검색창까지 감추면 검색 진입점이
+          아예 사라지기 때문이다. */}
+      <div className="flex shrink items-center gap-5 lg:gap-11">
         <Link
           href="/"
           className="whitespace-nowrap text-xl font-extrabold tracking-[-0.5px] text-primary hover:text-primary"
         >
           POKADE
         </Link>
-        <nav className="hidden items-center gap-[30px] text-[15px] font-semibold md:flex">
+        <nav className="hidden items-center gap-[18px] text-[15px] font-semibold md:flex lg:gap-[30px]">
           {NAV.map((n) => {
             const isActive =
               n.href !== "#" &&
@@ -456,11 +468,13 @@ export default function Header() {
         </nav>
       </div>
 
-      <div className="flex items-center gap-4">
+      {/* min-w-0가 없으면 flex 자식이 콘텐츠 폭 아래로 줄지 않아, 검색창이 좁아지는 대신
+          그룹째 헤더 밖으로 밀려나 우측 아바타가 잘린다. */}
+      <div className="flex min-w-0 items-center gap-3 lg:gap-4">
         {variant === "loading" && <div className="h-10 w-10 rounded-full bg-neutral" />}
         {variant === "out" && (
           <>
-            <SearchBar width="hidden w-56 md:block" />
+            <SearchBar width={SEARCH_BAR_WIDTH} />
             <Link
               href="/login"
               className="whitespace-nowrap px-1.5 py-2 text-[14.5px] font-bold text-[#4B4B52] hover:text-primary"
@@ -481,8 +495,11 @@ export default function Header() {
             바뀔 때마다 관리자 쪽이 뒤처지고, 실제로 로그아웃 수단이 없는 상태였다. */}
         {(variant === "in" || variant === "admin") && (
           <>
+            {/* 배지는 lg부터 보인다. md 구간(768~1023px)에서 관리자 헤더는 검색창이 min-width에
+                닿을 만큼 빠듯한데, 이 배지가 폭 54px + 간격을 차지한다. 자기가 관리자인지는
+                이미 아는 정보라 좁은 폭에서 감추는 손실이 작다. */}
             {variant === "admin" && (
-              <span className="whitespace-nowrap rounded-full border border-[#F6D0D0] bg-[#FFF5F5] px-[11px] py-[5px] text-xs font-extrabold text-primary">
+              <span className="hidden whitespace-nowrap rounded-full border border-[#F6D0D0] bg-[#FFF5F5] px-[11px] py-[5px] text-xs font-extrabold text-primary lg:inline">
                 운영자
               </span>
             )}

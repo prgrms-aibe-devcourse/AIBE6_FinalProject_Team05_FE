@@ -10,7 +10,7 @@ export default function ListingCompletedNotice({ cardId }: { cardId: number }) {
       <p className="mb-6 text-[18px] font-extrabold">등록이 완료되었습니다</p>
       <Link
         href="/mypage?bidTab=listing"
-        className="inline-block w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3 text-[14.5px] font-bold text-white shadow-tactile-sm"
+        className="inline-block w-full rounded-[11px] border-2 border-primary-dark bg-primary py-3 text-[14.5px] font-bold text-white shadow-tactile-sm hover:text-white"
       >
         내 판매 등록 보러가기
       </Link>

@@ -277,6 +277,20 @@ function LoginForm() {
             🧪 test2 데모 로그인
           </button>
         </div>
+
+        {/* 위 데모 버튼들과 달리 이 계정은 관리자 권한을 가진다. 실서비스가 아니라 시연용
+            프로젝트라는 판단에 따라 운영 빌드에도 그대로 노출한다. 실제 서비스로 전환할 때는
+            이 버튼과 위 데모 버튼들을 함께 걷어내야 한다. */}
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => doLogin("admin@pokade.com", "test1234!")}
+            disabled={loading}
+            className="w-full rounded-[9px] bg-[#F7F7F9] py-2 text-[11.5px] font-semibold text-[#9A9AA2] transition hover:bg-[#EFEFF2] hover:text-[#6E6E76] disabled:opacity-60"
+          >
+            🛠 admin 데모 로그인
+          </button>
+        </div>
       </div>
     </main>
   );
