@@ -393,7 +393,9 @@ function AdminInquiriesView() {
           </>
         )}
       </aside>
-      <Toast toast={toast} onPause={pauseToast} onResume={resumeToast} />
+      {/* 상세 패널(aside, z-[80])이 열려 있을 때도 토스트가 그 위에 보여야 한다 - 기본 z-50이면
+          패널 뒤에 깔려 안 보인다(실제 보고된 문제). */}
+      <Toast toast={toast} onPause={pauseToast} onResume={resumeToast} zIndexClassName="z-[90]" />
     </>
   );
 }

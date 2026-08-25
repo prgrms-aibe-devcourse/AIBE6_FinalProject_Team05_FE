@@ -27,10 +27,15 @@ export default function Toast({
   toast,
   onPause,
   onResume,
+  // 기본은 z-50 - 대부분의 화면은 그 위에 z-[70] 이상의 오버레이가 없다. 다만 어드민의
+  // 슬라이드인 상세 패널(z-[80])처럼 그보다 높은 오버레이가 열려 있는 화면에서는 토스트가
+  // 패널 뒤에 깔려 안 보인다 — 그런 화면만 더 높은 값을 넘겨서 오버레이 위에 뜨게 한다.
+  zIndexClassName = "z-50",
 }: {
   toast: ToastState | null;
   onPause?: (source: ToastHoldSource) => void;
   onResume?: (source: ToastHoldSource) => void;
+  zIndexClassName?: string;
 }) {
   if (!toast) return null;
 
@@ -54,7 +59,7 @@ export default function Toast({
   // 알림이라는 인상을 유지하기 위함. primary(#EE1515)가 아니라 primary-dark(#B80F0F)를 쓰는 이유:
   // 흰 글자 대비가 primary는 4.4:1로 본문 크기 AA(4.5:1)에 못 미치고, primary-dark는 6.7:1로 넘긴다.
   // 새 색을 만들지 않고 기존 토큰 안에서 고른 값이다.
-  const base = `fixed inset-x-4 bottom-8 z-50 mx-auto w-fit max-w-[calc(100vw-2rem)] rounded-full px-5 py-3 text-[13.5px] font-bold text-white shadow-lg ${
+  const base = `fixed inset-x-4 bottom-8 ${zIndexClassName} mx-auto w-fit max-w-[calc(100vw-2rem)] rounded-full px-5 py-3 text-[13.5px] font-bold text-white shadow-lg ${
     isError ? "bg-primary-dark" : "bg-ink"
   }`;
 
