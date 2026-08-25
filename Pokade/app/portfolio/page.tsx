@@ -9,6 +9,7 @@ import PortfolioDetailModal from "@/components/portfolio/PortfolioDetailModal";
 import SetCompletionList from "@/components/portfolio/SetCompletionList";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
+import { setNameKo } from "@/types/card";
 import {
   deletePortfolioItem,
   fetchPortfolio,
@@ -202,7 +203,10 @@ export default function PortfolioPage() {
 
                 <div className="flex flex-col gap-5">
                   <SetCompletionList items={setCompletion} />
-                  <CompositionChart title="세트별 구성 비율" data={analytics?.bySet ?? []} />
+                  <CompositionChart
+                    title="세트별 구성 비율"
+                    data={(analytics?.bySet ?? []).map((d) => ({ ...d, label: setNameKo(d.label) }))}
+                  />
                   <CompositionChart title="레어도별 구성 비율" data={analytics?.byRarity ?? []} />
                 </div>
               </div>
