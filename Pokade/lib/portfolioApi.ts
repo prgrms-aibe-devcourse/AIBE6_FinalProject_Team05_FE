@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/apiClient";
+import { apiDelete, apiGet, apiPost, apiPostForm, apiPut } from "@/lib/apiClient";
 import {
   PortfolioAnalyticsResponse,
   PortfolioItemAddRequest,
@@ -34,6 +34,18 @@ export async function deletePortfolioItem(id: number): Promise<void> {
   return apiDelete(`/api/portfolio/${id}`);
 }
 
+// POST /api/portfolio/{id}/thumbnail — 표지 사진 교체(jpg/png, 5MB 이하). AI 진단 등록 여부와 무관하게 항상 가능.
+// 본인 소유가 아니거나 없는 id면 404(PORTFOLIO_ITEM_NOT_FOUND), 5MB 초과 시 413(FILE_TOO_LARGE),
+// jpg/png가 아니면 400(UNSUPPORTED_IMAGE_TYPE).
+export async function updatePortfolioItemThumbnail(
+  id: number,
+  file: File,
+): Promise<PortfolioItemResponse> {
+  const formData = new FormData();
+  formData.append("image", file);
+  return apiPostForm<PortfolioItemResponse>(`/api/portfolio/${id}/thumbnail`, formData);
+}
+
 // GET /api/portfolio/summary — 총 평가액 + 전일 대비 등락(등락액·등락률). 시세 없는 항목은 계산에서 제외.
 export async function fetchPortfolioSummary(): Promise<PortfolioSummaryResponse> {
   return apiGet<PortfolioSummaryResponse>("/api/portfolio/summary");
@@ -60,6 +72,10 @@ export async function fetchPortfolioSetCompletion(): Promise<PortfolioSetComplet
 // POST /api/portfolio/from-grade/{resultId} — AI 진단 결과(FR-AI-04)를 도감에 등록.
 // 정상 산출(SUCCESS)이 아니면 400(GRADE_RESULT_NOT_REGISTRABLE), 본인 결과가 아니면 403(ACCESS_DENIED),
 // 이미 등록된 결과면 409(GRADE_RESULT_ALREADY_REGISTERED), 카드를 해석하지 못하면 404(CARD_NOT_FOUND).
-export async function addPortfolioItemFromGrade(resultId: number): Promise<PortfolioItemResponse> {
-  return apiPost<PortfolioItemResponse>(`/api/portfolio/from-grade/${resultId}`);
+// override — AI가 카드를 인식하지 못했거나 잘못 인식했을 때 사용자가 직접 고른 카드로 등록하기 위해 전달.
+export async function addPortfolioItemFromGrade(
+  resultId: number,
+  override?: { cardId: number; variantId?: number },
+): Promise<PortfolioItemResponse> {
+  return apiPost<PortfolioItemResponse>(`/api/portfolio/from-grade/${resultId}`, override);
 }
