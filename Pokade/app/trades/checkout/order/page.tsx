@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import AddressSearchField from "@/components/AddressSearchField";
 import CardImage from "@/components/CardImage";
 import PriceInput from "@/components/PriceInput";
+import RequiredMark from "@/components/RequiredMark";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
 import { getMyInfo } from "@/lib/authApi";
@@ -242,7 +243,7 @@ function TradeCheckoutOrderForm() {
             <h2 className={sectionTitleCls}>받는사람 정보</h2>
 
             <label htmlFor="recipient-name" className={labelCls}>
-              이름
+              이름<RequiredMark />
             </label>
             <input
               id="recipient-name"
@@ -255,7 +256,7 @@ function TradeCheckoutOrderForm() {
             <div className="h-4" />
 
             <label htmlFor="recipient-phone" className={labelCls}>
-              전화번호
+              전화번호<RequiredMark />
             </label>
             <input
               id="recipient-phone"
@@ -269,7 +270,9 @@ function TradeCheckoutOrderForm() {
 
             <div className="h-4" />
 
-            <label className={labelCls}>주소</label>
+            <label className={labelCls}>
+              주소<RequiredMark />
+            </label>
             <AddressSearchField onChange={setRecipientAddress} inputCls={inputCls} />
           </section>
 

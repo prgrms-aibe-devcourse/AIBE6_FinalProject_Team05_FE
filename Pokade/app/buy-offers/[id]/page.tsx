@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import AddressSearchField from "@/components/AddressSearchField";
 import CardImage from "@/components/CardImage";
+import RequiredMark from "@/components/RequiredMark";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
 import { fetchMyBuyOffer, updateBuyOfferRecipient } from "@/lib/buyOfferApi";
@@ -161,7 +162,7 @@ export default function BuyOfferDetailPage() {
             </div>
 
             <label htmlFor="recipient-name" className={labelCls}>
-              이름
+              이름<RequiredMark />
             </label>
             <input
               id="recipient-name"
@@ -175,7 +176,7 @@ export default function BuyOfferDetailPage() {
             <div className="h-4" />
 
             <label htmlFor="recipient-phone" className={labelCls}>
-              전화번호
+              전화번호<RequiredMark />
             </label>
             <input
               id="recipient-phone"
@@ -190,7 +191,9 @@ export default function BuyOfferDetailPage() {
 
             <div className="h-4" />
 
-            <label className={labelCls}>주소</label>
+            <label className={labelCls}>
+              주소<RequiredMark />
+            </label>
             {editingAddress ? (
               <AddressSearchField onChange={setRecipientAddress} inputCls={inputCls} />
             ) : (

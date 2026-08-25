@@ -12,10 +12,12 @@ export default function BankSelector({
   value,
   onChange,
   inputCls,
+  disabled,
 }: {
   value: string;
   onChange: (value: string) => void;
   inputCls: string;
+  disabled?: boolean;
 }) {
   const isPreset = COMMON_BANKS.includes(value);
   const [customMode, setCustomMode] = useState(value !== "" && !isPreset);
@@ -25,6 +27,7 @@ export default function BankSelector({
       <select
         aria-label="은행명"
         value={customMode ? CUSTOM_OPTION : value}
+        disabled={disabled}
         onChange={(e) => {
           if (e.target.value === CUSTOM_OPTION) {
             setCustomMode(true);
@@ -50,6 +53,7 @@ export default function BankSelector({
         <input
           type="text"
           value={value}
+          disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
           aria-label="은행명 직접 입력"
           placeholder="은행명을 입력해 주세요"
