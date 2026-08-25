@@ -422,6 +422,9 @@ export default function Header() {
     if (open === "menu") setOpen(null);
   }
 
+  // "/"는 자체 헤더(고정 네비 + Command Dock)를 쓰는 독립 랜딩페이지라 공용 헤더를 숨긴다.
+  if (pathname === "/") return null;
+
   return (
     <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-b border-[#F0F0F0] bg-white px-4 sm:px-10">
       <div className="flex items-center gap-11">

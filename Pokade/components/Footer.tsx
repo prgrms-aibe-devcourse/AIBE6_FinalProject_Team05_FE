@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 const LINKS = [
   { label: "이용약관", href: "/terms" },
@@ -7,6 +10,10 @@ const LINKS = [
 ];
 
 export default function Footer() {
+  const pathname = usePathname() || "/";
+  // "/"는 자체 푸터를 쓰는 독립 랜딩페이지라 공용 푸터를 숨긴다.
+  if (pathname === "/") return null;
+
   return (
     <footer className="footer border-t border-primary bg-lavender px-10 py-7">
       <div className="mx-auto flex max-w-container flex-wrap items-center justify-between gap-4">

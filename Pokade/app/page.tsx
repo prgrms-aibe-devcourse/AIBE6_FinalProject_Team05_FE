@@ -1,541 +1,630 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import Link from "next/link";
-import GradeBadge from "@/components/GradeBadge";
-import ConditionBar from "@/components/ConditionBar";
-import CardImage from "@/components/CardImage";
-import HeroTiltCard from "@/components/HeroTiltCard";
-import IconTooltip from "@/components/IconTooltip";
-import ImageLightbox from "@/components/ImageLightbox";
-import Toast from "@/components/Toast";
-import { CardSearchItem, toCardSearchItem } from "@/types/card";
-import { CardPriceSummaryResponse } from "@/types/price";
-import { fetchCards, fetchCardsByKeywordPage, fetchPriceSummaries } from "@/lib/cardApi";
-import { ApiError } from "@/lib/apiClient";
-import { resolvePriceDisplay } from "@/lib/priceDisplay";
-import { useHeartPunch } from "@/hooks/useHeartPunch";
-import { useWatchlistMap } from "@/hooks/useWatchlistMap";
-import { useToast } from "@/hooks/useToast";
-import { showWatchlistToggleToast } from "@/lib/watchlistToast";
+/**
+ * POKADE / Active Future Product Page
+ * Photo-led Pokemon card product story with a glass command dock, magnetic CTAs,
+ * pointer-responsive image stages, and beam-led section transitions.
+ * Ported from a standalone Manus export — this route intentionally opts out of
+ * the shared Pokade Header/Footer (see Header.tsx / Footer.tsx pathname guards)
+ * and ships its own header, nav, and footer to match the original design 1:1.
+ */
+import { Noto_Sans_KR } from "next/font/google";
+import { Accordion, AccordionItem } from "./FutureAccordion";
+import {
+  ArrowDown,
+  ArrowRight,
+  ArrowUpRight,
+  BarChart3,
+  Camera,
+  Check,
+  CircleGauge,
+  Menu,
+  ScanLine,
+  ShieldCheck,
+  Sparkles,
+  X,
+} from "lucide-react";
+import { motion, useMotionValue, useReducedMotion, useScroll, useSpring, useTransform } from "framer-motion";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
+import "./future-landing.css";
 
-const TICKER = [
-  { name: "리자몽 ex SAR", price: "₩142,000", chg: "▲ 3.2%", up: true },
-  { name: "뮤 UR", price: "₩89,500", chg: "▼ 1.4%", up: false },
-  { name: "피카츄 프로모", price: "₩55,000", chg: "▲ 5.8%", up: true },
-  { name: "뮤츠 ex SAR", price: "₩211,000", chg: "▲ 1.1%", up: true },
-  { name: "가디안 ex", price: "₩38,700", chg: "▼ 0.9%", up: false },
-  { name: "이상해꽃 ex", price: "₩64,200", chg: "▲ 2.5%", up: true },
-];
+const notoSansKr = Noto_Sans_KR({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
+});
 
-// 인기 카드 그리드 칸 수 — 이 수만큼만 인기순 카드를 요청한다.
-const POPULAR_CARDS_SIZE = 5;
-
-// 히어로 섹션에 노출할 대표 카드 (sm3-20 Charizard-GX / Burning Shadows).
-const HERO_CARD = {
-  externalId: "sm3-20",
-  name: "Charizard-GX",
-  alt: "Charizard-GX · Burning Shadows · Rare Holo GX · Fire · Mitsuhiro Arita · No.20/147",
-  image: "https://images.scrydex.com/pokemon/sm3-20/large",
+const ASSET = {
+  hero: "/manus-storage/pokemon-pikachu-hero_2d213799.jpg",
+  pikachuCard: "https://images.scrydex.com/pokemon/sm3-20/large",
+  charizardWide: "/manus-storage/pokemon-charizard-wide_93e4e407.jpg",
+  charizardCard: "/demo/ai-diagnosis/front.png",
+  detectiveCase: "/demo/ai-diagnosis/back.png",
+  sleeves: "/images/hero-bg.jpg",
 };
 
-const STEPS = [
+const benefits = [
   {
-    n: "01",
-    t: "카드 등록 & AI 진단",
-    d: "사진 업로드만으로 AI가 상태를 자동 분석해 예상 등급과 시세를 알려드립니다.",
+    image: ASSET.pikachuCard,
+    label: "AI 상태 예비진단",
+    meta: "사진 기반 확인",
+    title: "사진으로 먼저 확인",
+    copy: "카드 앞뒤 사진을 올리고 상태 예비진단을 시작하세요.",
+    icon: ScanLine,
   },
   {
-    n: "02",
-    t: "안전결제 & 전문 검수",
-    d: "결제 금액은 Pokade가 안전하게 보관하고, 실물 카드를 전문가가 직접 검수합니다.",
+    image: ASSET.charizardCard,
+    label: "시세 신호",
+    meta: "거래 기록",
+    title: "시세 흐름 한눈에",
+    copy: "체결 데이터 기반 참고 시세와 변화 기록을 함께 봐요.",
+    icon: BarChart3,
   },
   {
-    n: "03",
-    t: "수령 확인 & 정산",
-    d: "구매자 수령 확인 후 판매자에게 정산됩니다. 문제 발생 시 100% 환불을 보장합니다.",
+    image: ASSET.detectiveCase,
+    label: "안전 거래",
+    meta: "안내 절차",
+    title: "안전하게 거래",
+    copy: "거래 전 확인해야 할 기준을 한곳에 정리해요.",
+    icon: ShieldCheck,
   },
 ];
 
-const STATS = [
-  { v: "128,400+", l: "누적 거래 카드" },
-  { v: "42,700+", l: "활동 트레이너" },
-  { v: "99.2%", l: "안전거래 완료율" },
-  { v: "1.2M+", l: "AI 진단 횟수" },
-];
+type Navigate = (id: string) => void;
 
-type LoadState = "loading" | "error" | "ready";
-
-// 하트가 쓰는 useQuickWatchlistToggle이 useSearchParams(로그인 후 복귀 URL 조립)를 부르므로,
-// /search·/cards/[id]와 같은 모양으로 Suspense 경계를 둔다 — 없으면 Next.js가 정적 프리렌더를
-// 포기하며 빌드에서 막는다.
-export default function HomePage() {
+function Reveal({
+  children,
+  className = "",
+  delay = 0,
+}: {
+  children: ReactNode;
+  className?: string;
+  delay?: number;
+}) {
+  const reducedMotion = useReducedMotion();
   return (
-    <Suspense fallback={null}>
-      <HomeView />
-    </Suspense>
+    <motion.div
+      className={className}
+      initial={reducedMotion ? false : { opacity: 0, y: 32 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.2 }}
+      transition={{ duration: 0.62, delay, ease: [0.23, 1, 0.32, 1] }}
+    >
+      {children}
+    </motion.div>
   );
 }
 
-function HomeView() {
-  const { toast, showToast, pauseToast, resumeToast } = useToast();
-  const { triggerPunch, punchKey, punchClass } = useHeartPunch();
-  // 하트에 필요한 워치리스트 상태 한 세트(마켓과 공용) — 상태만 담당하고, 토스트·펀치는
-  // handleHeartClick이 돌려주는 결과를 보고 아래 버튼에서 직접 처리한다.
-  const { myWatchlist, handleHeartClick, pendingCardId } = useWatchlistMap();
-
-  const [popularCards, setPopularCards] = useState<CardSearchItem[]>([]);
-  const [priceSummaries, setPriceSummaries] = useState<Map<number, CardPriceSummaryResponse>>(
-    new Map(),
-  );
-  const [loadState, setLoadState] = useState<LoadState>("loading");
-  const [errorMessage, setErrorMessage] = useState("");
-  const [isHeroCardOpen, setIsHeroCardOpen] = useState(false);
-  const [heroCardId, setHeroCardId] = useState<number | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    fetchCardsByKeywordPage(HERO_CARD.name)
-      .then((page) => {
-        if (cancelled) return;
-        const match = page.content.find((c) => c.externalId === HERO_CARD.externalId);
-        if (match) setHeroCardId(match.id);
-      })
-      .catch(() => {
-        // 상세 페이지 링크만 못 만들 뿐, 히어로 카드 표시 자체는 계속 정상 동작해야 함.
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    fetchCards({ sort: "popular", size: POPULAR_CARDS_SIZE })
-      .then((responses) => {
-        if (cancelled) return;
-        setPopularCards(responses.map(toCardSearchItem));
-        setLoadState("ready");
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setErrorMessage(err instanceof ApiError ? err.message : "인기 카드를 불러오지 못했습니다.");
-        setLoadState("error");
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // 인기 카드 목록이 바뀌면 가격을 한 번에 배치 조회한다.
-  // 가격 조회 실패는 카드 목록 자체를 막지 않고, 실패한 카드는 기존처럼 "가격 정보 준비중"으로 남는다.
-  useEffect(() => {
-    if (popularCards.length === 0) return;
-    let cancelled = false;
-
-    fetchPriceSummaries(
-      popularCards.map((c) => c.id),
-      {
-        grade: "S",
-        includeRecentTradePrice: true,
-      },
-    )
-      .then((summaries) => {
-        if (!cancelled) setPriceSummaries(summaries);
-      })
-      .catch(() => {
-        // 가격 조회 실패는 조용히 무시 — 카드 목록은 이미 정상 표시된 상태를 유지한다.
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [popularCards]);
+function MagneticButton({
+  children,
+  className,
+  onClick,
+  ariaLabel,
+}: {
+  children: ReactNode;
+  className: string;
+  onClick: () => void;
+  ariaLabel?: string;
+}) {
+  const reducedMotion = useReducedMotion();
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const springX = useSpring(x, { stiffness: 260, damping: 18 });
+  const springY = useSpring(y, { stiffness: 260, damping: 18 });
+  const move = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    if (reducedMotion) return;
+    const box = event.currentTarget.getBoundingClientRect();
+    x.set((event.clientX - box.left - box.width / 2) * 0.12);
+    y.set((event.clientY - box.top - box.height / 2) * 0.14);
+  };
 
   return (
-    <main className="main-content">
-      {/* HERO */}
-      <section className="relative overflow-hidden bg-navy px-6 py-12 sm:px-10">
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: "url(/images/hero-bg.jpg)" }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-navy via-navy/85 to-navy/40" />
-        <div className="relative mx-auto flex max-w-container flex-col items-center justify-between gap-10 md:flex-row md:gap-12">
-          <div className="max-w-[600px] text-center md:text-left">
-            <span className="inline-block rounded-md bg-primary/15 px-3 py-1.5 text-xs font-extrabold tracking-[1.5px] text-[#FF6B6B]">
-              EXCLUSIVE DROP
+    <motion.button
+      type="button"
+      className={className}
+      onClick={onClick}
+      onMouseMove={move}
+      onMouseLeave={() => {
+        x.set(0);
+        y.set(0);
+      }}
+      style={{ x: springX, y: springY }}
+      whileTap={{ scale: 0.96 }}
+      aria-label={ariaLabel}
+    >
+      {children}
+    </motion.button>
+  );
+}
+
+function CommandDock({ navigate }: { navigate: Navigate }) {
+  const items = [
+    { id: "ai-check", label: "AI 확인", icon: ScanLine },
+    { id: "price", label: "시세", icon: CircleGauge },
+    { id: "collection", label: "컬렉션", icon: Camera },
+    { id: "start", label: "거래 기준", icon: ShieldCheck },
+  ];
+  return (
+    <nav className="future-command-dock" aria-label="빠른 이동">
+      {items.map(({ id, label, icon: Icon }, index) => (
+        <motion.button
+          type="button"
+          key={id}
+          onClick={() => navigate(id)}
+          className="future-dock-item"
+          whileHover={{ y: -5, scale: 1.08 }}
+          whileTap={{ scale: 0.93 }}
+          transition={{ duration: 0.18 }}
+        >
+          <Icon size={18} strokeWidth={1.8} />
+          <span>{label}</span>
+          <i>{String(index + 1).padStart(2, "0")}</i>
+        </motion.button>
+      ))}
+    </nav>
+  );
+}
+
+function scrollToId(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+export default function LandingPage() {
+  const router = useRouter();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const heroRef = useRef<HTMLElement | null>(null);
+  const reducedMotion = useReducedMotion();
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+  const tiltX = useSpring(useTransform(mouseY, [-0.5, 0.5], [4, -4]), { stiffness: 130, damping: 20 });
+  const tiltY = useSpring(useTransform(mouseX, [-0.5, 0.5], [-5, 5]), { stiffness: 130, damping: 20 });
+  const { scrollYProgress: heroProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
+  const { scrollYProgress: pageProgress } = useScroll();
+  const heroScale = useTransform(heroProgress, [0, 1], [1, 1.14]);
+  const heroY = useTransform(heroProgress, [0, 1], [0, 78]);
+  const copyY = useTransform(heroProgress, [0, 1], [0, -56]);
+  const copyOpacity = useTransform(heroProgress, [0, 0.78], [1, 0]);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 16);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const navigate: Navigate = (id) => {
+    setMobileOpen(false);
+    scrollToId(id);
+  };
+
+  const trackHeroPointer = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (reducedMotion) return;
+    const box = event.currentTarget.getBoundingClientRect();
+    mouseX.set((event.clientX - box.left) / box.width - 0.5);
+    mouseY.set((event.clientY - box.top) / box.height - 0.5);
+  };
+
+  return (
+    <div
+      className={`future-page min-h-screen overflow-x-clip bg-[#f8fbff] text-[#111827] ${notoSansKr.className}`}
+    >
+      <header
+        className={`future-header fixed inset-x-0 top-0 z-50 transition-all duration-300 ${scrolled ? "future-header-scrolled" : ""}`}
+      >
+        <div className="mx-auto flex h-[76px] max-w-[1280px] items-center justify-between px-5 sm:px-8">
+          <button
+            className="flex items-center gap-2.5"
+            onClick={() => navigate("top")}
+            type="button"
+            aria-label="POKADE 첫 화면으로 이동"
+          >
+            <span className="future-logo-mark">
+              <span />
+              <span />
             </span>
-            <h1 className="mt-5 text-[32px] font-extrabold leading-[1.18] tracking-[-1px] text-white [text-wrap:balance] sm:text-[44px]">
-              믿을 수 있는 카드 거래,
-              <br />
-              Pokade에서 시작하세요
-            </h1>
-            <p className="mt-4 max-w-[500px] text-base leading-relaxed text-[#A7ADC4]">
-              AI 등급진단과 안전거래 시스템으로 컬렉터가 신뢰하는 포켓몬 카드 마켓플레이스. 지금 내
-              카드의 정확한 시세를 확인해보세요.
-            </p>
-            <div className="mt-8 flex flex-wrap justify-center gap-3.5 md:justify-start">
-              <Link
-                href="/ai-diagnosis"
-                className="rounded-[11px] border-2 border-primary-dark bg-primary px-[26px] py-3.5 text-[15.5px] font-bold text-white shadow-tactile transition hover:text-white hover:shadow-tactile-hover active:translate-y-0.5 active:shadow-tactile-active"
-              >
-                진단 시작하기
-              </Link>
-              <Link
-                href={heroCardId != null ? `/cards/${heroCardId}` : "#"}
-                aria-disabled={heroCardId == null}
-                className="rounded-[11px] border-[1.5px] border-white/35 bg-transparent px-[26px] py-3.5 text-[15.5px] font-bold text-white transition hover:border-white hover:bg-white/[0.06]"
-              >
-                자세히 보기
-              </Link>
-            </div>
-          </div>
-          <div className="h-[380px] w-[270px] flex-shrink-0 overflow-visible rounded-[18px] bg-navy-700 shadow-[0_20px_50px_rgba(0,0,0,0.4)] sm:h-[462px] sm:w-[330px]">
-            <HeroTiltCard
-              src={HERO_CARD.image}
-              alt={HERO_CARD.alt}
-              onClick={() => setIsHeroCardOpen(true)}
-            />
-          </div>
+            <span className="text-[19px] font-extrabold tracking-[-0.06em]">POKADE</span>
+          </button>
+          <nav className="hidden items-center gap-8 text-sm font-semibold text-[#506072] md:flex" aria-label="주요 메뉴">
+            <button type="button" onClick={() => navigate("ai-check")} className="future-nav-link">
+              AI 상태 확인
+            </button>
+            <button type="button" onClick={() => navigate("price")} className="future-nav-link">
+              카드 시세
+            </button>
+            <button type="button" onClick={() => navigate("collection")} className="future-nav-link">
+              내 컬렉션
+            </button>
+          </nav>
+          <MagneticButton onClick={() => router.push("/home")} className="future-header-cta hidden md:inline-flex">
+            시작하기 <ArrowUpRight size={15} />
+          </MagneticButton>
+          <button
+            type="button"
+            onClick={() => setMobileOpen((open) => !open)}
+            className="grid h-10 w-10 place-items-center rounded-full border border-[#dbe5f2] bg-white/75 text-[#111827] backdrop-blur-xl md:hidden"
+            aria-label={mobileOpen ? "메뉴 닫기" : "메뉴 열기"}
+            aria-expanded={mobileOpen}
+          >
+            {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
         </div>
-      </section>
-
-      <ImageLightbox
-        isOpen={isHeroCardOpen}
-        onClose={() => setIsHeroCardOpen(false)}
-        imageSrc={HERO_CARD.image}
-        alt={HERO_CARD.alt}
-      />
-
-      {/* TICKER */}
-      <section className="bg-navy-800 px-10">
-        <div className="mx-auto flex h-[52px] max-w-container items-stretch overflow-hidden">
-          <span className="flex flex-shrink-0 items-center gap-[7px] pr-5 text-[11.5px] font-extrabold tracking-[1px] text-tertiary">
-            <span className="h-[7px] w-[7px] rounded-full bg-tertiary" />
-            실시간 시세
-          </span>
-          <div className="flex flex-1 items-center overflow-hidden">
-            <div className="flex w-max animate-ticker items-center">
-              {[...TICKER, ...TICKER].map((t, i) => (
-                <div
-                  key={i}
-                  className="flex flex-shrink-0 items-center gap-[9px] border-l border-white/[0.08] px-[22px]"
-                >
-                  <span className="text-[13.5px] font-semibold text-[#DDE0EC]">{t.name}</span>
-                  <span className="text-[13.5px] font-bold text-white">{t.price}</span>
-                  <span
-                    className={`text-[12.5px] font-bold ${t.up ? "text-[#FF6B6B]" : "text-[#7FA6FF]"}`}
-                  >
-                    {t.chg}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* POPULAR CARDS */}
-      <section className="bg-white px-4 py-14 sm:px-10">
-        <div className="mx-auto max-w-container">
-          <div className="mb-[26px] flex items-end justify-between">
-            <div>
-              <h2 className="m-0 text-[26px] font-extrabold tracking-[-0.5px]">인기 카드</h2>
-              <p className="mt-1.5 text-sm text-[#8A8A92]">가장 주목받은 카드</p>
-            </div>
-            <Link href="/search" className="text-sm font-bold text-primary hover:text-primary-dark">
-              전체보기 &gt;
-            </Link>
-          </div>
-          {loadState === "loading" && (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 lg:gap-[18px]">
-              {Array.from({ length: POPULAR_CARDS_SIZE }).map((_, i) => (
-                <div
-                  key={i}
-                  className="flex flex-col overflow-hidden rounded-[14px] border border-[#EDEDF0]"
-                >
-                  <div className="aspect-[5/7] w-full animate-pulse bg-[#F2F2F5]" />
-                  <div className="flex flex-1 flex-col gap-2 p-3.5">
-                    <div className="h-4 w-3/4 animate-pulse rounded bg-[#F2F2F5]" />
-                    <div className="h-3 w-1/2 animate-pulse rounded bg-[#F2F2F5]" />
-                    <div className="mt-auto h-4 w-2/3 animate-pulse rounded bg-[#F2F2F5]" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {loadState === "error" && (
-            <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-[#EDEDF0] bg-white py-24">
-              <span className="text-[13.5px] font-bold text-[#D14343]">{errorMessage}</span>
-            </div>
-          )}
-
-          {loadState === "ready" && popularCards.length === 0 && (
-            <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-[#EDEDF0] bg-white py-24">
-              <span className="text-[13.5px] font-semibold text-[#8A8A92]">
-                인기 카드를 준비 중입니다.
-              </span>
-            </div>
-          )}
-
-          {loadState === "ready" && popularCards.length > 0 && (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 lg:gap-[18px]">
-              {popularCards.map((c) => {
-                const priceDisplay = resolvePriceDisplay(priceSummaries.get(c.id));
-                return (
-                  <div
-                    key={c.id}
-                    className="relative flex flex-col overflow-hidden rounded-[14px] border border-[#EDEDF0] transition hover:-translate-y-1 hover:shadow-lift"
-                  >
-                    <Link href={`/cards/${c.id}`} className="flex flex-1 cursor-pointer flex-col">
-                      <div className="relative aspect-[5/7] w-full bg-[#F2F2F5]">
-                        <CardImage src={c.imageUrl} alt={c.name} label="카드" />
-                      </div>
-                      <div className="flex flex-1 flex-col p-3.5">
-                        <div className="text-[14.5px] font-bold leading-[1.35]">{c.name}</div>
-                        <div className="mt-[3px] text-xs text-[#9A9AA2]">{c.set}</div>
-                        <div className="mt-auto flex items-end justify-between pt-3.5">
-                          <div>
-                            <div className="text-[11px] text-[#9A9AA2]">
-                              {priceDisplay?.label ?? "최근 시세"}
-                            </div>
-                            <div className="text-base font-extrabold text-ink">
-                              {priceDisplay?.price ?? (
-                                <span className="text-[13px] font-semibold text-[#9A9AA2]">
-                                  가격 정보 준비중
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          {/* 좋아요 버튼이 차지하던 자리를 그대로 예약해 가격 텍스트와 겹치지 않게 함 */}
-                          <div className="h-9 w-9 flex-shrink-0" aria-hidden="true" />
-                        </div>
-                      </div>
-                    </Link>
-                    {/* 툴팁은 위로 — 하트가 타일 맨 아래에 있어 아래로 열면 타일의
-                        overflow-hidden에 잘린다(마켓 타일과 같은 이유). */}
-                    <IconTooltip
-                      label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}
-                      placement="top"
-                      className="absolute bottom-3.5 right-3.5"
-                    >
-                      <button
-                        onClick={async () => {
-                          // 서버가 등록을 확정한 뒤에만 펀치(useHeartPunch 주석 참고) —
-                          // 클릭 시점 상태로 미리 재생하면 등록이 실패해도 하트가 튀어올라
-                          // 성공한 것처럼 보인다.
-                          const result = await handleHeartClick(c.id);
-                          if (result.status === "added") triggerPunch(c.id);
-                          showWatchlistToggleToast(result, showToast);
-                        }}
-                        disabled={pendingCardId === c.id}
-                        aria-label={myWatchlist.has(c.id) ? "관심 해제" : "관심 등록"}
-                        className="flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#EDEDF0] bg-white hover:border-primary hover:bg-[#FFF5F5] disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <svg
-                          key={punchKey(c.id)}
-                          className={punchClass(c.id)}
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          stroke="#EE1515"
-                          strokeWidth="2"
-                          fill={myWatchlist.has(c.id) ? "#EE1515" : "none"}
-                        >
-                          <path
-                            d="M19 14c1.5-1.5 3-3.3 3-5.5A3.5 3.5 0 0018.5 5c-1.6 0-3 1-3.5 2.5C14.5 6 13.1 5 11.5 5A3.5 3.5 0 008 8.5c0 2.2 1.5 4 3 5.5l4 4z"
-                            transform="translate(-3 0)"
-                          />
-                        </svg>
-                      </button>
-                    </IconTooltip>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* MARKET INSIGHT */}
-      <section className="bg-neutral px-10 py-14">
-        <div className="mx-auto max-w-container">
-          <h2 className="mb-[26px] text-[26px] font-extrabold tracking-[-0.5px]">마켓 인사이트</h2>
-          <div className="grid grid-cols-[60fr_40fr] gap-5">
-            <div className="rounded-2xl border-t-[3px] border-primary bg-navy px-[30px] py-7">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="text-[13px] font-semibold text-[#A7ADC4]">
-                    Pokade 종합 시세 지수
-                  </div>
-                  <div className="mt-2 flex items-baseline gap-2.5">
-                    <div className="text-[34px] font-extrabold tracking-[-1px] text-white">
-                      1,284.6
-                    </div>
-                    <div className="text-sm font-bold text-[#FF6B6B]">▲ 2.4% (30.1)</div>
-                  </div>
-                </div>
-                <div className="flex gap-1.5">
-                  <span className="rounded-md bg-tertiary px-2.5 py-[5px] text-xs font-bold text-navy">
-                    7D
-                  </span>
-                  <span className="rounded-md bg-white/[0.08] px-2.5 py-[5px] text-xs font-bold text-[#A7ADC4]">
-                    1M
-                  </span>
-                  <span className="rounded-md bg-white/[0.08] px-2.5 py-[5px] text-xs font-bold text-[#A7ADC4]">
-                    1Y
-                  </span>
-                </div>
-              </div>
-              <div className="mt-[26px] flex h-[150px] items-end gap-2.5">
-                {[52, 64, 48, 72, 60].map((h, i) => (
-                  <div
-                    key={i}
-                    className="flex-1 rounded-t-[5px] bg-secondary"
-                    style={{ height: `${h}%` }}
-                  />
-                ))}
-                {[84, 76, 100].map((h, i) => (
-                  <div
-                    key={i}
-                    className="flex-1 rounded-t-[5px] bg-primary"
-                    style={{ height: `${h}%` }}
-                  />
-                ))}
-              </div>
-              <div className="mt-2.5 flex justify-between text-[11px] text-[#6B7290]">
-                {["월", "화", "수", "목", "금", "토", "일", "오늘"].map((d) => (
-                  <span key={d}>{d}</span>
-                ))}
-              </div>
-            </div>
-            <div className="flex flex-col rounded-2xl bg-secondary px-[30px] py-7 text-white">
-              <div className="text-[13px] font-bold tracking-[0.5px] text-[#C7CEFF]">
-                급상승 키워드
-              </div>
-              <div className="mt-3.5 flex flex-wrap gap-2">
-                {["#리자몽ex", "#151", "#테라스탈", "#프로모"].map((k) => (
-                  <span
-                    key={k}
-                    className="rounded-full bg-white/[0.14] px-[13px] py-[7px] text-[13px] font-semibold"
-                  >
-                    {k}
-                  </span>
-                ))}
-              </div>
-              <div className="my-[22px] h-px bg-white/[0.18]" />
-              <div className="text-[13px] font-bold tracking-[0.5px] text-[#C7CEFF]">최근 거래</div>
-              <div className="mt-3.5 flex flex-col gap-3">
-                {[
-                  ["리자몽 ex SAR", "₩142,000"],
-                  ["뮤 UR", "₩89,500"],
-                  ["피카츄 VMAX", "₩55,000"],
-                  ["이상해꽃 ex", "₩64,200"],
-                ].map(([n, p]) => (
-                  <div key={n} className="flex items-center justify-between">
-                    <span className="text-[13.5px] font-semibold">{n}</span>
-                    <span className="text-[13.5px] font-bold">{p}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* SAFE TRADING JOURNEY */}
-      <section className="bg-white px-10 py-14">
-        <div className="mx-auto max-w-container">
-          <div className="mb-[38px] text-center">
-            <h2 className="m-0 text-[26px] font-extrabold tracking-[-0.5px]">
-              안전한 거래, 세 단계면 충분합니다
-            </h2>
-            <p className="mt-2 text-[14.5px] text-[#8A8A92]">
-              Pokade가 검수부터 정산까지 책임집니다
-            </p>
-          </div>
-          <div className="grid grid-cols-3 gap-[22px]">
-            {STEPS.map((s) => (
-              <div key={s.n} className="rounded-[14px] border border-[#EDEDF0] px-7 py-[30px]">
-                <div className="text-[40px] font-extrabold leading-none tracking-[-1px] text-tertiary">
-                  {s.n}
-                </div>
-                <h3 className="mb-2 mt-4 text-lg font-bold">{s.t}</h3>
-                <p className="m-0 text-sm leading-relaxed text-[#7A7A82]">{s.d}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* AI DIAGNOSIS INTRO */}
-      <section className="bg-neutral px-10 py-14">
-        <div className="mx-auto grid max-w-container grid-cols-2 items-center gap-11">
-          <div>
-            <span className="inline-block rounded-md bg-[#FFF3CE] px-3 py-1.5 text-xs font-extrabold tracking-[1px] text-[#8A6A00]">
-              AI GRADING
-            </span>
-            <h2 className="mt-[18px] text-[30px] font-extrabold leading-[1.25] tracking-[-0.8px]">
-              사진 한 장으로
-              <br />내 카드 등급을 미리 확인
-            </h2>
-            <p className="mt-4 max-w-[440px] text-[15px] leading-[1.65] text-[#6E6E76]">
-              모서리·중앙정렬·스크래치를 AI가 분석해 예상 등급을 알려드립니다. 정식 감정 전, 내
-              카드의 가치를 가볍게 확인해보세요.
-            </p>
-            <Link
-              href="/ai-diagnosis"
-              className="mt-7 inline-block rounded-[11px] border-2 border-primary-dark bg-primary px-[26px] py-3.5 text-[15px] font-bold text-white shadow-tactile transition hover:text-white hover:shadow-tactile-hover active:translate-y-0.5 active:shadow-tactile-active"
+        <motion.div className="future-scroll-progress" style={{ scaleX: pageProgress }} aria-hidden="true" />
+        {mobileOpen ? (
+          <div className="future-mobile-menu md:hidden">
+            <nav
+              className="mx-auto flex max-w-[1280px] flex-col gap-4 px-5 py-5 text-[15px] font-semibold text-[#243142]"
+              aria-label="모바일 메뉴"
             >
-              무료로 진단하기
-            </Link>
+              <button type="button" onClick={() => navigate("ai-check")} className="future-mobile-link">
+                AI 상태 확인 <ArrowRight size={16} />
+              </button>
+              <button type="button" onClick={() => navigate("price")} className="future-mobile-link">
+                카드 시세 <ArrowRight size={16} />
+              </button>
+              <button type="button" onClick={() => navigate("collection")} className="future-mobile-link">
+                내 컬렉션 <ArrowRight size={16} />
+              </button>
+            </nav>
           </div>
-          <div className="flex gap-5 rounded-2xl border-t-[3px] border-secondary bg-white p-6 shadow-card">
-            <div className="relative h-[180px] w-[130px] flex-shrink-0 overflow-hidden rounded-[11px] bg-[#F2F2F5]">
-              <CardImage label="진단 카드" />
-              <GradeBadge grade="S" size="sm" className="absolute left-2 top-2" />
-            </div>
-            <div className="flex-1">
-              <div className="text-xs font-semibold text-[#9A9AA2]">진단 결과</div>
-              <div className="mt-0.5 text-[19px] font-extrabold">종합 9.2 / 10</div>
-              <div className="mt-4 flex flex-col gap-3">
-                {[
-                  ["모서리", "9.4", 9],
-                  ["중앙정렬", "9.0", 8],
-                  ["표면 스크래치", "9.1", 9],
-                ].map(([l, v, f]) => (
-                  <div key={l as string}>
-                    <div className="mb-[5px] flex justify-between text-xs">
-                      <span className="font-semibold text-[#7A7A82]">{l}</span>
-                      <span className="font-bold">{v}</span>
-                    </div>
-                    <ConditionBar filled={f as number} size="sm" color="bg-secondary" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+        ) : null}
+      </header>
 
-      {/* STATS BANNER */}
-      <section className="bg-[#FDEEF0] px-10 py-11">
-        <div className="mx-auto grid max-w-container grid-cols-4 gap-5 text-center">
-          {STATS.map((s) => (
-            <div key={s.l}>
-              <div className="text-[34px] font-extrabold tracking-[-1px] text-primary">{s.v}</div>
-              <div className="mt-1 text-[13.5px] font-semibold text-[#7A6668]">{s.l}</div>
+      <main id="top" className="pb-28 sm:pb-32">
+        <section ref={heroRef} className="future-hero pt-[76px]">
+          <div className="future-hero-shell mx-auto grid max-w-[1280px] overflow-hidden md:min-h-[680px] md:grid-cols-[.88fr_1.12fr]">
+            <motion.div className="future-hero-copy" style={{ y: copyY, opacity: copyOpacity }}>
+              <motion.p
+                className="future-kicker"
+                initial={reducedMotion ? false : { opacity: 0, x: -18 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.45 }}
+              >
+                <span /> 포켓몬 카드 거래 기준 / 2026
+              </motion.p>
+              <motion.h1
+                initial={reducedMotion ? false : { opacity: 0, y: 36 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.72, delay: 0.08, ease: [0.23, 1, 0.32, 1] }}
+              >
+                포켓몬 카드,
+                <br />
+                <em>더 확실하게</em>
+                <br />
+                거래해요.
+              </motion.h1>
+              <motion.p
+                className="future-hero-description"
+                initial={reducedMotion ? false : { opacity: 0, y: 22 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.55, delay: 0.22 }}
+              >
+                사진으로 상태를 확인하고, 체결 데이터 기반 시세를 살펴보세요. POKADE가 카드 거래의
+                판단을 더 빠르고 명확하게 도와드려요.
+              </motion.p>
+              <motion.div
+                className="mt-9 flex flex-wrap gap-3"
+                initial={reducedMotion ? false : { opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.34 }}
+              >
+                <MagneticButton onClick={() => router.push("/search")} className="future-primary-button">
+                  카드 시세 확인 <ArrowRight size={17} />
+                </MagneticButton>
+                <MagneticButton onClick={() => router.push("/ai-diagnosis")} className="future-glass-button">
+                  AI 상태 확인 <ScanLine size={17} />
+                </MagneticButton>
+              </motion.div>
+              <motion.div
+                className="future-hero-metrics"
+                initial={reducedMotion ? false : { opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.52, duration: 0.5 }}
+              >
+                <span>
+                  <i /> 사진 확인
+                </span>
+                <span>
+                  <i /> 시세 신호
+                </span>
+                <span>
+                  <i /> 안전 절차
+                </span>
+              </motion.div>
+            </motion.div>
+            <div
+              className="future-hero-stage"
+              onMouseMove={trackHeroPointer}
+              onMouseLeave={() => {
+                mouseX.set(0);
+                mouseY.set(0);
+              }}
+            >
+              <motion.div
+                className="future-photo-stage"
+                style={{ rotateX: tiltX, rotateY: tiltY, scale: heroScale, y: heroY }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={ASSET.hero} alt="숲속에서 휴식 중인 피카츄 이미지" fetchPriority="high" />
+                <div className="future-stage-shade" />
+                <motion.div
+                  className="future-scan-frame"
+                  animate={reducedMotion ? undefined : { rotate: [0, 1.8, 0, -1.8, 0] }}
+                  transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  <span className="future-scan-chip">카드 상태 보기</span>
+                  <span className="future-scan-id">카드 번호 / 026</span>
+                  <b />
+                  <i />
+                </motion.div>
+                <div className="future-floating-data data-one">
+                  <span>01</span>
+                  <strong>상태</strong>
+                  <em>예비진단</em>
+                </div>
+                <div className="future-floating-data data-two">
+                  <span>02</span>
+                  <strong>시세</strong>
+                  <em>흐름 확인</em>
+                </div>
+                <div className="future-stage-caption">
+                  <span>포켓몬 컬렉션</span>
+                  <span>01 / 시작</span>
+                </div>
+              </motion.div>
             </div>
-          ))}
+          </div>
+          <div className="future-hero-scroll" aria-hidden="true">
+            <span>다음 내용 보기</span>
+            <ArrowDown size={14} />
+          </div>
+        </section>
+
+        <section className="future-intro">
+          <Reveal className="mx-auto max-w-[900px] text-center">
+            <p className="future-kicker justify-center">
+              <span /> 수집가를 위해
+            </p>
+            <h2>
+              카드를 좋아하는 마음과
+              <br />
+              <em>거래의 기준</em>은 같이 가야 하니까요.
+            </h2>
+            <p>
+              좋아하는 카드를 오래 모으고 싶다면, 지금 이 카드가 어떤 상태인지와 얼마에 거래되는지를
+              함께 확인해야 해요.
+            </p>
+          </Reveal>
+        </section>
+
+        <section id="ai-check" className="future-beam-section future-grid-section scroll-mt-20">
+          <div className="future-beam" aria-hidden="true">
+            <span />
+          </div>
+          <div className="future-feature-grid">
+            <Reveal className="future-feature-copy">
+              <p className="future-kicker">
+                <span /> AI 상태 예비진단
+              </p>
+              <h2>
+                사진으로
+                <br />
+                카드 상태를 먼저
+                <br />
+                <em>확인해요.</em>
+              </h2>
+              <p>
+                등급에 상관없이, 항상 공정한 비용으로 측정하세요. 높은 등급부터 낮은 등급까지 모두
+                부담 없는 가격에 가능합니다.
+              </p>
+              <div className="future-note">
+                <Sparkles size={16} /> AI 진단은 참고용 예비진단이며 정식 감정을 대체하지 않아요.
+              </div>
+              <div className="future-data-pills">
+                <span>사진 기반</span>
+                <span>상태 확인</span>
+              </div>
+            </Reveal>
+            <Reveal delay={0.1} className="future-record-card">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={ASSET.pikachuCard} alt="피카츄 포켓몬 카드" loading="lazy" />
+              <span className="future-record-top">AI 예비진단</span>
+              <span className="future-record-bottom">포케이드 / 카드 기록</span>
+              <i className="future-orbit orbit-a" />
+              <i className="future-orbit orbit-b" />
+            </Reveal>
+          </div>
+        </section>
+
+        <section id="price" className="future-price-section scroll-mt-20">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={ASSET.charizardWide} alt="리자몽 포켓몬 카드 아트" loading="eager" />
+          <div className="future-price-overlay" />
+          <div className="future-price-beams" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </div>
+          <div className="future-price-record" aria-hidden="true">
+            <span>포케이드 / 카드 기록</span>
+            <strong>시세 신호</strong>
+            <em>02 / 실시간</em>
+          </div>
+          <Reveal className="future-price-copy">
+            <p className="future-kicker text-[#b6ddff]">
+              <span /> 카드 시세
+            </p>
+            <h2>
+              이 가격, 지금
+              <br />
+              <em>적절한 걸까요?</em>
+            </h2>
+            <p>
+              하나의 숫자만 보지 말고, 체결가와 가격 흐름을 함께 살펴보세요. 카드마다 다른 거래의
+              맥락을 확인할 수 있어요.
+            </p>
+            <div className="future-price-pills">
+              <span>거래 기록</span>
+              <span>가격 흐름</span>
+              <span>관심 카드</span>
+            </div>
+            <MagneticButton onClick={() => router.push("/ranking")} className="future-white-button">
+              시세 확인 기준 보기 <ArrowRight size={17} />
+            </MagneticButton>
+          </Reveal>
+        </section>
+
+        <section className="future-signal-section">
+          <div className="mx-auto max-w-[1280px] px-5 sm:px-8">
+            <Reveal>
+              <p className="future-kicker">
+                <span /> 하나의 분명한 흐름
+              </p>
+              <h2>
+                찾고, 확인하고,
+                <br />
+                <em>안전하게 이어가요.</em>
+              </h2>
+              <div className="future-walkthrough-key">
+                <span>01 / 사진 확인</span>
+                <i />
+                <span>02 / 시세 신호</span>
+                <i />
+                <span>03 / 안전 절차</span>
+              </div>
+            </Reveal>
+            <div className="mt-14 grid gap-5 md:grid-cols-3">
+              {benefits.map(({ image, label, meta, title, copy, icon: Icon }, index) => (
+                <motion.article
+                  key={title}
+                  className="future-signal-card"
+                  initial={reducedMotion ? false : { opacity: 0, y: 36 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  whileHover={{ y: -10 }}
+                  viewport={{ once: true, amount: 0.24 }}
+                  transition={{ duration: 0.48, delay: index * 0.08, ease: [0.23, 1, 0.32, 1] }}
+                >
+                  <div className="future-signal-image">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={image} alt="" loading="eager" />
+                    <span>{label}</span>
+                    <i>
+                      <Icon size={17} />
+                    </i>
+                    <div className="future-record-caption">
+                      <b>포케이드 / 카드 기록</b>
+                      <em>0{index + 1} / 03</em>
+                    </div>
+                  </div>
+                  <p className="future-signal-meta">{meta}</p>
+                  <h3>{title}</h3>
+                  <p className="future-signal-copy">{copy}</p>
+                  <div className="future-card-line">
+                    <b />
+                    <span>0{index + 1}</span>
+                  </div>
+                </motion.article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="collection" className="future-collection-section scroll-mt-20">
+          <div className="future-collection-grid">
+            <Reveal className="future-collection-photo">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={ASSET.charizardCard} alt="투명 케이스에 보관된 리자몽 포켓몬 카드" loading="eager" />
+              <div className="future-collection-tag">
+                <span>포케이드 / 카드 기록</span>
+                <strong>03 / 컬렉션</strong>
+              </div>
+              <div className="future-collection-status">
+                <Check size={13} /> 컬렉션에 기록됨
+              </div>
+              <i className="future-glare" />
+            </Reveal>
+            <Reveal delay={0.1} className="future-feature-copy">
+              <p className="future-kicker">
+                <span /> 컬렉션 기록
+              </p>
+              <h2>
+                내 카드,
+                <br />한 곳에서
+                <br />
+                <em>모아봐요.</em>
+              </h2>
+              <p>
+                카드 한 장씩의 기록이 모이면, 내 컬렉션 전체의 흐름이 보여요. 보유 카드와 관심 카드를
+                더 쉽게 관리할 수 있어요.
+              </p>
+              <MagneticButton onClick={() => router.push("/portfolio")} className="future-primary-button mt-8">
+                내 컬렉션 시작하기 <ArrowRight size={17} />
+              </MagneticButton>
+            </Reveal>
+          </div>
+        </section>
+
+        <section id="start" className="future-faq-section scroll-mt-20">
+          <div className="mx-auto grid max-w-[1280px] gap-12 px-5 py-24 sm:px-8 sm:py-32 lg:grid-cols-[.85fr_1.15fr]">
+            <Reveal>
+              <p className="future-kicker">
+                <span /> 거래 안내
+              </p>
+              <h2>
+                거래 전,
+                <br />
+                <em>알아둘 내용.</em>
+              </h2>
+              <p>신뢰할 수 있는 거래를 위해, 시세 정보와 AI 예비진단의 역할을 분명하게 안내해요.</p>
+            </Reveal>
+            <Reveal delay={0.08}>
+              <Accordion className="future-accordion">
+                <AccordionItem question="AI 상태 예비진단은 무엇인가요?">
+                  사진을 기반으로 카드 상태를 참고용으로 확인하는 예비진단입니다. 정식 감정 결과를
+                  보장하거나 대체하지 않으며, 거래 판단을 돕는 보조 정보로 사용합니다.
+                </AccordionItem>
+                <AccordionItem question="시세 정보는 어떻게 활용하면 되나요?">
+                  시세와 거래 흐름은 카드의 가격을 판단할 때 참고할 수 있는 정보입니다. 실제 거래
+                  전에는 카드 상태, 거래 조건, 최신 안내를 함께 확인해 주세요.
+                </AccordionItem>
+                <AccordionItem question="안전거래는 어떤 방향으로 설계되나요?">
+                  플랫폼이 거래 과정을 확인하고 확정하는 구조를 지향합니다. 구체적인 거래 정책과
+                  운영 범위는 서비스 출시 전 공식 안내를 기준으로 확인해 주세요.
+                </AccordionItem>
+              </Accordion>
+            </Reveal>
+          </div>
+        </section>
+      </main>
+
+      <footer className="future-footer text-white">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={ASSET.sleeves} alt="" className="future-footer-image" loading="lazy" />
+        <div className="future-footer-overlay" />
+        <div className="future-footer-content">
+          <div className="mx-auto flex max-w-[1280px] flex-col justify-between gap-10 px-5 py-20 sm:px-8 lg:flex-row lg:items-end">
+            <div>
+              <p className="text-xs font-bold tracking-[.12em] text-white/70">
+                포켓몬 카드 수집가를 위한 포케이드
+              </p>
+              <h2>
+                좋아하는 카드,
+                <br />
+                <em>더 확실하게</em> 만나세요.
+              </h2>
+            </div>
+            <MagneticButton onClick={() => navigate("top")} className="future-footer-button">
+              위로 돌아가기 <ArrowUpRight size={16} />
+            </MagneticButton>
+          </div>
+          <div className="mx-auto flex max-w-[1280px] flex-col gap-3 border-t border-white/20 px-5 py-6 text-xs font-semibold text-white/60 sm:flex-row sm:justify-between sm:px-8">
+            <span>© POKADE. ALL RIGHTS RESERVED.</span>
+            <span>포켓몬 카드 가치·거래 플랫폼</span>
+          </div>
         </div>
-      </section>
-      <Toast toast={toast} onPause={pauseToast} onResume={resumeToast} />
-    </main>
+      </footer>
+      <CommandDock navigate={navigate} />
+    </div>
   );
 }
