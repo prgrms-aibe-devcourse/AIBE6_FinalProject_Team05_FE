@@ -43,3 +43,11 @@ export interface InquiryCreateRequest {
   title: string;
   content: string;
 }
+
+// PATCH /api/inquiries/{id} 요청 본문 — com.pokade.domain.inquiry.dto.request.InquiryUpdateRequest 미러링.
+// 첨부 이미지는 이번 범위에서 수정 대상이 아니다(등록 시점 그대로 유지).
+export interface InquiryUpdateRequest {
+  category: InquiryCategory;
+  title: string;
+  content: string;
+}
