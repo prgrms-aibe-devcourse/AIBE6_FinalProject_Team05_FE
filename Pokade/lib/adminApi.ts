@@ -3,6 +3,7 @@ import { AdminUserResponse } from "@/types/adminUser";
 import { UserRole, UserStatus } from "@/types/auth";
 import { AdminDashboardResponse, AdminMetricsPeriod } from "@/types/adminMetrics";
 import { ReportResponse } from "@/types/adminReport";
+import { AdminTradeResponse } from "@/types/adminTrade";
 import { TradeResponse } from "@/types/trade";
 import { InquiryCategory, InquiryResponse, InquiryStatus } from "@/types/inquiry";
 
@@ -26,11 +27,17 @@ export async function hideListing(listingId: number): Promise<void> {
 
 // GET /api/admin/trades — 검수/배송 대기 거래 목록 조회 (ADMIN 권한 필요).
 // SHIPPED_TO_PLATFORM(검수 대기)·INSPECTED(배송 대기) 거래만 내려준다. 대기 중인 거래 없으면 빈 배열.
-export async function fetchPendingTrades(): Promise<TradeResponse[]> {
-  return apiGet<TradeResponse[]>("/api/admin/trades");
+export async function fetchPendingTrades(): Promise<AdminTradeResponse[]> {
+  return apiGet<AdminTradeResponse[]>("/api/admin/trades");
+}
+
+// GET /api/admin/trades/{id} — 거래 상세(현재 진행 상황) 조회. 거래 번호 클릭 시 모달용.
+export async function fetchAdminTrade(tradeId: number): Promise<AdminTradeResponse> {
+  return apiGet<AdminTradeResponse>(`/api/admin/trades/${tradeId}`);
 }
 
 // PATCH /api/admin/trades/{id}/inspect — 검수 완료 처리 (SHIPPED_TO_PLATFORM → INSPECTED).
+// 이 두 액션은 여전히 TradeResponse를 반환한다(닉네임 불필요 - 목록/상세 조회 쪽만 AdminTradeResponse).
 export async function inspectTrade(tradeId: number): Promise<TradeResponse> {
   return apiPatch<TradeResponse>(`/api/admin/trades/${tradeId}/inspect`);
 }
