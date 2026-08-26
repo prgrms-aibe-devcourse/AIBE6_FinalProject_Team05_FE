@@ -4,11 +4,31 @@ import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import CardImage from "@/components/CardImage";
+import { GRADE_BG } from "@/components/GradeBadge";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { useUserStore } from "@/store/useUserStore";
 import { ApiError } from "@/lib/apiClient";
 import { cancelTrade, confirmTrade, fetchTrade, shipTrade } from "@/lib/tradeApi";
+import { ListingGrade } from "@/types/price";
 import { parseTradeId, TradeResponse } from "@/types/trade";
+
+// 등급 배지 배경색 — components/GradeBadge.tsx의 GRADE_BG를 단일 소스로 공유
+// (app/listings/me/page.tsx의 GradeBadgeInline과 동일한 스타일, 파일별 로컬 정의는 이 코드베이스의 기존 관례).
+const GRADE_STYLES: Partial<Record<ListingGrade, string>> = {
+  S: `${GRADE_BG.S} text-grade-s-ink`,
+  A: `${GRADE_BG.A} text-white`,
+  B: `${GRADE_BG.B} text-[#374151]`,
+};
+
+function GradeBadgeInline({ grade }: { grade: ListingGrade | null }) {
+  if (!grade) return null;
+  const style = GRADE_STYLES[grade] ?? "bg-[#EEF0F2] text-[#4B4B52]";
+  return (
+    <span className={`inline-block rounded-full px-2 py-0.5 text-[10.5px] font-bold ${style}`}>
+      {grade}
+    </span>
+  );
+}
 
 // DELIVERED(실물 수령) 이후와 COMPLETED/CANCELLED(종결 상태)는 취소할 수 없다 — BE의 cancel() 가드와
 // 동일하게. 배송 완료 후에도 취소를 허용하면 카드를 받고도 결제를 환불받아가는 경로가 생긴다.
@@ -344,15 +364,21 @@ export default function TradeStatusPage() {
             <div className="rounded-2xl border border-[#EDEDF0] bg-white p-6">
               <div className="flex gap-4">
                 <div className="relative h-[100px] w-[72px] flex-shrink-0 overflow-hidden rounded-[10px] bg-[#F2F2F5]">
-                  <CardImage src={trade.cardImageUrl ?? undefined} alt={trade.cardName ?? "카드"} />
+                  <CardImage
+                    src={trade.cardImageUrl ?? undefined}
+                    alt={trade.cardNameKo ?? trade.cardName ?? "카드"}
+                  />
                 </div>
                 <div className="flex-1">
-                  <Link
-                    href={`/cards/${trade.cardId}`}
-                    className="text-[15.5px] font-extrabold hover:text-primary"
-                  >
-                    {trade.cardName ?? "알 수 없는 카드"}
-                  </Link>
+                  <div className="flex items-center gap-1.5">
+                    <Link
+                      href={`/cards/${trade.cardId}`}
+                      className="text-[15.5px] font-extrabold hover:text-primary"
+                    >
+                      {trade.cardNameKo ?? trade.cardName ?? "알 수 없는 카드"}
+                    </Link>
+                    <GradeBadgeInline grade={trade.grade} />
+                  </div>
                   <div className="mt-3.5 text-xs text-[#9A9AA2]">상품 금액</div>
                   <div className="text-xl font-extrabold text-primary">
                     {trade.price.toLocaleString("ko-KR")}원

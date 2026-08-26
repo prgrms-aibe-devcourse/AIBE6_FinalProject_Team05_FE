@@ -4,11 +4,31 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CardImage from "@/components/CardImage";
+import { GRADE_BG } from "@/components/GradeBadge";
 import { PageResponse } from "@/lib/apiClient";
 import { fetchMyTrades } from "@/lib/tradeApi";
+import { ListingGrade } from "@/types/price";
 import { MyTradeResponse, TradeRole, TradeStatus } from "@/types/trade";
 
 const PAGE_SIZE = 10;
+
+// 등급 배지 배경색 — components/GradeBadge.tsx의 GRADE_BG를 단일 소스로 공유
+// (app/listings/me/page.tsx의 GradeBadgeInline과 동일한 스타일, 파일별 로컬 정의는 이 코드베이스의 기존 관례).
+const GRADE_STYLES: Partial<Record<ListingGrade, string>> = {
+  S: `${GRADE_BG.S} text-grade-s-ink`,
+  A: `${GRADE_BG.A} text-white`,
+  B: `${GRADE_BG.B} text-[#374151]`,
+};
+
+function GradeBadgeInline({ grade }: { grade: ListingGrade | null }) {
+  if (!grade) return null;
+  const style = GRADE_STYLES[grade] ?? "bg-[#EEF0F2] text-[#4B4B52]";
+  return (
+    <span className={`inline-block rounded-full px-2 py-0.5 text-[10.5px] font-bold ${style}`}>
+      {grade}
+    </span>
+  );
+}
 
 type StatusKey = "all" | "ongoing" | "done" | "cancelled";
 
@@ -213,12 +233,15 @@ function MyTradesSectionInner() {
               >
                 {/* CardImage는 next/image의 fill을 쓴다 — 크기는 relative 부모가 정해야 한다. */}
                 <div className="relative h-14 w-10 flex-shrink-0 overflow-hidden rounded-[7px] bg-[#F2F2F5]">
-                  <CardImage src={t.cardImageUrl ?? undefined} alt={t.cardName ?? "카드"} />
+                  <CardImage src={t.cardImageUrl ?? undefined} alt={t.cardNameKo ?? t.cardName ?? "카드"} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13.5px] font-bold text-[#3A3A42]">
-                    {t.cardName ?? "알 수 없는 카드"}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate text-[13.5px] font-bold text-[#3A3A42]">
+                      {t.cardNameKo ?? t.cardName ?? "알 수 없는 카드"}
+                    </p>
+                    <GradeBadgeInline grade={t.grade} />
+                  </div>
                   <p className="text-[12px] text-[#8A8A92]">
                     {t.price.toLocaleString("ko-KR")}원 · {formatDateTime(t.createdAt)}
                   </p>
