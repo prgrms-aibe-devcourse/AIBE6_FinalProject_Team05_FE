@@ -7,7 +7,7 @@ import CardImage from "@/components/CardImage";
 import RequiredMark from "@/components/RequiredMark";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ApiError } from "@/lib/apiClient";
-import { fetchMyBuyOffer, updateBuyOfferRecipient } from "@/lib/buyOfferApi";
+import { cancelBuyOffer, fetchMyBuyOffer, updateBuyOfferRecipient } from "@/lib/buyOfferApi";
 import { formatPhoneNumber } from "@/lib/phoneFormat";
 import { GRADE_LABELS, GradeKey, MyBuyOfferResponse } from "@/types/price";
 
@@ -32,6 +32,10 @@ export default function BuyOfferDetailPage() {
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   useEffect(() => {
     if (status !== "authenticated" || !Number.isFinite(buyOfferId)) return;
@@ -106,6 +110,20 @@ export default function BuyOfferDetailPage() {
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "받는사람 정보 수정에 실패했습니다.");
       setSaving(false);
+    }
+  };
+
+  const handleCancel = async () => {
+    setCancelling(true);
+    setCancelError(null);
+    try {
+      const updated = await cancelBuyOffer(buyOfferId);
+      setBuyOffer(updated);
+      setConfirmingCancel(false);
+    } catch (err) {
+      setCancelError(err instanceof ApiError ? err.message : "결제 취소에 실패했습니다.");
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -239,7 +257,13 @@ export default function BuyOfferDetailPage() {
                   {finalAmount.toLocaleString("ko-KR")}원
                 </dd>
               </div>
-              <p className="pt-1 text-center text-[13px] font-extrabold text-[#059669]">결제 완료</p>
+              <p
+                className={`pt-1 text-center text-[13px] font-extrabold ${
+                  buyOffer.status === "CANCELLED" ? "text-[#9A9AA2]" : "text-[#059669]"
+                }`}
+              >
+                {buyOffer.status === "CANCELLED" ? "결제 취소됨" : "결제 완료"}
+              </p>
             </dl>
           </section>
         </form>
@@ -247,8 +271,8 @@ export default function BuyOfferDetailPage() {
 
       {isEditable && (
         <div className="fixed inset-x-0 bottom-0 z-10 border-t border-[#EDEDF0] bg-white px-10 py-4">
-          <div className="mx-auto w-full max-w-[560px]">
-            {error && <p className="mb-2.5 text-[12.5px] font-semibold text-primary">{error}</p>}
+          <div className="mx-auto flex w-full max-w-[560px] flex-col gap-2.5">
+            {error && <p className="text-[12.5px] font-semibold text-primary">{error}</p>}
             <button
               type="submit"
               form="buy-offer-detail-form"
@@ -257,6 +281,39 @@ export default function BuyOfferDetailPage() {
             >
               {saving ? "저장 중..." : "수정 완료"}
             </button>
+
+            {cancelError && <p className="text-[12.5px] font-semibold text-primary">{cancelError}</p>}
+            {confirmingCancel ? (
+              <div className="flex items-center gap-2 rounded-[11px] border-[1.5px] border-[#F6C6C6] bg-[#FFF1F1] px-4 py-3">
+                <span className="flex-1 text-[13px] font-semibold text-[#C21414]">
+                  정말 결제를 취소하시겠어요? 결제된 금액은 환불됩니다.
+                </span>
+                <button
+                  type="button"
+                  disabled={cancelling}
+                  onClick={handleCancel}
+                  className="shrink-0 rounded-[9px] border-2 border-primary-dark bg-primary px-3 py-1.5 text-[12.5px] font-bold text-white disabled:opacity-60"
+                >
+                  {cancelling ? "취소 중..." : "취소하기"}
+                </button>
+                <button
+                  type="button"
+                  disabled={cancelling}
+                  onClick={() => setConfirmingCancel(false)}
+                  className="shrink-0 rounded-[9px] border border-[#DDDDE3] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#4B4B52]"
+                >
+                  돌아가기
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmingCancel(true)}
+                className="w-full rounded-[11px] border-[1.5px] border-[#DDDDE3] bg-white py-3 text-[14.5px] font-bold text-[#4B4B52] hover:border-primary hover:text-primary"
+              >
+                결제 취소
+              </button>
+            )}
           </div>
         </div>
       )}
