@@ -1,3 +1,5 @@
+import { ListingGrade } from "@/types/price";
+
 // com.pokade.domain.trade.entity.TradeStatus 미러링.
 export type TradeStatus =
   "PENDING" | "SHIPPED_TO_PLATFORM" | "INSPECTED" | "DELIVERED" | "COMPLETED" | "CANCELLED";
@@ -20,7 +22,11 @@ export interface TradeResponse {
   sellerId: number;
   cardId: number;
   cardName: string | null;
+  // 한글 매핑이 없으면 null(어설픈 오번역보다 안전하다는 팀 컨벤션, watchlist.ts와 동일).
+  // 표시할 땐 cardNameKo ?? cardName.
+  cardNameKo: string | null;
   cardImageUrl: string | null;
+  grade: ListingGrade | null;
   price: number;
   status: TradeStatus;
   shippedAt: string | null;
@@ -52,7 +58,11 @@ export interface MyTradeResponse {
   listingId: number;
   cardId: number;
   cardName: string | null;
+  // 한글 매핑이 없으면 null(어설픈 오번역보다 안전하다는 팀 컨벤션, watchlist.ts와 동일).
+  // 표시할 땐 cardNameKo ?? cardName.
+  cardNameKo: string | null;
   cardImageUrl: string | null;
+  grade: ListingGrade | null;
   price: number;
   status: TradeStatus;
   role: TradeRole;
