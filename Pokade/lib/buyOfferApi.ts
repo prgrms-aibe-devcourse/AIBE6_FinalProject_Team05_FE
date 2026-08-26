@@ -1,4 +1,4 @@
-import { apiGet, apiPatch, apiPost, PageResponse } from "@/lib/apiClient";
+import { apiDeleteData, apiGet, apiPatch, apiPost, PageResponse } from "@/lib/apiClient";
 import {
   BuyOfferReadyRequest,
   BuyOfferReadyResponse,
@@ -74,4 +74,10 @@ export async function updateBuyOfferRecipient(
   request: BuyOfferRecipientUpdateRequest,
 ): Promise<MyBuyOfferResponse> {
   return apiPatch<MyBuyOfferResponse>(`/api/buy-offers/${buyOfferId}`, request);
+}
+
+// DELETE /api/buy-offers/{id} — 결제 취소(인증 필요). ACTIVE 상태에서만 가능하며 그 외 상태면
+// 409(BUY_OFFER_ALREADY_MATCHED)가 온다. 토스 에스크로 결제취소·포인트 환불은 BE가 처리한다.
+export async function cancelBuyOffer(buyOfferId: number): Promise<MyBuyOfferResponse> {
+  return apiDeleteData<MyBuyOfferResponse>(`/api/buy-offers/${buyOfferId}`);
 }

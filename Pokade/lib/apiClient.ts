@@ -231,3 +231,9 @@ export async function apiDelete(path: string, body?: unknown): Promise<void> {
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 }
+
+// apiDelete와 달리 ApiResponse<T>의 data를 그대로 반환한다 — 구매입찰 취소처럼 삭제/취소 응답에
+// 갱신된 리소스(취소된 상태 등)가 함께 오는 경우용.
+export function apiDeleteData<T>(path: string, body?: unknown): Promise<T> {
+  return requestWrapped<T>("DELETE", path, body);
+}
